@@ -1,0 +1,279 @@
+# Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
+
+**Статус:** активная дорожная карта.
+**Текущая итерация:** 0 — bootstrap репозитория (завершена).
+**Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
+
+## 1. Границы и зафиксированные решения
+
+- `template/` — неизменяемый референс прежнего full-stack Next.js приложения. Его можно читать, искать и сравнивать с ним поведение, но нельзя редактировать, перемещать или использовать как рабочую часть нового приложения.
+- Новая система стартует **с чистой базы и чистой аутентификации**: production-окружения, пользователей, OAuth-связок и данных для миграции нет.
+- ASP.NET Core 10 владеет всеми маршрутами `/api/**`, бизнес-логикой, доступом к данным, аутентификацией и внешним API.
+- Next.js остаётся UI-приложением. После миграции он не содержит серверных действий, Prisma, Better Auth или прямого доступа к БД; он общается с API по REST.
+- Production будет одним контейнером приложения: Kestrel принимает внешний трафик, локально запущенный Next.js обслуживает UI, а reverse proxy в ASP.NET Core направляет не-API запросы во frontend.
+- Aspire применяется только для локальной разработки, интеграционных проверок и наблюдаемости. Он не является production-рантаймом и не заменяет Docker-образ с двумя процессами.
+- OpenSpec в корне только инициализирован. На этой итерации активные OpenSpec-изменения и спеки не создаются.
+
+## 2. Целевая архитектура
+
+```mermaid
+flowchart LR
+    B["Браузер"] --> K["ASP.NET Core / Kestrel :8080"]
+    K -->|"/api/**"| A["Template.Api\nREST · auth · domain"]
+    K -->|"все остальные пути"| P["YARP reverse proxy"]
+    P --> N["Next.js standalone\n127.0.0.1:3000"]
+    A --> DB[("PostgreSQL")]
+    A -. optional .-> R[("Redis / Valkey")]
+
+    DEV["Aspire AppHost (dev only)"] -. launches / observes .-> A
+    DEV -. launches / observes .-> N
+    DEV -. provisions .-> DB
+    DEV -. provisions .-> R
+```
+
+### Backend
+
+- **`Template.Domain`** — сущности, value objects, доменные правила и контракты без зависимостей от HTTP/EF Core.
+- **`Template.Application`** — use cases, команды/запросы, DTO и интерфейсы портов.
+- **`Template.Infrastructure`** — EF Core/PostgreSQL, Identity, OAuth-адаптеры, кэш, файловое хранилище и реализации портов.
+- **`Template.Api`** — minimal APIs или endpoint-модули, REST-политику, auth middleware, OpenAPI, health/readiness и reverse proxy.
+
+Зависимости направлены только внутрь: `Api → Application`, `Infrastructure → Application/Domain`, `Application → Domain`. Domain не зависит от остальных слоёв.
+
+### Frontend
+
+- Будущий код живёт в `apps/web` и сохраняет подход feature slices для UI.
+- Серверный рендеринг Next.js допустим только для представления UI; запросы данных идут к REST API через типизированный клиент.
+- Контракт API публикуется как OpenAPI. Из него генерируются TypeScript-типы/клиент в `contracts/` или внутри `apps/web`.
+- Browser использует один origin. Сессионная cookie остаётся `HttpOnly` и не читается JavaScript; frontend не хранит bearer-token в `localStorage`.
+
+## 3. Целевая структура репозитория
+
+```text
+.
+├── AGENTS.md                         # правила новой кодовой базы
+├── CLAUDE.md -> AGENTS.md             # единый набор инструкций для агентов
+├── Template.sln                       # корневой Rider/.NET entry point
+├── global.json                        # .NET 10 SDK baseline
+├── Directory.Build.props              # общие свойства C#-проектов
+├── Directory.Packages.props           # централизованные версии NuGet
+├── apps/
+│   ├── api/
+│   │   ├── src/
+│   │   │   ├── Template.Api/
+│   │   │   ├── Template.Application/
+│   │   │   ├── Template.Domain/
+│   │   │   └── Template.Infrastructure/
+│   │   └── tests/
+│   │       └── Template.Api.Tests/
+│   └── web/                           # создаётся как чистый Next.js UI в итерации 2
+├── contracts/
+│   └── openapi/                       # экспорт спецификаций и generation config
+├── deploy/                            # Docker, entrypoint, reverse-proxy конфигурация
+├── docs/
+│   └── aspnetcore-migration-plan.md   # этот документ
+├── openspec/                          # только инициализация на текущем этапе
+├── orchestration/                     # будущий Aspire AppHost и ServiceDefaults
+└── template/                          # immutable reference, не изменять
+```
+
+Префикс `Template` — техническое имя bootstrap-проектов. Если будет утверждено продуктовое имя, переименование solution и namespace делается отдельной малой итерацией до появления доменного кода.
+
+## 4. Общий протокол каждой будущей итерации
+
+Каждая строка из раздела 6 выполняется отдельной веткой/PR и заканчивается полностью проверяемым вертикальным срезом. Нельзя начинать перенос следующей предметной области только потому, что предыдущая «почти готова».
+
+### Definition of Ready
+
+Перед началом итерации исполнитель обязан:
+
+1. Найти в `template/` исходные routes, feature-модули, Server Actions/API handlers, Prisma-модели, тесты и пользовательские документы, относящиеся к срезу.
+2. Зафиксировать таблицу соответствий «reference → новый API → новый UI» в PR/плане итерации.
+3. Согласовать REST-контракт, права доступа, коды ошибок, pagination/filtering и необходимость транзакций до начала UI-работы.
+4. Определить, нужны ли schema migration, seed, cache invalidation, аудит и фоновые задачи.
+5. Выбрать проверяемые сценарии из `template/e2e/` и `template/test/`, которые должны быть воспроизведены в новом API/UI.
+
+### Definition of Done
+
+Итерация завершена только если:
+
+1. Новый код создан вне `template/`; reference не изменён.
+2. API имеет контракт, авторизацию и валидацию на границе HTTP, а бизнес-правила покрыты unit/integration тестами.
+3. OpenAPI обновлён, а TypeScript-клиент сгенерирован и использован UI без hand-written дублирования DTO.
+4. Соответствующий UI-сценарий работает через REST, не использует Server Actions/Prisma/Better Auth и имеет E2E-проверку.
+5. Обновлены документы пользователя, если изменился видимый сценарий, маршрут, разрешение или API.
+6. Пройдены `dotnet test`, сборка UI, contract checks и выбранные E2E-тесты; результаты приложены к PR.
+7. В migration register этой страницы отмечены перенесённые routes/сценарии и оставшиеся расхождения.
+
+## 5. Реестр исходного функционала
+
+| Исходная область в `template/` | Основные маршруты/контракты | Целевой срез |
+| --- | --- | --- |
+| `src/features/accounts`, Better Auth | `/auth/*`, `/user/*`, сессии, OAuth connections | Identity и account lifecycle |
+| `src/features/organizations`, `src/features/workspaces` | `/workspaces`, `/w/[organizationKey]/*`, роли, members | organizations, membership, teams, invitations |
+| `src/features/api-keys` | personal/organization API keys, `/api/v1/**` | machine API and API-key management |
+| `src/features/documents-system` | `/docs/**`, search, OG endpoint | public documentation and search |
+| `src/features/application`, `dashboard` | app shell, dashboard, theme, navigation | shared UI shell and dashboard |
+| `prisma/schema.prisma` | User, Session, Account, Verification, Organization, Member, Team, TeamMember, Invitation, ApiKey | EF Core schema, Identity, domain model |
+| `src/app/api/**`, `src/proxy.ts` | health, auth, local automation, v1 endpoints, route protection | API modules, auth policies, BFF/proxy rules |
+| `e2e/**`, `test/**` | reference behavior and acceptance evidence | new .NET, contract and Playwright test suites |
+
+## 6. Очередь итераций
+
+Порядок ниже определяет зависимости. Каждая итерация — самостоятельная поставка; оценка и детальный технический план уточняются только перед её началом.
+
+### Итерация 0 — Bootstrap репозитория **(сейчас)**
+
+**Цель:** создать безопасную стартовую точку, не мигрируя продуктовый функционал.
+
+**Состав:**
+
+- перенести прежнее содержимое репозитория в `template/` через Git rename;
+- создать новую корневую структуру и пустые будущие области;
+- создать .NET 10 solution и минимальный API с `GET /api/health`;
+- добавить единые инструкции агента, SDK/package conventions и этот документ;
+- инициализировать OpenSpec без активной спеки.
+
+**Вход:** repository с исходным Next.js template.
+**Выход:** `dotnet build Template.sln` и `dotnet test Template.sln` проходят; `template/` не менялся после переноса.
+**Не входит:** БД, authentication, Next.js UI, Docker, Aspire AppHost, перенесённые routes.
+
+### Итерация 1 — API foundation и контрактная дисциплина
+
+**Цель:** сделать API предсказуемой платформой до появления предметных endpoints.
+
+**Состав:** ProblemDetails/error envelope, validation pipeline, API versioning policy, endpoint modules, OpenAPI document, auth/authorization extension points, structured logging, correlation IDs, health/readiness, integration-test fixture.
+
+**Вход:** итерация 0.
+**Выход:** один демонстрационный protected/unprotected endpoint подтверждает единый формат ошибок и OpenAPI; API contract можно экспортировать и проверять в CI.
+**Зависимости:** нет продуктовых данных.
+
+### Итерация 2 — Чистый Next.js UI foundation
+
+**Цель:** отделить UI от бывшего full-stack Next.js runtime.
+
+**Состав:** новый `apps/web`, TypeScript/Tailwind/shadcn baseline, i18n/theme/navigation primitives, REST client generation from OpenAPI, error/loading conventions, browser E2E harness. UI показывает health/API-status только как технический smoke scenario.
+
+**Вход:** итерация 1.
+**Выход:** `apps/web` собирается standalone, использует только generated REST client для данных и проходит smoke test против API.
+**Не входит:** перенос страницы логина или продуктовых компонентов.
+
+### Итерация 3 — Persistence, Identity и базовая аутентификация
+
+**Цель:** заменить Prisma/Better Auth новым источником правды без переноса старых записей.
+
+**Состав:** PostgreSQL, EF Core migrations, ASP.NET Core Identity, схема пользователя/сессии, register/login/logout/current-user, HttpOnly same-origin cookie, antiforgery/CSRF policy, rate limits, пароль/verification policy, тестовые fixtures и local-only automation login.
+
+**Вход:** итерации 1–2; утвержденные DB connection/secrets conventions.
+**Выход:** чистый пользователь может зарегистрироваться, войти, выйти и получить текущую сессию через API и новый UI; старые Better Auth/Prisma записи не используются.
+**Отложено:** OAuth providers и account settings, если они не требуются для базового входа.
+
+### Итерация 4 — Accounts и внешний OAuth
+
+**Цель:** восстановить пользовательский lifecycle из `template/src/features/accounts`.
+
+**Состав:** profile update, password/security settings, active sessions and revoke, delete account, external provider connect/disconnect, OAuth provider priority agreed before implementation, account pages and matching E2E scenarios.
+
+**Вход:** итерация 3.
+**Выход:** функциональные сценарии `/user/*` воспроизведены через REST без Better Auth; security-sensitive paths имеют authorization и audit/telemetry coverage.
+**Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
+
+### Итерация 5 — Organizations, membership и onboarding
+
+**Цель:** перенести core workspace behavior с новыми явными domain boundaries.
+
+**Состав:** Organization, membership, roles/permissions, active organization context, create/update/delete organization, slug/key routing, zero-organization onboarding, users list, API and UI flows.
+
+**Вход:** итерация 3; решения о role model и organization identifiers.
+**Выход:** пользователь может создать/select organization и управлять членами в пределах разрешений; маршруты `/workspaces` и `/w/[organizationKey]/**` работают через API.
+**Reference:** `template/src/features/organizations`, `template/src/features/workspaces` (organization-related actions and repositories).
+
+### Итерация 6 — Teams и invitations
+
+**Цель:** восстановить collaboration workflows как отдельный вертикальный срез.
+
+**Состав:** teams, team membership, invitations, accept/reject lifecycle, role changes, invitation security/expiry, notifications/email adapter boundary, settings UI and E2E coverage.
+
+**Вход:** итерация 5.
+**Выход:** owner/admin может приглашать и управлять member/team composition с теми же видимыми правилами, что зафиксированы в reference tests.
+**Reference:** `template/src/features/workspaces/actions/*invitation*`, `*team*`, `template/e2e/specs/workspace-*`.
+
+### Итерация 7 — API keys и public `/api/v1`
+
+**Цель:** отделить machine-to-machine API от browser session и воспроизвести существующую внешнюю поверхность осознанно.
+
+**Состав:** secure key generation/storage/hash/reveal-once, scopes/permissions, personal and organization keys, revoke/rotate, API-key authentication handler, rate limiting/audit, versioned v1 endpoints, OpenAPI consumer documentation and contract tests.
+
+**Вход:** итерации 3, 5 и при необходимости 6.
+**Выход:** все поддерживаемые `/api/v1/**` scenarios проходят без cookie, а management UI работает через session-authenticated REST endpoints.
+**Reference:** `template/src/features/api-keys`, `template/src/app/api/v1/**`.
+
+### Итерация 8 — Public documentation system
+
+**Цель:** перенести documentation surface и поиск, не смешивая его с account/workspace доменом.
+
+**Состав:** MD/MDX content pipeline в `apps/web`, locale-aware rendering, documentation navigation, search API/indexing boundary, OG metadata route, publication state and link validation.
+
+**Вход:** итерация 2; решение, где хранятся и индексируются documents.
+**Выход:** `/docs/**` и public search воспроизводят нужные published страницы и локали; content validation включена в CI.
+**Reference:** `template/src/features/documents-system`, `template/src/app/(public)/(documents-system)/docs/**`.
+
+### Итерация 9 — Application shell, dashboard и frontend parity
+
+**Цель:** закончить общие UI composition patterns и удалить остаточные зависимости нового UI от reference assumptions.
+
+**Состав:** protected shell, sidebar, dashboard, settings navigation, responsive states, theme, localization messages, metadata, error/loading pages, route-by-route visual/behavioral parity review.
+
+**Вход:** итерации 4–8 для соответствующих data sources.
+**Выход:** все нужные UI routes работают с уже мигрированными API modules; нет Server Actions, Prisma или Better Auth в `apps/web`.
+**Reference:** `template/src/features/application`, `template/src/features/dashboard`, `template/src/messages/**`.
+
+### Итерация 10 — Aspire и локальная интеграционная среда
+
+**Цель:** ускорить разработку и сделать локальный distributed application наблюдаемым.
+
+**Состав:** `orchestration/` AppHost and ServiceDefaults, PostgreSQL/Redis resources, API and frontend launch wiring, OpenTelemetry dashboard, service discovery/configuration, local secrets and seeded developer data.
+
+**Вход:** independently runnable API, Next.js UI, PostgreSQL; Redis only if a migrated slice needs it.
+**Выход:** одна команда поднимает полный local stack с logs/traces/health. `AddNextJsApp` или custom executable integration выбирается после проверки актуальной версии Aspire и стабильности API.
+**Не входит:** production hosting through Aspire.
+
+### Итерация 11 — Один production container и reverse proxy
+
+**Цель:** реализовать обещанную topology без изменения клиентских URL.
+
+**Состав:** multi-stage Dockerfile, `next build` standalone output, Kestrel host, YARP rules (`/api/**` local, остальные пути → `127.0.0.1:3000`), process supervisor/entrypoint, signal handling, log streams, health/readiness probes, static assets and websocket/streaming validation.
+
+**Вход:** итерации 2, 3 и минимум один migrated protected UI slice.
+**Выход:** один image запускает оба процесса, браузер использует один origin, `/api/health` и UI probes стабильно работают, а test deployment проходит end-to-end suite.
+**Rollback:** предыдущий tagged image; DB changes выполняются backward-compatible миграциями из отдельных релизных шагов.
+
+### Итерация 12 — Parity audit, hardening и архивирование reference
+
+**Цель:** доказать product parity и принять отдельное решение о судьбе `template/`.
+
+**Состав:** route inventory reconciliation, API contract diff, permissions/security review, performance/load checks, accessibility/SEO review, backup/restore drill, documentation audit, license/dependency review, final E2E matrix.
+
+**Вход:** все выбранные feature slices и production topology.
+**Выход:** signed-off matrix не содержит необъяснённых gaps; только после этого отдельным решением `template/` может остаться как archive или быть удалён из рабочей ветки.
+**Важно:** эта итерация не удаляет `template/` автоматически.
+
+## 7. Контроль качества и безопасность
+
+- **Unit tests:** domain and application behavior; no HTTP/database unless the test is integration.
+- **Integration tests:** `WebApplicationFactory`, PostgreSQL test resource/containers, EF migrations, auth handlers and endpoint contracts.
+- **Contract tests:** OpenAPI validation plus generation check; breaking REST changes require explicit versioning/deprecation decision.
+- **E2E tests:** Playwright against the single-origin host; reference `template/e2e/specs/` supplies scenarios, but new tests are created outside `template/`.
+- **Security gates:** authorization by default, role/policy tests, antiforgery for cookie mutations, no browser bearer storage, secure API-key hashing, secret scanning, dependency updates.
+- **Data gates:** every persistent change has EF migration, rollback/compatibility note, index review and a test for tenant/organization isolation.
+
+## 8. Журнал выполнения
+
+| Итерация | Состояние | Примечание |
+| --- | --- | --- |
+| 0 — bootstrap | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился. |
+| 1–12 | Не начаты | Начинать только после закрытия предыдущих dependency gates. |
+
+## 9. Правило обновления этого документа
+
+Перед стартом очередной итерации уточняются только её scope, зависимости, risks и acceptance criteria. Изменение порядка или архитектурных решений фиксируется здесь отдельной записью с причиной; незавершённые задачи не «перепрыгивают» в следующую итерацию без явного решения.
