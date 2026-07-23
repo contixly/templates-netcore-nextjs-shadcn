@@ -17,6 +17,14 @@ internal sealed class CorrelationIdMiddleware(
 
         context.Items[ItemKey] = traceId;
         context.Response.Headers[HeaderName] = traceId;
+        context.Response.OnStarting(
+            static state =>
+            {
+                var (response, correlationId) = ((HttpResponse, string))state;
+                response.Headers[HeaderName] = correlationId;
+                return Task.CompletedTask;
+            },
+            (context.Response, traceId));
 
         using (logger.BeginScope(new Dictionary<string, object?> { ["TraceId"] = traceId }))
         {

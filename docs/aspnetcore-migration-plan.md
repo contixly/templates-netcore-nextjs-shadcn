@@ -287,7 +287,7 @@ configuration (`Directory.Packages.props`), `contracts/openapi` и докуме�
 | `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts` | `/api/health`, `/api/health/live`, `/api/health/ready` | N/A до итерации 2 | `HealthEndpointTests` |
 | `template/src/features/routes.ts`, `template/src/proxy.ts` | public status и protected authenticated probe | N/A | `SystemEndpointTests`, `ProblemDetailsTests` |
 | `template/src/lib/actions.ts`, `template/src/types/actions.ts`, API-key errors | `{ data }`, validation и RFC Problem Details | N/A | 400/401/403/404/405/500 и incompatible-`Accept` contract cases |
-| `template/src/lib/logger.ts` | `ILogger`, correlation scope, completion events | N/A | `ObservabilityTests` |
+| `template/src/lib/logger.ts` | `ILogger`, correlation scope, completion events | N/A | `ObservabilityTests`, including correlation parity for handled 400/500 exceptions |
 | reference API auth tests | cookie/policy extension points без API-key domain | N/A | test-only authentication and deny policy |
 | `template/prisma/schema.prisma` | schema отсутствует в scope | N/A | нет EF packages/migrations |
 
@@ -297,7 +297,7 @@ configuration (`Directory.Packages.props`), `contracts/openapi` и докуме�
 | --- | --- |
 | `dotnet restore Template.sln` | PASS |
 | `dotnet build Template.sln --no-restore` | PASS |
-| `dotnet test Template.sln --no-restore` | PASS; 33/33 tests |
+| `dotnet test Template.sln --no-restore` | PASS; 35/35 tests |
 | OpenAPI export with `-p:OpenApiGenerateDocuments=true` | PASS; deterministic `contracts/openapi/v1.json` |
 | OpenAPI semantic drift test | PASS |
 | `git diff --exit-code -- contracts/openapi/v1.json` after second export | PASS |

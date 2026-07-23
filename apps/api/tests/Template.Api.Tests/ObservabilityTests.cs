@@ -10,6 +10,13 @@ namespace Template.Api.Tests;
 public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     : IClassFixture<ApiWebApplicationFactory>
 {
+    public static TheoryData<string, HttpStatusCode> HandledExceptionCases =>
+        new()
+        {
+            { "/api/testing/bad-request", HttpStatusCode.BadRequest },
+            { "/api/testing/fault", HttpStatusCode.InternalServerError },
+        };
+
     [Fact]
     public async Task AcceptedCorrelationIdMatchesHeaderProblemAndLogScope()
     {
@@ -56,6 +63,30 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
         var actual = response.Headers.GetValues(CorrelationIdMiddleware.HeaderName).Single();
         Assert.NotEqual("invalid value with spaces", actual);
         Assert.NotEmpty(actual);
+    }
+
+    [Theory]
+    [MemberData(nameof(HandledExceptionCases))]
+    public async Task HandledExceptionsPreserveCorrelationHeader(
+        string uri,
+        HttpStatusCode expectedStatus)
+    {
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add(
+            CorrelationIdMiddleware.HeaderName,
+            "exception.trace-123");
+
+        using var response = await client.GetAsync(
+            uri,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedStatus, response.StatusCode);
+        Assert.Equal(
+            "exception.trace-123",
+            response.Headers.GetValues(CorrelationIdMiddleware.HeaderName).Single());
+        var problem = await response.Content.ReadFromJsonAsync<ProblemTrace>(
+            TestContext.Current.CancellationToken);
+        Assert.Equal("exception.trace-123", problem!.TraceId);
     }
 
     [Fact]

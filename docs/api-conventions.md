@@ -70,7 +70,9 @@ not participate in liveness.
 `X-Correlation-ID` is accepted only when it contains exactly one non-empty value
 that is 1–64 characters and restricted to ASCII letters, digits, `.`, `_`, or
 `-`. Invalid input is ignored. The canonical value appears in the response
-header, Problem Details `traceId`, and the `TraceId` logging scope.
+header, Problem Details `traceId`, and the `TraceId` logging scope. The response
+header is restored immediately before headers are sent, so handled exceptions
+that reset the response preserve the same correlation value.
 
 Completion logs contain method, path without query, status, elapsed milliseconds,
 and trace scope. Bodies, query values, cookies, and credential headers are not

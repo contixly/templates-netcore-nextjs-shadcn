@@ -300,7 +300,7 @@ API принимает `X-Correlation-ID`, если значение:
 
 Некорректное значение игнорируется, чтобы observability metadata не ломала корректный business request. При отсутствии допустимого значения используется текущий framework trace identifier.
 
-Одно каноническое значение возвращается в `X-Correlation-ID`, записывается в `ProblemDetails.traceId` и добавляется в logging scope как `TraceId`.
+Одно каноническое значение возвращается в `X-Correlation-ID`, записывается в `ProblemDetails.traceId` и добавляется в logging scope как `TraceId`. Middleware повторно устанавливает response header через `OnStarting`, поэтому очистка response при обработке исключений не нарушает эту корреляцию.
 
 Request completion log содержит:
 
