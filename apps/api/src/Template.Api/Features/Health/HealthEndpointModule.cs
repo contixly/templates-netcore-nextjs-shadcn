@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Template.Api.Contracts;
 using Template.Api.Endpoints;
+using Template.Api.OpenApi;
 
 namespace Template.Api.Features.Health;
 
@@ -27,8 +28,10 @@ internal sealed class HealthEndpointModule : IEndpointModule
                         cancellationToken))
             .AllowAnonymous()
             .WithName("GetLiveness")
+            .WithSummary("Reports whether the API process can answer requests.")
             .Produces<ApiResponse<HealthResponse>>()
-            .Produces<ApiResponse<HealthResponse>>(StatusCodes.Status503ServiceUnavailable);
+            .Produces<ApiResponse<HealthResponse>>(StatusCodes.Status503ServiceUnavailable)
+            .ProducesPublicApiProblems();
     }
 
     private static void MapReady(
@@ -48,8 +51,10 @@ internal sealed class HealthEndpointModule : IEndpointModule
                         cancellationToken))
             .AllowAnonymous()
             .WithName(operationName)
+            .WithSummary("Reports whether the API is ready to receive traffic.")
             .Produces<ApiResponse<HealthResponse>>()
-            .Produces<ApiResponse<HealthResponse>>(StatusCodes.Status503ServiceUnavailable);
+            .Produces<ApiResponse<HealthResponse>>(StatusCodes.Status503ServiceUnavailable)
+            .ProducesPublicApiProblems();
     }
 
     private static async Task<IResult> Evaluate(

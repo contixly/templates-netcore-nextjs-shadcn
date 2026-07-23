@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Template.Api.Authentication;
 using Template.Api.Contracts;
 using Template.Api.Endpoints;
+using Template.Api.OpenApi;
 
 namespace Template.Api.Features.System;
 
@@ -28,12 +29,19 @@ internal sealed class SystemEndpointModule : IEndpointModule
                             timeProvider.GetUtcNow(),
                             echo))))
             .AllowAnonymous()
-            .WithName("GetSystemStatus");
+            .WithName("GetSystemStatus")
+            .WithSummary("Returns API status and echoes a validated optional value.")
+            .Produces<ApiResponse<SystemStatusResponse>>()
+            .ProducesValidationProblem()
+            .ProducesPublicApiProblems();
 
         group.MapGet(
                 "/authenticated",
                 () => TypedResults.Ok(new ApiResponse<AuthenticatedResponse>(
                     new AuthenticatedResponse("authenticated"))))
-            .WithName("GetAuthenticatedStatus");
+            .WithName("GetAuthenticatedStatus")
+            .WithSummary("Confirms that cookie authentication and authorization succeeded.")
+            .Produces<ApiResponse<AuthenticatedResponse>>()
+            .ProducesProtectedApiProblems();
     }
 }
