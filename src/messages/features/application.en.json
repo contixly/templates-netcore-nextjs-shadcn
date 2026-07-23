@@ -1,0 +1,122 @@
+{
+  "pages": {
+    "home": {
+      "title": "Home",
+      "description": "A Next.js template with organization-backed workspaces, API keys, invitations, email-domain restrictions, member roles, shared settings surfaces, and reusable product scaffolding.",
+      "openGraph": {
+        "title": "Home",
+        "description": "A template application with organization-backed workspace and collaboration flows."
+      },
+      "heroBadge": "Organization-ready template",
+      "heroTitlePrefix": "Workspace collaboration for",
+      "heroTitleEmphasis": "your next service",
+      "heroDescription": "This template now includes Better Auth organizations, slug-aware workspace routing, member directories, API keys, public documentation, domain-aware invitation flows, and role-aware settings so you can start from a real multi-tenant foundation.",
+      "heroSourceTitle": "Open-source template repository",
+      "heroSourceDescription": "Review the implementation, fork the template, or start from contixly/templates-nextjs-shadcn on GitHub.",
+      "heroSourceCta": "Open GitHub repo",
+      "heroSecurity": "OAuth login, API keys, verified invitation acceptance, domain restrictions, role-aware permissions",
+      "featuresTitle": "Organization and workspace flows are included",
+      "featuresDescription": "The branch now ships the core collaboration surface most SaaS products need before domain-specific features begin.",
+      "extensionsBadge": "Management surfaces",
+      "extensionsTitle": "Workspace administration is ready to extend",
+      "extensionsDescription": "Dedicated settings pages, invitation handling, team management, and role-aware controls give product teams concrete places to add billing, custom roles, or audit trails.",
+      "stackTitle": "Built with",
+      "ctaTitle": "Start from here",
+      "ctaDescription": "Create a workspace, invite collaborators, assign roles, and shape the app around your domain.",
+      "footer": "© 2026 Application Template. All rights reserved.",
+      "logoAlt": "Application template logo",
+      "featureBlocks": {
+        "routing": {
+          "badge": "Included",
+          "title": "Organization-scoped routing",
+          "description": "Global dashboard entry resolves active or deterministic fallback organization context and redirects into slug-preferred workspace URLs."
+        },
+        "actions": {
+          "badge": "Included",
+          "title": "Protected workspace actions",
+          "description": "Create, update, delete, and switch workspace mutations use protected server actions with validation and cache invalidation."
+        },
+        "database": {
+          "badge": "Included",
+          "title": "Organization-backed data model",
+          "description": "Prisma models now include organizations, members, invitations, active organization sessions, indexes, and repository cache tags."
+        },
+        "auth": {
+          "badge": "Included",
+          "title": "Better Auth organizations",
+          "description": "Workspaces preserve the product language while using Better Auth organization APIs for membership and permission checks."
+        },
+        "features": {
+          "badge": "Included",
+          "title": "Domain-aware invitations",
+          "description": "Admins can restrict invitations to allowed email domains, users can accept or reject valid invites, and zero-workspace onboarding stays actionable."
+        },
+        "ui": {
+          "badge": "Included",
+          "title": "Settings and member management",
+          "description": "Workspace settings include general settings, allowed email domains, user lists, direct member adds, role edits, invitations, Better Auth Teams, and a placeholder section for roles."
+        },
+        "apiKeys": {
+          "badge": "Included",
+          "title": "Personal and organization API keys",
+          "description": "Personal keys act as the owning user, organization keys act for a workspace, and key-only /api/v1 routes enforce explicit scopes."
+        },
+        "docs": {
+          "badge": "Included",
+          "title": "Public documentation center",
+          "description": "The /docs section publishes localized Markdown and MDX pages with navigation, search, release notes, changelogs, and template usage guidance."
+        }
+      },
+      "extensionBlocks": {
+        "clients": {
+          "title": "Workspace settings sections",
+          "description": "Extend the settings shell with billing, domain policies, audit logs, team-scoped resources, or other organization-level controls."
+        },
+        "webhooks": {
+          "title": "Invitation lifecycle",
+          "description": "Build on pending, accepted, rejected, canceled, expired, and domain-restricted invitation states with email delivery or notifications."
+        },
+        "storage": {
+          "title": "Role-aware permissions",
+          "description": "The owner, admin, and member model can evolve into custom roles while keeping assignment rules centralized."
+        }
+      }
+    },
+    "welcome": {
+      "title": "Welcome",
+      "description": "Your account has been created. Here’s what this template includes.",
+      "includedTitle": "What is included",
+      "includedDescription": "Same overview as the public landing page — edit copy in template-landing-content.ts.",
+      "stepsTitle": "Get started in 3 steps",
+      "steps": {
+        "explore": {
+          "title": "Open your workspace",
+          "description": "Use the workspace switcher in the sidebar to find your current workspace."
+        },
+        "customize": {
+          "title": "Customize the codebase",
+          "description": "Add your domain models, routes under src/app/, and feature modules under src/features/."
+        },
+        "ship": {
+          "title": "Ship",
+          "description": "Deploy with your hosting provider and iterate — this template is only the foundation."
+        }
+      }
+    }
+  },
+  "ui": {
+    "homeCta": {
+      "primary": "Get Started",
+      "openDashboard": "Open dashboard",
+      "title": "Ready to continue?",
+      "description": "The template is ready. Open the dashboard and adapt it to your own service."
+    },
+    "navigation": {
+      "dashboard": "Dashboard",
+      "documentation": "Documentation",
+      "getHelp": "Get Help",
+      "goToDashboard": "Go to dashboard",
+      "getStarted": "Get Started"
+    }
+  }
+}

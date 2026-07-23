@@ -1,0 +1,52 @@
+import commonEn from "@messages/common.en.json";
+import accountsEn from "@messages/features/accounts.en.json";
+import workspacesEn from "@messages/features/workspaces.en.json";
+import apiKeysEn from "@messages/features/api-keys.en.json";
+import applicationEn from "@messages/features/application.en.json";
+import dashboardEn from "@messages/features/dashboard.en.json";
+import documentsSystemEn from "@messages/features/documents-system.en.json";
+import { AppLocale, resolveAppLocale } from "@/src/i18n/config";
+
+export type I18nMessages = {
+  common: typeof commonEn;
+  accounts: typeof accountsEn;
+  workspaces: typeof workspacesEn;
+  apiKeys: typeof apiKeysEn;
+  application: typeof applicationEn;
+  dashboard: typeof dashboardEn;
+  documentsSystem: typeof documentsSystemEn;
+};
+
+export const loadMessages = async (locale: AppLocale): Promise<I18nMessages> => {
+  const [common, accounts, workspaces, apiKeys, application, dashboard, documentsSystem] =
+    await Promise.all([
+      import(`../messages/common.${locale}.json`).then((module) => module.default),
+      import(`../messages/features/accounts.${locale}.json`).then((module) => module.default),
+      import(`../messages/features/workspaces.${locale}.json`).then((module) => module.default),
+      import(`../messages/features/api-keys.${locale}.json`).then((module) => module.default),
+      import(`../messages/features/application.${locale}.json`).then((module) => module.default),
+      import(`../messages/features/dashboard.${locale}.json`).then((module) => module.default),
+      import(`../messages/features/documents-system.${locale}.json`).then(
+        (module) => module.default
+      ),
+    ]);
+
+  return {
+    common,
+    accounts,
+    workspaces,
+    apiKeys,
+    application,
+    dashboard,
+    documentsSystem,
+  };
+};
+
+export const loadI18nMessagesConfig = async (requestLocale?: AppLocale | null) => {
+  const locale = resolveAppLocale(requestLocale);
+
+  return {
+    locale,
+    messages: await loadMessages(locale),
+  };
+};

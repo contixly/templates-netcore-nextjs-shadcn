@@ -1,0 +1,107 @@
+import "server-only";
+
+import { API_KEY_ORGANIZATION_CONFIG_ID } from "@lib/api-key-config";
+import prisma from "@server/prisma";
+
+export const findSoleMemberOrganizationIdsForUser = async (userId: string) => {
+  const organizations = await prisma.organization.findMany({
+    where: {
+      members: {
+        some: {
+          userId,
+        },
+      },
+    },
+    select: {
+      id: true,
+      _count: {
+        select: {
+          members: true,
+        },
+      },
+    },
+  });
+
+  return organizations
+    .filter((organization) => organization._count.members === 1)
+    .map((organization) => organization.id);
+};
+
+export const deleteSoleMemberOrganizationsForUser = async (
+  userId: string,
+  organizationIds: string[]
+) => {
+  if (organizationIds.length === 0) {
+    return { count: 0 };
+  }
+
+  return prisma.organization.deleteMany({
+    where: {
+      id: {
+        in: organizationIds,
+      },
+      members: {
+        some: {
+          userId,
+        },
+        every: {
+          userId,
+        },
+      },
+    },
+  });
+};
+
+export const deleteMemberlessOrganizationsByIds = async (organizationIds: string[]) => {
+  if (organizationIds.length === 0) {
+    return { count: 0 };
+  }
+
+  return prisma.$transaction(async (transaction) => {
+    const memberlessOrganizations = await transaction.organization.findMany({
+      where: {
+        id: {
+          in: organizationIds,
+        },
+        members: {
+          none: {},
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const deletedOrganizationIds: string[] = [];
+
+    for (const organization of memberlessOrganizations) {
+      const deletedOrganization = await transaction.organization.deleteMany({
+        where: {
+          id: organization.id,
+          members: {
+            none: {},
+          },
+        },
+      });
+
+      if (deletedOrganization.count > 0) {
+        deletedOrganizationIds.push(organization.id);
+      }
+    }
+
+    if (deletedOrganizationIds.length === 0) {
+      return { count: 0 };
+    }
+
+    await transaction.apiKey.deleteMany({
+      where: {
+        configId: API_KEY_ORGANIZATION_CONFIG_ID,
+        referenceId: {
+          in: deletedOrganizationIds,
+        },
+      },
+    });
+
+    return { count: deletedOrganizationIds.length };
+  });
+};

@@ -1,0 +1,60 @@
+export const WORKSPACE_ERROR_KEYS = {
+  nameRequired: "validation.errors.nameRequired",
+  nameTooLong: "validation.errors.nameTooLong",
+  nameInvalidCharacters: "validation.errors.nameInvalidCharacters",
+  nameUnchanged: "validation.errors.nameUnchanged",
+  duplicateName: "validation.errors.duplicateName",
+  duplicateSlug: "validation.errors.duplicateSlug",
+  updatePermissionDenied: "validation.errors.updatePermissionDenied",
+  allowedEmailDomainInvalid: "validation.errors.allowedEmailDomainInvalid",
+  confirmationRequired: "validation.errors.confirmationRequired",
+  confirmationMismatch: "validation.errors.confirmationMismatch",
+  atLeastOneWorkspace: "validation.errors.atLeastOneWorkspace",
+  deletePermissionDenied: "validation.errors.deletePermissionDenied",
+  invitationEmailRequired: "validation.errors.invitationEmailRequired",
+  invitationEmailInvalid: "validation.errors.invitationEmailInvalid",
+  invitationAlreadyExists: "validation.errors.invitationAlreadyExists",
+  invitationRecipientAlreadyMember: "validation.errors.invitationRecipientAlreadyMember",
+  invitationDomainRestricted: "validation.errors.invitationDomainRestricted",
+  invitationPermissionDenied: "validation.errors.invitationPermissionDenied",
+  invitationNotFound: "validation.errors.invitationNotFound",
+  invitationNotPending: "validation.errors.invitationNotPending",
+  invitationExpired: "validation.errors.invitationExpired",
+  invitationRecipientMismatch: "validation.errors.invitationRecipientMismatch",
+  invitationEmailVerificationRequired: "validation.errors.invitationEmailVerificationRequired",
+  invitationAlreadyMember: "validation.errors.invitationAlreadyMember",
+  invitationTeamInvalid: "validation.errors.invitationTeamInvalid",
+  memberIdRequired: "validation.errors.memberIdRequired",
+  memberNotFound: "validation.errors.memberNotFound",
+  memberAlreadyExists: "validation.errors.memberAlreadyExists",
+  memberPermissionDenied: "validation.errors.memberPermissionDenied",
+  memberRoleUpdatePermissionDenied: "validation.errors.memberRoleUpdatePermissionDenied",
+  memberRoleUpdateDenied: "validation.errors.memberRoleUpdateDenied",
+  memberRoleUnchanged: "validation.errors.memberRoleUnchanged",
+  workspaceRoleInvalid: "validation.errors.workspaceRoleInvalid",
+  workspaceRolePermissionDenied: "validation.errors.workspaceRolePermissionDenied",
+  teamNameRequired: "validation.errors.teamNameRequired",
+  teamNameTooLong: "validation.errors.teamNameTooLong",
+  teamNameInvalidCharacters: "validation.errors.teamNameInvalidCharacters",
+  teamNameUnchanged: "validation.errors.teamNameUnchanged",
+  teamDuplicateName: "validation.errors.teamDuplicateName",
+  teamNotFound: "validation.errors.teamNotFound",
+  teamPermissionDenied: "validation.errors.teamPermissionDenied",
+  teamMemberPermissionDenied: "validation.errors.teamMemberPermissionDenied",
+  teamMemberNotFound: "validation.errors.teamMemberNotFound",
+  teamMemberAlreadyExists: "validation.errors.teamMemberAlreadyExists",
+  teamMemberCrossWorkspace: "validation.errors.teamMemberCrossWorkspace",
+} as const;
+
+const WORKSPACE_ERROR_KEY_SET = new Set<string>(Object.values(WORKSPACE_ERROR_KEYS));
+
+export const translateWorkspaceErrorMessage = (
+  message: string | undefined,
+  tAny: (key: string, options?: object) => string
+) => {
+  if (!message) {
+    return undefined;
+  }
+
+  return WORKSPACE_ERROR_KEY_SET.has(message) ? tAny(message) : message;
+};

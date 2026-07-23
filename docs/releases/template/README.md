@@ -1,0 +1,21 @@
+# Releases
+
+This directory stores text versions of release notes for published template versions.
+
+## Available releases
+
+- [v0.0.11](0.0.11.md) - Public documentation system release with localized
+  Markdown/MDX content, `/docs` navigation, documentation search, release and changelog pages, and
+  OpenSpec-backed documents-system requirements
+- [v0.0.10](0.0.10.md) - E2E coverage and automation reliability release with expanded
+  OpenSpec-backed Playwright specs, shared E2E helpers, serial Playwright runs, local automation
+  session-cache controls, and workspace/API key runtime fixes
+- [v0.0.9](0.0.9.md) - API key management release with personal and organization keys, scoped `/api/v1` access, permission presets, rate limits, OpenSpec specs, and Playwright coverage
+- [v0.0.8](0.0.8.md) - Local automation and Playwright E2E release with local-only Better Auth automation login, scenario cleanup, browser smoke tests, and invitation policy hooks
+- [v0.0.7](0.0.7.md) - Distributed caching release with optional Redis/Valkey-backed Next.js cache handlers, workspace streaming skeletons, and configured-only social login providers
+- [v0.0.6](0.0.6.md) - Better Auth Teams release with workspace team management, team-targeted invitations, active team sessions, and team persistence
+- [v0.0.5](0.0.5.md) - Workspace email-domain restriction release with allowed domains, invitation enforcement, member warnings, and shadcn UI additions
+- [v0.0.4](0.0.4.md) - Security hardening release with response headers, safer auth redirects, protected action fixes, and invitation privacy
+- [v0.0.3](0.0.3.md) - Organization-backed workspace release with invitations, member roles, and settings surfaces
+- [v0.0.2](0.0.2.md) - Internationalization release with next-intl, localized metadata, and translated core flows
+- [v0.0.1](0.0.1.md) - Initial public release of the Next.js application template

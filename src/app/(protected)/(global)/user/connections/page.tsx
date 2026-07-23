@@ -1,0 +1,29 @@
+import type { Metadata } from "next";
+import React from "react";
+import { SettingsPageSection } from "@components/application/settings/settings-shell";
+import { UserConnections } from "@features/accounts/components/user-connections";
+import { loadCurrentUserAccounts } from "@features/accounts/accounts-actions";
+import { getFromCookie } from "@lib/cookies";
+import { LAST_LOGIN_METHOD_KEY } from "@lib/environment";
+import { buildPageMetadata } from "@lib/metadata";
+import accountsRoutes from "@features/accounts/accounts-routes";
+import { getConfiguredSocialProviderIds } from "@server/auth/social-providers";
+
+export const generateMetadata = async (): Promise<Metadata> =>
+  buildPageMetadata(accountsRoutes.pages.connections);
+
+export default async function ConnectionsPage() {
+  const loadCurrentUserAccountsPromise = loadCurrentUserAccounts();
+  const getLastLoginPromise = getFromCookie(LAST_LOGIN_METHOD_KEY);
+  const socialProviderIds = getConfiguredSocialProviderIds();
+
+  return (
+    <SettingsPageSection mode="readable">
+      <UserConnections
+        loadCurrentUserAccountsPromise={loadCurrentUserAccountsPromise}
+        getLastLoginPromise={getLastLoginPromise}
+        socialProviderIds={socialProviderIds}
+      />
+    </SettingsPageSection>
+  );
+}

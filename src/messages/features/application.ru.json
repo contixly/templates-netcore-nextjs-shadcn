@@ -1,0 +1,122 @@
+{
+  "pages": {
+    "home": {
+      "title": "Главная",
+      "description": "Next.js-шаблон с рабочими пространствами на базе организаций, API keys, публичной документацией, приглашениями, ограничениями по email-доменам, ролями участников, общими настройками и готовым продуктовым каркасом.",
+      "openGraph": {
+        "title": "Главная",
+        "description": "Шаблон приложения с рабочими пространствами и совместной работой на базе организаций."
+      },
+      "heroBadge": "Шаблон с организациями",
+      "heroTitlePrefix": "Совместная работа в workspace для",
+      "heroTitleEmphasis": "вашего следующего сервиса",
+      "heroDescription": "В шаблоне теперь есть Better Auth organizations, workspace-маршруты со slug, списки участников, API keys, публичная документация, приглашения с учетом доменной политики и настройки по ролям, чтобы начинать с полноценной multi-tenant основы.",
+      "heroSourceTitle": "Репозиторий шаблона на GitHub",
+      "heroSourceDescription": "Посмотрите реализацию, сделайте fork или создайте проект из contixly/templates-nextjs-shadcn.",
+      "heroSourceCta": "Открыть GitHub",
+      "heroSecurity": "OAuth-вход, API keys, проверка email для приглашений, доменные ограничения, permissions по ролям",
+      "featuresTitle": "Потоки организаций и workspace уже включены",
+      "featuresDescription": "Ветка поставляет базовый слой совместной работы, который нужен большинству SaaS-продуктов до добавления предметной логики.",
+      "extensionsBadge": "Поверхности управления",
+      "extensionsTitle": "Администрирование workspace готово к развитию",
+      "extensionsDescription": "Отдельные страницы настроек, обработка приглашений, управление командами и role-aware controls дают понятные места для биллинга, кастомных ролей или аудита.",
+      "stackTitle": "Построено на",
+      "ctaTitle": "Стартуйте отсюда",
+      "ctaDescription": "Создайте workspace, пригласите участников, назначьте роли и адаптируйте приложение под свою предметную область.",
+      "footer": "© 2026 Шаблон приложения. Все права защищены.",
+      "logoAlt": "Логотип шаблона приложения",
+      "featureBlocks": {
+        "routing": {
+          "badge": "Включено",
+          "title": "Маршруты в контексте организации",
+          "description": "Глобальный dashboard выбирает active или deterministic fallback organization context и ведет в workspace URL со slug."
+        },
+        "actions": {
+          "badge": "Включено",
+          "title": "Защищенные workspace actions",
+          "description": "Создание, обновление, удаление и переключение workspace используют protected server actions, валидацию и инвалидирование кэша."
+        },
+        "database": {
+          "badge": "Включено",
+          "title": "Модель данных на организациях",
+          "description": "В Prisma добавлены organizations, members, invitations, active organization в сессиях, индексы и repository cache tags."
+        },
+        "auth": {
+          "badge": "Включено",
+          "title": "Better Auth organizations",
+          "description": "В UI сохраняется термин workspace, а membership и permission checks выполняются через organization APIs Better Auth."
+        },
+        "features": {
+          "badge": "Включено",
+          "title": "Приглашения с доменной политикой",
+          "description": "Администраторы ограничивают приглашения разрешенными email-доменами, пользователи принимают или отклоняют валидные инвайты, а zero-workspace onboarding остается actionable."
+        },
+        "ui": {
+          "badge": "Включено",
+          "title": "Настройки и участники",
+          "description": "Workspace settings включают общие настройки, разрешенные email-домены, список пользователей, прямое добавление участников, смену ролей, приглашения, Better Auth Teams и заглушку Roles."
+        },
+        "apiKeys": {
+          "badge": "Включено",
+          "title": "Личные и организационные API keys",
+          "description": "Личные ключи действуют как владелец-пользователь, ключи организации — как workspace principal, а /api/v1 принимает только ключи и проверяет scopes."
+        },
+        "docs": {
+          "badge": "Включено",
+          "title": "Публичная документация",
+          "description": "Раздел /docs публикует страницы Markdown и MDX на русском и английском языках с навигацией, поиском, историей версий, еженедельными заметками и подсказками по использованию шаблона."
+        }
+      },
+      "extensionBlocks": {
+        "clients": {
+          "title": "Разделы настроек workspace",
+          "description": "Расширяйте settings shell биллингом, доменными политиками, аудитом, team-scoped ресурсами или другими organization-level controls."
+        },
+        "webhooks": {
+          "title": "Жизненный цикл приглашений",
+          "description": "Используйте статусы pending, accepted, rejected, canceled, expired и domain-restricted для email-доставки или уведомлений."
+        },
+        "storage": {
+          "title": "Permissions по ролям",
+          "description": "Модель owner, admin и member можно развить в кастомные роли, сохраняя правила назначения в одном месте."
+        }
+      }
+    },
+    "welcome": {
+      "title": "Добро пожаловать",
+      "description": "Ваш аккаунт создан. Вот что включает этот шаблон.",
+      "includedTitle": "Что включено",
+      "includedDescription": "Тот же обзор, что и на публичной landing page — редактируйте тексты в template-landing-content.ts.",
+      "stepsTitle": "Начните за 3 шага",
+      "steps": {
+        "explore": {
+          "title": "Откройте рабочее пространство",
+          "description": "Используйте переключатель в боковой панели, чтобы найти текущее рабочее пространство."
+        },
+        "customize": {
+          "title": "Настройте кодовую базу",
+          "description": "Добавляйте доменные модели, маршруты в src/app/ и feature-модули в src/features/."
+        },
+        "ship": {
+          "title": "Запускайте",
+          "description": "Разворачивайте у своего хостинг-провайдера и итеративно развивайте продукт — этот шаблон лишь фундамент."
+        }
+      }
+    }
+  },
+  "ui": {
+    "homeCta": {
+      "primary": "Начать",
+      "openDashboard": "Открыть дашборд",
+      "title": "Готовы продолжить?",
+      "description": "Шаблон готов. Откройте дашборд и адаптируйте его под свой сервис."
+    },
+    "navigation": {
+      "dashboard": "Дашборд",
+      "documentation": "Документация",
+      "getHelp": "Помощь",
+      "goToDashboard": "Перейти в дашборд",
+      "getStarted": "Начать"
+    }
+  }
+}
