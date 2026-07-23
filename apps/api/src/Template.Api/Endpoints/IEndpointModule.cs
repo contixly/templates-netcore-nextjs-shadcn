@@ -1,0 +1,6 @@
+namespace Template.Api.Endpoints;
+
+internal interface IEndpointModule
+{
+    void MapEndpoints(IEndpointRouteBuilder endpoints);
+}
