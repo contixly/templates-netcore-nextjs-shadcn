@@ -17,8 +17,14 @@ internal sealed class TestEndpointModule : IEndpointModule
 
         endpoints.MapGet("/api/testing/fault", ThrowFault)
             .ExcludeFromDescription();
+
+        endpoints.MapGet("/api/testing/bad-request", ThrowBadRequest)
+            .ExcludeFromDescription();
     }
 
     private static IResult ThrowFault() =>
         throw new InvalidOperationException("sensitive-database-message");
+
+    private static IResult ThrowBadRequest() =>
+        throw new BadHttpRequestException("test malformed request", StatusCodes.Status400BadRequest);
 }

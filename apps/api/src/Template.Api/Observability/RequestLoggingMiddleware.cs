@@ -18,6 +18,11 @@ internal sealed class RequestLoggingMiddleware(
             await next(context);
             statusCode = context.Response.StatusCode;
         }
+        catch (BadHttpRequestException exception)
+        {
+            statusCode = exception.StatusCode;
+            throw;
+        }
         catch
         {
             statusCode = StatusCodes.Status500InternalServerError;

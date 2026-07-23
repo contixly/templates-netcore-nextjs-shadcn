@@ -76,5 +76,28 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
                    log.Level == LogLevel.Debug);
     }
 
+    [Fact]
+    public async Task HandledBadRequestLogsFinalClientStatusAtWarning()
+    {
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/testing/bad-request",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var completion = Assert.Single(
+            logs.Logs,
+            log => log.State.TryGetValue(
+                "{OriginalFormat}",
+                out var format) &&
+                Equals(format, "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms"));
+        Assert.Equal("/api/testing/bad-request", completion.State["Path"]);
+        Assert.Equal(400, completion.State["StatusCode"]);
+        Assert.Equal(LogLevel.Warning, completion.Level);
+    }
+
     private sealed record ProblemTrace(string TraceId);
 }
