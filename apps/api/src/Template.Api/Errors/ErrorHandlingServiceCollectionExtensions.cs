@@ -6,6 +6,7 @@ internal static class ErrorHandlingServiceCollectionExtensions
     {
         services.AddProblemDetails(options =>
             options.CustomizeProblemDetails = ApiProblemDetailsDefaults.Customize);
+        services.AddSingleton<IProblemDetailsWriter, ApiProblemDetailsWriter>();
         services.AddExceptionHandler<ApiExceptionHandler>();
         return services;
     }

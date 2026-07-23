@@ -196,6 +196,11 @@ UI локализует ошибку по `code`, а не по invariant-English
 
 Stack traces, SQL, exception messages, secrets и другие внутренние детали клиенту не возвращаются. Unhandled exception логируется с trace ID и преобразуется в безопасный `500 internal_error`. Неизвестный `/api/**` route получает `404 not_found`, а известный route с неподдерживаемым методом — `405 method_not_allowed`.
 
+Problem Details являются обязательным API-контрактом, а не результатом
+content negotiation: несовместимый `Accept` header не подавляет и не заменяет
+`application/problem+json`. API-only fallback writer сохраняет тот же
+customization для validation, status-code и exception paths.
+
 Health `503` является осознанным исключением: endpoint возвращает typed health envelope со статусом `unhealthy`, а не Problem Details, потому что probe успешно описывает нездоровое состояние приложения.
 
 ### 6.5 Validation boundary
@@ -360,6 +365,7 @@ Dedicated export command генерирует deterministic contract. Integratio
 11. Captured request log содержит trace scope и не содержит sensitive input.
 12. OpenAPI содержит ожидаемые paths, schemas и cookie security requirements.
 13. Generated OpenAPI семантически совпадает с `contracts/openapi/v1.json`.
+14. Validation, status-code и exception failures сохраняют Problem Details при несовместимом `Accept`.
 
 Test authentication, policy probes и fault injection существуют только в test host. Они не добавляют production endpoints.
 

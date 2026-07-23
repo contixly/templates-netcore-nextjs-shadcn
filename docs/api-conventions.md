@@ -22,6 +22,9 @@ and messages from source keys that normalize to the same JSON path are merged.
 The initial codes are `invalid_request`, `validation_failed`, `unauthorized`,
 `forbidden`, `not_found`, `method_not_allowed`, and `internal_error`.
 
+The API error contract takes precedence over request content negotiation:
+an incompatible `Accept` header does not suppress or downgrade Problem Details.
+
 `type` is always `urn:template:problem:{code}`. Client code branches on `code`,
 not on invariant-English `title`, `detail`, or validation messages. API responses
 never expose stack traces, exception messages, SQL, secrets, cookies, or

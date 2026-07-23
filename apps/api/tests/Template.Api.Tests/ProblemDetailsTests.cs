@@ -22,6 +22,19 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
             { HttpMethod.Get, "/api/testing/fault", HttpStatusCode.InternalServerError, "internal_error" },
         };
 
+    public static TheoryData<string, HttpStatusCode, string> IncompatibleAcceptErrorCases =>
+        new()
+        {
+            {
+                "/api/v1/system/status?echo=" + new string('x', 65),
+                HttpStatusCode.BadRequest,
+                "validation_failed"
+            },
+            { "/api/v1/system/authenticated", HttpStatusCode.Unauthorized, "unauthorized" },
+            { "/api/does-not-exist", HttpStatusCode.NotFound, "not_found" },
+            { "/api/testing/fault", HttpStatusCode.InternalServerError, "internal_error" },
+        };
+
     [Theory]
     [MemberData(nameof(ErrorCases))]
     public async Task ApiFailuresUseStableProblemDetails(
@@ -46,6 +59,30 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
         Assert.Equal(expectedCode, problem.Code);
         Assert.Equal($"urn:template:problem:{expectedCode}", problem.Type);
         Assert.Equal(uri.Split('?', 2)[0], problem.Instance);
+        Assert.False(string.IsNullOrWhiteSpace(problem.TraceId));
+    }
+
+    [Theory]
+    [MemberData(nameof(IncompatibleAcceptErrorCases))]
+    public async Task ApiFailuresIgnoreIncompatibleAcceptHeader(
+        string uri,
+        HttpStatusCode expectedStatus,
+        string expectedCode)
+    {
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Accept.ParseAdd("text/plain");
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(expectedStatus, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        var problem = await response.Content.ReadFromJsonAsync<ApiProblem>(
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(problem);
+        Assert.Equal(expectedCode, problem.Code);
         Assert.False(string.IsNullOrWhiteSpace(problem.TraceId));
     }
 
