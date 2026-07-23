@@ -15,7 +15,9 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "jest",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "api:generate": "openapi-ts --file openapi-ts.config.ts",
+    "api:check": "node ./scripts/check-generated.mjs"
   },
   "dependencies": {
     "@tabler/icons-react": "3.45.0",

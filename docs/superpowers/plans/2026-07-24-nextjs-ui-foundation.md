@@ -1050,7 +1050,7 @@ Add these exact scripts to `package.json`:
 ```json
 {
   "scripts": {
-    "api:generate": "openapi-ts --config openapi-ts.config.ts",
+    "api:generate": "openapi-ts --file openapi-ts.config.ts",
     "api:check": "node ./scripts/check-generated.mjs"
   }
 }
