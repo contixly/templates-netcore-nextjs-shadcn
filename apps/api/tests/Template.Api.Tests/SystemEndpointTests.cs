@@ -60,6 +60,26 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task VersionedConsumerRoutesAreProtectedByDefault()
+    {
+        using var anonymousClient = factory.CreateClient();
+        using var anonymousResponse = await anonymousClient.GetAsync(
+            "/api/v1/testing/consumer",
+            TestContext.Current.CancellationToken);
+
+        using var authenticatedClient = factory.CreateClient();
+        authenticatedClient.DefaultRequestHeaders.Add(
+            TestAuthenticationHandler.UserHeaderName,
+            "user-1");
+        using var authenticatedResponse = await authenticatedClient.GetAsync(
+            "/api/v1/testing/consumer",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, authenticatedResponse.StatusCode);
+    }
+
+    [Fact]
     public void ProductionCookieUsesHostPrefixSecurityRequirements()
     {
         using var scope = factory.Services.CreateScope();

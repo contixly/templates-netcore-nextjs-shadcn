@@ -1,6 +1,5 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
-using Template.Api.Authentication;
 using Template.Api.Contracts;
 using Template.Api.Endpoints;
 using Template.Api.OpenApi;
@@ -9,10 +8,9 @@ namespace Template.Api.Features.System;
 
 internal sealed class SystemEndpointModule : IEndpointModule
 {
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    public void MapEndpoints(EndpointRouteContext context)
     {
-        var group = endpoints.MapGroup("/api/v1/system")
-            .RequireAuthorization(ApiPolicies.Authenticated);
+        var group = context.VersionedApi.MapGroup("/system");
 
         group.MapGet(
                 "/status",

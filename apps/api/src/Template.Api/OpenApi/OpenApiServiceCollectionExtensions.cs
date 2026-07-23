@@ -12,6 +12,7 @@ internal static class OpenApiServiceCollectionExtensions
         services.AddOpenApi(OpenApiDefaults.DocumentName, options =>
         {
             options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_1;
+            options.AddSchemaTransformer<ApiContractSchemaTransformer>();
             options.AddDocumentTransformer((document, _, _) =>
             {
                 document.Info.Title = "Template API";

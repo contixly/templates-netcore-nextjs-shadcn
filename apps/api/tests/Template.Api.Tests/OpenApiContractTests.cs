@@ -28,6 +28,8 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.NotNull(document["paths"]!["/api/v1/system/authenticated"]);
         Assert.Null(document["paths"]!["/api/testing/fault"]);
         Assert.Null(document["paths"]!["/api/testing/forbidden"]);
+        Assert.Null(document["paths"]!["/api/testing/nested-validation"]);
+        Assert.Null(document["paths"]!["/api/v1/testing/consumer"]);
     }
 
     [Fact]
@@ -44,6 +46,70 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Equal("__Host-template.session", scheme["name"]!.GetValue<string>());
         Assert.Null(document["paths"]!["/api/v1/system/status"]!["get"]!["security"]);
         Assert.NotNull(document["paths"]!["/api/v1/system/authenticated"]!["get"]!["security"]);
+    }
+
+    [Fact]
+    public async Task SuccessEnvelopeSchemasRequireNonNullData()
+    {
+        using var client = factory.CreateClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        var schemas = document["components"]!["schemas"]!.AsObject();
+        var envelopes = schemas
+            .Where(pair => pair.Key.StartsWith("ApiResponseOf", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.NotEmpty(envelopes);
+        foreach (var (name, schema) in envelopes)
+        {
+            Assert.Contains(
+                "data",
+                schema!["required"]!.AsArray().Select(item => item!.GetValue<string>()));
+            Assert.DoesNotContain(
+                "null",
+                EnumerateSchemaTypes(schema["properties"]!["data"]!));
+        }
+    }
+
+    [Fact]
+    public async Task StandardProblemSchemaRequiresWireInvariantFields()
+    {
+        using var client = factory.CreateClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        AssertRequiredNonNullProperties(
+            document["components"]!["schemas"]!["ProblemDetails"]!,
+            "type",
+            "title",
+            "status",
+            "detail",
+            "instance",
+            "code",
+            "traceId");
+    }
+
+    [Fact]
+    public async Task ValidationProblemSchemaRequiresWireInvariantFieldsAndErrors()
+    {
+        using var client = factory.CreateClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        AssertRequiredNonNullProperties(
+            document["components"]!["schemas"]!["HttpValidationProblemDetails"]!,
+            "type",
+            "title",
+            "status",
+            "detail",
+            "instance",
+            "code",
+            "traceId",
+            "errors");
     }
 
     [Fact]
@@ -90,5 +156,50 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         }
 
         throw new InvalidOperationException("Template.sln was not found above the test output directory.");
+    }
+
+    private static void AssertRequiredNonNullProperties(
+        JsonNode schema,
+        params string[] propertyNames)
+    {
+        var requiredNode = schema["required"];
+        Assert.NotNull(requiredNode);
+        var required = requiredNode.AsArray()
+            .Select(item => item!.GetValue<string>())
+            .ToArray();
+
+        foreach (var propertyName in propertyNames)
+        {
+            Assert.Contains(propertyName, required);
+            var property = schema["properties"]![propertyName];
+            Assert.NotNull(property);
+            Assert.DoesNotContain("null", EnumerateSchemaTypes(property));
+        }
+    }
+
+    private static IEnumerable<string> EnumerateSchemaTypes(JsonNode schema)
+    {
+        if (schema["type"] is JsonValue singleType)
+        {
+            yield return singleType.GetValue<string>();
+        }
+        else if (schema["type"] is JsonArray types)
+        {
+            foreach (var type in types)
+            {
+                yield return type!.GetValue<string>();
+            }
+        }
+
+        if (schema["oneOf"] is JsonArray alternatives)
+        {
+            foreach (var alternative in alternatives)
+            {
+                foreach (var type in EnumerateSchemaTypes(alternative!))
+                {
+                    yield return type;
+                }
+            }
+        }
     }
 }

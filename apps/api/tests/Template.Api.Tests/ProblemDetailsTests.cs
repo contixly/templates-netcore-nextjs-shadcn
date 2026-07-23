@@ -68,6 +68,27 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task NestedValidationKeysUseJsonPathsAndMergeCollisions()
+    {
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/testing/nested-validation",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationApiProblem>(
+            TestContext.Current.CancellationToken);
+        Assert.NotNull(problem);
+        Assert.True(problem.Errors.TryGetValue("address.postalCode", out var postalCodeMessages));
+        Assert.Equal(2, postalCodeMessages.Length);
+        Assert.Contains("Postal code is required.", postalCodeMessages);
+        Assert.Contains("Postal code has an invalid format.", postalCodeMessages);
+        Assert.True(problem.Errors.ContainsKey("contactInfo.emailAddress"));
+        Assert.DoesNotContain("address.PostalCode", problem.Errors.Keys);
+    }
+
+    [Fact]
     public async Task AuthenticatedPrincipalWithoutRequiredClaimGetsForbiddenProblem()
     {
         using var client = factory.CreateClient();

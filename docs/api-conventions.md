@@ -14,9 +14,11 @@ Successful JSON responses use a typed envelope:
 { "data": {} }
 ```
 
-API failures use `application/problem+json` with RFC Problem Details fields
-`type`, `title`, `status`, `detail`, and `instance`, plus stable `code` and
-`traceId`. Validation responses also contain a camelCase `errors` dictionary.
+API failures use `application/problem+json` with required non-null RFC Problem
+Details fields `type`, `title`, `status`, `detail`, and `instance`, plus required
+stable `code` and `traceId`. Validation responses also require an `errors`
+dictionary. Each segment of a dotted validation property path is camel-cased,
+and messages from source keys that normalize to the same JSON path are merged.
 The initial codes are `invalid_request`, `validation_failed`, `unauthorized`,
 `forbidden`, `not_found`, `method_not_allowed`, and `internal_error`.
 
@@ -31,8 +33,9 @@ Health `503` is a typed health result rather than a Problem Details failure.
 
 Minimal API binding and Data Annotations validate request DTOs and parameters at
 the HTTP boundary. Domain and application rules remain independent of HTTP
-validation. The `/api/v1` consumer group requires the named authenticated-user
-policy by default; public operations explicitly opt out with `AllowAnonymous`.
+validation. Endpoint composition creates one central `/api/v1` consumer group
+with the named authenticated-user policy and gives modules that group for
+consumer mappings; public operations explicitly opt out with `AllowAnonymous`.
 
 The iteration-1 cookie handler uses scheme `Template.Session` and cookie
 `__Host-template.session` with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`,
@@ -83,6 +86,10 @@ not expose a dynamic document or documentation UI.
 Cookie authentication is described as cookie `apiKey` scheme `cookieAuth` with
 name `__Host-template.session`. Protected operations carry its security
 requirement; anonymous operations do not.
+
+Success-envelope schemas require non-null `data`. Standard and validation
+Problem Details schemas publish the same required invariant fields that runtime
+customization always writes; validation additionally requires `errors`.
 
 Export and verify from the repository root:
 

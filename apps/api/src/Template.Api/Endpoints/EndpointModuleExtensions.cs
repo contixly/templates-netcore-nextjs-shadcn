@@ -1,3 +1,4 @@
+using Template.Api.Authentication;
 using Template.Api.Features.Health;
 using Template.Api.Features.System;
 
@@ -15,10 +16,15 @@ internal static class EndpointModuleExtensions
     internal static IEndpointRouteBuilder MapEndpointModules(
         this IEndpointRouteBuilder endpoints)
     {
+        var context = new EndpointRouteContext(
+            endpoints,
+            endpoints.MapGroup("/api/v1")
+                .RequireAuthorization(ApiPolicies.Authenticated));
+
         foreach (var module in endpoints.ServiceProvider
                      .GetRequiredService<IEnumerable<IEndpointModule>>())
         {
-            module.MapEndpoints(endpoints);
+            module.MapEndpoints(context);
         }
 
         return endpoints;

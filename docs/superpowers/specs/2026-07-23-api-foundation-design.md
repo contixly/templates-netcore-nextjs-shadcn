@@ -189,7 +189,10 @@ Endpoint возвращает конкретный typed envelope, чтобы Op
 - `method_not_allowed`;
 - `internal_error`.
 
-`type` всегда равен `urn:template:problem:{code}`. `errors` присутствует только для field-level validation и содержит camelCase field names со списками invariant-English сообщений. UI локализует ошибку по `code`, а не по тексту.
+`type` всегда равен `urn:template:problem:{code}`. `errors` присутствует только
+для field-level validation; каждый segment dotted property path преобразуется
+в camelCase, а сообщения коллизий после нормализации объединяются без потерь.
+UI локализует ошибку по `code`, а не по invariant-English тексту сообщений.
 
 Stack traces, SQL, exception messages, secrets и другие внутренние детали клиенту не возвращаются. Unhandled exception логируется с trace ID и преобразуется в безопасный `500 internal_error`. Неизвестный `/api/**` route получает `404 not_found`, а известный route с неподдерживаемым методом — `405 method_not_allowed`.
 

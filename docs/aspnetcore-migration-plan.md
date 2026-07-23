@@ -277,8 +277,9 @@ flowchart LR
 
 ## Acceptance evidence: итерация 1
 
-**Scope:** только `Template.Api`, `Template.Api.Tests`, `contracts/openapi` и
-документация. `Template.Domain`, `Template.Application`,
+**Scope:** только `Template.Api`, `Template.Api.Tests`, корневая dependency/build
+configuration (`Directory.Packages.props`), `contracts/openapi` и документация
+(включая корневой `AGENTS.md`). `Template.Domain`, `Template.Application`,
 `Template.Infrastructure`, `apps/web` и persistent schema не менялись.
 
 | Reference | Новый API | Новый UI | Test/evidence |
@@ -296,7 +297,7 @@ flowchart LR
 | --- | --- |
 | `dotnet restore Template.sln` | PASS |
 | `dotnet build Template.sln --no-restore` | PASS |
-| `dotnet test Template.sln --no-restore` | PASS; 24/24 tests |
+| `dotnet test Template.sln --no-restore` | PASS; 29/29 tests |
 | OpenAPI export with `-p:OpenApiGenerateDocuments=true` | PASS; deterministic `contracts/openapi/v1.json` |
 | OpenAPI semantic drift test | PASS |
 | `git diff --exit-code -- contracts/openapi/v1.json` after second export | PASS |

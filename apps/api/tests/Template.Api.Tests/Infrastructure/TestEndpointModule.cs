@@ -9,16 +9,29 @@ internal sealed class TestEndpointModule : IEndpointModule
 {
     internal const string ForbiddenPolicy = "Test.Forbidden";
 
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    public void MapEndpoints(EndpointRouteContext context)
     {
-        endpoints.MapGet("/api/testing/forbidden", () => Results.Ok())
+        context.Root.MapGet("/api/testing/forbidden", () => Results.Ok())
             .RequireAuthorization(ForbiddenPolicy)
             .ExcludeFromDescription();
 
-        endpoints.MapGet("/api/testing/fault", ThrowFault)
+        context.Root.MapGet("/api/testing/fault", ThrowFault)
             .ExcludeFromDescription();
 
-        endpoints.MapGet("/api/testing/bad-request", ThrowBadRequest)
+        context.Root.MapGet("/api/testing/bad-request", ThrowBadRequest)
+            .ExcludeFromDescription();
+
+        context.Root.MapGet(
+                "/api/testing/nested-validation",
+                () => Results.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["Address.PostalCode"] = ["Postal code is required."],
+                    ["address.PostalCode"] = ["Postal code has an invalid format."],
+                    ["ContactInfo.EmailAddress"] = ["Email address is invalid."]
+                }))
+            .ExcludeFromDescription();
+
+        context.VersionedApi.MapGet("/testing/consumer", () => Results.Ok())
             .ExcludeFromDescription();
     }
 

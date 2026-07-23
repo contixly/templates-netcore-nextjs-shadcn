@@ -7,11 +7,11 @@ namespace Template.Api.Features.Health;
 
 internal sealed class HealthEndpointModule : IEndpointModule
 {
-    public void MapEndpoints(IEndpointRouteBuilder endpoints)
+    public void MapEndpoints(EndpointRouteContext context)
     {
-        MapReady(endpoints, "/api/health", "GetHealth");
-        MapLive(endpoints);
-        MapReady(endpoints, "/api/health/ready", "GetReadiness");
+        MapReady(context.Root, "/api/health", "GetHealth");
+        MapLive(context.Root);
+        MapReady(context.Root, "/api/health/ready", "GetReadiness");
     }
 
     private static void MapLive(IEndpointRouteBuilder endpoints)

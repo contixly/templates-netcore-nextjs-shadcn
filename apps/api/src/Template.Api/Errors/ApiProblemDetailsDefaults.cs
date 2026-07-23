@@ -24,15 +24,26 @@ internal static class ApiProblemDetailsDefaults
 
         if (problem is HttpValidationProblemDetails validation)
         {
-            var normalized = validation.Errors
-                .Select(pair => new KeyValuePair<string, string[]>(
-                    JsonNamingPolicy.CamelCase.ConvertName(pair.Key),
-                    pair.Value))
-                .ToArray();
-            validation.Errors.Clear();
-            foreach (var pair in normalized)
+            var normalized = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            foreach (var (key, messages) in validation.Errors)
             {
-                validation.Errors[pair.Key] = pair.Value;
+                var normalizedKey = string.Join(
+                    '.',
+                    key.Split('.')
+                        .Select(JsonNamingPolicy.CamelCase.ConvertName));
+                if (!normalized.TryGetValue(normalizedKey, out var mergedMessages))
+                {
+                    mergedMessages = [];
+                    normalized[normalizedKey] = mergedMessages;
+                }
+
+                mergedMessages.AddRange(messages);
+            }
+
+            validation.Errors.Clear();
+            foreach (var (key, messages) in normalized)
+            {
+                validation.Errors[key] = [.. messages];
             }
         }
     }

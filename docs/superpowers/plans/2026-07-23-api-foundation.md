@@ -1247,6 +1247,7 @@ git commit -m "feat(api): add live and ready health probes"
 - Create: `apps/api/tests/Template.Api.Tests/Infrastructure/CapturedLogProvider.cs`
 - Create: `apps/api/tests/Template.Api.Tests/ObservabilityTests.cs`
 - Modify: `apps/api/tests/Template.Api.Tests/Infrastructure/ApiWebApplicationFactory.cs`
+- Modify: `apps/api/tests/Template.Api.Tests/Infrastructure/TestEndpointModule.cs`
 - Modify: `apps/api/src/Template.Api/Program.cs`
 - Modify: `apps/api/src/Template.Api/appsettings.json`
 - Modify: `apps/api/src/Template.Api/appsettings.Development.json`
@@ -1346,6 +1347,19 @@ internal sealed class CapturedLogProvider : ILoggerProvider, ISupportExternalSco
 }
 ```
 
+Extend `TestEndpointModule` with a malformed-request probe that preserves the
+status carried by `BadHttpRequestException`:
+
+```csharp
+endpoints.MapGet("/api/testing/bad-request", ThrowBadRequest)
+    .ExcludeFromDescription();
+
+private static IResult ThrowBadRequest() =>
+    throw new BadHttpRequestException(
+        "test malformed request",
+        StatusCodes.Status400BadRequest);
+```
+
 Create `ObservabilityTests.cs`:
 
 ```csharp
@@ -1423,6 +1437,31 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
             logs.Logs,
             log => log.Category.EndsWith(nameof(RequestLoggingMiddleware), StringComparison.Ordinal) &&
                    log.Level == LogLevel.Debug);
+    }
+
+    [Fact]
+    public async Task HandledBadRequestLogsFinalClientStatusAtWarning()
+    {
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+        using var client = factory.CreateClient();
+
+        using var response = await client.GetAsync(
+            "/api/testing/bad-request",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var completion = Assert.Single(
+            logs.Logs,
+            log => log.State.TryGetValue(
+                "{OriginalFormat}",
+                out var format) &&
+                Equals(
+                    format,
+                    "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms"));
+        Assert.Equal("/api/testing/bad-request", completion.State["Path"]);
+        Assert.Equal(400, completion.State["StatusCode"]);
+        Assert.Equal(LogLevel.Warning, completion.Level);
     }
 
     private sealed record ProblemTrace(string TraceId);
@@ -1510,6 +1549,11 @@ internal sealed class RequestLoggingMiddleware(
             await next(context);
             statusCode = context.Response.StatusCode;
         }
+        catch (BadHttpRequestException exception)
+        {
+            statusCode = exception.StatusCode;
+            throw;
+        }
         catch
         {
             statusCode = StatusCodes.Status500InternalServerError;
@@ -1558,7 +1602,10 @@ api.UseStatusCodePages();
 api.UseMiddleware<RequestLoggingMiddleware>();
 ```
 
-This order keeps the completion event inside the correlation scope. The middleware records `500` before rethrowing; the outer exception handler writes the safe response.
+This order keeps the completion event inside the correlation scope. The
+middleware records `BadHttpRequestException.StatusCode` for malformed client
+requests and `500` for unexpected exceptions before rethrowing; the outer
+exception handler writes the safe response.
 
 - [ ] **Step 4: Configure console formatters with scopes**
 
@@ -2376,7 +2423,8 @@ git commit -m "docs: close API foundation iteration"
 
 **Files:**
 - Modify only if a verification failure proves a defect: files owned by Tasks 1–6.
-- Verify only: `Template.sln`, `contracts/openapi/v1.json`, `template/`, and git status.
+- Verify only: `Template.sln`, root dependency/build configuration,
+  `contracts/openapi/v1.json`, `template/`, and git status.
 
 **Interfaces:**
 - Consumes: the complete iteration-1 implementation.
@@ -2427,11 +2475,14 @@ Expected: no `template/` diff; `git diff --check` exits `0`; status contains onl
 Run:
 
 ```bash
-git diff --stat HEAD~6..HEAD
-git log --oneline --decorate -8
+git diff --stat 59bb8e6..HEAD
+git log --oneline --decorate 59bb8e6..HEAD
 ```
 
-Expected: changes are limited to `Template.Api`, `Template.Api.Tests`, OpenAPI contract, and documentation; no Domain/Application/Infrastructure/UI/reference implementation appears.
+Expected: the complete range from the recorded iteration-0 base is limited to
+`Template.Api`, `Template.Api.Tests`, root dependency/build configuration such
+as `Directory.Packages.props`, the OpenAPI contract, and documentation; no
+Domain/Application/Infrastructure/UI/reference implementation appears.
 
 - [ ] **Step 5: Commit any evidence correction caused by actual command output**
 
