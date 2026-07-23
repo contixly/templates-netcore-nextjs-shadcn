@@ -1,3 +1,4 @@
+using Template.Api.Features.Health;
 using Template.Api.Features.System;
 
 namespace Template.Api.Endpoints;
@@ -6,6 +7,7 @@ internal static class EndpointModuleExtensions
 {
     internal static IServiceCollection AddEndpointModules(this IServiceCollection services)
     {
+        services.AddSingleton<IEndpointModule, HealthEndpointModule>();
         services.AddSingleton<IEndpointModule, SystemEndpointModule>();
         return services;
     }

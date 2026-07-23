@@ -25,7 +25,6 @@ app.UseWhen(
 
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapHealthChecks("/api/health").AllowAnonymous();
 app.MapEndpointModules();
 
 app.Run();
