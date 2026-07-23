@@ -42,6 +42,7 @@ account/workspace server loaders и зависит от Better Auth. Ни одн
 
 - [Next.js installation](https://nextjs.org/docs/app/getting-started/installation);
 - [Cache Components](https://nextjs.org/docs/app/api-reference/config/next-config-js/cacheComponents);
+- [`connection()`](https://nextjs.org/docs/app/api-reference/functions/connection);
 - [`use cache`](https://nextjs.org/docs/app/api-reference/directives/use-cache);
 - [external rewrites](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites);
 - [standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output);
@@ -61,8 +62,8 @@ account/workspace server loaders и зависит от Better Auth. Ни одн
 ### Входит
 
 - новый `apps/web` на Next.js App Router и React;
-- Node.js 22 or newer (the code generator's minimum), strict TypeScript, npm
-  lockfile, ESLint, Prettier and typecheck;
+- Node.js 22.18 or newer (the code generator's exact minimum), strict
+  TypeScript, npm lockfile, ESLint, Prettier and typecheck;
 - Tailwind CSS 4 and a minimal shadcn baseline matching the reference design
   direction: `radix-lyra`, neutral tokens, CSS variables, Tabler icons and
   square radius;
@@ -99,7 +100,7 @@ account/workspace server loaders и зависит от Better Auth. Ни одн
 ### Toolchain baseline
 
 The design-date baseline is Node.js 24 (with `engines.node` accepting supported
-Node.js 22+), Next.js `16.2.11`, React/React DOM `19.2.8`, next-intl `4.13.4`,
+Node.js 22.18+), Next.js `16.2.11`, React/React DOM `19.2.8`, next-intl `4.13.4`,
 next-themes `0.4.6`, Tailwind CSS `4.3.3` and shadcn `4.14.1`. The committed
 `package-lock.json` is the reproducibility authority. Any compatibility-driven
 deviation discovered from installed package documentation is documented before
@@ -174,18 +175,23 @@ No handwritten interface duplicates an OpenAPI DTO.
 
 ## 7. Generated client discipline
 
-The selected approach uses the current exact releases
-`@hey-api/openapi-ts@0.99.0` and `@hey-api/client-fetch@0.13.1`. The SDK plugin is
-configured as `@hey-api/sdk` in the generator configuration. Because the
-generator is pre-1.0, every codegen/runtime package is exact-pinned and upgrades
-are explicit.
+The selected approach uses the current exact release
+`@hey-api/openapi-ts@0.99.0`. Its generator configuration selects the bundled
+`@hey-api/client-fetch` plugin and `@hey-api/sdk`; these are plugin identifiers,
+not separately installed runtime packages. A compatibility probe against the
+committed OpenAPI contract confirmed that the generated Fetch client is
+self-contained. The standalone npm package `@hey-api/client-fetch@0.13.1` is
+deprecated and therefore is not installed. Because the generator is pre-1.0,
+the codegen package and its TypeScript peer are exact-pinned and upgrades are
+explicit.
 
 - Input: repository `contracts/openapi/v1.json`.
 - Output: `apps/web/src/lib/api/generated/`.
 - Output: generated types, Fetch runtime and flat tree-shakeable SDK functions.
 - Generated files are committed and carry generated-file headers.
 - `api:generate` regenerates the output.
-- `api:check` regenerates and fails when the output has a Git diff.
+- `api:check` snapshots the committed output, regenerates, and fails on any
+  byte-level tree difference; CI therefore rejects generated contract drift.
 - Lint/format configuration does not rewrite generated files.
 - Application data access imports generated SDK operations, not raw `fetch`.
 
@@ -245,8 +251,10 @@ compiled into a `NEXT_PUBLIC_*` variable.
 ## 9. Cache Components, locale, theme and navigation
 
 `cacheComponents` remains enabled. The status server component is under a
-`Suspense` boundary and performs an uncached runtime request, so `next build`
-does not require a running API.
+`Suspense` boundary, calls Next.js `connection()` before reading runtime API
+configuration, and performs an uncached runtime request. This prevents a
+missing build-time `API_INTERNAL_BASE_URL` result from being frozen into static
+HTML and lets `next build` complete without a running API.
 
 Locale is deliberately static for a deployment because dynamic localization is
 not used with the chosen Cache Components strategy:
@@ -255,6 +263,8 @@ not used with the chosen Cache Components strategy:
 - `PUBLIC_DEFAULT_LOCALE` selects the deployment language;
 - build and runtime use the same value; changing the language requires a new
   build/restart rather than request-time revalidation;
+- next-intl uses the fixed `UTC` time zone in server configuration and the
+  client provider, avoiding machine-dependent environment fallback;
 - missing or invalid values fall back to `en`, matching reference behavior;
 - routes have no locale prefix;
 - cookies, `Accept-Language` and user settings do not select locale;
@@ -264,9 +274,12 @@ Only foundation namespaces are copied. Product message bundles move with their
 own later feature slices.
 
 The theme provider preserves system/light/dark behavior. Before hydration the
-switcher renders stable disabled markup with an accessible label. The minimal
-header contains branding/root navigation and the theme switch only; product
-links and authenticated navigation remain out of scope.
+switcher renders stable disabled markup with an accessible label. Slot-bearing
+Radix Button/Badge primitives are explicit Client Components because the
+installed Radix runtime creates React context; Card/Skeleton remain
+server-compatible. The minimal header contains branding/root navigation and the
+theme switch only; product links and authenticated navigation remain out of
+scope.
 
 ## 10. Status composition and error handling
 
