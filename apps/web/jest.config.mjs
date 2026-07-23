@@ -6,6 +6,7 @@ export default createJestConfig({
   coverageProvider: "v8",
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "^server-only$": "<rootDir>/test/support/server-only.ts",
   },
   modulePathIgnorePatterns: ["<rootDir>/.next/"],
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
