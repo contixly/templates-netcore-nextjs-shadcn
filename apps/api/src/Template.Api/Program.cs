@@ -21,6 +21,7 @@ app.UseWhen(
         api.UseMiddleware<CorrelationIdMiddleware>();
         api.UseExceptionHandler();
         api.UseStatusCodePages();
+        api.UseMiddleware<RequestLoggingMiddleware>();
     });
 
 app.UseAuthentication();
