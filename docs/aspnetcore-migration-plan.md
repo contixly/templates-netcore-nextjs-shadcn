@@ -1,7 +1,7 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 0 — bootstrap репозитория (завершена).
+**Текущая итерация:** 1 — API foundation и контрактная дисциплина (завершена 2026-07-23).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -272,7 +272,47 @@ flowchart LR
 | Итерация | Состояние | Примечание |
 | --- | --- | --- |
 | 0 — bootstrap | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился. |
-| 1–12 | Не начаты | Начинать только после закрытия предыдущих dependency gates. |
+| 1 — API foundation | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты. |
+| 2–12 | Не начаты | Следующий dependency gate — чистый Next.js UI foundation, generated REST client и browser smoke без переноса auth/product domain. |
+
+## Acceptance evidence: итерация 1
+
+**Scope:** только `Template.Api`, `Template.Api.Tests`, `contracts/openapi` и
+документация. `Template.Domain`, `Template.Application`,
+`Template.Infrastructure`, `apps/web` и persistent schema не менялись.
+
+| Reference | Новый API | Новый UI | Test/evidence |
+| --- | --- | --- | --- |
+| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts` | `/api/health`, `/api/health/live`, `/api/health/ready` | N/A до итерации 2 | `HealthEndpointTests` |
+| `template/src/features/routes.ts`, `template/src/proxy.ts` | public status и protected authenticated probe | N/A | `SystemEndpointTests`, `ProblemDetailsTests` |
+| `template/src/lib/actions.ts`, `template/src/types/actions.ts`, API-key errors | `{ data }`, validation и RFC Problem Details | N/A | 400/401/403/404/405/500 contract cases |
+| `template/src/lib/logger.ts` | `ILogger`, correlation scope, completion events | N/A | `ObservabilityTests` |
+| reference API auth tests | cookie/policy extension points без API-key domain | N/A | test-only authentication and deny policy |
+| `template/prisma/schema.prisma` | schema отсутствует в scope | N/A | нет EF packages/migrations |
+
+**Проверки 2026-07-23:**
+
+| Команда | Результат |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS |
+| `dotnet build Template.sln --no-restore` | PASS |
+| `dotnet test Template.sln --no-restore` | PASS; 24/24 tests |
+| OpenAPI export with `-p:OpenApiGenerateDocuments=true` | PASS; deterministic `contracts/openapi/v1.json` |
+| OpenAPI semantic drift test | PASS |
+| `git diff --exit-code -- contracts/openapi/v1.json` after second export | PASS |
+| `git diff -- template/` | empty |
+| UI build / Playwright E2E | N/A: `apps/web` starts in iteration 2 |
+
+**Известные расхождения с reference:** ошибки используют RFC Problem Details
+вместо `{ "error": ... }`; health использует `{ "data": ... }`; live/ready,
+system probes, correlation ID и OpenAPI являются новой foundation surface.
+Product routes, user session projection and UI parity intentionally remain
+outside iteration 1.
+
+**Следующий gate:** iteration 2 may consume `/api/v1/system/status` and the
+committed OpenAPI document. Identity, issuing the cookie, and
+`GET /api/v1/auth/session` remain blocked on iteration 3; no iteration-2 code
+may simulate them with browser bearer storage or direct database access.
 
 ## 9. Правило обновления этого документа
 
