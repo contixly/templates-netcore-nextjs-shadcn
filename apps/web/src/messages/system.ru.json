@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "title": "Состояние системы Template",
+    "description": "Проверка REST-связи из браузера и с сервера"
+  },
+  "page": {
+    "eyebrow": "Итерация миграции 2",
+    "title": "REST-соединение",
+    "description": "Один generated SDK вызывает ASP.NET Core при серверном рендеринге и из браузера."
+  },
+  "status": {
+    "ssrTitle": "Состояние API при серверном рендеринге",
+    "browserTitle": "Состояние API в браузере",
+    "source": "Источник",
+    "sourceSsr": "Сервер Next.js",
+    "sourceBrowser": "Браузер",
+    "state": "Состояние",
+    "apiVersion": "Версия API",
+    "timestamp": "Время",
+    "echo": "Эхо",
+    "loading": "Проверяем состояние API",
+    "success": "API доступен",
+    "traceId": "Идентификатор трассировки: {traceId}",
+    "errors": {
+      "validationFailed": "Запрос отклонён.",
+      "invalidRequest": "Запрос некорректен.",
+      "notFound": "Endpoint API не найден.",
+      "methodNotAllowed": "Метод API не разрешён.",
+      "internalError": "API не смог выполнить запрос.",
+      "genericProblem": "API вернул ошибку.",
+      "network": "API недоступен.",
+      "configuration": "Внутренний адрес API не настроен."
+    }
+  },
+  "boundaries": {
+    "loading": "Загружаем страницу",
+    "routeTitle": "Произошла ошибка",
+    "routeDescription": "Не удалось безопасно отобразить страницу.",
+    "notFoundTitle": "Страница не найдена",
+    "notFoundDescription": "Запрошенный маршрут не существует."
+  }
+}

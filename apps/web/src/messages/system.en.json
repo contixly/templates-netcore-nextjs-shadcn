@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "title": "Template system status",
+    "description": "Browser and server REST connectivity smoke test"
+  },
+  "page": {
+    "eyebrow": "Migration iteration 2",
+    "title": "REST connectivity",
+    "description": "The same generated SDK calls ASP.NET Core from server rendering and from the browser."
+  },
+  "status": {
+    "ssrTitle": "Server-rendered API status",
+    "browserTitle": "Browser API status",
+    "source": "Source",
+    "sourceSsr": "Next.js server",
+    "sourceBrowser": "Browser",
+    "state": "Status",
+    "apiVersion": "API version",
+    "timestamp": "Timestamp",
+    "echo": "Echo",
+    "loading": "Checking API status",
+    "success": "API is available",
+    "traceId": "Trace ID: {traceId}",
+    "errors": {
+      "validationFailed": "The request was rejected.",
+      "invalidRequest": "The request is invalid.",
+      "notFound": "The API endpoint was not found.",
+      "methodNotAllowed": "The API method is not allowed.",
+      "internalError": "The API could not complete the request.",
+      "genericProblem": "The API returned an error.",
+      "network": "The API is unavailable.",
+      "configuration": "The server API address is not configured."
+    }
+  },
+  "boundaries": {
+    "loading": "Loading page",
+    "routeTitle": "Something went wrong",
+    "routeDescription": "The page could not be rendered safely.",
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "The requested route does not exist."
+  }
+}
