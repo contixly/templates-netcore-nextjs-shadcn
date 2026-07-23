@@ -14,5 +14,11 @@ internal sealed class TestEndpointModule : IEndpointModule
         endpoints.MapGet("/api/testing/forbidden", () => Results.Ok())
             .RequireAuthorization(ForbiddenPolicy)
             .ExcludeFromDescription();
+
+        endpoints.MapGet("/api/testing/fault", ThrowFault)
+            .ExcludeFromDescription();
     }
+
+    private static IResult ThrowFault() =>
+        throw new InvalidOperationException("sensitive-database-message");
 }
