@@ -4,7 +4,7 @@ import {
   isAppLocale,
   resolveAppLocale,
 } from "@/src/i18n/config";
-import { loadMessages } from "@/src/i18n/messages";
+import { loadI18nMessagesConfig, loadMessages } from "@/src/i18n/messages";
 
 describe("fixed deployment locale", () => {
   it.each([
@@ -34,5 +34,25 @@ describe("fixed deployment locale", () => {
     expect(Object.keys(russian.common)).toEqual(Object.keys(english.common));
     expect(Object.keys(russian.system)).toEqual(Object.keys(english.system));
     expect(russian.system.page.title).not.toBe(english.system.page.title);
+  });
+
+  it("loads the Russian deployment bundle and fixed UTC time zone", async () => {
+    const originalLocale = process.env.PUBLIC_DEFAULT_LOCALE;
+
+    process.env.PUBLIC_DEFAULT_LOCALE = "ru";
+
+    try {
+      const config = await loadI18nMessagesConfig();
+
+      expect(config.locale).toBe("ru");
+      expect(config.timeZone).toBe("UTC");
+      expect(config.messages.system.page.title).toBe("REST-соединение");
+    } finally {
+      if (originalLocale === undefined) {
+        delete process.env.PUBLIC_DEFAULT_LOCALE;
+      } else {
+        process.env.PUBLIC_DEFAULT_LOCALE = originalLocale;
+      }
+    }
   });
 });
