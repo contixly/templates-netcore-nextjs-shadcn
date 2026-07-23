@@ -3,8 +3,8 @@ import type { ReactElement, ReactNode } from "react";
 import RootLayout, { generateMetadata } from "@/src/app/layout";
 import type { I18nMessages } from "@/src/i18n/messages";
 
-jest.mock("next-intl", () => ({
-  NextIntlClientProvider: "next-intl-client-provider",
+jest.mock("@/src/components/application/app-providers", () => ({
+  AppProviders: "app-providers",
 }));
 
 function asElement<Props extends object>(node: ReactNode): ReactElement<Props> {
@@ -52,7 +52,7 @@ describe("RootLayout", () => {
     expect(html.type).toBe("html");
     expect(html.props.lang).toBe("ru");
     expect(body.type).toBe("body");
-    expect(provider.type).toBe("next-intl-client-provider");
+    expect(provider.type).toBe("app-providers");
     expect(provider.props.locale).toBe("ru");
     expect(provider.props.timeZone).toBe("UTC");
     expect(provider.props.messages.system.page.title).toBe("REST-соединение");

@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
 
 import "@/src/app/globals.css";
+import { AppProviders } from "@/src/components/application/app-providers";
+import { SiteHeader } from "@/src/components/application/site-header";
 import { loadI18nMessagesConfig } from "@/src/i18n/messages";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,15 +21,12 @@ export default async function RootLayout({
   const { locale, messages, timeZone } = await loadI18nMessagesConfig();
 
   return (
-    <html lang={locale}>
+    <html lang={locale} suppressHydrationWarning>
       <body>
-        <NextIntlClientProvider
-          locale={locale}
-          messages={messages}
-          timeZone={timeZone}
-        >
+        <AppProviders locale={locale} messages={messages} timeZone={timeZone}>
+          <SiteHeader />
           {children}
-        </NextIntlClientProvider>
+        </AppProviders>
       </body>
     </html>
   );
