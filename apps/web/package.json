@@ -17,7 +17,10 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "api:generate": "openapi-ts --file openapi-ts.config.ts",
-    "api:check": "node ./scripts/check-generated.mjs"
+    "api:check": "node ./scripts/check-generated.mjs",
+    "boundaries:check": "node ./scripts/check-boundaries.mjs",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@tabler/icons-react": "3.45.0",
