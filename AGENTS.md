@@ -6,6 +6,7 @@
 - Start any future migration slice with [`docs/aspnetcore-migration-plan.md`](docs/aspnetcore-migration-plan.md), then update its iteration register and acceptance evidence.
 - This repository starts from a clean database and identity store. Do not design data or session migration from `template/`.
 - OpenSpec is initialized only. Do not create an active OpenSpec change/spec unless the user explicitly asks for it.
+- Whenever work establishes a forward-looking architecture, API-contract, security, or migration decision, record it in the appropriate file under `docs/` in the same change. Do not leave durable decisions only in chat, commits, or PR discussion.
 
 ## Target layout
 
