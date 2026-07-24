@@ -91,6 +91,11 @@ public sealed class HealthEndpointTests(ApiWebApplicationFactory factory)
             "/api/v1/auth/session",
             TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, authenticated.StatusCode);
+        var session = await authenticated.Content.ReadFromJsonAsync<SessionEnvelope>(
+            TestContext.Current.CancellationToken);
+        Assert.True(session!.Data.Authenticated);
+        Assert.True(ticketStore.TotalRetrieveAttempts > 0);
+        var retrieveAttemptsBeforeFailure = ticketStore.TotalRetrieveAttempts;
 
         ticketStore.FailRetrieval = true;
         using var live = await client.GetAsync(
@@ -102,15 +107,19 @@ public sealed class HealthEndpointTests(ApiWebApplicationFactory factory)
             TestContext.Current.CancellationToken);
         Assert.Equal("healthy", payload!.Data.Status);
         Assert.Equal(0, ticketStore.RetrieveAttemptsAfterFailure);
+        Assert.Equal(retrieveAttemptsBeforeFailure, ticketStore.TotalRetrieveAttempts);
     }
 
     private sealed record HealthEnvelope(HealthData Data);
     private sealed record HealthData(string Status, DateTimeOffset Timestamp);
+    private sealed record SessionEnvelope(SessionData Data);
+    private sealed record SessionData(bool Authenticated);
 
     private sealed class FailingRetrieveTicketStore : ITicketStore
     {
         internal ITicketStore Inner { private get; set; } = null!;
         internal bool FailRetrieval { private get; set; }
+        internal int TotalRetrieveAttempts { get; private set; }
         internal int RetrieveAttemptsAfterFailure { get; private set; }
 
         public Task<string> StoreAsync(AuthenticationTicket ticket) =>
@@ -182,6 +191,7 @@ public sealed class HealthEndpointTests(ApiWebApplicationFactory factory)
 
         private void ThrowIfUnavailable()
         {
+            TotalRetrieveAttempts++;
             if (!FailRetrieval)
             {
                 return;

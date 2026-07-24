@@ -77,8 +77,9 @@ existing request cookie cannot be replayed as the newly issued cookie. Both
 schemes share the ticket-store format and Data Protection purpose. Only the
 primary cookie contract is advertised as `cookieAuth`; the issuer is internal,
 and no Bearer or API-key scheme exists at runtime. The default authenticate
-selector normally forwards to the primary cookie scheme; only the exact
-liveness path uses a process-only no-result handler.
+selector normally forwards to the primary cookie scheme; only the canonical
+liveness path and its route-equivalent trailing-slash form use a process-only
+no-result handler.
 
 Next.js SSR session reads send `X-Template-Session-Renewal: suppress`, preventing
 an invisible persisted-ticket renewal whose `Set-Cookie` cannot reach the

@@ -50,7 +50,8 @@ manager, while both schemes share the persistent ticket-store format and Data
 Protection purpose. This prevents an existing request cookie from being read as
 the replacement during credential changes and key rotation. The default
 authentication selector forwards ordinary requests to the primary scheme and
-forwards only the exact liveness path to a process-only no-result handler.
+forwards only the canonical liveness path and its route-equivalent
+trailing-slash form to a process-only no-result handler.
 Authorization policies still name the primary scheme; the selector and
 process-only handler accept no credentials and are not consumer auth schemes.
 
