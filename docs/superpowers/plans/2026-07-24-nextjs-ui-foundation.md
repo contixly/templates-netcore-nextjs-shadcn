@@ -3752,7 +3752,9 @@ test("SSR and browser use the API through their supported paths", async ({
   const request = await browserRequest;
   expect(new URL(request.url()).origin).toBe(webOrigin);
 
-  const serverRegion = page.getByTestId("status-ssr");
+  const serverRegion = page
+    .getByTestId("status-ssr")
+    .filter({ hasText: "API is available" });
   await expect(serverRegion).toContainText("API is available");
   await expect(serverRegion).toContainText("API version");
   await expect(serverRegion).toContainText("ssr");
