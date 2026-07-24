@@ -1,0 +1,15 @@
+{
+  "brand": "Template",
+  "navigation": {
+    "home": "Главная"
+  },
+  "actions": {
+    "home": "Вернуться на главную",
+    "retry": "Повторить"
+  },
+  "theme": {
+    "toggle": "Переключить тему",
+    "switchToDark": "Включить тёмную тему",
+    "switchToLight": "Включить светлую тему"
+  }
+}

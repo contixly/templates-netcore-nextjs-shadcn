@@ -24,3 +24,4 @@ aspire-output/
 # IDE and Finder metadata
 .idea/
 .DS_Store
+.superpowers/

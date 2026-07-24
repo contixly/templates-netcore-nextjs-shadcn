@@ -1,0 +1,15 @@
+{
+  "brand": "Template",
+  "navigation": {
+    "home": "Home"
+  },
+  "actions": {
+    "home": "Return home",
+    "retry": "Retry"
+  },
+  "theme": {
+    "toggle": "Toggle theme",
+    "switchToDark": "Switch to dark theme",
+    "switchToLight": "Switch to light theme"
+  }
+}

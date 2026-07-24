@@ -1,7 +1,7 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 1 — API foundation и контрактная дисциплина (завершена 2026-07-23).
+**Текущая итерация:** 2 — чистый Next.js UI foundation (завершена 2026-07-24).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -273,7 +273,8 @@ flowchart LR
 | --- | --- | --- |
 | 0 — bootstrap | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился. |
 | 1 — API foundation | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты. |
-| 2–12 | Не начаты | Следующий dependency gate — чистый Next.js UI foundation, generated REST client и browser smoke без переноса auth/product domain. |
+| 2 — чистый Next.js UI foundation | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты. |
+| 3–12 | Не начаты | Следующий dependency gate — PostgreSQL, EF Core, Identity и базовая cookie authentication без переноса старых данных. |
 
 ## Acceptance evidence: итерация 1
 
@@ -314,6 +315,85 @@ outside iteration 1.
 committed OpenAPI document. Identity, issuing the cookie, and
 `GET /api/v1/auth/session` remain blocked on iteration 3; no iteration-2 code
 may simulate them with browser bearer storage or direct database access.
+
+## Acceptance evidence: итерация 2
+
+**Scope:** `apps/web`, `docs/web-conventions.md`, design
+`docs/superpowers/specs/2026-07-23-nextjs-ui-foundation-design.md`, plan
+`docs/superpowers/plans/2026-07-24-nextjs-ui-foundation.md`, этот migration plan
+и реестр итераций. API source, persistent schema и `template/` не менялись.
+Committed OpenAPI contract и generated SDK остались byte-identical после
+экспорта и регенерации.
+
+| Reference | Новый API | Новый UI | Test/evidence |
+| --- | --- | --- | --- |
+| `template/src/app/layout.tsx`, `globals.css`, `app-providers.tsx` | N/A | root layout, providers, Tailwind/shadcn tokens | layout/component tests, standalone production build |
+| `template/src/i18n/**`, `common.{en,ru}.json` | N/A | fixed deployment locale with common/system bundles | locale fallback and bundle-shape tests |
+| `template/src/components/application/theme/theme-switcher.tsx` | N/A | hydration-safe theme switcher | SSR markup, click, and keyboard E2E |
+| `template/src/features/application/application-routes.ts`, public header primitives | N/A | typed `/` and minimal header | route/header tests |
+| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts` | existing `/api/health`, `/api/v1/system/status` | SSR and browser status regions over one generated SDK | adapter tests and full-stack Playwright |
+| `template/src/app/global-error.tsx`, `not-found.tsx`, error components | existing RFC Problem Details | loading/error/not-found/global boundaries | boundary and intercepted-error tests |
+| reference public home account/workspace loaders | outside scope | not copied | source/dependency guard |
+| all reference Prisma models | no schema change | no data access | source/dependency guard |
+
+**Проверки 2026-07-24 (fresh clean-lock acceptance, final-review refresh):**
+
+Результаты web/npm ниже заново получены после final-review hardening и заменяют
+раннее наблюдение о 10 уязвимостях после `npm ci`. .NET/OpenAPI evidence
+сохранён без изменения из исходной acceptance-проверки: эти команды не
+перезапускались в final-review fix wave.
+
+| Команда | Наблюдаемый результат |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS; все проекты up-to-date |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
+| `dotnet test Template.sln --no-restore` | PASS; 35/35 tests, 0 failed, 0 skipped |
+| `dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore -p:OpenApiGenerateDocuments=true` | PASS; OpenAPI export build, 0 warnings, 0 errors |
+| `git diff --exit-code -- contracts/openapi/v1.json` | PASS; empty |
+| `npm ci` | PASS; 978 packages added, 979 audited, 0 vulnerabilities |
+| `npm audit --json` | PASS; 0 total vulnerabilities (0 info/low/moderate/high/critical) |
+| `npm audit --omit=dev --json` | PASS; production tree has 0 total vulnerabilities |
+| `npm run audit:prod` | PASS; `npm audit --omit=dev` reported 0 vulnerabilities |
+| `npm ls next postcss sharp js-yaml @hono/node-server shadcn --all` | PASS; Next 16.2.11 resolves PostCSS 8.5.22 and sharp 0.35.3; JavaScript YAML 4 consumers resolve js-yaml 4.3.0; shadcn 4.14.1 is development-only and its MCP stack resolves `@hono/node-server` 2.0.11 |
+| `npx --no-install shadcn --help` and `shadcn info` | PASS; CLI loads, recognizes Next 16.2.11/Tailwind v4/radix-lyra, and finds the four installed primitives |
+| MCP/Hono HTTP adapter probe | PASS; SDK `StreamableHTTPServerTransport` with Hono 2.0.11 returned the expected HTTP 406 negotiation response and terminated |
+| `npm run api:check` | PASS; generated REST tree deterministic and current (4 files) |
+| `npm run boundaries:check` | PASS; focused Node tests 2/2 and dependency/source boundaries clean for all eight enabled JS/TS forms |
+| `npm run format:check` | PASS; all matched files use Prettier style |
+| `npm run lint` | PASS; ESLint exited 0 |
+| `npm run typecheck` | PASS; Next route types generated and `tsc --noEmit` exited 0 |
+| `npm test -- --runInBand` | PASS; 15/15 suites, 46/46 tests, 0 snapshots |
+| `node -e "require('node:fs').rmSync('.next', { recursive: true, force: true })"` | PASS; prior build output removed |
+| `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build` | PASS; Next.js 16.2.11 compiled and completed the production build without a live API |
+| `test -f .next/standalone/server.js` | PASS; standalone artifact exists |
+| Standalone runtime probe on `127.0.0.1:3130` | PASS; HTTP 200 and expected heading; listener terminated |
+| `npm run e2e:install` | PASS; Chromium installation gate exited 0 |
+| `npm run e2e` | PASS; Playwright 3/3 tests in 11.0s; API and Next E2E listeners terminated |
+| Generated TypeScript metadata check | PASS; `next-env.d.ts` and `tsconfig.tsbuildinfo` regenerated, remained ignored/untracked, and typecheck/dev/E2E/build did not change tracked state |
+| `git diff --exit-code HEAD -- template contracts/openapi apps/api apps/web/src/lib/api/generated` (checked per path) | PASS; all protected/reference/contract/API/generated trees empty |
+
+Final review originally identified `@hono/node-server` 2.0.5 as a patched
+candidate, but the live audit now marks 2.0.0–2.0.9 vulnerable; exact 2.0.11 was
+therefore selected and validated instead. The exact override policy and removal
+gate are recorded in `docs/web-conventions.md`.
+
+**Intentional differences from reference:** новый `/` — техническая smoke home,
+а не product landing; data flow использует generated ASP.NET REST SDK вместо
+Server Actions; failures используют RFC Problem Details; язык deployment
+фиксирован через `PUBLIC_DEFAULT_LOCALE` (`en`/`ru`) и switcher отсутствует.
+Authentication, account/workspace/product data и соответствующий UI не
+переносились.
+
+Browser обращается к `/api/**` same-origin с `credentials: "same-origin"`;
+SSR использует только server-side absolute `API_INTERNAL_BASE_URL`. В dev/E2E
+внешний Next rewrite включается через `API_PROXY_TARGET`, но это не production
+proxy: конечная production topology с Kestrel/YARP остаётся отдельной итерацией.
+
+В этом срезе нет данных, schema migrations, транзакций или pagination.
+**Gate итерации 3:** PostgreSQL, EF Core migrations, ASP.NET Core Identity,
+register/login/logout/current-user, выдача secure HttpOnly same-origin cookie и
+antiforgery. До него persistence, Identity, cookie issuance, account/workspace/
+product UI и auth-dependent parity остаются известными gaps.
 
 ## 9. Правило обновления этого документа
 

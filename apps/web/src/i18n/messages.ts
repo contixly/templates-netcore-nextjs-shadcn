@@ -1,0 +1,38 @@
+import commonEn from "@/src/messages/common.en.json";
+import commonRu from "@/src/messages/common.ru.json";
+import systemEn from "@/src/messages/system.en.json";
+import systemRu from "@/src/messages/system.ru.json";
+import {
+  APP_TIME_ZONE,
+  resolveAppLocale,
+  type AppLocale,
+} from "@/src/i18n/config";
+
+const englishMessages = {
+  common: commonEn,
+  system: systemEn,
+};
+
+export type I18nMessages = typeof englishMessages;
+
+const messagesByLocale = {
+  en: englishMessages,
+  ru: {
+    common: commonRu,
+    system: systemRu,
+  },
+} satisfies Record<AppLocale, I18nMessages>;
+
+export async function loadMessages(locale: AppLocale): Promise<I18nMessages> {
+  return messagesByLocale[locale];
+}
+
+export async function loadI18nMessagesConfig() {
+  const locale = resolveAppLocale(process.env.PUBLIC_DEFAULT_LOCALE);
+
+  return {
+    locale,
+    messages: await loadMessages(locale),
+    timeZone: APP_TIME_ZONE,
+  };
+}
