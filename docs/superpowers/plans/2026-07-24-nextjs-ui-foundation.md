@@ -33,17 +33,17 @@
 
 ## Frozen REST Contract Before UI Work
 
-| Concern                    | Iteration-2 decision                                                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| Operation                  | Existing `GET /api/v1/system/status` (`operationId: GetSystemStatus`); API source and OpenAPI semantics do not change.                      |
-| Authorization              | Anonymous. The protected system probe and session simulation are not used.                                                                  |
-| Request validation         | Optional `echo` is 1–64 characters; SSR sends `ssr`, browser sends `browser`. Validation stays at the ASP.NET HTTP boundary.                |
-| Success                    | Generated `{ data: { status, apiVersion, timestamp, echo } }`; no handwritten web DTO.                                                      |
-| Errors                     | Generated 400 validation, 404, 405, and 500 RFC Problem Details. UI keeps only `code`, response status, and optional `traceId`.             |
-| Cache                      | Both transports pass `cache: "no-store"`; SSR begins below `connection()` and `Suspense`.                                                   |
-| Pagination/filtering       | Not applicable; `echo` is only the validated technical probe parameter.                                                                     |
+| Concern | Iteration-2 decision |
+| --- | --- |
+| Operation | Existing `GET /api/v1/system/status` (`operationId: GetSystemStatus`); API source and OpenAPI semantics do not change. |
+| Authorization | Anonymous. The protected system probe and session simulation are not used. |
+| Request validation | Optional `echo` is 1–64 characters; SSR sends `ssr`, browser sends `browser`. Validation stays at the ASP.NET HTTP boundary. |
+| Success | Generated `{ data: { status, apiVersion, timestamp, echo } }`; no handwritten web DTO. |
+| Errors | Generated 400 validation, 404, 405, and 500 RFC Problem Details. UI keeps only `code`, response status, and optional `traceId`. |
+| Cache | Both transports pass `cache: "no-store"`; SSR begins below `connection()` and `Suspense`. |
+| Pagination/filtering | Not applicable; `echo` is only the validated technical probe parameter. |
 | Mutations/auth/antiforgery | None. Browser cookie credentials are configured for future same-origin sessions but this anonymous call does not issue or mutate a session. |
-| Transactions/schema/seed   | None; no database packages, migrations, seed, or persistent data.                                                                           |
+| Transactions/schema/seed | None; no database packages, migrations, seed, or persistent data. |
 
 ---
 
@@ -51,61 +51,61 @@
 
 ### Tooling and generated contract
 
-| Path                                                                      | Responsibility                                                                                                       |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `apps/web/package.json`, `package-lock.json`                              | Exact runtime/dev dependencies and reproducible scripts.                                                             |
-| `apps/web/next.config.ts`                                                 | Cache Components, standalone output, next-intl plugin, typed routes, and optional dev/E2E `/api/**` rewrite.         |
-| `apps/web/tsconfig.json`, `.gitignore`                                    | Strict TypeScript, JSON modules, aliases, Next route types, and ignored generated `next-env.d.ts`/`*.tsbuildinfo`.   |
-| `apps/web/eslint.config.mjs`, `prettier.config.mjs`, `.prettierignore`    | Source checks while leaving generated files untouched.                                                               |
-| `apps/web/postcss.config.mjs`, `components.json`                          | Tailwind 4 and shadcn `radix-lyra` configuration.                                                                    |
-| `apps/web/jest.config.mjs`, `jest.setup.ts`                               | Jest/Testing Library and the `server-only` test shim.                                                                |
-| `apps/web/openapi-ts.config.ts`                                           | `contracts/openapi/v1.json` → generated types, bundled Fetch client, and flat SDK.                                   |
-| `apps/web/src/lib/api/generated/**`                                       | Committed, generator-owned REST types/runtime/SDK; never hand-edit.                                                  |
-| `apps/web/scripts/check-generated.mjs`                                    | Regenerate and byte-compare the generated tree.                                                                      |
+| Path | Responsibility |
+| --- | --- |
+| `apps/web/package.json`, `package-lock.json` | Exact runtime/dev dependencies and reproducible scripts. |
+| `apps/web/next.config.ts` | Cache Components, standalone output, next-intl plugin, typed routes, and optional dev/E2E `/api/**` rewrite. |
+| `apps/web/tsconfig.json`, `.gitignore` | Strict TypeScript, JSON modules, aliases, Next route types, and ignored generated `next-env.d.ts`/`*.tsbuildinfo`. |
+| `apps/web/eslint.config.mjs`, `prettier.config.mjs`, `.prettierignore` | Source checks while leaving generated files untouched. |
+| `apps/web/postcss.config.mjs`, `components.json` | Tailwind 4 and shadcn `radix-lyra` configuration. |
+| `apps/web/jest.config.mjs`, `jest.setup.ts` | Jest/Testing Library and the `server-only` test shim. |
+| `apps/web/openapi-ts.config.ts` | `contracts/openapi/v1.json` → generated types, bundled Fetch client, and flat SDK. |
+| `apps/web/src/lib/api/generated/**` | Committed, generator-owned REST types/runtime/SDK; never hand-edit. |
+| `apps/web/scripts/check-generated.mjs` | Regenerate and byte-compare the generated tree. |
 | `apps/web/scripts/check-boundaries.mjs`, `check-boundaries.node-test.mjs` | Dependency/source guards plus focused Node test coverage for every enabled JS/TS source and Route Handler extension. |
 
 ### Application source
 
-| Path                                                                      | Responsibility                                                                     |
-| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `apps/web/src/i18n/config.ts`                                             | Supported locale type and deterministic deployment locale fallback.                |
-| `apps/web/src/i18n/messages.ts`, `request.ts`                             | Statically bounded en/ru message loading and next-intl request config.             |
-| `apps/web/src/messages/common.{en,ru}.json`                               | Brand, navigation, actions, and theme foundation copy.                             |
-| `apps/web/src/messages/system.{en,ru}.json`                               | Technical page, status, and boundary copy only.                                    |
-| `apps/web/src/types/next-intl.d.ts`                                       | Typed locale/message augmentation.                                                 |
-| `apps/web/src/features/application/application-routes.ts`                 | Typed root route registry.                                                         |
-| `apps/web/src/lib/api/api-base-url.ts`                                    | Pure origin-only HTTP(S) API base validation shared by SSR config and Next config. |
-| `apps/web/src/lib/api/result.ts`                                          | Generic result and safe `problem                                                   | network | configuration` failures. |
-| `apps/web/src/lib/api/failures/normalize-api-failure.ts`                  | Reduce generated transport failures to safe UI data.                               |
-| `apps/web/src/lib/api/load-system-status.ts`                              | Invoke generated `getSystemStatus`; unwrap the generated success envelope.         |
-| `apps/web/src/lib/api/browser/client.ts`, `load-browser-system-status.ts` | Relative same-origin client and browser status adapter.                            |
-| `apps/web/src/lib/api/server/client.ts`, `load-server-system-status.ts`   | Server-only request-scoped client and status adapter.                              |
-| `apps/web/src/components/application/app-providers.tsx`                   | Fixed next-intl messages plus system/light/dark theme provider.                    |
-| `apps/web/src/components/application/site-header.tsx`                     | Brand/root navigation and theme control only.                                      |
-| `apps/web/src/components/application/theme-switcher.tsx`                  | Hydration-safe accessible theme toggle.                                            |
-| `apps/web/src/components/system/status-card.tsx`                          | Transport-independent loading/success/failure presentation.                        |
-| `apps/web/src/components/system/browser-system-status.tsx`                | Client lifecycle, cancellation, and retry.                                         |
-| `apps/web/src/components/system/server-system-status.tsx`                 | Runtime-only SSR load below `connection()`.                                        |
-| `apps/web/src/components/ui/{button,card,badge,skeleton}.tsx`             | Minimal generated shadcn primitives.                                               |
-| `apps/web/src/app/{layout,page,loading,error,global-error,not-found}.tsx` | Root composition and distinct Next.js boundaries.                                  |
+| Path | Responsibility |
+| --- | --- |
+| `apps/web/src/i18n/config.ts` | Supported locale type and deterministic deployment locale fallback. |
+| `apps/web/src/i18n/messages.ts`, `request.ts` | Statically bounded en/ru message loading and next-intl request config. |
+| `apps/web/src/messages/common.{en,ru}.json` | Brand, navigation, actions, and theme foundation copy. |
+| `apps/web/src/messages/system.{en,ru}.json` | Technical page, status, and boundary copy only. |
+| `apps/web/src/types/next-intl.d.ts` | Typed locale/message augmentation. |
+| `apps/web/src/features/application/application-routes.ts` | Typed root route registry. |
+| `apps/web/src/lib/api/api-base-url.ts` | Pure origin-only HTTP(S) API base validation shared by SSR config and Next config. |
+| `apps/web/src/lib/api/result.ts` | Generic result and safe `problem | network | configuration` failures. |
+| `apps/web/src/lib/api/failures/normalize-api-failure.ts` | Reduce generated transport failures to safe UI data. |
+| `apps/web/src/lib/api/load-system-status.ts` | Invoke generated `getSystemStatus`; unwrap the generated success envelope. |
+| `apps/web/src/lib/api/browser/client.ts`, `load-browser-system-status.ts` | Relative same-origin client and browser status adapter. |
+| `apps/web/src/lib/api/server/client.ts`, `load-server-system-status.ts` | Server-only request-scoped client and status adapter. |
+| `apps/web/src/components/application/app-providers.tsx` | Fixed next-intl messages plus system/light/dark theme provider. |
+| `apps/web/src/components/application/site-header.tsx` | Brand/root navigation and theme control only. |
+| `apps/web/src/components/application/theme-switcher.tsx` | Hydration-safe accessible theme toggle. |
+| `apps/web/src/components/system/status-card.tsx` | Transport-independent loading/success/failure presentation. |
+| `apps/web/src/components/system/browser-system-status.tsx` | Client lifecycle, cancellation, and retry. |
+| `apps/web/src/components/system/server-system-status.tsx` | Runtime-only SSR load below `connection()`. |
+| `apps/web/src/components/ui/{button,card,badge,skeleton}.tsx` | Minimal generated shadcn primitives. |
+| `apps/web/src/app/{layout,page,loading,error,global-error,not-found}.tsx` | Root composition and distinct Next.js boundaries. |
 
 ### Tests and documentation
 
-| Path                                                         | Responsibility                                                                  |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `apps/web/test/i18n/messages.test.ts`                        | en/ru selection, fallback, and bundle shape.                                    |
-| `apps/web/test/features/application-routes.test.ts`          | Typed root route.                                                               |
-| `apps/web/test/contracts/generated-sdk.test.ts`              | OpenAPI operationId and generated function existence.                           |
-| `apps/web/test/lib/api/*.test.ts`                            | URL validation, generated adapter, safe failure mapping.                        |
-| `apps/web/test/lib/api/browser-client.test.ts`               | Relative base and same-origin credentials.                                      |
-| `apps/web/test/lib/api/server-client.test.ts`                | Per-call isolation and forwarding allowlist.                                    |
-| `apps/web/test/typecheck/server-client.typecheck.ts`         | Compile-time rejection of arbitrary/authorization headers.                      |
-| `apps/web/test/components/*.test.tsx`                        | Theme, status presentation, retry/cancellation, SSR, and header behavior.       |
-| `apps/web/test/app/boundaries.test.tsx`                      | Loading/error/not-found/global-error responsibilities.                          |
-| `apps/web/test/support/render.tsx`, `server-only.ts`         | Localized render helper and empty server-only shim.                             |
-| `apps/web/playwright.config.ts`, `e2e/system-status.spec.ts` | Two-process loopback harness and full-stack browser smoke.                      |
-| `docs/web-conventions.md`                                    | Durable browser/SSR addressing, codegen, locale, caching, and UI failure rules. |
-| `docs/aspnetcore-migration-plan.md`                          | Completed iteration-2 register, mapping, evidence, gaps, and next gate.         |
+| Path | Responsibility |
+| --- | --- |
+| `apps/web/test/i18n/messages.test.ts` | en/ru selection, fallback, and bundle shape. |
+| `apps/web/test/features/application-routes.test.ts` | Typed root route. |
+| `apps/web/test/contracts/generated-sdk.test.ts` | OpenAPI operationId and generated function existence. |
+| `apps/web/test/lib/api/*.test.ts` | URL validation, generated adapter, safe failure mapping. |
+| `apps/web/test/lib/api/browser-client.test.ts` | Relative base and same-origin credentials. |
+| `apps/web/test/lib/api/server-client.test.ts` | Per-call isolation and forwarding allowlist. |
+| `apps/web/test/typecheck/server-client.typecheck.ts` | Compile-time rejection of arbitrary/authorization headers. |
+| `apps/web/test/components/*.test.tsx` | Theme, status presentation, retry/cancellation, SSR, and header behavior. |
+| `apps/web/test/app/boundaries.test.tsx` | Loading/error/not-found/global-error responsibilities. |
+| `apps/web/test/support/render.tsx`, `server-only.ts` | Localized render helper and empty server-only shim. |
+| `apps/web/playwright.config.ts`, `e2e/system-status.spec.ts` | Two-process loopback harness and full-stack browser smoke. |
+| `docs/web-conventions.md` | Durable browser/SSR addressing, codegen, locale, caching, and UI failure rules. |
+| `docs/aspnetcore-migration-plan.md` | Completed iteration-2 register, mapping, evidence, gaps, and next gate. |
 
 ### Files that must remain untouched
 
@@ -119,7 +119,6 @@
 ### Task 1: Reproducible Next.js Toolchain and Test Harness
 
 **Files:**
-
 - Delete: `apps/web/.gitkeep`
 - Create: `apps/web/package.json`
 - Generate: `apps/web/package-lock.json`
@@ -139,7 +138,6 @@
 - Create: `apps/web/src/app/page.tsx`
 
 **Interfaces:**
-
 - Consumes: Node `>=22.18.0`, npm, Next App Router.
 - Produces: scripts `dev`, `build`, `start`, `lint`, `typecheck`, `test`, `format`, `format:check`, `audit:prod`; alias `@/*`; generated-TypeScript ignore discipline; a standalone-buildable root page and working Jest harness.
 
@@ -467,12 +465,7 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
 }
 ```
@@ -490,9 +483,7 @@ export const metadata: Metadata = {
   description: "Next.js UI foundation",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{ children: ReactNode }>) {
+export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
       <body>{children}</body>
@@ -539,7 +530,6 @@ git commit -m "chore(web): bootstrap Next.js UI app"
 ### Task 2: Fixed-Locale i18n and Typed Root Route
 
 **Files:**
-
 - Create: `apps/web/src/messages/common.en.json`
 - Create: `apps/web/src/messages/common.ru.json`
 - Create: `apps/web/src/messages/system.en.json`
@@ -557,7 +547,6 @@ git commit -m "chore(web): bootstrap Next.js UI app"
 - Modify: `apps/web/test/app/home-page.test.tsx`
 
 **Interfaces:**
-
 - Consumes: `PUBLIC_DEFAULT_LOCALE?: string`.
 - Produces: `locales`, `AppLocale`, `DEFAULT_LOCALE`, `APP_TIME_ZONE`, `isAppLocale(value)`, `resolveAppLocale(value?)`, `I18nMessages`, `loadMessages(locale)`, `loadI18nMessagesConfig()`, and `applicationRoutes.home === "/"`.
 
@@ -780,7 +769,9 @@ export function isAppLocale(value: string): value is AppLocale {
   return locales.includes(value as AppLocale);
 }
 
-export function resolveAppLocale(value?: string): AppLocale {
+export function resolveAppLocale(
+  value?: string,
+): AppLocale {
   return value && isAppLocale(value) ? value : DEFAULT_LOCALE;
 }
 ```
@@ -999,7 +990,6 @@ git commit -m "feat(web): add fixed-locale application foundation"
 ### Task 3: Generated REST Contract and Deterministic Drift Gate
 
 **Files:**
-
 - Create: `apps/web/openapi-ts.config.ts`
 - Create: `apps/web/scripts/check-generated.mjs`
 - Create: `apps/web/test/contracts/generated-sdk.test.ts`
@@ -1007,7 +997,6 @@ git commit -m "feat(web): add fixed-locale application foundation"
 - Modify: `apps/web/package.json`
 
 **Interfaces:**
-
 - Consumes: `contracts/openapi/v1.json`, specifically `operationId: GetSystemStatus`.
 - Produces: `createClient(config)` from `src/lib/api/generated/client`, generated type `SystemStatusResponse`, generated `getSystemStatus(options)` from `src/lib/api/generated`, and scripts `api:generate`/`api:check`.
 
@@ -1040,9 +1029,9 @@ describe("generated system status SDK", () => {
       };
     };
 
-    expect(contract.paths["/api/v1/system/status"].get.operationId).toBe(
-      "GetSystemStatus",
-    );
+    expect(
+      contract.paths["/api/v1/system/status"].get.operationId,
+    ).toBe("GetSystemStatus");
     expect(getSystemStatus).toEqual(expect.any(Function));
   });
 });
@@ -1200,7 +1189,6 @@ git commit -m "feat(web): generate REST SDK from OpenAPI"
 ### Task 4: Safe Browser and Request-Scoped SSR API Adapters
 
 **Files:**
-
 - Create: `apps/web/.env.example`
 - Create: `apps/web/src/lib/api/api-base-url.ts`
 - Create: `apps/web/src/lib/api/result.ts`
@@ -1220,7 +1208,6 @@ git commit -m "feat(web): generate REST SDK from OpenAPI"
 - Modify: `apps/web/next.config.ts`
 
 **Interfaces:**
-
 - Consumes: generated `Client`, `createClient`, `getSystemStatus`, `SystemStatusResponse`; `API_INTERNAL_BASE_URL`; optional `API_PROXY_TARGET`.
 - Produces: `resolveApiBaseUrl(value): ApiBaseUrlResult`, `ApiResult<T>`, `SystemStatusResult`, `normalizeApiFailure(error, response?)`, `loadSystemStatus(client, echo, signal?)`, `createBrowserApiClient()`, `loadBrowserSystemStatus(signal?)`, `createServerApiClient(forwarded?)`, and `loadServerSystemStatus()`.
 
@@ -1338,10 +1325,14 @@ describe("createServerApiClient", () => {
     );
 
     expect(first.client).not.toBe(second.client);
-    expect(firstHeaders.get("cookie")).toBe("__Host-template.session=first");
+    expect(firstHeaders.get("cookie")).toBe(
+      "__Host-template.session=first",
+    );
     expect(firstHeaders.get("x-correlation-id")).toBe("trace-first");
     expect(firstHeaders.get("authorization")).toBeNull();
-    expect(secondHeaders.get("cookie")).toBe("__Host-template.session=second");
+    expect(secondHeaders.get("cookie")).toBe(
+      "__Host-template.session=second",
+    );
     expect(secondHeaders.get("x-correlation-id")).toBeNull();
     expect(anonymousHeaders.get("cookie")).toBeNull();
     expect(first.client.getConfig().cache).toBe("no-store");
@@ -1398,10 +1389,12 @@ Create `src/lib/api/api-base-url.ts`:
 
 ```ts
 export type ApiConfigurationCode =
-  "api_configuration_missing" | "api_configuration_invalid";
+  | "api_configuration_missing"
+  | "api_configuration_invalid";
 
 export type ApiBaseUrlResult =
-  { ok: true; value: string } | { ok: false; code: ApiConfigurationCode };
+  | { ok: true; value: string }
+  | { ok: false; code: ApiConfigurationCode };
 
 export function resolveApiBaseUrl(value: string | undefined): ApiBaseUrlResult {
   const candidate = value?.trim();
@@ -1452,7 +1445,8 @@ export type ApiFailure =
     };
 
 export type ApiResult<T> =
-  { ok: true; data: T } | { ok: false; failure: ApiFailure };
+  | { ok: true; data: T }
+  | { ok: false; failure: ApiFailure };
 
 export type SystemStatusResult = ApiResult<SystemStatusResponse>;
 ```
@@ -1545,7 +1539,10 @@ Create `src/lib/api/browser/client.ts`:
 ```ts
 "use client";
 
-import { createClient, type Client } from "@/src/lib/api/generated/client";
+import {
+  createClient,
+  type Client,
+} from "@/src/lib/api/generated/client";
 
 export function createBrowserApiClient(): Client {
   return createClient({
@@ -1576,7 +1573,10 @@ Create `src/lib/api/server/client.ts`:
 ```ts
 import "server-only";
 
-import { createClient, type Client } from "@/src/lib/api/generated/client";
+import {
+  createClient,
+  type Client,
+} from "@/src/lib/api/generated/client";
 import { resolveApiBaseUrl } from "@/src/lib/api/api-base-url";
 import type { ApiFailure } from "@/src/lib/api/result";
 
@@ -1896,7 +1896,6 @@ git commit -m "feat(web): add browser and SSR API clients"
 ### Task 5: Tailwind/shadcn Shell, Providers, Navigation, and Theme
 
 **Files:**
-
 - Create: `apps/web/components.json`
 - Create: `apps/web/src/lib/utils.ts`
 - Generate: `apps/web/src/components/ui/button.tsx`
@@ -1914,7 +1913,6 @@ git commit -m "feat(web): add browser and SSR API clients"
 - Modify: `apps/web/src/app/page.tsx`
 
 **Interfaces:**
-
 - Consumes: `I18nMessages`, `AppLocale`, `applicationRoutes.home`, next-themes, foundation messages.
 - Produces: `cn(...)`, shadcn Button/Card/Badge/Skeleton, `AppProviders`, `ThemeSwitcher`, `SiteHeader`, neutral square-radius CSS tokens, and `renderWithMessages`/`withMessages` test helpers.
 
@@ -1956,7 +1954,10 @@ import { fireEvent, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { ThemeSwitcher } from "@/src/components/application/theme-switcher";
-import { renderWithMessages, withMessages } from "@/test/support/render";
+import {
+  renderWithMessages,
+  withMessages,
+} from "@/test/support/render";
 
 const mockSetTheme = jest.fn();
 
@@ -2020,7 +2021,9 @@ describe("SiteHeader", () => {
       "href",
       "/",
     );
-    expect(screen.getByRole("button", { name: "Toggle theme" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Toggle theme" }),
+    ).toBeDisabled();
     expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument();
   });
@@ -2214,7 +2217,10 @@ function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+function CardDescription({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
   return (
     <div
       className={cn("text-xs/relaxed text-muted-foreground", className)}
@@ -2287,7 +2293,8 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
+        default:
+          "bg-primary text-primary-foreground [a]:hover:bg-primary/80",
         secondary:
           "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
@@ -2435,13 +2442,8 @@ Replace `src/app/globals.css` with:
     @apply min-h-screen bg-background text-foreground antialiased;
     margin: 0;
     font-family:
-      Inter,
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      sans-serif;
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      "Segoe UI", sans-serif;
   }
 
   button:not(:disabled),
@@ -2619,7 +2621,11 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <body>
-        <AppProviders locale={locale} messages={messages} timeZone={timeZone}>
+        <AppProviders
+          locale={locale}
+          messages={messages}
+          timeZone={timeZone}
+        >
           <SiteHeader />
           {children}
         </AppProviders>
@@ -2683,7 +2689,6 @@ git commit -m "feat(web): add themeable application shell"
 ### Task 6: SSR and Browser Status UI with Safe Next.js Boundaries
 
 **Files:**
-
 - Create: `apps/web/src/components/system/status-card.tsx`
 - Create: `apps/web/src/components/system/browser-system-status.tsx`
 - Create: `apps/web/src/components/system/server-system-status.tsx`
@@ -2699,7 +2704,6 @@ git commit -m "feat(web): add themeable application shell"
 - Modify: `apps/web/test/app/home-page.test.tsx`
 
 **Interfaces:**
-
 - Consumes: `SystemStatusResult`, `ApiFailure`, `SystemStatusResponse`, `loadBrowserSystemStatus(signal)`, `loadServerSystemStatus()`, `connection()`.
 - Produces: `StatusCardState`, `StatusCard`, `StatusCardSkeleton`, `BrowserSystemStatus`, `ServerSystemStatus`, and all required Next route/global boundaries.
 
@@ -2750,14 +2754,20 @@ describe("StatusCard", () => {
       { kind: "problem", code: "unknown_code", status: 400 },
       "The API returned an error.",
     ],
-    [{ kind: "network", code: "api_unavailable" }, "The API is unavailable."],
+    [
+      { kind: "network", code: "api_unavailable" },
+      "The API is unavailable.",
+    ],
     [
       { kind: "configuration", code: "api_configuration_missing" },
       "The server API address is not configured.",
     ],
   ] as const)("renders safe failure %p", (failure, expected) => {
     renderWithMessages(
-      <StatusCard source="ssr" state={{ kind: "failure", failure }} />,
+      <StatusCard
+        source="ssr"
+        state={{ kind: "failure", failure }}
+      />,
     );
 
     expect(screen.getByTestId("status-ssr")).toHaveTextContent(expected);
@@ -3032,10 +3042,15 @@ export function StatusCard({
   const t = useTranslations("system.status");
   const actions = useTranslations("common.actions");
   const title = source === "ssr" ? t("ssrTitle") : t("browserTitle");
-  const sourceLabel = source === "ssr" ? t("sourceSsr") : t("sourceBrowser");
+  const sourceLabel =
+    source === "ssr" ? t("sourceSsr") : t("sourceBrowser");
 
   return (
-    <Card aria-live="polite" data-testid={`status-${source}`} role="status">
+    <Card
+      aria-live="polite"
+      data-testid={`status-${source}`}
+      role="status"
+    >
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>
@@ -3069,7 +3084,8 @@ export function StatusCard({
         ) : (
           <div className="space-y-3">
             <p>{t(failureMessageKey(state.failure))}</p>
-            {state.failure.kind === "problem" && state.failure.traceId ? (
+            {state.failure.kind === "problem" &&
+            state.failure.traceId ? (
               <p className="font-mono text-xs text-muted-foreground">
                 {t("traceId", { traceId: state.failure.traceId })}
               </p>
@@ -3124,10 +3140,7 @@ Create `src/components/system/browser-system-status.tsx`:
 
 import { useEffect, useState } from "react";
 
-import {
-  StatusCard,
-  type StatusCardState,
-} from "@/src/components/system/status-card";
+import { StatusCard, type StatusCardState } from "@/src/components/system/status-card";
 import { loadBrowserSystemStatus } from "@/src/lib/api/browser/load-browser-system-status";
 
 export function BrowserSystemStatus() {
@@ -3320,9 +3333,7 @@ describe("Next boundaries", () => {
   it("renders an accessible localized loading state", async () => {
     render(await Loading());
 
-    expect(
-      screen.getByRole("heading", { name: "Loading page" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Loading page" })).toBeInTheDocument();
     expect(screen.getAllByRole("status")).toHaveLength(2);
   });
 
@@ -3451,7 +3462,9 @@ export default async function NotFound() {
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-16">
-      <h1 className="text-2xl font-semibold">{boundaries("notFoundTitle")}</h1>
+      <h1 className="text-2xl font-semibold">
+        {boundaries("notFoundTitle")}
+      </h1>
       <p className="text-muted-foreground">
         {boundaries("notFoundDescription")}
       </p>
@@ -3529,7 +3542,6 @@ git commit -m "feat(web): add SSR and browser status UI"
 ### Task 7: Source Boundaries and Full-Stack Playwright Smoke
 
 **Files:**
-
 - Create: `apps/web/scripts/check-boundaries.mjs`
 - Create: `apps/web/scripts/check-boundaries.node-test.mjs`
 - Create: `apps/web/playwright.config.ts`
@@ -3537,7 +3549,6 @@ git commit -m "feat(web): add SSR and browser status UI"
 - Modify: `apps/web/package.json`
 
 **Interfaces:**
-
 - Consumes: built .NET API at `127.0.0.1:5297`, Next dev server at `127.0.0.1:3127`, `/api/health`, SSR/browser status regions.
 - Produces: scripts `boundaries:test`, `boundaries:check`, `e2e`, `e2e:install`; a two-process Playwright harness; executable source/dependency contract guards covering every enabled JS/TS source and Route Handler extension.
 
@@ -3967,7 +3978,6 @@ git commit -m "test(web): add boundary guards and full-stack smoke"
 ### Task 8: Durable Conventions, Migration Evidence, and Final Verification
 
 **Files:**
-
 - Create: `docs/web-conventions.md`
 - Modify: `docs/aspnetcore-migration-plan.md`
 - Modify: `docs/superpowers/specs/2026-07-23-nextjs-ui-foundation-design.md`
@@ -3976,7 +3986,6 @@ git commit -m "test(web): add boundary guards and full-stack smoke"
 - Verify unchanged: `template/**`
 
 **Interfaces:**
-
 - Consumes: the complete Task 1–7 implementation and actual command summaries.
 - Produces: durable iteration-2 decisions, completed migration register/evidence, explicit known reference gaps, and a clean final branch.
 
@@ -4167,16 +4176,16 @@ In `docs/aspnetcore-migration-plan.md`:
 3. Add this exact correspondence table:
 
 ```markdown
-| Reference                                                                           | Новый API                                       | Новый UI                                              | Test/evidence                                       |
-| ----------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
-| `template/src/app/layout.tsx`, `globals.css`, `app-providers.tsx`                   | N/A                                             | root layout, providers, Tailwind/shadcn tokens        | layout/component tests, standalone production build |
-| `template/src/i18n/**`, `common.{en,ru}.json`                                       | N/A                                             | fixed deployment locale with common/system bundles    | locale fallback and bundle-shape tests              |
-| `template/src/components/application/theme/theme-switcher.tsx`                      | N/A                                             | hydration-safe theme switcher                         | SSR markup, click, and keyboard E2E                 |
-| `template/src/features/application/application-routes.ts`, public header primitives | N/A                                             | typed `/` and minimal header                          | route/header tests                                  |
-| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts`            | existing `/api/health`, `/api/v1/system/status` | SSR and browser status regions over one generated SDK | adapter tests and full-stack Playwright             |
-| `template/src/app/global-error.tsx`, `not-found.tsx`, error components              | existing RFC Problem Details                    | loading/error/not-found/global boundaries             | boundary and intercepted-error tests                |
-| reference public home account/workspace loaders                                     | outside scope                                   | not copied                                            | source/dependency guard                             |
-| all reference Prisma models                                                         | no schema change                                | no data access                                        | source/dependency guard                             |
+| Reference | Новый API | Новый UI | Test/evidence |
+| --- | --- | --- | --- |
+| `template/src/app/layout.tsx`, `globals.css`, `app-providers.tsx` | N/A | root layout, providers, Tailwind/shadcn tokens | layout/component tests, standalone production build |
+| `template/src/i18n/**`, `common.{en,ru}.json` | N/A | fixed deployment locale with common/system bundles | locale fallback and bundle-shape tests |
+| `template/src/components/application/theme/theme-switcher.tsx` | N/A | hydration-safe theme switcher | SSR markup, click, and keyboard E2E |
+| `template/src/features/application/application-routes.ts`, public header primitives | N/A | typed `/` and minimal header | route/header tests |
+| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts` | existing `/api/health`, `/api/v1/system/status` | SSR and browser status regions over one generated SDK | adapter tests and full-stack Playwright |
+| `template/src/app/global-error.tsx`, `not-found.tsx`, error components | existing RFC Problem Details | loading/error/not-found/global boundaries | boundary and intercepted-error tests |
+| reference public home account/workspace loaders | outside scope | not copied | source/dependency guard |
+| all reference Prisma models | no schema change | no data access | source/dependency guard |
 ```
 
 4. Add an acceptance command table containing every command from Steps 2–3 and its actual result. Copy real counts from console output; do not predict or round them.
