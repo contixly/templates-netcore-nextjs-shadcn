@@ -8,6 +8,8 @@ const packageJson = JSON.parse(
   await readFile(resolve(webRoot, "package.json"), "utf8"),
 );
 const violations = [];
+const sourceExtensionPattern = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
+const routeHandlerPattern = /\/route\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
 
 const forbiddenPackages = [
   "@better-auth/prisma-adapter",
@@ -36,7 +38,7 @@ async function sourceFiles(directory) {
 
     if (child.isDirectory()) {
       files.push(...(await sourceFiles(path)));
-    } else if (child.isFile() && /\.(?:ts|tsx)$/.test(child.name)) {
+    } else if (child.isFile() && sourceExtensionPattern.test(child.name)) {
       files.push(path);
     }
   }
@@ -93,7 +95,7 @@ for (const path of await sourceFiles(sourceRoot)) {
   }
   if (
     localPath.startsWith("src/app/") &&
-    /\/route\.(?:ts|tsx)$/.test(`/${localPath}`)
+    routeHandlerPattern.test(`/${localPath}`)
   ) {
     violations.push(`Next Route Handler: ${localPath}`);
   }

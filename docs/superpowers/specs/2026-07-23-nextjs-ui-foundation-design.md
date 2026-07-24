@@ -46,6 +46,7 @@ account/workspace server loaders и зависит от Better Auth. Ни одн
 - [`use cache`](https://nextjs.org/docs/app/api-reference/directives/use-cache);
 - [external rewrites](https://nextjs.org/docs/app/api-reference/config/next-config-js/rewrites);
 - [standalone output](https://nextjs.org/docs/app/api-reference/config/next-config-js/output);
+- [Next.js TypeScript and generated `next-env.d.ts`](https://nextjs.org/docs/app/api-reference/config/typescript);
 - [Next.js error handling](https://nextjs.org/docs/app/getting-started/error-handling);
 - [Jest](https://nextjs.org/docs/app/guides/testing/jest) и
   [Playwright](https://nextjs.org/docs/app/guides/testing/playwright);
@@ -105,6 +106,23 @@ next-themes `0.4.6`, Tailwind CSS `4.3.3` and shadcn `4.14.1`. The committed
 `package-lock.json` is the reproducibility authority. Any compatibility-driven
 deviation discovered from installed package documentation is documented before
 functional Next.js code is written.
+
+The shadcn CLI is exact-pinned in `devDependencies`, not shipped as a runtime
+dependency. Exact security overrides bridge stable Next.js/tooling ranges to
+audited `postcss` `8.5.22`, `sharp` `0.35.3`, JavaScript YAML 4 consumers to
+`js-yaml` `4.3.0`, and the shadcn MCP stack to `@hono/node-server` `2.0.11`.
+The originally reviewed Hono `2.0.5` floor is rejected because the live npm
+audit now covers `2.0.0`–`2.0.9`; `2.0.11` is the first currently audited stable
+release.
+They may be removed only when an exact upstream release accepts safe versions
+and generation, shadcn CLI/MCP-HTTP transport inspection, lint, typecheck, Jest,
+production build, standalone runtime, and E2E all remain green. Both full-tree
+`npm audit --json` and production-only `npm run audit:prod` are acceptance
+gates.
+
+Next.js manages `next-env.d.ts`: the file remains in `tsconfig.json` `include`
+but is gitignored and untracked. Incremental `*.tsbuildinfo` output is also
+ignored, so type generation, development, and builds never dirty tracked files.
 
 ## 4. Карта соответствий
 
@@ -387,11 +405,16 @@ Run web verification from `apps/web`:
 
 ```bash
 npm ci
+npm audit --json
+npm run audit:prod
 npm run api:check
+npm run boundaries:check
+npm run format:check
 npm run lint
 npm run typecheck
 npm test -- --runInBand
 npm run build
+npm run e2e:install
 npm run e2e
 test -f .next/standalone/server.js
 ```
@@ -416,6 +439,8 @@ Implementation creates `docs/web-conventions.md` for:
 
 - browser/SSR API addressing and cookie forwarding;
 - generated client ownership and drift workflow;
+- audited runtime/development dependency ownership and exact override policy;
+- generated `next-env.d.ts`/`*.tsbuildinfo` ignore discipline;
 - fixed-locale Cache Components policy;
 - UI failure and loading conventions;
 - local/E2E rewrite ownership.

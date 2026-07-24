@@ -336,7 +336,12 @@ Committed OpenAPI contract и generated SDK остались byte-identical по
 | reference public home account/workspace loaders | outside scope | not copied | source/dependency guard |
 | all reference Prisma models | no schema change | no data access | source/dependency guard |
 
-**Проверки 2026-07-24 (fresh clean-lock acceptance):**
+**Проверки 2026-07-24 (fresh clean-lock acceptance, final-review refresh):**
+
+Результаты web/npm ниже заново получены после final-review hardening и заменяют
+раннее наблюдение о 10 уязвимостях после `npm ci`. .NET/OpenAPI evidence
+сохранён без изменения из исходной acceptance-проверки: эти команды не
+перезапускались в final-review fix wave.
 
 | Команда | Наблюдаемый результат |
 | --- | --- |
@@ -345,9 +350,15 @@ Committed OpenAPI contract и generated SDK остались byte-identical по
 | `dotnet test Template.sln --no-restore` | PASS; 35/35 tests, 0 failed, 0 skipped |
 | `dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore -p:OpenApiGenerateDocuments=true` | PASS; OpenAPI export build, 0 warnings, 0 errors |
 | `git diff --exit-code -- contracts/openapi/v1.json` | PASS; empty |
-| `npm ci` | PASS; 977 packages added, 978 audited; npm reported 10 dependency vulnerabilities (3 moderate, 7 high) |
+| `npm ci` | PASS; 978 packages added, 979 audited, 0 vulnerabilities |
+| `npm audit --json` | PASS; 0 total vulnerabilities (0 info/low/moderate/high/critical) |
+| `npm audit --omit=dev --json` | PASS; production tree has 0 total vulnerabilities |
+| `npm run audit:prod` | PASS; `npm audit --omit=dev` reported 0 vulnerabilities |
+| `npm ls next postcss sharp js-yaml @hono/node-server shadcn --all` | PASS; Next 16.2.11 resolves PostCSS 8.5.22 and sharp 0.35.3; JavaScript YAML 4 consumers resolve js-yaml 4.3.0; shadcn 4.14.1 is development-only and its MCP stack resolves `@hono/node-server` 2.0.11 |
+| `npx --no-install shadcn --help` and `shadcn info` | PASS; CLI loads, recognizes Next 16.2.11/Tailwind v4/radix-lyra, and finds the four installed primitives |
+| MCP/Hono HTTP adapter probe | PASS; SDK `StreamableHTTPServerTransport` with Hono 2.0.11 returned the expected HTTP 406 negotiation response and terminated |
 | `npm run api:check` | PASS; generated REST tree deterministic and current (4 files) |
-| `npm run boundaries:check` | PASS; dependency and source boundaries clean |
+| `npm run boundaries:check` | PASS; focused Node tests 2/2 and dependency/source boundaries clean for all eight enabled JS/TS forms |
 | `npm run format:check` | PASS; all matched files use Prettier style |
 | `npm run lint` | PASS; ESLint exited 0 |
 | `npm run typecheck` | PASS; Next route types generated and `tsc --noEmit` exited 0 |
@@ -355,7 +366,16 @@ Committed OpenAPI contract и generated SDK остались byte-identical по
 | `node -e "require('node:fs').rmSync('.next', { recursive: true, force: true })"` | PASS; prior build output removed |
 | `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build` | PASS; Next.js 16.2.11 compiled and completed the production build without a live API |
 | `test -f .next/standalone/server.js` | PASS; standalone artifact exists |
-| `npm run e2e` | PASS; Playwright 3/3 tests in 9.2s; API and Next E2E listeners terminated |
+| Standalone runtime probe on `127.0.0.1:3130` | PASS; HTTP 200 and expected heading; listener terminated |
+| `npm run e2e:install` | PASS; Chromium installation gate exited 0 |
+| `npm run e2e` | PASS; Playwright 3/3 tests in 11.0s; API and Next E2E listeners terminated |
+| Generated TypeScript metadata check | PASS; `next-env.d.ts` and `tsconfig.tsbuildinfo` regenerated, remained ignored/untracked, and typecheck/dev/E2E/build did not change tracked state |
+| `git diff --exit-code HEAD -- template contracts/openapi apps/api apps/web/src/lib/api/generated` (checked per path) | PASS; all protected/reference/contract/API/generated trees empty |
+
+Final review originally identified `@hono/node-server` 2.0.5 as a patched
+candidate, but the live audit now marks 2.0.0–2.0.9 vulnerable; exact 2.0.11 was
+therefore selected and validated instead. The exact override policy and removal
+gate are recorded in `docs/web-conventions.md`.
 
 **Intentional differences from reference:** новый `/` — техническая smoke home,
 а не product landing; data flow использует generated ASP.NET REST SDK вместо

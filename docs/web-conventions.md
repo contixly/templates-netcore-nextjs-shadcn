@@ -7,6 +7,32 @@ database access, or external integrations. ASP.NET Core is the only API host.
 The web application contains no Prisma, Better Auth, Server Actions, API Route
 Handlers, direct database access, or browser bearer-token storage.
 
+## Dependency integrity
+
+Runtime dependencies contain only packages needed by the built application.
+The exact-pinned `shadcn` CLI is a development dependency: it supplies build-time
+CSS/component tooling but is not shipped as a production runtime dependency.
+Both direct and development dependencies stay exact-pinned, and
+`package-lock.json` is authoritative.
+
+Security overrides are exact, narrowly justified compatibility bridges:
+
+- `postcss` is held at `8.5.22` for every consumer because stable Next.js
+  `16.2.11` otherwise installs vulnerable `8.4.31`;
+- Next.js `sharp` is held at `0.35.3`;
+- the two JavaScript YAML 4 consumers are held at `js-yaml` `4.3.0`;
+- the shadcn MCP dependency is held at `@hono/node-server` `2.0.11`.
+
+The initially reviewed Hono floor `2.0.5` is not used: the live registry audit
+now reports a later advisory across `2.0.0`–`2.0.9`, so exact `2.0.11` is the
+first currently audited stable release.
+
+The override versions pass generation, CLI/MCP-HTTP transport, lint, typecheck,
+Jest, production build, standalone-runtime, and full-stack E2E checks. Remove
+an override only after an exact upstream dependency accepts an audited version
+and the same matrix passes. `npm audit --json` checks the full tree;
+`npm run audit:prod` is the required production-dependency gate.
+
 ## Generated REST contract
 
 `contracts/openapi/v1.json` is the input to
@@ -16,7 +42,16 @@ Handlers, direct database access, or browser bearer-token storage.
 
 Application data adapters call generated SDK operations and import generated
 DTOs. They do not call raw `fetch` and do not redefine response or Problem
-Details types. `npm run boundaries:check` enforces these rules.
+Details types. `npm run boundaries:check` enforces these rules across
+`js`, `jsx`, `mjs`, `cjs`, `ts`, `tsx`, `mts`, and `cts` source and Route
+Handler forms.
+
+## Generated TypeScript metadata
+
+Next.js owns and regenerates `next-env.d.ts`; it stays in the `tsconfig.json`
+`include` list but is ignored and untracked. TypeScript incremental
+`*.tsbuildinfo` files are also ignored. `next typegen`, `next dev`, and
+`next build` may refresh these generated files without dirtying tracked source.
 
 ## Browser API calls
 
@@ -69,6 +104,8 @@ From `apps/web`:
 
 ```bash
 npm ci
+npm audit --json
+npm run audit:prod
 npm run api:check
 npm run boundaries:check
 npm run format:check
@@ -76,6 +113,7 @@ npm run lint
 npm run typecheck
 npm test -- --runInBand
 npm run build
+npm run e2e:install
 npm run e2e
 test -f .next/standalone/server.js
 ```

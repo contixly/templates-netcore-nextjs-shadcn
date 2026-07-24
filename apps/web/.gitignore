@@ -1,4 +1,6 @@
 .next/
+next-env.d.ts
+*.tsbuildinfo
 coverage/
 node_modules/
 playwright-report/

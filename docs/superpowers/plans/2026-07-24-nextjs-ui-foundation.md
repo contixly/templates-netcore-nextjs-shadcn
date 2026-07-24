@@ -6,7 +6,7 @@
 
 **Architecture:** Keep `apps/web` independent from the database and identity stack. A generated Hey API Fetch SDK owns REST DTOs and operations; small application adapters create either a relative same-origin browser client or an absolute request-scoped server client with an explicit cookie/correlation allowlist. Cache Components stays enabled, locale is fixed per deployment, and the technical home page places the uncached SSR call under `connection()` plus `Suspense` while the browser call runs after hydration.
 
-**Tech Stack:** Node.js 24 with an enforced `>=22.18.0` engine, npm 11, Next.js 16.2.11 App Router, React 19.2.8, TypeScript 6.0.3, Tailwind CSS 4.3.3, shadcn 4.14.1 (`radix-lyra`), next-intl 4.13.4, next-themes 0.4.6, `@hey-api/openapi-ts` 0.99.0 with its bundled Fetch client, Jest 30.4.2, Testing Library 16.3.2, Playwright 1.61.1, ASP.NET Core/.NET SDK 10.0.302.
+**Tech Stack:** Node.js 24 with an enforced `>=22.18.0` engine, npm 11, Next.js 16.2.11 App Router, React 19.2.8, TypeScript 6.0.3, Tailwind CSS 4.3.3, development-only shadcn 4.14.1 (`radix-lyra`), next-intl 4.13.4, next-themes 0.4.6, `@hey-api/openapi-ts` 0.99.0 with its bundled Fetch client, Jest 30.4.2, Testing Library 16.3.2, Playwright 1.61.1, audited exact overrides for PostCSS 8.5.22, sharp 0.35.3, js-yaml 4.3.0, and `@hono/node-server` 2.0.11, ASP.NET Core/.NET SDK 10.0.302.
 
 ## Global Constraints
 
@@ -23,7 +23,8 @@
 - Keep `cacheComponents: true` and `output: "standalone"`. Use `connection()` inside the SSR status component and wrap it in `Suspense` so a production build does not contact a live API or freeze a missing-runtime-configuration result into prerendered HTML.
 - Expected API failures are rendered as the discriminated union `problem | network | configuration`; never show raw server `title`/`detail`, exception text, stack traces, secrets, or internal API origins.
 - Every functional change starts with a focused failing test, then the smallest implementation, a focused green run, the broader task checks, and a task commit.
-- Exact dependency versions and `package-lock.json` are authoritative. The standalone npm package `@hey-api/client-fetch` is deprecated and must not be installed; `@hey-api/client-fetch` in generator config is a bundled plugin identifier.
+- Exact dependency versions and `package-lock.json` are authoritative. Keep shadcn in `devDependencies`; require both `npm audit --json` and `npm run audit:prod` to report zero findings. Security overrides stay exact and narrowly scoped to PostCSS 8.5.22, Next.js sharp 0.35.3, the JavaScript YAML 4 consumers at js-yaml 4.3.0, and the shadcn MCP stack at `@hono/node-server` 2.0.11 until audited upstream ranges make them unnecessary and the complete compatibility matrix passes. The standalone npm package `@hey-api/client-fetch` is deprecated and must not be installed; `@hey-api/client-fetch` in generator config is a bundled plugin identifier.
+- Treat `next-env.d.ts` and `*.tsbuildinfo` as generated, ignored, and untracked. Keep `next-env.d.ts` in `tsconfig.json` `include`; `next typegen`, `next dev`, and `next build` regenerate it.
 - Read the installed Next.js 16.2.11 package-local documentation before creating functional Next.js source.
 - Do not add TanStack Query, SWR, MSW, MDX, analytics, remote cache handlers, YARP, Docker, Aspire, CORS, EF Core, Identity, OAuth, API keys, or an active OpenSpec change.
 - Record durable web/runtime decisions in `docs/web-conventions.md` and update the migration register plus acceptance evidence in `docs/aspnetcore-migration-plan.md`.
@@ -54,14 +55,14 @@
 | --- | --- |
 | `apps/web/package.json`, `package-lock.json` | Exact runtime/dev dependencies and reproducible scripts. |
 | `apps/web/next.config.ts` | Cache Components, standalone output, next-intl plugin, typed routes, and optional dev/E2E `/api/**` rewrite. |
-| `apps/web/tsconfig.json`, `next-env.d.ts` | Strict TypeScript, JSON modules, aliases, Next route types. |
+| `apps/web/tsconfig.json`, `.gitignore` | Strict TypeScript, JSON modules, aliases, Next route types, and ignored generated `next-env.d.ts`/`*.tsbuildinfo`. |
 | `apps/web/eslint.config.mjs`, `prettier.config.mjs`, `.prettierignore` | Source checks while leaving generated files untouched. |
 | `apps/web/postcss.config.mjs`, `components.json` | Tailwind 4 and shadcn `radix-lyra` configuration. |
 | `apps/web/jest.config.mjs`, `jest.setup.ts` | Jest/Testing Library and the `server-only` test shim. |
 | `apps/web/openapi-ts.config.ts` | `contracts/openapi/v1.json` → generated types, bundled Fetch client, and flat SDK. |
 | `apps/web/src/lib/api/generated/**` | Committed, generator-owned REST types/runtime/SDK; never hand-edit. |
 | `apps/web/scripts/check-generated.mjs` | Regenerate and byte-compare the generated tree. |
-| `apps/web/scripts/check-boundaries.mjs` | Dependency/source guards for forbidden full-stack coupling and raw data access. |
+| `apps/web/scripts/check-boundaries.mjs`, `check-boundaries.node-test.mjs` | Dependency/source guards plus focused Node test coverage for every enabled JS/TS source and Route Handler extension. |
 
 ### Application source
 
@@ -123,7 +124,7 @@
 - Generate: `apps/web/package-lock.json`
 - Create: `apps/web/.gitignore`
 - Create: `apps/web/tsconfig.json`
-- Create: `apps/web/next-env.d.ts`
+- Generate and ignore: `apps/web/next-env.d.ts`, `apps/web/*.tsbuildinfo`
 - Create: `apps/web/next.config.ts`
 - Create: `apps/web/postcss.config.mjs`
 - Create: `apps/web/eslint.config.mjs`
@@ -138,7 +139,7 @@
 
 **Interfaces:**
 - Consumes: Node `>=22.18.0`, npm, Next App Router.
-- Produces: scripts `dev`, `build`, `start`, `lint`, `typecheck`, `test`, `format`, `format:check`; alias `@/*`; a standalone-buildable root page and working Jest harness.
+- Produces: scripts `dev`, `build`, `start`, `lint`, `typecheck`, `test`, `format`, `format:check`, `audit:prod`; alias `@/*`; generated-TypeScript ignore discipline; a standalone-buildable root page and working Jest harness.
 
 - [ ] **Step 1: Create the exact package and configuration baseline**
 
@@ -162,7 +163,14 @@ Delete `.gitkeep`, then create `package.json`:
     "typecheck": "next typegen && tsc --noEmit",
     "test": "jest",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "audit:prod": "npm audit --omit=dev",
+    "api:generate": "openapi-ts --file openapi-ts.config.ts",
+    "api:check": "node ./scripts/check-generated.mjs",
+    "boundaries:test": "node --test ./scripts/check-boundaries.node-test.mjs",
+    "boundaries:check": "npm run boundaries:test && node ./scripts/check-boundaries.mjs",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium"
   },
   "dependencies": {
     "@tabler/icons-react": "3.45.0",
@@ -175,9 +183,23 @@ Delete `.gitkeep`, then create `package.json`:
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "0.0.1",
-    "shadcn": "4.14.1",
     "tailwind-merge": "3.6.0",
     "tw-animate-css": "1.4.0"
+  },
+  "overrides": {
+    "@hey-api/json-schema-ref-parser": {
+      "js-yaml": "4.3.0"
+    },
+    "@modelcontextprotocol/sdk": {
+      "@hono/node-server": "2.0.11"
+    },
+    "cosmiconfig": {
+      "js-yaml": "4.3.0"
+    },
+    "next": {
+      "sharp": "0.35.3"
+    },
+    "postcss": "8.5.22"
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
@@ -197,6 +219,7 @@ Delete `.gitkeep`, then create `package.json`:
     "jest-environment-jsdom": "30.4.1",
     "prettier": "3.9.6",
     "prettier-plugin-tailwindcss": "0.8.1",
+    "shadcn": "4.14.1",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3"
   }
@@ -239,16 +262,10 @@ Create `tsconfig.json`:
 }
 ```
 
-Create `next-env.d.ts`:
-
-```ts
-/// <reference types="next" />
-/// <reference types="next/image-types/global" />
-import "./.next/types/routes.d.ts";
-
-// NOTE: This file should not be edited
-// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
-```
+Do not create or track `next-env.d.ts`. Installed Next.js `16.2.11`
+documentation identifies it as framework-managed generated output: retain the
+`tsconfig.json` include entry, ignore it, and let `next typegen`, `next dev`, or
+`next build` regenerate it.
 
 Create `next.config.ts`:
 
@@ -337,6 +354,8 @@ Create `.gitignore`:
 
 ```text
 .next/
+next-env.d.ts
+*.tsbuildinfo
 coverage/
 node_modules/
 playwright-report/
@@ -386,11 +405,20 @@ sed -n '1,180p' node_modules/next/dist/docs/01-app/01-getting-started/17-deployi
 sed -n '1,180p' node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/cacheComponents.md
 sed -n '1,180p' node_modules/next/dist/docs/01-app/03-api-reference/04-functions/connection.md
 sed -n '1,180p' node_modules/next/dist/docs/01-app/03-api-reference/05-config/01-next-config-js/rewrites.md
+sed -n '80,110p' node_modules/next/dist/docs/01-app/03-api-reference/05-config/02-typescript.md
 sed -n '1,180p' node_modules/next/dist/docs/01-app/02-guides/testing/jest.md
 sed -n '1,180p' node_modules/next/dist/docs/01-app/02-guides/testing/playwright.md
+npm audit --json
+npm run audit:prod
+npm ls next postcss sharp js-yaml @hono/node-server shadcn --all
 ```
 
-Expected: install succeeds without a deprecated `@hey-api/client-fetch` package; Next prints `16.2.11`; Hey API requires `>=22.18.0`; every documentation file is present and read before functional source is added.
+Expected: install succeeds without a deprecated `@hey-api/client-fetch`
+package; Next prints `16.2.11`; Hey API requires `>=22.18.0`; every
+documentation file is present and read before functional source is added; both
+audits report zero findings; the dependency tree resolves PostCSS `8.5.22`,
+sharp `0.35.3`, js-yaml `4.3.0` for JavaScript YAML 4 consumers, and
+`@hono/node-server` `2.0.11`, with shadcn marked development-only.
 
 - [ ] **Step 3: Write the first failing page test**
 
@@ -3515,13 +3543,14 @@ git commit -m "feat(web): add SSR and browser status UI"
 
 **Files:**
 - Create: `apps/web/scripts/check-boundaries.mjs`
+- Create: `apps/web/scripts/check-boundaries.node-test.mjs`
 - Create: `apps/web/playwright.config.ts`
 - Create: `apps/web/e2e/system-status.spec.ts`
 - Modify: `apps/web/package.json`
 
 **Interfaces:**
 - Consumes: built .NET API at `127.0.0.1:5297`, Next dev server at `127.0.0.1:3127`, `/api/health`, SSR/browser status regions.
-- Produces: scripts `boundaries:check`, `e2e`, `e2e:install`; a two-process Playwright harness; executable source/dependency contract guards.
+- Produces: scripts `boundaries:test`, `boundaries:check`, `e2e`, `e2e:install`; a two-process Playwright harness; executable source/dependency contract guards covering every enabled JS/TS source and Route Handler extension.
 
 - [ ] **Step 1: Add an exact source/dependency boundary checker**
 
@@ -3538,6 +3567,8 @@ const packageJson = JSON.parse(
   await readFile(resolve(webRoot, "package.json"), "utf8"),
 );
 const violations = [];
+const sourceExtensionPattern = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
+const routeHandlerPattern = /\/route\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
 
 const forbiddenPackages = [
   "@better-auth/prisma-adapter",
@@ -3566,7 +3597,7 @@ async function sourceFiles(directory) {
 
     if (child.isDirectory()) {
       files.push(...(await sourceFiles(path)));
-    } else if (child.isFile() && /\.(?:ts|tsx)$/.test(child.name)) {
+    } else if (child.isFile() && sourceExtensionPattern.test(child.name)) {
       files.push(path);
     }
   }
@@ -3580,7 +3611,11 @@ for (const path of await sourceFiles(sourceRoot)) {
   const isGenerated = path.startsWith(`${generatedRoot}${sep}`);
 
   if (isGenerated) {
-    if (!content.startsWith("// This file is auto-generated by @hey-api/openapi-ts")) {
+    if (
+      !content.startsWith(
+        "// This file is auto-generated by @hey-api/openapi-ts",
+      )
+    ) {
       violations.push(`generated header missing: ${localPath}`);
     }
     continue;
@@ -3619,7 +3654,7 @@ for (const path of await sourceFiles(sourceRoot)) {
   }
   if (
     localPath.startsWith("src/app/") &&
-    /\/route\.(?:ts|tsx)$/.test(`/${localPath}`)
+    routeHandlerPattern.test(`/${localPath}`)
   ) {
     violations.push(`Next Route Handler: ${localPath}`);
   }
@@ -3644,12 +3679,85 @@ if (violations.length > 0) {
 console.log("Web dependency and source boundaries are clean.");
 ```
 
+Create the focused deterministic regression
+`scripts/check-boundaries.node-test.mjs`:
+
+```js
+import assert from "node:assert/strict";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { afterEach, test } from "node:test";
+import { dirname, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const extensions = ["js", "jsx", "mjs", "cjs", "ts", "tsx", "mts", "cts"];
+const fixtureRoots = [
+  resolve(webRoot, "src/__boundary_guard_test__"),
+  resolve(webRoot, "src/app/__boundary_guard_test__"),
+];
+
+afterEach(async () => {
+  await Promise.all(
+    fixtureRoots.map((path) => rm(path, { force: true, recursive: true })),
+  );
+});
+
+async function expectViolation(relativePath, content, expectedMessage) {
+  const fixturePath = resolve(webRoot, relativePath);
+
+  await mkdir(dirname(fixturePath), { recursive: true });
+  await writeFile(fixturePath, content);
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      ["./scripts/check-boundaries.mjs"],
+      {
+        cwd: webRoot,
+        encoding: "utf8",
+      },
+    );
+
+    assert.equal(
+      result.status,
+      1,
+      `${relative(webRoot, fixturePath)} was not rejected:\n${result.stdout}${result.stderr}`,
+    );
+    assert.match(result.stderr, expectedMessage);
+  } finally {
+    await rm(fixturePath);
+  }
+}
+
+test("scans every enabled JavaScript and TypeScript source form", async () => {
+  for (const extension of extensions) {
+    await expectViolation(
+      `src/__boundary_guard_test__/forbidden.${extension}`,
+      'export const forbidden = () => fetch("/api/health");\n',
+      /raw fetch outside generated runtime/,
+    );
+  }
+});
+
+test("rejects Route Handlers in every enabled source form", async () => {
+  for (const extension of extensions) {
+    await expectViolation(
+      `src/app/__boundary_guard_test__/route.${extension}`,
+      "export const value = 1;\n",
+      /Next Route Handler/,
+    );
+  }
+});
+```
+
 Add these exact scripts to the existing `package.json` scripts object:
 
 ```json
 {
   "scripts": {
-    "boundaries:check": "node ./scripts/check-boundaries.mjs",
+    "boundaries:test": "node --test ./scripts/check-boundaries.node-test.mjs",
+    "boundaries:check": "npm run boundaries:test && node ./scripts/check-boundaries.mjs",
     "e2e": "playwright test",
     "e2e:install": "playwright install chromium"
   }
@@ -3841,6 +3949,8 @@ Expected: Playwright starts/reuses API `:5297` and Next `:3127`; 3 tests pass. T
 Run:
 
 ```bash
+npm audit --json
+npm run audit:prod
 npm run api:check
 npm run boundaries:check
 npm run format
@@ -3850,6 +3960,7 @@ npm run typecheck
 npm test -- --runInBand
 npm run build
 test -f .next/standalone/server.js
+npm run e2e:install
 npm run e2e
 ```
 
@@ -3869,6 +3980,8 @@ git commit -m "test(web): add boundary guards and full-stack smoke"
 **Files:**
 - Create: `docs/web-conventions.md`
 - Modify: `docs/aspnetcore-migration-plan.md`
+- Modify: `docs/superpowers/specs/2026-07-23-nextjs-ui-foundation-design.md`
+- Modify: `docs/superpowers/plans/2026-07-24-nextjs-ui-foundation.md`
 - Verify unchanged: `contracts/openapi/v1.json`
 - Verify unchanged: `template/**`
 
@@ -3890,6 +4003,32 @@ database access, or external integrations. ASP.NET Core is the only API host.
 The web application contains no Prisma, Better Auth, Server Actions, API Route
 Handlers, direct database access, or browser bearer-token storage.
 
+## Dependency integrity
+
+Runtime dependencies contain only packages needed by the built application.
+The exact-pinned `shadcn` CLI is a development dependency: it supplies build-time
+CSS/component tooling but is not shipped as a production runtime dependency.
+Both direct and development dependencies stay exact-pinned, and
+`package-lock.json` is authoritative.
+
+Security overrides are exact, narrowly justified compatibility bridges:
+
+- `postcss` is held at `8.5.22` for every consumer because stable Next.js
+  `16.2.11` otherwise installs vulnerable `8.4.31`;
+- Next.js `sharp` is held at `0.35.3`;
+- the two JavaScript YAML 4 consumers are held at `js-yaml` `4.3.0`;
+- the shadcn MCP dependency is held at `@hono/node-server` `2.0.11`.
+
+The initially reviewed Hono floor `2.0.5` is not used: the live registry audit
+now reports a later advisory across `2.0.0`–`2.0.9`, so exact `2.0.11` is the
+first currently audited stable release.
+
+The override versions pass generation, CLI/MCP-HTTP transport, lint, typecheck,
+Jest, production build, standalone-runtime, and full-stack E2E checks. Remove
+an override only after an exact upstream dependency accepts an audited version
+and the same matrix passes. `npm audit --json` checks the full tree;
+`npm run audit:prod` is the required production-dependency gate.
+
 ## Generated REST contract
 
 `contracts/openapi/v1.json` is the input to
@@ -3899,7 +4038,16 @@ Handlers, direct database access, or browser bearer-token storage.
 
 Application data adapters call generated SDK operations and import generated
 DTOs. They do not call raw `fetch` and do not redefine response or Problem
-Details types. `npm run boundaries:check` enforces these rules.
+Details types. `npm run boundaries:check` enforces these rules across
+`js`, `jsx`, `mjs`, `cjs`, `ts`, `tsx`, `mts`, and `cts` source and Route
+Handler forms.
+
+## Generated TypeScript metadata
+
+Next.js owns and regenerates `next-env.d.ts`; it stays in the `tsconfig.json`
+`include` list but is ignored and untracked. TypeScript incremental
+`*.tsbuildinfo` files are also ignored. `next typegen`, `next dev`, and
+`next build` may refresh these generated files without dirtying tracked source.
 
 ## Browser API calls
 
@@ -3952,6 +4100,8 @@ From `apps/web`:
 
 ```bash
 npm ci
+npm audit --json
+npm run audit:prod
 npm run api:check
 npm run boundaries:check
 npm run format:check
@@ -3959,6 +4109,7 @@ npm run lint
 npm run typecheck
 npm test -- --runInBand
 npm run build
+npm run e2e:install
 npm run e2e
 test -f .next/standalone/server.js
 ```
@@ -3989,6 +4140,9 @@ Run from `apps/web`:
 
 ```bash
 npm ci
+npm audit --json
+npm audit --omit=dev --json
+npm run audit:prod
 npm run api:check
 npm run boundaries:check
 npm run format:check
@@ -3998,10 +4152,14 @@ npm test -- --runInBand
 node -e "require('node:fs').rmSync('.next', { recursive: true, force: true })"
 env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build
 test -f .next/standalone/server.js
+npm run e2e:install
 npm run e2e
 ```
 
-Expected: every command exits 0. Capture the exact Jest suite/test counts, 3/3 Playwright count, and standalone result from this clean-lock run.
+Expected: every command exits 0; both audit JSON summaries and `audit:prod`
+report zero vulnerabilities. Capture the exact Jest suite/test counts, 3/3
+Playwright count, standalone result, and confirmation that generated
+`next-env.d.ts`/`*.tsbuildinfo` output did not dirty tracked files.
 
 - [ ] **Step 4: Update the migration register and acceptance evidence using only observed results**
 
@@ -4077,7 +4235,9 @@ The completion response must state, concisely and with observed values:
 
 - implemented fixed-locale shell, generated SDK, browser and SSR transports, safe failures, status UI, boundaries, and E2E;
 - browser request is same-origin and SSR request uses `API_INTERNAL_BASE_URL`;
-- the exact .NET/Jest/Playwright/build/check results;
+- the exact full/production npm audit, .NET/Jest/Playwright/build/check results;
+- exact override resolutions, development-only shadcn ownership, and
+  ignored/untracked Next.js TypeScript metadata;
 - `git diff -- template/` and OpenAPI drift are empty;
 - intentional differences from reference;
 - iteration-3 blockers/out-of-scope work, especially persistence, Identity, cookie issuance, antiforgery, account/workspace/product UI, and production reverse proxy.
