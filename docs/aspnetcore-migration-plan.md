@@ -1,7 +1,7 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 3 — persistence, Identity и базовая аутентификация (завершена 2026-07-24).
+**Текущая итерация:** 2 — чистый Next.js UI foundation (завершена 2026-07-24).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -274,8 +274,7 @@ flowchart LR
 | 0 — bootstrap | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился. |
 | 1 — API foundation | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты. |
 | 2 — чистый Next.js UI foundation | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты. |
-| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL/EF Core/Identity, persistent server-side sessions, secure cookie/CSRF boundary, local automation flow, generated-SDK login/dashboard/logout и multi-session Playwright gate приняты. |
-| 4–12 | Не начаты | Следующий dependency gate — account lifecycle и внешний OAuth; production Data Protection, OAuth и account settings не добавлялись в итерации 3. |
+| 3–12 | Не начаты | Следующий dependency gate — PostgreSQL, EF Core, Identity и базовая cookie authentication без переноса старых данных. |
 
 ## Acceptance evidence: итерация 1
 
@@ -395,65 +394,6 @@ proxy: конечная production topology с Kestrel/YARP остаётся о�
 register/login/logout/current-user, выдача secure HttpOnly same-origin cookie и
 antiforgery. До него persistence, Identity, cookie issuance, account/workspace/
 product UI и auth-dependent parity остаются известными gaps.
-
-## Acceptance evidence: итерация 3
-
-**Scope:** PostgreSQL schema and EF migration in `Template.Infrastructure`,
-Application/Domain authentication rules and ports, production API authentication
-composition and contracts, generated web SDK/adapters, local login/protected
-dashboard/logout UI, and the isolated Playwright E2E host. `template/` remained
-an immutable reference; no old Prisma/Better Auth data or session was migrated.
-
-| Reference | Новый API | Новый UI | Test/evidence |
-| --- | --- | --- | --- |
-| Better Auth user/session behavior and reference auth tests | PostgreSQL-backed Identity user plus persistent opaque cookie-ticket sessions; `/api/v1/auth/session`, `/api/v1/auth/logout` | protected `/dashboard`, request-bound SSR session projection and safe logout | Application/API unit and integration suites; browser persistence/reload proof |
-| reference local automation handlers | gated `/api/local-auth/scenario`, `/api/local-auth/sign-in`, cleanup and capabilities contracts | `/auth/login` one-click local automation card | endpoint security/error/rate-limit tests and Playwright create/sign-in/cleanup flow |
-| reference CSRF/cookie boundary | Secure HttpOnly host-only session and antiforgery cookies, CSRF header validation, dual primary/issuer cookie schemes | generated SDK browser and SSR adapters; no bearer/browser storage | cookie rotation, CSRF, cache, failure and boundary tests |
-| reference multi-session browser scenarios | independent server-side sessions with isolated logout and all-session cleanup | two Playwright browser contexts over the same-origin Next rewrite | `authentication.spec.ts`: distinct session IDs, reload persistence, isolated logout, cleanup invalidation and protected redirect |
-| Prisma schema/session store | additive `auth` EF schema and initial migration; database readiness checks relation presence | no direct database access | clean `postgres:18.4` Testcontainers migration in integration and E2E hosts |
-
-`Template.Api.ApiHost.Build` is the reusable production composition root.
-`Program.cs` remains the production entry point and only calls `Build`, then
-`Run`; it never applies migrations. The extraction preserves the accepted
-`/api` order: correlation ID, request logging, exception handling, status-code
-pages, auth response-cache policy and local-availability policy, followed by
-authentication, authorization and rate limiting.
-
-`Template.E2EHost` is the only browser-test network host. Every Playwright run
-starts a fresh exact `postgres:18.4` container, injects its connection string,
-applies the real EF migration, builds the real API composition and owns both
-container and API lifecycle. Playwright waits on `/api/health/ready` and never
-reuses an existing API listener. The test listener models an HTTPS-terminating
-same-origin deployment for the unchanged Secure cookie policy while retaining a
-loopback HTTP transport. The generated SDK bridge stays on the external Next
-origin and uses each Playwright context's shared request/cookie state; it does
-not add raw application fetches or handwritten transport DTOs.
-
-**Проверки 2026-07-24 (final Task 14 refresh):**
-
-| Команда | Наблюдаемый результат |
-| --- | --- |
-| `dotnet restore Template.sln` | PASS |
-| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; includes `Template.E2EHost` |
-| `dotnet test Template.sln --no-restore` | PASS; Application 17/17 and API 93/93 |
-| `npm run api:check` | PASS; generated REST SDK deterministic/current |
-| `npm run boundaries:check` | PASS; 3/3 boundary tests and source/dependency scan |
-| `npm run format:check` | PASS |
-| `npm run lint` | PASS |
-| `npm run typecheck` | PASS |
-| `npm test -- --runInBand` | PASS; 23/23 suites, 91/91 tests |
-| `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build` | PASS; Next.js production build |
-| `npm run e2e -- authentication.spec.ts` | PASS; 1/1 persistent multi-session scenario |
-| `npm run e2e` | PASS; 4/4 Playwright scenarios |
-| `git diff --exit-code -- template/` | PASS; empty |
-
-**Intentional differences and later gates:** production self-service account
-lifecycle, external OAuth, profile/settings pages, account deletion, session
-management UI, organizations and product dashboard remain in later iterations.
-Local email/password creation/sign-in is exposed only in Development/Test when
-explicitly enabled. Production Data Protection key persistence/encryption and
-deployment migration bundles remain production-topology gates; the production
-API never auto-migrates.
 
 ## 9. Правило обновления этого документа
 
