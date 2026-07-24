@@ -454,16 +454,20 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Theory]
-    [InlineData("/api/local-auth/scenario")]
-    [InlineData("/api/local-auth/sign-in")]
-    public async Task WhitespaceOnlyAuthRequestBodiesUseStableInvalidRequest(string path)
+    [InlineData("/api/local-auth/scenario", "text/plain")]
+    [InlineData("/api/local-auth/scenario", "application/json")]
+    [InlineData("/api/local-auth/sign-in", "text/plain")]
+    [InlineData("/api/local-auth/sign-in", "application/json")]
+    public async Task WhitespaceOnlyAuthRequestBodiesUseStableInvalidRequest(
+        string path,
+        string mediaType)
     {
         using var client = factory.CreateApiClient();
         using var request = new HttpRequestMessage(HttpMethod.Post, path);
         request.Headers.Add(
             "X-CSRF-TOKEN",
             await LocalAuthTestClient.GetCsrfAsync(client));
-        request.Content = new StringContent(" ", Encoding.UTF8, "text/plain");
+        request.Content = new StringContent(" ", Encoding.UTF8, mediaType);
 
         using var response = await client.SendAsync(
             request,
