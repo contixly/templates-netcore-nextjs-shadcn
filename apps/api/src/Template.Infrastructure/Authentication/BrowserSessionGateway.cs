@@ -61,6 +61,8 @@ internal sealed class BrowserSessionGateway(
             sessionId.Value.ToString()));
         var window = SessionWindow.Start(timeProvider.GetUtcNow(), SessionLifetime);
 
+        PostgresTicketStore.BeginSessionReplacement(context);
+        await context.SignOutAsync();
         await context.SignInAsync(
             principal,
             new AuthenticationProperties

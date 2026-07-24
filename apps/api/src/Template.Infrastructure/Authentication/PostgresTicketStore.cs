@@ -18,6 +18,8 @@ public sealed class PostgresTicketStore(
     TimeProvider timeProvider)
     : ITicketStore
 {
+    private static readonly object SessionReplacementRequested = new();
+    private static readonly object SignedOutTicketKey = new();
     private readonly IDataProtector _protector = dataProtectionProvider.CreateProtector(
         "Template.Infrastructure.Authentication.PostgresTicketStore.v1");
 
@@ -35,6 +37,18 @@ public sealed class PostgresTicketStore(
         CancellationToken cancellationToken)
     {
         var key = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
+        await StoreCoreAsync(ticket, key, httpContext, cancellationToken);
+        httpContext.Items.Remove(SessionReplacementRequested);
+        httpContext.Items.Remove(SignedOutTicketKey);
+        return key;
+    }
+
+    private async Task StoreCoreAsync(
+        AuthenticationTicket ticket,
+        string key,
+        HttpContext httpContext,
+        CancellationToken cancellationToken)
+    {
         var now = timeProvider.GetUtcNow();
         var expiresAt = ticket.Properties.ExpiresUtc ??
             throw new InvalidOperationException("A persistent ticket requires ExpiresUtc.");
@@ -62,7 +76,6 @@ public sealed class PostgresTicketStore(
             UserAgent = userAgent.Length == 0 ? null : userAgent
         });
         await db.SaveChangesAsync(cancellationToken);
-        return key;
     }
 
     public Task RenewAsync(string key, AuthenticationTicket ticket) =>
@@ -82,20 +95,35 @@ public sealed class PostgresTicketStore(
     {
         var db = GetDb(httpContext);
         var hash = HashKey(key);
-        var row = await db.Sessions.SingleOrDefaultAsync(
-            session => session.TicketKeyHash.SequenceEqual(hash),
-            cancellationToken);
-        if (row is null)
-        {
-            return;
-        }
-
-        row.ProtectedTicket = Protect(ticket);
-        row.UpdatedAt = timeProvider.GetUtcNow();
-        row.ExpiresAt = (ticket.Properties.ExpiresUtc ??
+        var sessionId = ParseRequiredGuid(
+            ticket.Principal,
+            BrowserSessionClaimTypes.SessionId);
+        var userId = ParseRequiredGuid(ticket.Principal, ClaimTypes.NameIdentifier);
+        var protectedTicket = Protect(ticket);
+        var updatedAt = timeProvider.GetUtcNow();
+        var expiresAt = (ticket.Properties.ExpiresUtc ??
             throw new InvalidOperationException("A persistent ticket requires ExpiresUtc."))
             .ToUniversalTime();
-        await db.SaveChangesAsync(cancellationToken);
+        var updated = await db.Sessions
+            .Where(session =>
+                session.TicketKeyHash.SequenceEqual(hash) &&
+                session.Id == sessionId &&
+                session.UserId == userId)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(
+                        session => session.ProtectedTicket,
+                        protectedTicket)
+                    .SetProperty(session => session.UpdatedAt, updatedAt)
+                    .SetProperty(session => session.ExpiresAt, expiresAt),
+                cancellationToken);
+        if (updated == 0 &&
+            httpContext.Items.TryGetValue(SignedOutTicketKey, out var signedOutKey) &&
+            string.Equals(signedOutKey as string, key, StringComparison.Ordinal))
+        {
+            await StoreCoreAsync(ticket, key, httpContext, cancellationToken);
+            httpContext.Items.Remove(SignedOutTicketKey);
+        }
     }
 
     public Task<AuthenticationTicket?> RetrieveAsync(string key) =>
@@ -113,7 +141,7 @@ public sealed class PostgresTicketStore(
     {
         var db = GetDb(httpContext);
         var hash = HashKey(key);
-        var row = await db.Sessions.SingleOrDefaultAsync(
+        var row = await db.Sessions.AsNoTracking().SingleOrDefaultAsync(
             session => session.TicketKeyHash.SequenceEqual(hash),
             cancellationToken);
         if (row is null)
@@ -121,22 +149,31 @@ public sealed class PostgresTicketStore(
             return null;
         }
 
-        if (row.ExpiresAt <= timeProvider.GetUtcNow())
+        var now = timeProvider.GetUtcNow();
+        if (row.ExpiresAt <= now)
         {
-            db.Sessions.Remove(row);
-            await db.SaveChangesAsync(cancellationToken);
+            await db.Sessions
+                .Where(session =>
+                    session.TicketKeyHash.SequenceEqual(hash) &&
+                    session.ExpiresAt <= now)
+                .ExecuteDeleteAsync(cancellationToken);
             return null;
         }
 
         try
         {
-            return TicketSerializer.Default.Deserialize(
+            var ticket = TicketSerializer.Default.Deserialize(
                 _protector.Unprotect(row.ProtectedTicket));
+            if (ticket is null)
+            {
+                await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            }
+
+            return ticket;
         }
         catch (CryptographicException)
         {
-            db.Sessions.Remove(row);
-            await db.SaveChangesAsync(cancellationToken);
+            await DeleteIfUnchangedAsync(db, row, cancellationToken);
             return null;
         }
     }
@@ -154,16 +191,13 @@ public sealed class PostgresTicketStore(
     {
         var db = GetDb(httpContext);
         var hash = HashKey(key);
-        var row = await db.Sessions.SingleOrDefaultAsync(
-            session => session.TicketKeyHash.SequenceEqual(hash),
-            cancellationToken);
-        if (row is null)
+        await db.Sessions
+            .Where(session => session.TicketKeyHash.SequenceEqual(hash))
+            .ExecuteDeleteAsync(cancellationToken);
+        if (httpContext.Items.Remove(SessionReplacementRequested))
         {
-            return;
+            httpContext.Items[SignedOutTicketKey] = key;
         }
-
-        db.Sessions.Remove(row);
-        await db.SaveChangesAsync(cancellationToken);
     }
 
     private HttpContext RequiredHttpContext() =>
@@ -176,6 +210,19 @@ public sealed class PostgresTicketStore(
 
     private static byte[] HashKey(string key) =>
         SHA256.HashData(Encoding.UTF8.GetBytes(key));
+
+    internal static void BeginSessionReplacement(HttpContext context) =>
+        context.Items[SessionReplacementRequested] = true;
+
+    private static Task<int> DeleteIfUnchangedAsync(
+        AuthDbContext db,
+        AuthSessionEntity row,
+        CancellationToken cancellationToken) =>
+        db.Sessions
+            .Where(session =>
+                session.Id == row.Id &&
+                session.ProtectedTicket.SequenceEqual(row.ProtectedTicket))
+            .ExecuteDeleteAsync(cancellationToken);
 
     private byte[] Protect(AuthenticationTicket ticket) =>
         _protector.Protect(TicketSerializer.Default.Serialize(ticket));
