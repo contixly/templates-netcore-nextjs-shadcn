@@ -47,7 +47,7 @@ describe("generated system status SDK", () => {
     expect(deleteLocalAutomationScenario).toEqual(expect.any(Function));
   });
 
-  it("locks required sign-in credentials and unsafe 400 response variants", () => {
+  it("locks auth request-body parity and unsafe 400 response variants", () => {
     const contract = JSON.parse(
       readFileSync(
         resolve(process.cwd(), "../../contracts/openapi/v1.json"),
@@ -67,6 +67,9 @@ describe("generated system status SDK", () => {
         Record<
           string,
           {
+            requestBody?: {
+              required?: boolean;
+            };
             responses: {
               "400": {
                 content: {
@@ -86,6 +89,12 @@ describe("generated system status SDK", () => {
     const credentials =
       contract.components.schemas.LocalAutomationSignInRequest;
 
+    expect(
+      contract.paths["/api/local-auth/scenario"].post.requestBody?.required,
+    ).not.toBe(true);
+    expect(
+      contract.paths["/api/local-auth/sign-in"].post.requestBody?.required,
+    ).toBe(true);
     expect(credentials.required).toEqual(
       expect.arrayContaining(["email", "password"]),
     );
@@ -115,6 +124,10 @@ describe("generated system status SDK", () => {
       resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
       "utf8",
     );
+    expect(generatedTypes).toContain(
+      "body?: CreateLocalAutomationScenarioRequest;",
+    );
+    expect(generatedTypes).toContain("body: LocalAutomationSignInRequest;");
     expect(generatedTypes).toContain(
       "400: ProblemDetails | HttpValidationProblemDetails;",
     );

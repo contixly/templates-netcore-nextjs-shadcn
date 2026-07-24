@@ -32,6 +32,8 @@ jest.mock("@/src/lib/api/server/request-headers", () => ({
 }));
 
 const client = {} as Client;
+const capabilitiesClient = { role: "capabilities" } as unknown as Client;
+const sessionClient = { role: "session" } as unknown as Client;
 const mockedCapabilities = jest.mocked(getAuthCapabilities);
 const mockedSession = jest.mocked(getAuthSession);
 const mockedCsrf = jest.mocked(getAuthCsrf);
@@ -42,6 +44,7 @@ const mockedReadForwardedApiHeaders = jest.mocked(readForwardedApiHeaders);
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockedCreateServerClient.mockReset();
 });
 
 it("loads capability and session data from generated envelopes", async () => {
@@ -85,7 +88,9 @@ it("composes request-bound server authentication state", async () => {
     cookie: "__Host-template.session=opaque",
     correlationId: "trace-auth",
   });
-  mockedCreateServerClient.mockReturnValue({ ok: true, client });
+  mockedCreateServerClient
+    .mockReturnValueOnce({ ok: true, client: capabilitiesClient })
+    .mockReturnValueOnce({ ok: true, client: sessionClient });
   mockedCapabilities.mockResolvedValue({
     data: {
       data: { localAutomationEnabled: true, providers: [] },
@@ -111,16 +116,19 @@ it("composes request-bound server authentication state", async () => {
     },
   });
   expect(mockedReadForwardedApiHeaders).toHaveBeenCalledTimes(1);
-  expect(mockedCreateServerClient).toHaveBeenCalledWith({
+  expect(mockedCreateServerClient).toHaveBeenNthCalledWith(1, {
+    correlationId: "trace-auth",
+  });
+  expect(mockedCreateServerClient).toHaveBeenNthCalledWith(2, {
     cookie: "__Host-template.session=opaque",
     correlationId: "trace-auth",
   });
   expect(mockedCapabilities).toHaveBeenCalledWith({
-    client,
+    client: capabilitiesClient,
     cache: "no-store",
   });
   expect(mockedSession).toHaveBeenCalledWith({
-    client,
+    client: sessionClient,
     cache: "no-store",
     headers: { "X-Template-Session-Renewal": "suppress" },
   });

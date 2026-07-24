@@ -16,14 +16,24 @@ export type AuthPageState = Readonly<{
 }>;
 
 export async function loadServerAuthState(): Promise<ApiResult<AuthPageState>> {
-  const client = createServerApiClient(await readForwardedApiHeaders());
-  if (!client.ok) {
-    return { ok: false, failure: client.failure };
+  const forwarded = await readForwardedApiHeaders();
+  const capabilitiesClient = createServerApiClient({
+    ...(forwarded.correlationId
+      ? { correlationId: forwarded.correlationId }
+      : {}),
+  });
+  if (!capabilitiesClient.ok) {
+    return { ok: false, failure: capabilitiesClient.failure };
+  }
+
+  const sessionClient = createServerApiClient(forwarded);
+  if (!sessionClient.ok) {
+    return { ok: false, failure: sessionClient.failure };
   }
 
   const [capabilities, session] = await Promise.all([
-    loadAuthCapabilities(client.client),
-    loadAuthSession(client.client, { suppressSlidingRenewal: true }),
+    loadAuthCapabilities(capabilitiesClient.client),
+    loadAuthSession(sessionClient.client, { suppressSlidingRenewal: true }),
   ]);
   if (!capabilities.ok) {
     return capabilities;

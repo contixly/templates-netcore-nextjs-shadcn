@@ -33,6 +33,13 @@ internal sealed class ApiJsonRequestReader(IOptions<JsonOptions> jsonOptions)
                 ApiProblemCodes.InvalidRequest);
         }
 
+        if (!context.Request.HasJsonContentType())
+        {
+            throw new ApiProblemException(
+                StatusCodes.Status400BadRequest,
+                ApiProblemCodes.InvalidRequest);
+        }
+
         T value;
         try
         {

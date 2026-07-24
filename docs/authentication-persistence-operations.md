@@ -76,16 +76,19 @@ Session issuance and replacement use the internal
 existing request cookie cannot be replayed as the newly issued cookie. Both
 schemes share the ticket-store format and Data Protection purpose. Only the
 primary cookie contract is advertised as `cookieAuth`; the issuer is internal,
-and no Bearer or API-key scheme exists at runtime. The default authenticate
-selector normally forwards to the primary cookie scheme; only the canonical
-liveness path and its route-equivalent trailing-slash form use a process-only
-no-result handler.
+and no Bearer or API-key scheme exists at runtime.
+`Template.Session.Selector` is `DefaultAuthenticateScheme` and normally
+forwards to the primary cookie scheme; only the canonical liveness path and its
+route-equivalent trailing-slash form use a process-only no-result handler.
 
-Next.js SSR session reads send `X-Template-Session-Renewal: suppress`, preventing
-an invisible persisted-ticket renewal whose `Set-Cookie` cannot reach the
-browser. The authenticated dashboard follows with an unmarked same-origin
-generated-SDK session read, so normal half-life sliding renewal updates both
-PostgreSQL and the browser's secure HttpOnly cookie.
+The combined Next.js SSR auth read uses a correlation-only client for anonymous
+capabilities and a separate cookie-bearing client for the session projection.
+SSR session reads send `X-Template-Session-Renewal: suppress`, preventing an
+invisible persisted-ticket renewal whose `Set-Cookie` cannot reach the browser;
+the capabilities hop cannot authenticate or renew at all. The authenticated
+dashboard follows with an unmarked same-origin generated-SDK session read, so
+normal half-life sliding renewal updates both PostgreSQL and the browser's
+secure HttpOnly cookie.
 
 The antiforgery cookie is `__Host-template.antiforgery`: HttpOnly, Secure,
 SameSite Strict, Path `/`, no Domain. Send its paired request token in

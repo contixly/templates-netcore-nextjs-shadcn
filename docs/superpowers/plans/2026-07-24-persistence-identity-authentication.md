@@ -4,7 +4,7 @@
 
 **Goal:** Deliver migration iteration 3 as a working PostgreSQL/Identity/browser-session vertical slice with reference-compatible local email/password automation, REST-only Next.js login/logout/session UI, and no production social login until iteration 4.
 
-**Architecture:** ASP.NET Core remains the only `/api/**` owner. Application use cases depend on neutral identity/session ports; Infrastructure implements them with Identity Core, EF Core/Npgsql, PostgreSQL-backed `ITicketStore`, and explicit transactions; Api owns validation, authorization, cookies, CSRF, rate limits, Problem Details, and OpenAPI. Next.js consumes only the generated SDK, forwards only the same-origin cookie and correlation ID during SSR, and never reads the session cookie in browser JavaScript.
+**Architecture:** ASP.NET Core remains the only `/api/**` owner. Application use cases depend on neutral identity/session ports; Infrastructure implements them with Identity Core, EF Core/Npgsql, PostgreSQL-backed `ITicketStore`, and explicit transactions; Api owns validation, authorization, cookies, CSRF, rate limits, Problem Details, and OpenAPI. Next.js consumes only the generated SDK, uses a correlation-only SSR client for anonymous capabilities and a separate cookie-bearing client for session projection, and never reads the session cookie in browser JavaScript.
 
 **Tech Stack:** .NET SDK `10.0.302`, ASP.NET Core runtime/packages `10.0.10`, EF Core/design tool `10.0.10`, Npgsql EF provider `10.0.3`, Testcontainers for .NET `4.13.0`, PostgreSQL image `postgres:18.4`, xUnit v3 `3.2.2`, Next.js `16.2.11`, React `19.2.8`, TypeScript `6.0.3`, `@hey-api/openapi-ts` `0.99.0`, Jest `30.4.2`, Playwright `1.61.1`.
 
@@ -44,8 +44,13 @@ the new session, including across an account switch.
 
 The locked correction is deliberately based only on public ASP.NET Core APIs:
 
-- `Template.Session` remains the only default authenticate/challenge/forbid/sign-out
-  scheme. Its cookie manager reads request cookies normally.
+- `Template.Session.Selector` is the only default authenticate scheme. It
+  forwards ordinary paths to `Template.Session` and the canonical liveness
+  path plus its route-equivalent trailing-slash form to a process-only
+  no-result handler.
+- `Template.Session` remains the default challenge/forbid/sign-out scheme. Its
+  cookie manager reads request cookies normally, and `Api.BrowserSession` names
+  only this primary handler.
 - `Template.Session.Issuer` is a non-default standard `AddCookie` scheme used only
   by `BrowserSessionGateway` to issue a replacement. Its cookie manager never
   returns a request cookie, forcing `ITicketStore.StoreAsync` to generate a fresh
@@ -2872,8 +2877,9 @@ internal static class ApiPolicies
 options.ExpireTimeSpan = ApiAuthenticationDefaults.Lifetime;
 options.SlidingExpiration = true;
 
-// Keep the existing primary redirect overrides and default authenticate,
-// challenge, forbid and sign-out selections. Do not add DefaultSignInScheme.
+// Keep the existing primary redirect overrides; use Template.Session.Selector
+// only for default authenticate, and keep Template.Session as default challenge,
+// forbid and sign-out. Do not add DefaultSignInScheme.
 // Add/retain this browser-only policy:
 services.AddAuthorization(options =>
     options.AddPolicy(
@@ -7936,8 +7942,9 @@ In `docs/api-conventions.md`:
 In `docs/web-conventions.md`:
 
 - document request-time auth loading below `connection()`/Suspense;
-- document that SSR forwards only Cookie/correlation ID and treats API failure
-  differently from anonymous;
+- document that SSR uses correlation-only capabilities and a separate
+  Cookie/correlation session client, and treats API failure differently from
+  anonymous;
 - document CSRF-first browser mutations through generated SDK operations;
 - document redirect rejection for full URLs, `//`, `/api/**`, and `/auth/**`;
 - document that `/auth/login` has no manual credential fields and the local

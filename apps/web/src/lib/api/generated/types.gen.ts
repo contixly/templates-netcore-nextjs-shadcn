@@ -414,7 +414,7 @@ export type DeleteLocalAutomationScenarioResponses = {
 export type DeleteLocalAutomationScenarioResponse = DeleteLocalAutomationScenarioResponses[keyof DeleteLocalAutomationScenarioResponses];
 
 export type CreateLocalAutomationScenarioData = {
-    body: CreateLocalAutomationScenarioRequest;
+    body?: CreateLocalAutomationScenarioRequest;
     headers: {
         /**
          * Request token returned by GET /api/v1/auth/csrf.

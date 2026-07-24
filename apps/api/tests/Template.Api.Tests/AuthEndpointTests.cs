@@ -81,6 +81,27 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ScenarioAcceptsAnEmptyOptionalRequestBody()
+    {
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "/api/local-auth/scenario");
+        request.Headers.Add(
+            "X-CSRF-TOKEN",
+            await LocalAuthTestClient.GetCsrfAsync(client));
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.NotNull(await response.Content
+            .ReadFromJsonAsync<LocalAuthTestClient.ScenarioEnvelope>(
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task ReloadAndSecondCredentialSignInHaveDistinctSessionIds()
     {
         using var first = factory.CreateApiClient();
@@ -408,6 +429,28 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             shortPassword,
             HttpStatusCode.BadRequest,
             "validation_failed");
+    }
+
+    [Theory]
+    [InlineData("/api/local-auth/scenario")]
+    [InlineData("/api/local-auth/sign-in")]
+    public async Task NonJsonAuthRequestBodiesUseStableInvalidRequest(string path)
+    {
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
+        request.Headers.Add(
+            "X-CSRF-TOKEN",
+            await LocalAuthTestClient.GetCsrfAsync(client));
+        request.Content = new StringContent("{}", Encoding.UTF8, "text/plain");
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "invalid_request");
     }
 
     [Fact]

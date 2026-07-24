@@ -206,6 +206,24 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ScenarioRequestBodyIsOptionalButSignInRequestBodyIsRequired()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        Assert.NotEqual(
+            true,
+            paths["/api/local-auth/scenario"]!["post"]!["requestBody"]!["required"]
+                ?.GetValue<bool>());
+        Assert.True(
+            paths["/api/local-auth/sign-in"]!["post"]!["requestBody"]!["required"]!
+                .GetValue<bool>());
+    }
+
+    [Fact]
     public async Task UnsafeAuthOperationsPublishTheirActualBadRequestShapes()
     {
         using var client = factory.CreateApiClient();

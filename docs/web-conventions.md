@@ -64,20 +64,23 @@ where Kestrel owns `/api/**` directly.
 ## Server-rendered API calls
 
 SSR uses absolute server-only `API_INTERNAL_BASE_URL`. A new generated client is
-created for each call. The factory accepts only
+created for each isolated credential context. The factory accepts only
 `{ cookie?: string; correlationId?: string }`; it never accepts an arbitrary
-header collection and never forwards `Authorization`. Request-time auth loaders
-forward only the incoming `Cookie` and correlation ID. Callers read request
-state outside cached scopes and pass only explicitly permitted values. The
-anonymous system-status probe passes no forwarded headers.
+header collection and never forwards `Authorization`. The combined login auth
+loader gives its anonymous capabilities client only the correlation ID; its
+separate session client receives the incoming `Cookie` and correlation ID.
+Callers read request state outside cached scopes and pass only explicitly
+permitted values. The anonymous system-status probe passes no forwarded
+headers.
 
 Uncached request-time calls use `cache: "no-store"`. With Cache Components,
 runtime SSR work begins below `connection()` and a `Suspense` boundary so builds
 do not require a live API and request configuration is not frozen at build time.
-Login loads capabilities and session in parallel there; dashboard loads its
-session there. An explicit anonymous session causes navigation between login
-and dashboard, while network/configuration/Problem Details failures render the
-safe API-failure state rather than being treated as anonymous.
+Login loads capabilities and session in parallel there without placing the
+cookie on the capabilities request; dashboard loads its session there. An
+explicit anonymous session causes navigation between login and dashboard,
+while network/configuration/Problem Details failures render the safe
+API-failure state rather than being treated as anonymous.
 
 Server-rendered session reads add
 `X-Template-Session-Renewal: suppress` through the generated SDK. ASP.NET Core

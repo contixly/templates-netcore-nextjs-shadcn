@@ -423,8 +423,7 @@
                 "$ref": "#/components/schemas/CreateLocalAutomationScenarioRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {

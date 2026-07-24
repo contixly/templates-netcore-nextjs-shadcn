@@ -3,9 +3,18 @@ using Microsoft.AspNetCore.Mvc;
 namespace Template.Api.OpenApi;
 
 internal sealed record BadRequestVariantsMetadata;
+internal sealed record ManuallyReadJsonBodyMetadata(bool IsOptional);
 
 internal static class OpenApiEndpointConventionExtensions
 {
+    internal static RouteHandlerBuilder AcceptsManuallyReadJson<TRequest>(
+        this RouteHandlerBuilder builder,
+        bool isOptional)
+        where TRequest : notnull =>
+        builder
+            .Accepts<TRequest>(isOptional, "*/*")
+            .WithMetadata(new ManuallyReadJsonBodyMetadata(isOptional));
+
     internal static RouteHandlerBuilder ProducesValidationProblem(
         this RouteHandlerBuilder builder) =>
         builder.Produces<HttpValidationProblemDetails>(

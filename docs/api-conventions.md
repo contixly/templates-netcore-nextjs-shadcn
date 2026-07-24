@@ -48,10 +48,11 @@ primary scheme is `Template.Session`; session issuance and replacement use
 internal scheme `Template.Session.Issuer`. The issuer has a write-only cookie
 manager, while both schemes share the persistent ticket-store format and Data
 Protection purpose. This prevents an existing request cookie from being read as
-the replacement during credential changes and key rotation. The default
-authentication selector forwards ordinary requests to the primary scheme and
-forwards only the canonical liveness path and its route-equivalent
-trailing-slash form to a process-only no-result handler.
+the replacement during credential changes and key rotation.
+`Template.Session.Selector` is `DefaultAuthenticateScheme`; it forwards
+ordinary requests to the primary scheme and forwards only the canonical
+liveness path and its route-equivalent trailing-slash form to a process-only
+no-result handler.
 Authorization policies still name the primary scheme; the selector and
 process-only handler accept no credentials and are not consumer auth schemes.
 
@@ -87,16 +88,19 @@ true. Their OpenAPI operations carry tag `local-only` and
 `x-local-only: true`.
 
 The browser never reads the HttpOnly cookie and never stores a bearer token.
-Browser requests send the same-origin cookie automatically; Next.js SSR
-forwards only the incoming `Cookie` and correlation ID. Its session operation
-adds `X-Template-Session-Renewal: suppress`; this header can only prevent a
-renewal and is recognized only on the session-read path. The authenticated UI
-then performs an unmarked generated-SDK session refresh in the browser so any
-half-life `Set-Cookie` reaches the cookie jar. Every unsafe browser operation
-first obtains a request token from `GET /api/v1/auth/csrf` and sends it in
-`X-CSRF-TOKEN`; the paired `__Host-template.antiforgery` cookie is HttpOnly,
-Secure, SameSite Strict, Path `/`, and has no Domain. The deployment is
-same-origin, so CORS is not enabled.
+Browser requests send the same-origin cookie automatically. The combined
+Next.js SSR auth read uses two isolated generated-SDK clients in parallel:
+capabilities receives only the incoming correlation ID and therefore cannot
+authenticate or slide a session, while session receives `Cookie`, correlation
+ID, and the narrow `X-Template-Session-Renewal: suppress` marker. That header
+can only prevent a renewal and is recognized only on the session-read path.
+The authenticated UI then performs an unmarked generated-SDK session refresh
+in the browser so any half-life `Set-Cookie` reaches the cookie jar. Every
+unsafe browser operation first obtains a request token from
+`GET /api/v1/auth/csrf` and sends it in `X-CSRF-TOKEN`; the paired
+`__Host-template.antiforgery` cookie is HttpOnly, Secure, SameSite Strict,
+Path `/`, and has no Domain. The deployment is same-origin, so CORS is not
+enabled.
 
 ## Health
 
@@ -155,11 +159,14 @@ generated automation clients but are marked with `local-only` and
 Success-envelope schemas require non-null `data`. Standard and validation
 Problem Details schemas publish the same required invariant fields that runtime
 customization always writes; validation additionally requires `errors`.
-Local credential sign-in requires non-null `email` and `password`. The unsafe
-logout and cleanup operations publish plain `ProblemDetails` for `400`
-antiforgery failures; scenario creation and credential sign-in publish
-`ProblemDetails | HttpValidationProblemDetails`, matching plain antiforgery or
-malformed-JSON failures and structured field validation.
+Scenario creation has an optional request body, and an empty body means all
+scenario values are generated. Credential sign-in has a required request body
+with non-null `email` and `password`. Any non-empty manually read auth body must
+use a JSON media type; non-JSON input is rejected as `400 invalid_request`.
+The unsafe logout and cleanup operations publish plain `ProblemDetails` for
+`400` antiforgery failures; scenario creation and credential sign-in publish
+`ProblemDetails | HttpValidationProblemDetails`, matching plain antiforgery,
+malformed/non-JSON, or structured field-validation failures.
 
 Export and verify from the repository root:
 

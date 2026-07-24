@@ -111,7 +111,8 @@ internal sealed class AuthEndpointModule : IEndpointModule
                 CreateScenarioAsync)
             .AllowAnonymous()
             .WithName("CreateLocalAutomationScenario")
-            .Accepts<CreateLocalAutomationScenarioRequest>("application/json")
+            .AcceptsManuallyReadJson<CreateLocalAutomationScenarioRequest>(
+                isOptional: true)
             .RequireApiAntiforgery()
             .RequireRateLimiting(AuthRateLimitPolicies.LocalAutomationCreate)
             .WithLocalOnly()
@@ -125,7 +126,8 @@ internal sealed class AuthEndpointModule : IEndpointModule
                 SignInAsync)
             .AllowAnonymous()
             .WithName("SignInLocalAutomation")
-            .Accepts<LocalAutomationSignInRequest>("application/json")
+            .AcceptsManuallyReadJson<LocalAutomationSignInRequest>(
+                isOptional: false)
             .RequireApiAntiforgery()
             .RequireRateLimiting(AuthRateLimitPolicies.LocalAutomationSignIn)
             .WithLocalOnly()

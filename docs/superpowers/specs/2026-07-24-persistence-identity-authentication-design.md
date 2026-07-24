@@ -257,9 +257,12 @@ operations and types. Runtime OpenAPI remains unavailable in Production.
 Production behavior (`404` unless the two-part gate is satisfied) is part of
 their contract.
 
-Scenario creation accepts a strict JSON object with optional `name`, `email`
-and `password`; every omitted value is generated server-side. Credential
-sign-in accepts only required `email` and `password`.
+Scenario creation accepts either an empty body or a strict JSON object with
+optional `name`, `email` and `password`; every omitted value is generated
+server-side, and OpenAPI marks only this request body optional. Credential
+sign-in requires a JSON request body with required `email` and `password`.
+Every non-empty manually read auth body must use a JSON media type; non-JSON
+input returns `400 invalid_request`.
 Navigation `redirect` remains a UI concern and is not accepted by either API
 request. Pagination and filtering do not apply because this slice exposes no
 collections. There is no cache invalidation beyond expiring the browser cookie;
@@ -403,8 +406,12 @@ The application therefore uses two standard cookie handlers with the same secure
 cookie name, `PostgresTicketStore`, and explicit shared Data Protection ticket
 format:
 
-- `Template.Session` is the only default authenticate/challenge/forbid/sign-out
-  scheme and reads the request cookie normally.
+- `Template.Session.Selector` is `DefaultAuthenticateScheme`; it forwards
+  ordinary paths to `Template.Session` and the canonical liveness path plus its
+  route-equivalent trailing-slash form to a process-only no-result handler.
+- `Template.Session` remains the default challenge/forbid/sign-out scheme,
+  reads request cookies normally, and is the only scheme named by
+  `Api.BrowserSession`.
 - `Template.Session.Issuer` is non-default and write-only: its cookie manager
   returns no request cookie, so the handler calls `StoreAsync` and obtains a
   fresh random key.
@@ -572,10 +579,13 @@ auth layouts without changing public URLs.
 ### Login
 
 The login page performs request-time capabilities/session work below
-`connection()` and `Suspense`, then calls generated SDK operations. This
-preserves the iteration-2 Cache Components rule: `next build` needs neither a
-live API nor request cookies. An already authenticated user is redirected to
-the sanitized target.
+`connection()` and `Suspense`, then calls generated SDK operations in parallel.
+Capabilities uses a correlation-only client, while session uses a separate
+cookie-bearing client plus the narrowly scoped renewal-suppression marker. This
+preserves the iteration-2 Cache Components rule, keeps anonymous capabilities
+from invisibly sliding a session, and means `next build` needs neither a live
+API nor request cookies. An already authenticated user is redirected to the
+sanitized target.
 
 When local automation is enabled, the Client Component:
 

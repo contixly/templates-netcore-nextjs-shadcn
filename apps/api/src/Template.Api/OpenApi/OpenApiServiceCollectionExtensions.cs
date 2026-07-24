@@ -57,6 +57,19 @@ internal static class OpenApiServiceCollectionExtensions
                         new JsonNodeExtension(JsonValue.Create(true)!);
                 }
 
+                if (metadata.OfType<ManuallyReadJsonBodyMetadata>()
+                        .SingleOrDefault() is { } jsonBody &&
+                    operation.RequestBody is OpenApiRequestBody requestBody &&
+                    requestBody.Content?.Values.SingleOrDefault() is { } jsonMediaType)
+                {
+                    requestBody.Required = !jsonBody.IsOptional;
+                    requestBody.Content =
+                        new Dictionary<string, OpenApiMediaType>(StringComparer.Ordinal)
+                        {
+                            ["application/json"] = jsonMediaType
+                        };
+                }
+
                 if (metadata.OfType<BadRequestVariantsMetadata>().Any() &&
                     operation.Responses?.TryGetValue(
                         StatusCodes.Status400BadRequest.ToString(),
