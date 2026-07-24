@@ -66,13 +66,40 @@ where Kestrel owns `/api/**` directly.
 SSR uses absolute server-only `API_INTERNAL_BASE_URL`. A new generated client is
 created for each call. The factory accepts only
 `{ cookie?: string; correlationId?: string }`; it never accepts an arbitrary
-header collection and never forwards `Authorization`. Callers read request state
-outside cached scopes and pass only explicitly permitted values. The anonymous
-system-status probe passes no forwarded headers.
+header collection and never forwards `Authorization`. Request-time auth loaders
+forward only the incoming `Cookie` and correlation ID. Callers read request
+state outside cached scopes and pass only explicitly permitted values. The
+anonymous system-status probe passes no forwarded headers.
 
 Uncached request-time calls use `cache: "no-store"`. With Cache Components,
 runtime SSR work begins below `connection()` and a `Suspense` boundary so builds
 do not require a live API and request configuration is not frozen at build time.
+Login loads capabilities and session in parallel there; dashboard loads its
+session there. An explicit anonymous session causes navigation between login
+and dashboard, while network/configuration/Problem Details failures render the
+safe API-failure state rather than being treated as anonymous.
+
+## Authentication UI and mutations
+
+Browser authentication mutations use generated SDK operations and always fetch
+a fresh CSRF pair first with `GET /api/v1/auth/csrf`. The request token is sent
+as `X-CSRF-TOKEN`; browser credentials remain `same-origin`. The current local
+button and logout control follow this CSRF-first path. Automation-only
+credential sign-in and cleanup use the same generated contract and CSRF rule.
+
+Redirect targets are normalized to safe same-origin application paths. Full
+URLs, protocol-relative `//` values, malformed/encoded escape forms, and
+`/api/**` or `/auth/**` targets are rejected in favor of `/dashboard`.
+
+`/auth/login` has no name, email, or password fields. When the API advertises
+local automation, the page offers one **Create local automation user** button.
+The scenario API returns plaintext generated credentials once for automation,
+but the visible UI never renders or retains them and discards the response
+before refreshing and navigating.
+
+The iteration-3 `/dashboard` is only a protected session proof. It distinguishes
+anonymous state from API failure, renders the safe user/session projection and
+logout, and is not the product dashboard planned for iteration 9.
 
 ## Locale and theme
 

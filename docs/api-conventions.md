@@ -21,6 +21,9 @@ dictionary. Each segment of a dotted validation property path is camel-cased,
 and messages from source keys that normalize to the same JSON path are merged.
 The initial codes are `invalid_request`, `validation_failed`, `unauthorized`,
 `forbidden`, `not_found`, `method_not_allowed`, and `internal_error`.
+Authentication adds `antiforgery_failed`,
+`local_auth_invalid_credentials`, `local_auth_user_required`,
+`local_auth_disabled`, `local_auth_user_exists`, and `rate_limited`.
 
 The API error contract takes precedence over request content negotiation:
 an incompatible `Accept` header does not suppress or downgrade Problem Details.
@@ -40,18 +43,47 @@ validation. Endpoint composition creates one central `/api/v1` consumer group
 with the named authenticated-user policy and gives modules that group for
 consumer mappings; public operations explicitly opt out with `AllowAnonymous`.
 
-The iteration-1 cookie handler uses scheme `Template.Session` and cookie
-`__Host-template.session` with `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/`,
-and no `Domain`. API challenge/forbid returns `401`/`403` and never redirects to
-HTML.
+Authenticated browser endpoints require policy `Api.BrowserSession`. Its
+primary scheme is `Template.Session`; session issuance and replacement use
+internal scheme `Template.Session.Issuer`. The issuer has a write-only cookie
+manager, while both schemes share the persistent ticket-store format and Data
+Protection purpose. This prevents an existing request cookie from being read as
+the replacement during credential changes and key rotation. Only the primary
+scheme authenticates requests or participates in authorization.
+
+Both schemes write `__Host-template.session` with `HttpOnly`, `Secure`,
+`SameSite=Lax`, `Path=/`, no `Domain`, and persistent seven-day sliding
+expiration. The cookie contains only a protected opaque key. PostgreSQL stores
+only its SHA-256 hash and a separately Data-Protection-protected authentication
+ticket through `ITicketStore`; the database record is the revocation source of
+truth. API challenge/forbid returns `401`/`403` and never redirects to HTML.
+
+The implemented browser authentication surface is:
+
+| Operation                         | Access and mutation policy                                                                               |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/auth/capabilities`   | anonymous, no-store                                                                                      |
+| `GET /api/v1/auth/session`        | anonymous `200` projection for both authenticated and anonymous state, no-store                          |
+| `GET /api/v1/auth/csrf`           | anonymous, issues the paired antiforgery cookie/request token, no-store                                  |
+| `POST /api/v1/auth/logout`        | `Api.BrowserSession` plus CSRF; revokes only the current session                                         |
+| `POST /api/local-auth/scenario`   | local-only two-part gate, CSRF, 20 requests per IP per minute                                            |
+| `POST /api/local-auth/sign-in`    | local-only two-part gate, CSRF, 10 requests per IP per five minutes                                      |
+| `DELETE /api/local-auth/scenario` | local-only two-part gate, `Api.BrowserSession`, CSRF; atomically removes the local user and all sessions |
+
+Every auth response uses `Cache-Control: no-store`. Local operations are
+available only when the environment is `Development` or `Test` **and**
+`LocalAutomationAuth:Enabled=true`; all other environments return
+`404 local_auth_disabled`, including Production when the flag is accidentally
+true. Their OpenAPI operations carry tag `local-only` and
+`x-local-only: true`.
 
 The browser never reads the HttpOnly cookie and never stores a bearer token.
-Iteration 3 introduces `GET /api/v1/auth/session`: both anonymous and
-authenticated projections return `200 { "data": ... }` with
-`Cache-Control: no-store`. Browser requests send the same-origin cookie
-automatically; Next.js SSR forwards the incoming `Cookie` header to the API.
-Antiforgery is required before the first cookie-authenticated mutation.
-The target deployment is same-origin, so CORS is not enabled.
+Browser requests send the same-origin cookie automatically; Next.js SSR
+forwards only the incoming `Cookie` and correlation ID. Every unsafe browser
+operation first obtains a request token from `GET /api/v1/auth/csrf` and sends
+it in `X-CSRF-TOKEN`; the paired `__Host-template.antiforgery` cookie is
+HttpOnly, Secure, SameSite Strict, Path `/`, and has no Domain. The deployment
+is same-origin, so CORS is not enabled.
 
 ## Health
 
@@ -61,9 +93,17 @@ The target deployment is same-origin, so CORS is not enabled.
 - Health responses expose only `status` and UTC `timestamp`.
 - Healthy responses use `200`; unhealthy readiness uses `503`.
 - Every health response uses `Cache-Control: no-store`.
+- Readiness opens `ConnectionStrings:Postgres` and requires a queryable
+  `auth.users` relation; missing configuration, connectivity, or schema returns
+  unhealthy without exposing database detail.
+- The database check is tagged `ready` and never participates in liveness.
 
-Future database/cache checks must opt into readiness with tag `ready` and must
-not participate in liveness.
+`Template.Api` never applies migrations automatically. Operators restore the
+repository tool manifest and run EF with
+`Template.Infrastructure.csproj` as both `--project` and `--startup-project`;
+the Infrastructure design-time factory owns the private EF Design package while
+`Template.Api` remains the only HTTP host. Full commands and rollback policy
+are in `docs/authentication-persistence-operations.md`.
 
 ## Correlation and logging
 
@@ -91,6 +131,12 @@ not expose a dynamic document or documentation UI.
 Cookie authentication is described as cookie `apiKey` scheme `cookieAuth` with
 name `__Host-template.session`. Protected operations carry its security
 requirement; anonymous operations do not.
+
+Only `cookieAuth` is advertised. The internal `Template.Session.Issuer` scheme
+is not a consumer contract; API-key/`x-api-key` remains iteration 7, and no
+Bearer scheme is registered or published. Local operations remain present for
+generated automation clients but are marked with `local-only` and
+`x-local-only: true`.
 
 Success-envelope schemas require non-null `data`. Standard and validation
 Problem Details schemas publish the same required invariant fields that runtime
