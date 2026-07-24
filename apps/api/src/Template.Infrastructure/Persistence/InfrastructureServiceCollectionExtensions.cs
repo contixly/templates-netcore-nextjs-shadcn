@@ -45,6 +45,9 @@ public static class InfrastructureServiceCollectionExtensions
             .AddSignInManager();
 
         services.AddScoped<ILocalIdentityGateway, IdentityGateway>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<IBrowserSessionGateway, BrowserSessionGateway>();
+        services.AddSingleton<PostgresTicketStore>();
         services.AddScoped<IAuthenticationUnitOfWork, EfAuthenticationUnitOfWork>();
         services.AddSingleton<
             ILocalAutomationCredentialGenerator,
