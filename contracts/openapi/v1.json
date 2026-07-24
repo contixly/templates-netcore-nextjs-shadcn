@@ -1138,13 +1138,20 @@
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Trimmed before use; the trimmed name must contain 2 to 50 characters.",
+            "x-trimmed-min-length": 2,
+            "x-trimmed-max-length": 50
           },
           "email": {
+            "pattern": "[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\\+[^@]+@[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\\.[tT][eE][sS][tT]",
             "type": [
               "null",
               "string"
-            ]
+            ],
+            "description": "Trimmed and lowercased before use; the trimmed value must be a valid email of at most 254 characters in the case-insensitive local-agent+...@local-agent.test namespace.",
+            "x-trimmed-max-length": 254,
+            "x-trimmed-format": "email"
           },
           "password": {
             "maxLength": 128,

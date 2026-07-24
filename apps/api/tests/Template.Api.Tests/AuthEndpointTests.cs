@@ -256,6 +256,31 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ScenarioAcceptsPaddingAroundMaximumTrimmedInputs()
+    {
+        using var client = factory.CreateApiClient();
+        var name = new string('N', 50);
+        var email =
+            $"LOCAL-AGENT+{new string('A', 225)}@LOCAL-AGENT.TEST";
+
+        using var response = await LocalAuthTestClient.CreateScenarioAsync(
+            client,
+            new
+            {
+                name = $"  {name}  ",
+                email = $"  {email}  ",
+                password = "local-padded-maximum-password"
+            });
+        var scenario = await response.Content
+            .ReadFromJsonAsync<LocalAuthTestClient.ScenarioEnvelope>(
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(name, scenario!.Data.User.Name);
+        Assert.Equal(email.ToLowerInvariant(), scenario.Data.Email);
+    }
+
+    [Fact]
     public async Task InvalidCredentialFailureDoesNotRevealUserExistence()
     {
         using var client = factory.CreateApiClient();
@@ -468,6 +493,43 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             "X-CSRF-TOKEN",
             await LocalAuthTestClient.GetCsrfAsync(client));
         request.Content = new StringContent(" ", Encoding.UTF8, mediaType);
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "invalid_request");
+    }
+
+    [Theory]
+    [InlineData(
+        "/api/local-auth/scenario",
+        """{"name":"invalid""",
+        """-name"}""")]
+    [InlineData(
+        "/api/local-auth/sign-in",
+        """{"email":"local-agent+missing@local-agent.test","password":"local-invalid-""",
+        """-password"}""")]
+    public async Task InvalidUtf8AuthJsonUsesStableInvalidRequest(
+        string path,
+        string prefix,
+        string suffix)
+    {
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
+        request.Headers.Add(
+            "X-CSRF-TOKEN",
+            await LocalAuthTestClient.GetCsrfAsync(client));
+        request.Content = new ByteArrayContent(
+        [
+            .. Encoding.UTF8.GetBytes(prefix),
+            0xff,
+            .. Encoding.UTF8.GetBytes(suffix)
+        ]);
+        request.Content.Headers.ContentType = new("application/json");
 
         using var response = await client.SendAsync(
             request,

@@ -76,7 +76,13 @@ export type AuthUserResponse = {
 };
 
 export type CreateLocalAutomationScenarioRequest = {
+    /**
+     * Trimmed before use; the trimmed name must contain 2 to 50 characters.
+     */
     name?: null | string;
+    /**
+     * Trimmed and lowercased before use; the trimmed value must be a valid email of at most 254 characters in the case-insensitive local-agent+...@local-agent.test namespace.
+     */
     email?: null | string;
     password?: null | string;
 };

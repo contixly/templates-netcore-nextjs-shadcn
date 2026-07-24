@@ -163,6 +163,13 @@ Scenario creation has an optional request body, and an empty body means all
 scenario values are generated. Credential sign-in has a required request body
 with non-null `email` and `password`. Any non-empty manually read auth body must
 use a JSON media type; non-JSON input is rejected as `400 invalid_request`.
+Malformed UTF-8 is rejected before JSON deserialization with the same stable
+problem. Scenario name/email constraints apply after trimming, so the schema
+uses `x-trimmed-min-length`, `x-trimmed-max-length`, and `x-trimmed-format`
+instead of raw length/format keywords that would reject accepted padded input.
+The email pattern communicates the case-insensitive
+`local-agent+...@local-agent.test` namespace, while descriptions document trim
+and lowercase normalization.
 The unsafe logout and cleanup operations publish plain `ProblemDetails` for
 `400` antiforgery failures; scenario creation and credential sign-in publish
 `ProblemDetails | HttpValidationProblemDetails`, matching plain antiforgery,

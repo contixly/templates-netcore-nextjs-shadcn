@@ -6,11 +6,12 @@ const redirectBaseUrl = new URL("https://auth-redirect.invalid");
 const unsafeUrlCharacters = /[\u0000-\u001f\u007f\\]/;
 
 function isExcludedPath(pathname: string): boolean {
+  const normalizedPathname = pathname.toLowerCase();
   return (
-    pathname === "/auth" ||
-    pathname.startsWith("/auth/") ||
-    pathname === "/api" ||
-    pathname.startsWith("/api/")
+    normalizedPathname === "/auth" ||
+    normalizedPathname.startsWith("/auth/") ||
+    normalizedPathname === "/api" ||
+    normalizedPathname.startsWith("/api/")
   );
 }
 

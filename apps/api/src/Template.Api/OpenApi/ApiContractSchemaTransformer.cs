@@ -1,12 +1,17 @@
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 using Template.Api.Contracts;
+using Template.Api.Features.Auth;
 
 namespace Template.Api.OpenApi;
 
 internal sealed class ApiContractSchemaTransformer : IOpenApiSchemaTransformer
 {
+    private const string LocalAutomationEmailPattern =
+        """[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\+[^@]+@[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\.[tT][eE][sS][tT]""";
+
     private static readonly string[] ProblemInvariantProperties =
     [
         "type",
@@ -52,7 +57,46 @@ internal sealed class ApiContractSchemaTransformer : IOpenApiSchemaTransformer
             }
         }
 
+        if (type == typeof(CreateLocalAutomationScenarioRequest))
+        {
+            ApplyScenarioInputConstraints(schema);
+        }
+
         return Task.CompletedTask;
+    }
+
+    private static void ApplyScenarioInputConstraints(OpenApiSchema schema)
+    {
+        if (schema.Properties?.TryGetValue("name", out var nameProperty) == true &&
+            nameProperty is OpenApiSchema name)
+        {
+            AddExtension(name, "x-trimmed-min-length", 2);
+            AddExtension(name, "x-trimmed-max-length", 50);
+            name.Description =
+                "Trimmed before use; the trimmed name must contain 2 to 50 characters.";
+        }
+
+        if (schema.Properties?.TryGetValue("email", out var emailProperty) == true &&
+            emailProperty is OpenApiSchema email)
+        {
+            AddExtension(email, "x-trimmed-max-length", 254);
+            AddExtension(email, "x-trimmed-format", "email");
+            email.Pattern = LocalAutomationEmailPattern;
+            email.Description =
+                "Trimmed and lowercased before use; the trimmed value must be a valid email " +
+                "of at most 254 characters in the case-insensitive " +
+                "local-agent+...@local-agent.test namespace.";
+        }
+    }
+
+    private static void AddExtension(
+        OpenApiSchema schema,
+        string name,
+        JsonNode value)
+    {
+        schema.Extensions ??=
+            new Dictionary<string, IOpenApiExtension>(StringComparer.Ordinal);
+        schema.Extensions[name] = new JsonNodeExtension(value);
     }
 
     private static void MakePropertyRequiredAndNonNull(

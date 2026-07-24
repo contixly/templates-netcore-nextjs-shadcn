@@ -206,6 +206,48 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ScenarioSchemaPublishesNormalizedInputConstraints()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var properties = document["components"]!["schemas"]!
+            ["CreateLocalAutomationScenarioRequest"]!["properties"]!;
+        var name = properties["name"]!;
+        var email = properties["email"]!;
+
+        Assert.Null(name["minLength"]);
+        Assert.Null(name["maxLength"]);
+        Assert.Equal(2, name["x-trimmed-min-length"]!.GetValue<int>());
+        Assert.Equal(50, name["x-trimmed-max-length"]!.GetValue<int>());
+        Assert.Contains(
+            "trim",
+            name["description"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+
+        Assert.Null(email["maxLength"]);
+        Assert.Null(email["format"]);
+        Assert.Equal(254, email["x-trimmed-max-length"]!.GetValue<int>());
+        Assert.Equal("email", email["x-trimmed-format"]!.GetValue<string>());
+        Assert.Contains(
+            "trim",
+            email["description"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "lower",
+            email["description"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+        var localEmailPattern = email["pattern"]!.GetValue<string>();
+        Assert.Matches(
+            localEmailPattern,
+            "  LOCAL-AGENT+SCENARIO@LOCAL-AGENT.TEST  ");
+        Assert.DoesNotMatch(
+            localEmailPattern,
+            "scenario@example.test");
+    }
+
+    [Fact]
     public async Task ScenarioRequestBodyIsOptionalButSignInRequestBodyIsRequired()
     {
         using var client = factory.CreateApiClient();

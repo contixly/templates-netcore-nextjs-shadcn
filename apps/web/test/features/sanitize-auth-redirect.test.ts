@@ -34,6 +34,13 @@ describe("authentication redirect policy", () => {
     expect(sanitizeAuthRedirect(value)).toBe(expected);
   });
 
+  it.each(["/API/v1/auth/session", "/Api?probe=true", "/AUTH/login", "/Auth"])(
+    "rejects case-variant protected path %p",
+    (value) => {
+      expect(sanitizeAuthRedirect(value)).toBe("/dashboard");
+    },
+  );
+
   it("encodes the protected target into the login URL", () => {
     expect(authLoginUrl("/dashboard")).toBe(
       "/auth/login?redirect=%2Fdashboard",

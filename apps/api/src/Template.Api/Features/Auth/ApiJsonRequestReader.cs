@@ -9,6 +9,11 @@ namespace Template.Api.Features.Auth;
 
 internal sealed class ApiJsonRequestReader(IOptions<JsonOptions> jsonOptions)
 {
+    private static readonly Encoding StrictUtf8 =
+        new UTF8Encoding(
+            encoderShouldEmitUTF8Identifier: false,
+            throwOnInvalidBytes: true);
+
     internal async Task<T> ReadAsync<T>(
         HttpContext context,
         Func<T>? emptyBodyFactory,
@@ -17,10 +22,21 @@ internal sealed class ApiJsonRequestReader(IOptions<JsonOptions> jsonOptions)
     {
         using var reader = new StreamReader(
             context.Request.Body,
-            Encoding.UTF8,
+            StrictUtf8,
             detectEncodingFromByteOrderMarks: false,
             leaveOpen: true);
-        var json = await reader.ReadToEndAsync(cancellationToken);
+        string json;
+        try
+        {
+            json = await reader.ReadToEndAsync(cancellationToken);
+        }
+        catch (DecoderFallbackException)
+        {
+            throw new ApiProblemException(
+                StatusCodes.Status400BadRequest,
+                ApiProblemCodes.InvalidRequest);
+        }
+
         if (json.Length == 0)
         {
             if (emptyBodyFactory is not null)
