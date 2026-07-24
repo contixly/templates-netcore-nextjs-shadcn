@@ -20,5 +20,24 @@
     "invalidRequest": "The local sign-in request was rejected.",
     "unavailable": "The authentication API is unavailable.",
     "traceId": "Trace ID: {traceId}"
+  },
+  "dashboard": {
+    "eyebrow": "Iteration 3 session proof",
+    "title": "Authenticated dashboard",
+    "description": "This temporary page proves the PostgreSQL-backed browser session. Product dashboard work remains in iteration 9.",
+    "name": "Name",
+    "email": "Email",
+    "emailVerified": "Email verified",
+    "sessionId": "Session ID",
+    "expiresAt": "Expires",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading authenticated session"
+  },
+  "logout": {
+    "button": "Log out",
+    "pending": "Logging out",
+    "failure": "Could not log out safely.",
+    "traceId": "Trace ID: {traceId}"
   }
 }
