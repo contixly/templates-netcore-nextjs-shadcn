@@ -17,10 +17,14 @@ export async function DashboardRuntime() {
   if (!result.ok) {
     return <AuthApiFailure failure={result.failure} />;
   }
-  if (!result.data.authenticated) {
+  if (result.data.authenticated === false) {
     redirect(authLoginUrl(authenticationRoutes.dashboard));
   }
-  if (!result.data.user || !result.data.session) {
+  if (
+    result.data.authenticated !== true ||
+    !result.data.user ||
+    !result.data.session
+  ) {
     return (
       <AuthApiFailure failure={{ kind: "network", code: "api_unavailable" }} />
     );

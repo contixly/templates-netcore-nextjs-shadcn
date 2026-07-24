@@ -36,6 +36,9 @@ it("logs out through REST, refreshes, and replaces dashboard history", async () 
     expect(refresh).toHaveBeenCalledTimes(1);
     expect(replace).toHaveBeenCalledWith("/auth/login");
   });
+  expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(
+    replace.mock.invocationCallOrder[0],
+  );
 });
 
 it("renders a localized safe failure without navigation", async () => {
@@ -56,5 +59,6 @@ it("renders a localized safe failure without navigation", async () => {
     "Could not log out safely.",
   );
   expect(screen.getByRole("alert")).toHaveTextContent("trace-logout");
+  expect(refresh).not.toHaveBeenCalled();
   expect(replace).not.toHaveBeenCalled();
 });

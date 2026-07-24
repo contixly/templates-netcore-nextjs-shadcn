@@ -75,6 +75,21 @@ it("renders a safe failure instead of redirecting on API outage", async () => {
   expect(redirect).not.toHaveBeenCalled();
 });
 
+it("fails closed instead of redirecting when authenticated is missing", async () => {
+  const malformedResult = {
+    ok: true,
+    data: { user: null, session: null },
+  } as unknown as Awaited<ReturnType<typeof loadServerAuthSession>>;
+  loadSession.mockResolvedValue(malformedResult);
+
+  render(await DashboardRuntime());
+
+  expect(
+    screen.getByRole("heading", { name: "Authentication is unavailable" }),
+  ).toBeInTheDocument();
+  expect(redirect).not.toHaveBeenCalled();
+});
+
 it("renders only safe user and session fields", async () => {
   loadSession.mockResolvedValue({
     ok: true,
