@@ -26,6 +26,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.NotNull(document["paths"]!["/api/health/ready"]);
         Assert.NotNull(document["paths"]!["/api/v1/system/status"]);
         Assert.NotNull(document["paths"]!["/api/v1/system/authenticated"]);
+        Assert.NotNull(document["paths"]!["/api/v1/auth/capabilities"]);
+        Assert.NotNull(document["paths"]!["/api/v1/auth/session"]);
+        Assert.NotNull(document["paths"]!["/api/v1/auth/csrf"]);
+        Assert.NotNull(document["paths"]!["/api/v1/auth/logout"]);
+        Assert.NotNull(document["paths"]!["/api/local-auth/scenario"]);
+        Assert.NotNull(document["paths"]!["/api/local-auth/sign-in"]);
+        Assert.NotNull(
+            document["paths"]!["/api/local-auth/scenario"]!["delete"]);
         Assert.Null(document["paths"]!["/api/testing/fault"]);
         Assert.Null(document["paths"]!["/api/testing/forbidden"]);
         Assert.Null(document["paths"]!["/api/testing/nested-validation"]);
@@ -46,6 +54,77 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Equal("__Host-template.session", scheme["name"]!.GetValue<string>());
         Assert.Null(document["paths"]!["/api/v1/system/status"]!["get"]!["security"]);
         Assert.NotNull(document["paths"]!["/api/v1/system/authenticated"]!["get"]!["security"]);
+    }
+
+    [Fact]
+    public async Task AuthOperationsDeclareLocalCsrfAndCookieBoundaries()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        Assert.Equal(
+            "GetAuthCapabilities",
+            paths["/api/v1/auth/capabilities"]!["get"]!["operationId"]!.GetValue<string>());
+        Assert.Equal(
+            "GetAuthSession",
+            paths["/api/v1/auth/session"]!["get"]!["operationId"]!.GetValue<string>());
+        Assert.Equal(
+            "GetAuthCsrf",
+            paths["/api/v1/auth/csrf"]!["get"]!["operationId"]!.GetValue<string>());
+        Assert.Equal(
+            "Logout",
+            paths["/api/v1/auth/logout"]!["post"]!["operationId"]!.GetValue<string>());
+        Assert.Equal(
+            "CreateLocalAutomationScenario",
+            paths["/api/local-auth/scenario"]!["post"]!["operationId"]!.GetValue<string>());
+        Assert.Equal(
+            "DeleteLocalAutomationScenario",
+            paths["/api/local-auth/scenario"]!["delete"]!["operationId"]!.GetValue<string>());
+        Assert.Equal(
+            "SignInLocalAutomation",
+            paths["/api/local-auth/sign-in"]!["post"]!["operationId"]!.GetValue<string>());
+
+        foreach (var operation in new[]
+                 {
+                     paths["/api/v1/auth/logout"]!["post"]!,
+                     paths["/api/local-auth/scenario"]!["post"]!,
+                     paths["/api/local-auth/scenario"]!["delete"]!,
+                     paths["/api/local-auth/sign-in"]!["post"]!
+                 })
+        {
+            var header = Assert.Single(
+                operation["parameters"]!.AsArray(),
+                parameter => parameter!["name"]!.GetValue<string>() == "X-CSRF-TOKEN");
+            Assert.Equal("header", header!["in"]!.GetValue<string>());
+            Assert.True(header["required"]!.GetValue<bool>());
+        }
+
+        foreach (var operation in new[]
+                 {
+                     paths["/api/local-auth/scenario"]!["post"]!,
+                     paths["/api/local-auth/scenario"]!["delete"]!,
+                     paths["/api/local-auth/sign-in"]!["post"]!
+                 })
+        {
+            Assert.True(operation["x-local-only"]!.GetValue<bool>());
+            Assert.Contains(
+                operation["tags"]!.AsArray(),
+                tag => tag!.GetValue<string>() == "local-only");
+        }
+
+        Assert.Null(paths["/api/v1/auth/capabilities"]!["get"]!["security"]);
+        Assert.Null(paths["/api/v1/auth/session"]!["get"]!["security"]);
+        Assert.Null(paths["/api/v1/auth/csrf"]!["get"]!["security"]);
+        Assert.Null(paths["/api/local-auth/scenario"]!["post"]!["security"]);
+        Assert.Null(paths["/api/local-auth/sign-in"]!["post"]!["security"]);
+        Assert.NotNull(paths["/api/v1/auth/logout"]!["post"]!["security"]);
+        Assert.NotNull(paths["/api/local-auth/scenario"]!["delete"]!["security"]);
+
+        var schemes = document["components"]!["securitySchemes"]!.AsObject();
+        Assert.Equal(["cookieAuth"], schemes.Select(pair => pair.Key).ToArray());
     }
 
     [Fact]

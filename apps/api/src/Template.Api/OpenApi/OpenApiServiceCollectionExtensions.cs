@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
@@ -34,6 +35,27 @@ internal static class OpenApiServiceCollectionExtensions
             options.AddOperationTransformer((operation, context, _) =>
             {
                 var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+                if (metadata.OfType<AntiforgeryProtectedEndpointMetadata>().Any())
+                {
+                    operation.Parameters ??= [];
+                    operation.Parameters.Add(new OpenApiParameter
+                    {
+                        Name = "X-CSRF-TOKEN",
+                        In = ParameterLocation.Header,
+                        Required = true,
+                        Description = "Request token returned by GET /api/v1/auth/csrf.",
+                        Schema = new OpenApiSchema { Type = JsonSchemaType.String }
+                    });
+                }
+
+                if (metadata.OfType<LocalOnlyEndpointMetadata>().Any())
+                {
+                    operation.Extensions ??=
+                        new Dictionary<string, IOpenApiExtension>(StringComparer.Ordinal);
+                    operation.Extensions["x-local-only"] =
+                        new JsonNodeExtension(JsonValue.Create(true)!);
+                }
+
                 if (metadata.OfType<IAllowAnonymous>().Any() ||
                     !metadata.OfType<IAuthorizeData>().Any())
                 {

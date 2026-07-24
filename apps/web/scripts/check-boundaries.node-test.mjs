@@ -64,3 +64,11 @@ test("rejects Route Handlers in every enabled source form", async () => {
     );
   }
 });
+
+test("rejects handwritten authentication transport DTOs", async () => {
+  await expectViolation(
+    "src/__boundary_guard_test__/auth-dto.ts",
+    "export type AuthSessionResponse = { authenticated: boolean };",
+    /handwritten OpenAPI DTO/,
+  );
+});

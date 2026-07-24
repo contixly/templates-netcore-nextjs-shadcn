@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses } from './types.gen';
+import type { CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, LogoutData, LogoutErrors, LogoutResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,6 +17,22 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
+
+export const getAuthCapabilities = <ThrowOnError extends boolean = false>(options?: Options<GetAuthCapabilitiesData, ThrowOnError>): RequestResult<GetAuthCapabilitiesResponses, GetAuthCapabilitiesErrors, ThrowOnError> => (options?.client ?? client).get<GetAuthCapabilitiesResponses, GetAuthCapabilitiesErrors, ThrowOnError>({ url: '/api/v1/auth/capabilities', ...options });
+
+export const getAuthSession = <ThrowOnError extends boolean = false>(options?: Options<GetAuthSessionData, ThrowOnError>): RequestResult<GetAuthSessionResponses, GetAuthSessionErrors, ThrowOnError> => (options?.client ?? client).get<GetAuthSessionResponses, GetAuthSessionErrors, ThrowOnError>({ url: '/api/v1/auth/session', ...options });
+
+export const getAuthCsrf = <ThrowOnError extends boolean = false>(options?: Options<GetAuthCsrfData, ThrowOnError>): RequestResult<GetAuthCsrfResponses, GetAuthCsrfErrors, ThrowOnError> => (options?.client ?? client).get<GetAuthCsrfResponses, GetAuthCsrfErrors, ThrowOnError>({ url: '/api/v1/auth/csrf', ...options });
+
+export const logout = <ThrowOnError extends boolean = false>(options: Options<LogoutData, ThrowOnError>): RequestResult<LogoutResponses, LogoutErrors, ThrowOnError> => (options.client ?? client).post<LogoutResponses, LogoutErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/auth/logout',
+    ...options
+});
 
 /**
  * Returns API status and echoes a validated optional value.
@@ -34,6 +50,34 @@ export const getAuthenticatedStatus = <ThrowOnError extends boolean = false>(opt
         }],
     url: '/api/v1/system/authenticated',
     ...options
+});
+
+export const deleteLocalAutomationScenario = <ThrowOnError extends boolean = false>(options: Options<DeleteLocalAutomationScenarioData, ThrowOnError>): RequestResult<DeleteLocalAutomationScenarioResponses, DeleteLocalAutomationScenarioErrors, ThrowOnError> => (options.client ?? client).delete<DeleteLocalAutomationScenarioResponses, DeleteLocalAutomationScenarioErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/local-auth/scenario',
+    ...options
+});
+
+export const createLocalAutomationScenario = <ThrowOnError extends boolean = false>(options: Options<CreateLocalAutomationScenarioData, ThrowOnError>): RequestResult<CreateLocalAutomationScenarioResponses, CreateLocalAutomationScenarioErrors, ThrowOnError> => (options.client ?? client).post<CreateLocalAutomationScenarioResponses, CreateLocalAutomationScenarioErrors, ThrowOnError>({
+    url: '/api/local-auth/scenario',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const signInLocalAutomation = <ThrowOnError extends boolean = false>(options: Options<SignInLocalAutomationData, ThrowOnError>): RequestResult<SignInLocalAutomationResponses, SignInLocalAutomationErrors, ThrowOnError> => (options.client ?? client).post<SignInLocalAutomationResponses, SignInLocalAutomationErrors, ThrowOnError>({
+    url: '/api/local-auth/sign-in',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**
