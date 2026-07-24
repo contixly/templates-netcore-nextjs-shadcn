@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 
 import "@/src/app/globals.css";
 import { AppProviders } from "@/src/components/application/app-providers";
-import { SiteHeader } from "@/src/components/application/site-header";
 import { loadI18nMessagesConfig } from "@/src/i18n/messages";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -24,7 +23,6 @@ export default async function RootLayout({
     <html lang={locale} suppressHydrationWarning>
       <body>
         <AppProviders locale={locale} messages={messages} timeZone={timeZone}>
-          <SiteHeader />
           {children}
         </AppProviders>
       </body>

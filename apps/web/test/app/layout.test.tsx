@@ -56,5 +56,6 @@ describe("RootLayout", () => {
     expect(provider.props.locale).toBe("ru");
     expect(provider.props.timeZone).toBe("UTC");
     expect(provider.props.messages.system.page.title).toBe("REST-соединение");
+    expect(provider.props.children).toEqual(<span>Content</span>);
   });
 });

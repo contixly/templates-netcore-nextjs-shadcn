@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 
-import HomePage from "@/src/app/page";
+import HomePage from "@/src/app/(site)/page";
 
 jest.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) => {
@@ -9,6 +9,7 @@ jest.mock("next-intl/server", () => ({
       "system.page.title": "REST connectivity",
       "system.page.description":
         "The same generated SDK calls ASP.NET Core from server rendering and from the browser.",
+      "system.page.getStarted": "Get Started",
       "system.status.loading": "Checking API status",
       "system.status.ssrTitle": "Server-rendered API status",
     };
@@ -36,6 +37,10 @@ describe("HomePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("status-ssr")).toBeInTheDocument();
     expect(screen.getByTestId("status-browser")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Get Started" })).toHaveAttribute(
+      "href",
+      "/auth/login?redirect=%2Fdashboard",
+    );
     expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument();
   });
