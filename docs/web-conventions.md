@@ -157,4 +157,4 @@ test -f .next/standalone/server.js
 ```
 
 E2E starts ASP.NET Core on `127.0.0.1:5297` and Next.js on
-`127.0.0.1:3127`. The API readiness probe is `/api/health`.
+`127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.

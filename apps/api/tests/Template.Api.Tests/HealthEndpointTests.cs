@@ -62,8 +62,10 @@ public sealed class HealthEndpointTests(ApiWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.OK, live.StatusCode);
     }
 
-    [Fact]
-    public async Task ValidSessionCookieCannotReachTicketStoreOnLiveness()
+    [Theory]
+    [InlineData("/api/health/live")]
+    [InlineData("/api/health/live/")]
+    public async Task ValidSessionCookieCannotReachTicketStoreOnLiveness(string uri)
     {
         var ticketStore = new FailingRetrieveTicketStore();
         await using var isolated = factory.WithWebHostBuilder(builder =>
@@ -92,7 +94,7 @@ public sealed class HealthEndpointTests(ApiWebApplicationFactory factory)
 
         ticketStore.FailRetrieval = true;
         using var live = await client.GetAsync(
-            "/api/health/live",
+            uri,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, live.StatusCode);

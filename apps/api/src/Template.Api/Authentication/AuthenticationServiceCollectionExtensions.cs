@@ -26,12 +26,19 @@ internal static class AuthenticationServiceCollectionExtensions
                 ApiAuthenticationDefaults.DefaultSchemeName,
                 displayName: null,
                 options => options.ForwardDefaultSelector = context =>
-                    string.Equals(
-                        context.Request.Path.Value,
-                        HealthEndpointModule.LivenessPath,
-                        StringComparison.OrdinalIgnoreCase)
+                {
+                    var path = context.Request.Path.Value;
+                    return string.Equals(
+                               path,
+                               HealthEndpointModule.LivenessPath,
+                               StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(
+                               path,
+                               $"{HealthEndpointModule.LivenessPath}/",
+                               StringComparison.OrdinalIgnoreCase)
                         ? ApiAuthenticationDefaults.ProcessOnlySchemeName
-                        : ApiAuthenticationDefaults.SchemeName)
+                        : ApiAuthenticationDefaults.SchemeName;
+                })
             .AddScheme<
                 AuthenticationSchemeOptions,
                 ProcessOnlyAuthenticationHandler>(
