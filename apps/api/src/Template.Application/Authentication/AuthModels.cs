@@ -70,3 +70,5 @@ public sealed record AuthOperationResult<T>(T? Value, AuthFailure? Failure)
 }
 
 public sealed class DuplicateLocalIdentityException : Exception;
+
+public sealed class LocalIdentityValidationException : Exception;

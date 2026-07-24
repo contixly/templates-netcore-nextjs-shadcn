@@ -60,6 +60,38 @@ public sealed class LocalAutomationAuthServiceTests
     }
 
     [Fact]
+    public async Task IdentityValidationFailureReturnsInvalidLocalEmailWithoutSigningIn()
+    {
+        var identities = new FakeIdentityGateway
+        {
+            CreateException = new LocalIdentityValidationException()
+        };
+        var sessions = new FakeBrowserSessionGateway();
+        var transactions = new CountingUnitOfWork();
+        var service = new LocalAutomationAuthService(
+            identities,
+            sessions,
+            new QueueCredentialGenerator(
+                new LocalAutomationCredentials(
+                    "Generated",
+                    "local-agent+generated@local-agent.test",
+                    "local-generated-password")),
+            transactions);
+
+        var result = await service.CreateScenarioAsync(
+            new CreateLocalScenarioInput(
+                "Explicit",
+                "local-agent+foo!@local-agent.test",
+                "local-explicit-password"),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(AuthFailure.InvalidLocalEmail, result.Failure);
+        Assert.Equal(1, transactions.Executions);
+        Assert.Equal(1, identities.CreateAttempts);
+        Assert.Equal(0, sessions.SignInCalls);
+    }
+
+    [Fact]
     public async Task SignInOutsideNamespaceIsGenericInvalidCredentials()
     {
         var identities = new FakeIdentityGateway();
@@ -130,6 +162,7 @@ public sealed class LocalAutomationAuthServiceTests
     private sealed class FakeIdentityGateway : ILocalIdentityGateway
     {
         public int DuplicateCreatesRemaining { get; init; }
+        public Exception? CreateException { get; init; }
         public int CreateAttempts { get; private set; }
         public int PasswordChecks { get; private set; }
         public int DeleteAttempts { get; private set; }
@@ -142,6 +175,11 @@ public sealed class LocalAutomationAuthServiceTests
             if (CreateAttempts <= DuplicateCreatesRemaining)
             {
                 throw new DuplicateLocalIdentityException();
+            }
+
+            if (CreateException is not null)
+            {
+                throw CreateException;
             }
 
             return Task.FromResult(TestIdentity.User(
@@ -172,6 +210,7 @@ public sealed class LocalAutomationAuthServiceTests
     private sealed class FakeBrowserSessionGateway : IBrowserSessionGateway
     {
         public AuthenticatedSession? Current { get; init; }
+        public int SignInCalls { get; private set; }
         public int SignOutCalls { get; private set; }
 
         public Task<AuthenticatedSession?> GetCurrentAsync(CancellationToken cancellationToken) =>
@@ -179,8 +218,11 @@ public sealed class LocalAutomationAuthServiceTests
 
         public Task<BrowserSession> SignInAsync(
             AuthUser user,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(TestIdentity.Session(user).Session);
+            CancellationToken cancellationToken)
+        {
+            SignInCalls++;
+            return Task.FromResult(TestIdentity.Session(user).Session);
+        }
 
         public Task SignOutAsync(CancellationToken cancellationToken)
         {

@@ -51,6 +51,11 @@ public sealed class LocalAutomationAuthService(
                     },
                     cancellationToken);
             }
+            catch (LocalIdentityValidationException)
+            {
+                return AuthOperationResult<LocalAutomationScenario>.Failed(
+                    AuthFailure.InvalidLocalEmail);
+            }
             catch (DuplicateLocalIdentityException)
             {
                 if (explicitEmail || attempt == maxAttempts - 1)

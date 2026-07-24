@@ -43,8 +43,7 @@ internal sealed class IdentityGateway(
                     throw new DuplicateLocalIdentityException();
                 }
 
-                throw new InvalidOperationException(
-                    $"Identity user creation failed with codes: {string.Join(',', result.Errors.Select(error => error.Code))}");
+                throw new LocalIdentityValidationException();
             }
         }
         catch (DbUpdateException exception)

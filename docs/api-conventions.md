@@ -87,6 +87,14 @@ available only when the environment is `Development` or `Test` **and**
 true. Their OpenAPI operations carry tag `local-only` and
 `x-local-only: true`.
 
+The Application local-namespace policy remains the source of truth for which
+normalized scenario emails are eligible. If Identity applies an additional
+username validation rule during local-user creation, Infrastructure reports a
+typed validation condition to Application; scenario creation rolls back and
+returns the existing `400 validation_failed` email path without exposing
+Identity error codes or creating a user/session. Duplicate identities retain
+the separate `409 local_auth_user_exists` path.
+
 The browser never reads the HttpOnly cookie and never stores a bearer token.
 Browser requests send the same-origin cookie automatically. The combined
 Next.js SSR auth read uses two isolated generated-SDK clients in parallel:

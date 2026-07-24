@@ -14,6 +14,7 @@ public sealed class LocalAutomationCredentialPolicyTests
 
     [Theory]
     [InlineData("local-agent+abc@local-agent.test", true)]
+    [InlineData("local-agent+foo!@local-agent.test", true)]
     [InlineData("local-agent+@local-agent.test", false)]
     [InlineData("local-agent+a@b@local-agent.test", false)]
     [InlineData("person@example.com", false)]

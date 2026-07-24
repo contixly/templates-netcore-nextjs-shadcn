@@ -256,6 +256,52 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task IdentityRejectedLocalEmailUsesStableValidationWithoutCreatingState()
+    {
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "100"
+                    })));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+                HandleCookies = true
+            });
+
+        using var response = await LocalAuthTestClient.CreateScenarioAsync(
+            client,
+            new
+            {
+                name = "Identity Rejected",
+                email = "local-agent+foo!@local-agent.test",
+                password = "local-identity-rejected-password"
+            });
+        var body = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        var problem = await response.Content.ReadFromJsonAsync<ApiProblem>(
+            TestContext.Current.CancellationToken);
+        await using var scope = isolated.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", problem!.Code);
+        Assert.False(await db.Users.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("__Host-template.session", response.Headers.ToString());
+        Assert.DoesNotContain("InvalidUserName", body, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "AllowedUserNameCharacters",
+            body,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Identity", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ScenarioAcceptsPaddingAroundMaximumTrimmedInputs()
     {
         using var client = factory.CreateApiClient();
