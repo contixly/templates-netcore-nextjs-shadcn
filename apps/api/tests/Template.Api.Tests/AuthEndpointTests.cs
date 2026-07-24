@@ -350,6 +350,86 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task MixedDuplicateAndUnknownIdentityResultsRemainInternalWithoutCreatingState()
+    {
+        const string email = "local-agent+mixed-identity-result@local-agent.test";
+        var scenario = new
+        {
+            name = "Mixed Identity Result",
+            email,
+            password = "local-mixed-identity-result-password"
+        };
+        await using var seedHost = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "100"
+                    })));
+        using var seedClient = seedHost.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+                HandleCookies = true
+            });
+        using var seeded = await LocalAuthTestClient.CreateScenarioAsync(
+            seedClient,
+            scenario);
+        Assert.Equal(HttpStatusCode.Created, seeded.StatusCode);
+        await using (var seedScope = seedHost.Services.CreateAsyncScope())
+        {
+            var seedDb = seedScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            await seedDb.Sessions.ExecuteDeleteAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "100"
+                    }));
+            builder.ConfigureTestServices(services =>
+                services.AddScoped<
+                    IUserValidator<ApplicationUser>,
+                    UnknownIdentityResultValidator>());
+        });
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+                HandleCookies = true
+            });
+
+        using var response = await LocalAuthTestClient.CreateScenarioAsync(
+            client,
+            scenario);
+        var body = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.InternalServerError,
+            "internal_error");
+        await using var scope = isolated.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+        Assert.Equal(1, await db.Users.CountAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("__Host-template.session", response.Headers.ToString());
+        Assert.DoesNotContain(
+            UnknownIdentityResultValidator.ErrorCode,
+            body,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            UnknownIdentityResultValidator.ErrorDescription,
+            body,
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task ScenarioAcceptsPaddingAroundMaximumTrimmedInputs()
     {
         using var client = factory.CreateApiClient();

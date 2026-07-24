@@ -37,14 +37,13 @@ internal sealed class IdentityGateway(
             var result = await users.CreateAsync(user, credentials.Password);
             if (!result.Succeeded)
             {
-                if (result.Errors.Any(error =>
-                        error.Code is "DuplicateEmail" or "DuplicateUserName"))
+                var errors = result.Errors.ToArray();
+                if (errors.Length > 0 && errors.All(IsDuplicateError))
                 {
                     throw new DuplicateLocalIdentityException();
                 }
 
-                if (result.Errors.Any() &&
-                    result.Errors.All(IsKnownInputValidationError))
+                if (errors.Length > 0 && errors.All(IsKnownInputValidationError))
                 {
                     throw new LocalIdentityValidationException();
                 }
@@ -109,6 +108,9 @@ internal sealed class IdentityGateway(
             user.EmailConfirmed,
             user.ImageUrl,
             user.IsLocalAutomation);
+
+    private static bool IsDuplicateError(IdentityError error) =>
+        error.Code is "DuplicateEmail" or "DuplicateUserName";
 
     private static bool IsKnownInputValidationError(IdentityError error) =>
         error.Code is
