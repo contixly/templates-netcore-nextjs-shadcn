@@ -21,7 +21,7 @@ internal sealed class ApiJsonRequestReader(IOptions<JsonOptions> jsonOptions)
             detectEncodingFromByteOrderMarks: false,
             leaveOpen: true);
         var json = await reader.ReadToEndAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(json))
+        if (json.Length == 0)
         {
             if (emptyBodyFactory is not null)
             {

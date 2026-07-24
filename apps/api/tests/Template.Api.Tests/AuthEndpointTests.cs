@@ -453,6 +453,28 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             "invalid_request");
     }
 
+    [Theory]
+    [InlineData("/api/local-auth/scenario")]
+    [InlineData("/api/local-auth/sign-in")]
+    public async Task WhitespaceOnlyAuthRequestBodiesUseStableInvalidRequest(string path)
+    {
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, path);
+        request.Headers.Add(
+            "X-CSRF-TOKEN",
+            await LocalAuthTestClient.GetCsrfAsync(client));
+        request.Content = new StringContent(" ", Encoding.UTF8, "text/plain");
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "invalid_request");
+    }
+
     [Fact]
     public async Task SignInLimiterReturnsTyped429AfterConfiguredPermit()
     {
