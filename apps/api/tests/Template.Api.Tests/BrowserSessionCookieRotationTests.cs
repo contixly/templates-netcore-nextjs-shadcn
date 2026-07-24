@@ -26,6 +26,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
     private Guid _firstUserId;
     private Guid _secondUserId;
     private readonly SessionCommandBarrier _commandBarrier = new();
+    private readonly List<bool> _primarySlidingRenewals = [];
     private readonly MutableTimeProvider _time = new(
         new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero));
 
@@ -62,6 +63,12 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
             {
                 options.ExpireTimeSpan = TimeSpan.FromDays(7);
                 options.SlidingExpiration = true;
+                options.TimeProvider = _time;
+                options.Events.OnCheckSlidingExpiration = context =>
+                {
+                    _primarySlidingRenewals.Add(context.ShouldRenew);
+                    return Task.CompletedTask;
+                };
             });
         _services = services.BuildServiceProvider();
 
@@ -126,6 +133,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         var oldAuthentication = await context.AuthenticateAsync(
             ApiAuthenticationDefaults.SchemeName);
         Assert.True(oldAuthentication.Succeeded);
+        Assert.Contains(true, _primarySlidingRenewals);
 
         var replacement = await scope.ServiceProvider
             .GetRequiredService<IBrowserSessionGateway>()
@@ -290,6 +298,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         var primary = monitor.Get(ApiAuthenticationDefaults.SchemeName);
         var issuer = monitor.Get(ApiAuthenticationDefaults.IssuerSchemeName);
 
+        Assert.Same(_time, primary.TimeProvider);
         Assert.Same(primary.SessionStore, issuer.SessionStore);
         Assert.NotNull(primary.TicketDataFormat);
         Assert.NotNull(issuer.TicketDataFormat);

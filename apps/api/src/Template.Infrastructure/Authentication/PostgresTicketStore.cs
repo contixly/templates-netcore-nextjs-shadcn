@@ -149,17 +149,11 @@ public sealed class PostgresTicketStore(
             return null;
         }
 
+        AuthenticationTicket? ticket;
         try
         {
-            var ticket = TicketSerializer.Default.Deserialize(
+            ticket = TicketSerializer.Default.Deserialize(
                 _protector.Unprotect(row.ProtectedTicket));
-            if (ticket is null || !IsExpectedTicket(ticket, row))
-            {
-                await DeleteIfUnchangedAsync(db, row, cancellationToken);
-                return null;
-            }
-
-            return ticket;
         }
         catch (CryptographicException)
         {
@@ -176,6 +170,14 @@ public sealed class PostgresTicketStore(
             await DeleteIfUnchangedAsync(db, row, cancellationToken);
             return null;
         }
+
+        if (ticket is null || !IsExpectedTicket(ticket, row))
+        {
+            await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            return null;
+        }
+
+        return ticket;
     }
 
     public Task RemoveAsync(string key) =>
