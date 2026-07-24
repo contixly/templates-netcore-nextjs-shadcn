@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -6,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Template.Api.Authentication;
 using Template.Api.Endpoints;
 using Template.Infrastructure.Persistence;
 
@@ -71,24 +69,8 @@ public sealed class ApiWebApplicationFactory(
         });
         builder.ConfigureTestServices(services =>
         {
-            services
-                .AddAuthentication(options =>
-                {
-                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
-                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
-                    options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
-                })
-                .AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
-                    TestAuthenticationHandler.SchemeName,
-                    _ => { });
-
             services.AddAuthorization(options =>
             {
-                options.AddPolicy(
-                    ApiPolicies.BrowserSession,
-                    policy => policy
-                        .AddAuthenticationSchemes(TestAuthenticationHandler.SchemeName)
-                        .RequireAuthenticatedUser());
                 options.AddPolicy(
                     TestEndpointModule.ForbiddenPolicy,
                     policy => policy.RequireClaim("test.permission", "granted"));

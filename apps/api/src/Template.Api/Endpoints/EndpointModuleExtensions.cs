@@ -1,4 +1,5 @@
 using Template.Api.Authentication;
+using Template.Api.Features.Auth;
 using Template.Api.Features.Health;
 using Template.Api.Features.System;
 
@@ -8,6 +9,8 @@ internal static class EndpointModuleExtensions
 {
     internal static IServiceCollection AddEndpointModules(this IServiceCollection services)
     {
+        services.AddSingleton<IEndpointModule, AuthEndpointModule>();
+        services.AddScoped<ApiJsonRequestReader>();
         services.AddSingleton<IEndpointModule, HealthEndpointModule>();
         services.AddSingleton<IEndpointModule, SystemEndpointModule>();
         return services;

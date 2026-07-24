@@ -129,7 +129,8 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
     public async Task AuthenticatedPrincipalWithoutRequiredClaimGetsForbiddenProblem()
     {
         using var client = factory.CreateApiClient();
-        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.UserHeaderName, "user-1");
+        using var scenario = await LocalAuthTestClient.CreateScenarioAsync(client);
+        Assert.Equal(HttpStatusCode.Created, scenario.StatusCode);
 
         using var response = await client.GetAsync(
             "/api/testing/forbidden",

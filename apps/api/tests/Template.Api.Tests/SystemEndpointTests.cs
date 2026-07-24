@@ -48,7 +48,8 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
     public async Task ProtectedProbeAcceptsTestAuthenticatedRequest()
     {
         using var client = factory.CreateApiClient();
-        client.DefaultRequestHeaders.Add(TestAuthenticationHandler.UserHeaderName, "user-1");
+        using var scenario = await LocalAuthTestClient.CreateScenarioAsync(client);
+        Assert.Equal(HttpStatusCode.Created, scenario.StatusCode);
 
         using var response = await client.GetAsync(
             "/api/v1/system/authenticated",
@@ -69,9 +70,9 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
             TestContext.Current.CancellationToken);
 
         using var authenticatedClient = factory.CreateApiClient();
-        authenticatedClient.DefaultRequestHeaders.Add(
-            TestAuthenticationHandler.UserHeaderName,
-            "user-1");
+        using var scenario = await LocalAuthTestClient.CreateScenarioAsync(
+            authenticatedClient);
+        Assert.Equal(HttpStatusCode.Created, scenario.StatusCode);
         using var authenticatedResponse = await authenticatedClient.GetAsync(
             "/api/v1/testing/consumer",
             TestContext.Current.CancellationToken);

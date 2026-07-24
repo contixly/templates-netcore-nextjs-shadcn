@@ -33,4 +33,26 @@ internal static class OpenApiEndpointConventionExtensions
                 StatusCodes.Status403Forbidden,
                 OpenApiDefaults.ProblemContentType)
             .ProducesPublicApiProblems();
+
+    internal static RouteHandlerBuilder ProducesLocalCreateProblems(
+        this RouteHandlerBuilder builder) =>
+        builder
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .Produces<ProblemDetails>(
+                StatusCodes.Status429TooManyRequests,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesPublicApiProblems();
+
+    internal static RouteHandlerBuilder ProducesLocalSignInProblems(
+        this RouteHandlerBuilder builder) =>
+        builder
+            .Produces<ProblemDetails>(
+                StatusCodes.Status401Unauthorized,
+                OpenApiDefaults.ProblemContentType)
+            .Produces<ProblemDetails>(
+                StatusCodes.Status429TooManyRequests,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesPublicApiProblems();
 }
