@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Mvc;
+using Template.Api.Observability;
 
 namespace Template.Api.Errors;
 
@@ -9,6 +10,9 @@ internal sealed class ApiExceptionHandler(
     ILogger<ApiExceptionHandler> logger)
     : IExceptionHandler
 {
+    private static readonly EventId UnhandledExceptionEvent =
+        new(5000, "UnhandledApiException");
+
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
@@ -40,7 +44,13 @@ internal sealed class ApiExceptionHandler(
 
         if (status >= StatusCodes.Status500InternalServerError)
         {
-            logger.LogError(exception, "Unhandled API exception");
+            logger.Log(
+                LogLevel.Error,
+                UnhandledExceptionEvent,
+                "Unhandled API exception {ExceptionType} for {Path} with trace {TraceId}",
+                exception.GetType().FullName ?? exception.GetType().Name,
+                httpContext.Request.Path.Value ?? "/",
+                CorrelationIdMiddleware.GetTraceId(httpContext));
         }
         else
         {

@@ -56,6 +56,19 @@ public sealed class AuthHttpBoundaryTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task SuccessfulLocalAuthProbeIsNotCacheable()
+    {
+        using var client = factory.CreateApiClient();
+
+        using var response = await client.GetAsync(
+            "/api/local-auth/testing",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
     public async Task ValidFormTokenWithoutRequiredHeaderIsRejected()
     {
         using var client = factory.CreateApiClient();
@@ -95,6 +108,7 @@ public sealed class AuthHttpBoundaryTests(ApiWebApplicationFactory factory)
             TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
         var problem = await response.Content.ReadFromJsonAsync<ApiProblem>(
             TestContext.Current.CancellationToken);
         Assert.Equal("local_auth_disabled", problem!.Code);
@@ -122,6 +136,7 @@ public sealed class AuthHttpBoundaryTests(ApiWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, first.StatusCode);
         Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+        Assert.Contains("no-store", second.Headers.CacheControl?.ToString());
         Assert.True(second.Headers.RetryAfter is not null);
         var problem = await second.Content.ReadFromJsonAsync<ApiProblem>(
             TestContext.Current.CancellationToken);

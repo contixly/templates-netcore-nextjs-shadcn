@@ -33,9 +33,9 @@ app.UseWhen(
     api =>
     {
         api.UseMiddleware<CorrelationIdMiddleware>();
+        api.UseMiddleware<RequestLoggingMiddleware>();
         api.UseExceptionHandler();
         api.UseStatusCodePages();
-        api.UseMiddleware<RequestLoggingMiddleware>();
         api.UseMiddleware<AuthResponseCacheMiddleware>();
         api.UseMiddleware<LocalAutomationAvailabilityMiddleware>();
     });
