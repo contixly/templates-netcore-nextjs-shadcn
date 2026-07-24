@@ -23,7 +23,7 @@ export async function loadServerAuthState(): Promise<ApiResult<AuthPageState>> {
 
   const [capabilities, session] = await Promise.all([
     loadAuthCapabilities(client.client),
-    loadAuthSession(client.client),
+    loadAuthSession(client.client, { suppressSlidingRenewal: true }),
   ]);
   if (!capabilities.ok) {
     return capabilities;

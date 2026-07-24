@@ -51,9 +51,10 @@ internal sealed record CreateLocalAutomationScenarioRequest
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record LocalAutomationSignInRequest
 {
-    public string? Email { get; init; }
+    [Required]
+    public string Email { get; init; } = string.Empty;
 
     [Required]
     [StringLength(128, MinimumLength = 12)]
-    public string? Password { get; init; }
+    public string Password { get; init; } = string.Empty;
 }

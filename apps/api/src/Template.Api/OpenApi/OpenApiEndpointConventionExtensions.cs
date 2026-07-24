@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Template.Api.OpenApi;
 
+internal sealed record BadRequestVariantsMetadata;
+
 internal static class OpenApiEndpointConventionExtensions
 {
     internal static RouteHandlerBuilder ProducesValidationProblem(
@@ -9,6 +11,23 @@ internal static class OpenApiEndpointConventionExtensions
         builder.Produces<HttpValidationProblemDetails>(
             StatusCodes.Status400BadRequest,
             OpenApiDefaults.ProblemContentType);
+
+    internal static RouteHandlerBuilder ProducesBadRequestProblem(
+        this RouteHandlerBuilder builder) =>
+        builder.Produces<ProblemDetails>(
+            StatusCodes.Status400BadRequest,
+            OpenApiDefaults.ProblemContentType);
+
+    internal static RouteHandlerBuilder ProducesBadRequestVariants(
+        this RouteHandlerBuilder builder) =>
+        builder
+            .Produces<ProblemDetails>(
+                StatusCodes.Status400BadRequest,
+                OpenApiDefaults.ProblemContentType)
+            .Produces<HttpValidationProblemDetails>(
+                StatusCodes.Status400BadRequest,
+                OpenApiDefaults.ProblemContentType)
+            .WithMetadata(new BadRequestVariantsMetadata());
 
     internal static RouteHandlerBuilder ProducesPublicApiProblems(
         this RouteHandlerBuilder builder) =>

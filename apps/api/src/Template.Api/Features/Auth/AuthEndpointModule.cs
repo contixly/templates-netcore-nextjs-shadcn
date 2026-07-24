@@ -103,6 +103,7 @@ internal sealed class AuthEndpointModule : IEndpointModule
             .WithName("Logout")
             .RequireApiAntiforgery()
             .Produces<ApiResponse<AuthSessionResponse>>()
+            .ProducesBadRequestProblem()
             .ProducesProtectedApiProblems();
 
         context.Root.MapPost(
@@ -116,7 +117,7 @@ internal sealed class AuthEndpointModule : IEndpointModule
             .WithLocalOnly()
             .Produces<ApiResponse<LocalAutomationScenarioResponse>>(
                 StatusCodes.Status201Created)
-            .ProducesValidationProblem()
+            .ProducesBadRequestVariants()
             .ProducesLocalCreateProblems();
 
         context.Root.MapPost(
@@ -129,7 +130,7 @@ internal sealed class AuthEndpointModule : IEndpointModule
             .RequireRateLimiting(AuthRateLimitPolicies.LocalAutomationSignIn)
             .WithLocalOnly()
             .Produces<ApiResponse<AuthSessionResponse>>()
-            .ProducesValidationProblem()
+            .ProducesBadRequestVariants()
             .ProducesLocalSignInProblems();
 
         context.Root.MapDelete(
@@ -140,6 +141,7 @@ internal sealed class AuthEndpointModule : IEndpointModule
             .RequireApiAntiforgery()
             .WithLocalOnly()
             .Produces<ApiResponse<LocalAutomationCleanupResponse>>()
+            .ProducesBadRequestProblem()
             .ProducesProtectedApiProblems();
     }
 
@@ -207,7 +209,7 @@ internal sealed class AuthEndpointModule : IEndpointModule
         var result = await auth.SignInAsync(
             new LocalCredentialInput(
                 email,
-                request.Password!),
+                request.Password),
             cancellationToken);
         if (!result.Succeeded)
         {

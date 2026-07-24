@@ -12,6 +12,7 @@ import { createLocalAutomationBrowserSession } from "@/src/lib/api/auth/browser/
 import { logoutBrowserSession } from "@/src/lib/api/auth/browser/logout-browser-session";
 import { loadAuthCapabilities } from "@/src/lib/api/auth/load-auth-capabilities";
 import { loadAuthSession } from "@/src/lib/api/auth/load-auth-session";
+import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
 import { createServerApiClient } from "@/src/lib/api/server/client";
 import { readForwardedApiHeaders } from "@/src/lib/api/server/request-headers";
@@ -121,6 +122,30 @@ it("composes request-bound server authentication state", async () => {
   expect(mockedSession).toHaveBeenCalledWith({
     client,
     cache: "no-store",
+    headers: { "X-Template-Session-Renewal": "suppress" },
+  });
+});
+
+it("marks dashboard SSR session reads as non-renewing", async () => {
+  mockedReadForwardedApiHeaders.mockResolvedValue({
+    cookie: "__Host-template.session=opaque",
+  });
+  mockedCreateServerClient.mockReturnValue({ ok: true, client });
+  mockedSession.mockResolvedValue({
+    data: {
+      data: { authenticated: false, user: null, session: null },
+    },
+    error: undefined,
+    request: new Request("https://example.test"),
+    response: new Response(),
+  });
+
+  await loadServerAuthSession();
+
+  expect(mockedSession).toHaveBeenCalledWith({
+    client,
+    cache: "no-store",
+    headers: { "X-Template-Session-Renewal": "suppress" },
   });
 });
 

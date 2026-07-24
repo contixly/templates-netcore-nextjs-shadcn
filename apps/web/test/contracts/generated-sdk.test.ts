@@ -46,4 +46,112 @@ describe("generated system status SDK", () => {
     expect(signInLocalAutomation).toEqual(expect.any(Function));
     expect(deleteLocalAutomationScenario).toEqual(expect.any(Function));
   });
+
+  it("locks required sign-in credentials and unsafe 400 response variants", () => {
+    const contract = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), "../../contracts/openapi/v1.json"),
+        "utf8",
+      ),
+    ) as {
+      components: {
+        schemas: {
+          LocalAutomationSignInRequest: {
+            required: string[];
+            properties: Record<string, { type: string | string[] }>;
+          };
+        };
+      };
+      paths: Record<
+        string,
+        Record<
+          string,
+          {
+            responses: {
+              "400": {
+                content: {
+                  "application/problem+json": {
+                    schema: {
+                      $ref?: string;
+                      oneOf?: Array<{ $ref: string }>;
+                    };
+                  };
+                };
+              };
+            };
+          }
+        >
+      >;
+    };
+    const credentials =
+      contract.components.schemas.LocalAutomationSignInRequest;
+
+    expect(credentials.required).toEqual(
+      expect.arrayContaining(["email", "password"]),
+    );
+    expect(schemaTypes(credentials.properties.email)).not.toContain("null");
+    expect(schemaTypes(credentials.properties.password)).not.toContain("null");
+    expect(badRequestSchema(contract, "/api/v1/auth/logout", "post")).toEqual({
+      $ref: "#/components/schemas/ProblemDetails",
+    });
+    expect(
+      badRequestSchema(contract, "/api/local-auth/scenario", "delete"),
+    ).toEqual({ $ref: "#/components/schemas/ProblemDetails" });
+    for (const [path, method] of [
+      ["/api/local-auth/scenario", "post"],
+      ["/api/local-auth/sign-in", "post"],
+    ] as const) {
+      expect(
+        badRequestSchema(contract, path, method).oneOf?.map(
+          (schema) => schema.$ref,
+        ),
+      ).toEqual([
+        "#/components/schemas/ProblemDetails",
+        "#/components/schemas/HttpValidationProblemDetails",
+      ]);
+    }
+
+    const generatedTypes = readFileSync(
+      resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
+      "utf8",
+    );
+    expect(generatedTypes).toContain(
+      "400: ProblemDetails | HttpValidationProblemDetails;",
+    );
+  });
 });
+
+function schemaTypes(schema: { type: string | string[] }): string[] {
+  return Array.isArray(schema.type) ? schema.type : [schema.type];
+}
+
+function badRequestSchema(
+  contract: {
+    paths: Record<
+      string,
+      Record<
+        string,
+        {
+          responses: {
+            "400": {
+              content: {
+                "application/problem+json": {
+                  schema: {
+                    $ref?: string;
+                    oneOf?: Array<{ $ref: string }>;
+                  };
+                };
+              };
+            };
+          };
+        }
+      >
+    >;
+  },
+  path: string,
+  method: string,
+) {
+  return contract.paths[path][method].responses["400"].content[
+    "application/problem+json"
+  ].schema;
+}

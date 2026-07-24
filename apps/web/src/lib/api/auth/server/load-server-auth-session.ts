@@ -11,5 +11,5 @@ export async function loadServerAuthSession(): Promise<AuthSessionResult> {
     return { ok: false, failure: client.failure };
   }
 
-  return loadAuthSession(client.client);
+  return loadAuthSession(client.client, { suppressSlidingRenewal: true });
 }

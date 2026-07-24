@@ -192,6 +192,45 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task LocalSignInCredentialsAreRequiredAndNonNull()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        AssertRequiredNonNullProperties(
+            document["components"]!["schemas"]!["LocalAutomationSignInRequest"]!,
+            "email",
+            "password");
+    }
+
+    [Fact]
+    public async Task UnsafeAuthOperationsPublishTheirActualBadRequestShapes()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        AssertSchemaReference(
+            paths["/api/v1/auth/logout"]!["post"]!["responses"]!["400"]!,
+            "ProblemDetails");
+        AssertSchemaReference(
+            paths["/api/local-auth/scenario"]!["delete"]!["responses"]!["400"]!,
+            "ProblemDetails");
+        AssertSchemaUnion(
+            paths["/api/local-auth/scenario"]!["post"]!["responses"]!["400"]!,
+            "ProblemDetails",
+            "HttpValidationProblemDetails");
+        AssertSchemaUnion(
+            paths["/api/local-auth/sign-in"]!["post"]!["responses"]!["400"]!,
+            "ProblemDetails",
+            "HttpValidationProblemDetails");
+    }
+
+    [Fact]
     public async Task ProductionHostDoesNotPublishRuntimeOpenApi()
     {
         await using var productionFactory = factory.WithWebHostBuilder(
@@ -257,6 +296,31 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             Assert.NotNull(property);
             Assert.DoesNotContain("null", EnumerateSchemaTypes(property));
         }
+    }
+
+    private static void AssertSchemaReference(
+        JsonNode response,
+        string schemaName)
+    {
+        var schema = response["content"]!["application/problem+json"]!["schema"]!;
+        Assert.Equal(
+            $"#/components/schemas/{schemaName}",
+            schema["$ref"]!.GetValue<string>());
+    }
+
+    private static void AssertSchemaUnion(
+        JsonNode response,
+        params string[] schemaNames)
+    {
+        var schema = response["content"]!["application/problem+json"]!["schema"]!;
+        var references = schema["oneOf"]!
+            .AsArray()
+            .Select(value => value!["$ref"]!.GetValue<string>())
+            .ToArray();
+
+        Assert.Equal(
+            schemaNames.Select(name => $"#/components/schemas/{name}"),
+            references);
     }
 
     private static IEnumerable<string> EnumerateSchemaTypes(JsonNode schema)

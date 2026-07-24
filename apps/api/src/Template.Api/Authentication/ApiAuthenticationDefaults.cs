@@ -4,6 +4,8 @@ namespace Template.Api.Authentication;
 
 internal static class ApiAuthenticationDefaults
 {
+    internal const string DefaultSchemeName = "Template.Session.Selector";
+    internal const string ProcessOnlySchemeName = "Template.ProcessOnly";
     internal const string SchemeName =
         BrowserSessionAuthenticationDefaults.PrimaryScheme;
     internal const string IssuerSchemeName =

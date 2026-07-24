@@ -111,8 +111,8 @@ export type LocalAutomationScenarioResponse = {
 };
 
 export type LocalAutomationSignInRequest = {
-    email?: null | string;
-    password: null | string;
+    email: string;
+    password: string;
 };
 
 export type ProblemDetails = {
@@ -246,6 +246,10 @@ export type LogoutData = {
 
 export type LogoutErrors = {
     /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
      * Unauthorized
      */
     401: ProblemDetails;
@@ -373,6 +377,10 @@ export type DeleteLocalAutomationScenarioData = {
 
 export type DeleteLocalAutomationScenarioErrors = {
     /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
      * Unauthorized
      */
     401: ProblemDetails;
@@ -422,7 +430,7 @@ export type CreateLocalAutomationScenarioErrors = {
     /**
      * Bad Request
      */
-    400: HttpValidationProblemDetails;
+    400: ProblemDetails | HttpValidationProblemDetails;
     /**
      * Not Found
      */
@@ -473,7 +481,7 @@ export type SignInLocalAutomationErrors = {
     /**
      * Bad Request
      */
-    400: HttpValidationProblemDetails;
+    400: ProblemDetails | HttpValidationProblemDetails;
     /**
      * Unauthorized
      */

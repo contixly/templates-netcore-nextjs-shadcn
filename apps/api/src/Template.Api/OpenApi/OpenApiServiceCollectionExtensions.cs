@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 using Template.Api.Authentication;
@@ -54,6 +55,30 @@ internal static class OpenApiServiceCollectionExtensions
                         new Dictionary<string, IOpenApiExtension>(StringComparer.Ordinal);
                     operation.Extensions["x-local-only"] =
                         new JsonNodeExtension(JsonValue.Create(true)!);
+                }
+
+                if (metadata.OfType<BadRequestVariantsMetadata>().Any() &&
+                    operation.Responses?.TryGetValue(
+                        StatusCodes.Status400BadRequest.ToString(),
+                        out var response) == true &&
+                    response is OpenApiResponse badRequest &&
+                    badRequest.Content?.TryGetValue(
+                        OpenApiDefaults.ProblemContentType,
+                        out var content) == true &&
+                    content is OpenApiMediaType mediaType)
+                {
+                    mediaType.Schema = new OpenApiSchema
+                    {
+                        OneOf =
+                        [
+                            new OpenApiSchemaReference(
+                                nameof(ProblemDetails),
+                                context.Document),
+                            new OpenApiSchemaReference(
+                                nameof(HttpValidationProblemDetails),
+                                context.Document)
+                        ]
+                    };
                 }
 
                 if (metadata.OfType<IAllowAnonymous>().Any() ||

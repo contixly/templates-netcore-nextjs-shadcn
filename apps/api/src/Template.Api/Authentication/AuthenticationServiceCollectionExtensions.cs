@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Template.Api.Features.Health;
 using Template.Infrastructure.Authentication;
 
 namespace Template.Api.Authentication;
@@ -15,11 +16,27 @@ internal static class AuthenticationServiceCollectionExtensions
         services
             .AddAuthentication(options =>
             {
-                options.DefaultAuthenticateScheme = ApiAuthenticationDefaults.SchemeName;
+                options.DefaultAuthenticateScheme =
+                    ApiAuthenticationDefaults.DefaultSchemeName;
                 options.DefaultChallengeScheme = ApiAuthenticationDefaults.SchemeName;
                 options.DefaultForbidScheme = ApiAuthenticationDefaults.SchemeName;
                 options.DefaultSignOutScheme = ApiAuthenticationDefaults.SchemeName;
             })
+            .AddPolicyScheme(
+                ApiAuthenticationDefaults.DefaultSchemeName,
+                displayName: null,
+                options => options.ForwardDefaultSelector = context =>
+                    string.Equals(
+                        context.Request.Path.Value,
+                        HealthEndpointModule.LivenessPath,
+                        StringComparison.OrdinalIgnoreCase)
+                        ? ApiAuthenticationDefaults.ProcessOnlySchemeName
+                        : ApiAuthenticationDefaults.SchemeName)
+            .AddScheme<
+                AuthenticationSchemeOptions,
+                ProcessOnlyAuthenticationHandler>(
+                ApiAuthenticationDefaults.ProcessOnlySchemeName,
+                _ => { })
             .AddCookie(ApiAuthenticationDefaults.SchemeName, options =>
             {
                 ConfigureHostCookie(options);
@@ -70,6 +87,15 @@ internal static class AuthenticationServiceCollectionExtensions
         options.Cookie.Domain = null;
         options.ExpireTimeSpan = ApiAuthenticationDefaults.Lifetime;
         options.SlidingExpiration = true;
+        options.Events.OnCheckSlidingExpiration = context =>
+        {
+            if (BrowserSessionRenewal.IsSuppressed(context.HttpContext))
+            {
+                context.ShouldRenew = false;
+            }
+
+            return Task.CompletedTask;
+        };
     }
 
     private static void ConfigurePersistentTicketServices(

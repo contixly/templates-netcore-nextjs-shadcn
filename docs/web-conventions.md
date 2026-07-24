@@ -79,6 +79,13 @@ session there. An explicit anonymous session causes navigation between login
 and dashboard, while network/configuration/Problem Details failures render the
 safe API-failure state rather than being treated as anonymous.
 
+Server-rendered session reads add
+`X-Template-Session-Renewal: suppress` through the generated SDK. ASP.NET Core
+still authenticates and projects the request, but it does not slide the
+persistent ticket or emit an unusable renewal cookie during Server Component
+rendering. This marker grants no access and is not forwarded to other API
+operations.
+
 ## Authentication UI and mutations
 
 Browser authentication mutations use generated SDK operations and always fetch
@@ -86,6 +93,10 @@ a fresh CSRF pair first with `GET /api/v1/auth/csrf`. The request token is sent
 as `X-CSRF-TOKEN`; browser credentials remain `same-origin`. The current local
 button and logout control follow this CSRF-first path. Automation-only
 credential sign-in and cleanup use the same generated contract and CSRF rule.
+After an authenticated dashboard renders, a minimal Client Component performs
+an unmarked same-origin `getAuthSession` generated-SDK call. That browser-owned
+request can receive the secure HttpOnly sliding-renewal cookie; JavaScript never
+reads or copies the cookie.
 
 Redirect targets are normalized to safe same-origin application paths. Full
 URLs, protocol-relative `//` values, malformed/encoded escape forms, and

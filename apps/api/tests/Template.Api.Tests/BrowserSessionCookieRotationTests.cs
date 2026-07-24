@@ -310,7 +310,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         Assert.Equal("/", primary.Cookie.Path);
         Assert.Null(primary.Cookie.Domain);
         Assert.Equal(
-            ApiAuthenticationDefaults.SchemeName,
+            ApiAuthenticationDefaults.DefaultSchemeName,
             authentication.DefaultAuthenticateScheme);
         Assert.Equal(
             ApiAuthenticationDefaults.SchemeName,

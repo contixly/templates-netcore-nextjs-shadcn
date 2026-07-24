@@ -48,8 +48,11 @@ primary scheme is `Template.Session`; session issuance and replacement use
 internal scheme `Template.Session.Issuer`. The issuer has a write-only cookie
 manager, while both schemes share the persistent ticket-store format and Data
 Protection purpose. This prevents an existing request cookie from being read as
-the replacement during credential changes and key rotation. Only the primary
-scheme authenticates requests or participates in authorization.
+the replacement during credential changes and key rotation. The default
+authentication selector forwards ordinary requests to the primary scheme and
+forwards only the exact liveness path to a process-only no-result handler.
+Authorization policies still name the primary scheme; the selector and
+process-only handler accept no credentials and are not consumer auth schemes.
 
 Both schemes write `__Host-template.session` with `HttpOnly`, `Secure`,
 `SameSite=Lax`, `Path=/`, no `Domain`, and persistent seven-day sliding
@@ -57,6 +60,11 @@ expiration. The cookie contains only a protected opaque key. PostgreSQL stores
 only its SHA-256 hash and a separately Data-Protection-protected authentication
 ticket through `ITicketStore`; the database record is the revocation source of
 truth. API challenge/forbid returns `401`/`403` and never redirects to HTML.
+Sliding renewal is suppressed only for an SSR-marked
+`GET /api/v1/auth/session`, because a Next.js Server Component cannot propagate
+the API `Set-Cookie` header to the browser. An unmarked same-origin browser
+session read uses the normal cookie handler and renews both the persisted ticket
+and browser cookie after half-life.
 
 The implemented browser authentication surface is:
 
@@ -79,16 +87,21 @@ true. Their OpenAPI operations carry tag `local-only` and
 
 The browser never reads the HttpOnly cookie and never stores a bearer token.
 Browser requests send the same-origin cookie automatically; Next.js SSR
-forwards only the incoming `Cookie` and correlation ID. Every unsafe browser
-operation first obtains a request token from `GET /api/v1/auth/csrf` and sends
-it in `X-CSRF-TOKEN`; the paired `__Host-template.antiforgery` cookie is
-HttpOnly, Secure, SameSite Strict, Path `/`, and has no Domain. The deployment
-is same-origin, so CORS is not enabled.
+forwards only the incoming `Cookie` and correlation ID. Its session operation
+adds `X-Template-Session-Renewal: suppress`; this header can only prevent a
+renewal and is recognized only on the session-read path. The authenticated UI
+then performs an unmarked generated-SDK session refresh in the browser so any
+half-life `Set-Cookie` reaches the cookie jar. Every unsafe browser operation
+first obtains a request token from `GET /api/v1/auth/csrf` and sends it in
+`X-CSRF-TOKEN`; the paired `__Host-template.antiforgery` cookie is HttpOnly,
+Secure, SameSite Strict, Path `/`, and has no Domain. The deployment is
+same-origin, so CORS is not enabled.
 
 ## Health
 
 - `GET /api/health` is the compatibility alias for readiness.
-- `GET /api/health/live` excludes dependency checks.
+- `GET /api/health/live` excludes dependency checks and selects the process-only
+  authentication handler, so even a valid session cookie cannot read PostgreSQL.
 - `GET /api/health/ready` runs checks tagged `ready`.
 - Health responses expose only `status` and UTC `timestamp`.
 - Healthy responses use `200`; unhealthy readiness uses `503`.
@@ -141,6 +154,11 @@ generated automation clients but are marked with `local-only` and
 Success-envelope schemas require non-null `data`. Standard and validation
 Problem Details schemas publish the same required invariant fields that runtime
 customization always writes; validation additionally requires `errors`.
+Local credential sign-in requires non-null `email` and `password`. The unsafe
+logout and cleanup operations publish plain `ProblemDetails` for `400`
+antiforgery failures; scenario creation and credential sign-in publish
+`ProblemDetails | HttpValidationProblemDetails`, matching plain antiforgery or
+malformed-JSON failures and structured field validation.
 
 Export and verify from the repository root:
 
