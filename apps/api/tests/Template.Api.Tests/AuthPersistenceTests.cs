@@ -93,6 +93,38 @@ public sealed class AuthPersistenceTests(PostgreSqlContainerFixture postgres)
             TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task CancelledCallbackFailurePreservesOriginalExceptionAndClearsTrackedChanges()
+    {
+        await using var db = CreateContext();
+        await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
+        var unitOfWork = new EfAuthenticationUnitOfWork(db);
+        using var cancellation = new CancellationTokenSource();
+        var original = new InvalidOperationException("callback failure");
+
+        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            unitOfWork.ExecuteAsync<int>(_ =>
+            {
+                db.Users.Add(new ApplicationUser
+                {
+                    Id = Guid.CreateVersion7(),
+                    UserName = "local-agent+rollback@local-agent.test",
+                    NormalizedUserName = "LOCAL-AGENT+ROLLBACK@LOCAL-AGENT.TEST",
+                    Email = "local-agent+rollback@local-agent.test",
+                    NormalizedEmail = "LOCAL-AGENT+ROLLBACK@LOCAL-AGENT.TEST",
+                    DisplayName = "Rollback User",
+                    IsLocalAutomation = true,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+                cancellation.Cancel();
+                return Task.FromException<int>(original);
+            }, cancellation.Token));
+
+        Assert.Same(original, exception);
+        Assert.Empty(db.ChangeTracker.Entries());
+    }
+
     private AuthDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AuthDbContext>();

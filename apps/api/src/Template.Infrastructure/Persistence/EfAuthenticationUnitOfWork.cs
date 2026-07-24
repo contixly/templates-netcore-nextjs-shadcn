@@ -26,8 +26,19 @@ internal sealed class EfAuthenticationUnitOfWork(AuthDbContext db)
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
-            db.ChangeTracker.Clear();
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // Preserve the callback failure when rollback cannot complete.
+            }
+            finally
+            {
+                db.ChangeTracker.Clear();
+            }
+
             throw;
         }
     }
