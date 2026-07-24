@@ -1,7 +1,7 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 1 — API foundation и контрактная дисциплина (завершена 2026-07-23).
+**Текущая итерация:** 2 — чистый Next.js UI foundation (завершена 2026-07-24).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -273,7 +273,8 @@ flowchart LR
 | --- | --- | --- |
 | 0 — bootstrap | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился. |
 | 1 — API foundation | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты. |
-| 2–12 | Не начаты | Следующий dependency gate — чистый Next.js UI foundation, generated REST client и browser smoke без переноса auth/product domain. |
+| 2 — чистый Next.js UI foundation | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты. |
+| 3–12 | Не начаты | Следующий dependency gate — PostgreSQL, EF Core, Identity и базовая cookie authentication без переноса старых данных. |
 
 ## Acceptance evidence: итерация 1
 
@@ -314,6 +315,65 @@ outside iteration 1.
 committed OpenAPI document. Identity, issuing the cookie, and
 `GET /api/v1/auth/session` remain blocked on iteration 3; no iteration-2 code
 may simulate them with browser bearer storage or direct database access.
+
+## Acceptance evidence: итерация 2
+
+**Scope:** `apps/web`, `docs/web-conventions.md`, design
+`docs/superpowers/specs/2026-07-23-nextjs-ui-foundation-design.md`, plan
+`docs/superpowers/plans/2026-07-24-nextjs-ui-foundation.md`, этот migration plan
+и реестр итераций. API source, persistent schema и `template/` не менялись.
+Committed OpenAPI contract и generated SDK остались byte-identical после
+экспорта и регенерации.
+
+| Reference | Новый API | Новый UI | Test/evidence |
+| --- | --- | --- | --- |
+| `template/src/app/layout.tsx`, `globals.css`, `app-providers.tsx` | N/A | root layout, providers, Tailwind/shadcn tokens | layout/component tests, standalone production build |
+| `template/src/i18n/**`, `common.{en,ru}.json` | N/A | fixed deployment locale with common/system bundles | locale fallback and bundle-shape tests |
+| `template/src/components/application/theme/theme-switcher.tsx` | N/A | hydration-safe theme switcher | SSR markup, click, and keyboard E2E |
+| `template/src/features/application/application-routes.ts`, public header primitives | N/A | typed `/` and minimal header | route/header tests |
+| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts` | existing `/api/health`, `/api/v1/system/status` | SSR and browser status regions over one generated SDK | adapter tests and full-stack Playwright |
+| `template/src/app/global-error.tsx`, `not-found.tsx`, error components | existing RFC Problem Details | loading/error/not-found/global boundaries | boundary and intercepted-error tests |
+| reference public home account/workspace loaders | outside scope | not copied | source/dependency guard |
+| all reference Prisma models | no schema change | no data access | source/dependency guard |
+
+**Проверки 2026-07-24 (fresh clean-lock acceptance):**
+
+| Команда | Наблюдаемый результат |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS; все проекты up-to-date |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
+| `dotnet test Template.sln --no-restore` | PASS; 35/35 tests, 0 failed, 0 skipped |
+| `dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore -p:OpenApiGenerateDocuments=true` | PASS; OpenAPI export build, 0 warnings, 0 errors |
+| `git diff --exit-code -- contracts/openapi/v1.json` | PASS; empty |
+| `npm ci` | PASS; 977 packages added, 978 audited; npm reported 10 dependency vulnerabilities (3 moderate, 7 high) |
+| `npm run api:check` | PASS; generated REST tree deterministic and current (4 files) |
+| `npm run boundaries:check` | PASS; dependency and source boundaries clean |
+| `npm run format:check` | PASS; all matched files use Prettier style |
+| `npm run lint` | PASS; ESLint exited 0 |
+| `npm run typecheck` | PASS; Next route types generated and `tsc --noEmit` exited 0 |
+| `npm test -- --runInBand` | PASS; 15/15 suites, 46/46 tests, 0 snapshots |
+| `node -e "require('node:fs').rmSync('.next', { recursive: true, force: true })"` | PASS; prior build output removed |
+| `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build` | PASS; Next.js 16.2.11 compiled and completed the production build without a live API |
+| `test -f .next/standalone/server.js` | PASS; standalone artifact exists |
+| `npm run e2e` | PASS; Playwright 3/3 tests in 9.2s; API and Next E2E listeners terminated |
+
+**Intentional differences from reference:** новый `/` — техническая smoke home,
+а не product landing; data flow использует generated ASP.NET REST SDK вместо
+Server Actions; failures используют RFC Problem Details; язык deployment
+фиксирован через `PUBLIC_DEFAULT_LOCALE` (`en`/`ru`) и switcher отсутствует.
+Authentication, account/workspace/product data и соответствующий UI не
+переносились.
+
+Browser обращается к `/api/**` same-origin с `credentials: "same-origin"`;
+SSR использует только server-side absolute `API_INTERNAL_BASE_URL`. В dev/E2E
+внешний Next rewrite включается через `API_PROXY_TARGET`, но это не production
+proxy: конечная production topology с Kestrel/YARP остаётся отдельной итерацией.
+
+В этом срезе нет данных, schema migrations, транзакций или pagination.
+**Gate итерации 3:** PostgreSQL, EF Core migrations, ASP.NET Core Identity,
+register/login/logout/current-user, выдача secure HttpOnly same-origin cookie и
+antiforgery. До него persistence, Identity, cookie issuance, account/workspace/
+product UI и auth-dependent parity остаются известными gaps.
 
 ## 9. Правило обновления этого документа
 
