@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -12,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Template.Api.Authentication;
 using Template.Api.Tests.Infrastructure;
+using Template.Infrastructure.Identity;
 using Template.Infrastructure.Persistence;
 
 namespace Template.Api.Tests;
@@ -299,6 +301,52 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             body,
             StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Identity", body, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task UnknownIdentityResultRemainsInternalWithoutCreatingState()
+    {
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+                services.AddScoped<
+                    IUserValidator<ApplicationUser>,
+                    UnknownIdentityResultValidator>()));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+                HandleCookies = true
+            });
+
+        using var response = await LocalAuthTestClient.CreateScenarioAsync(
+            client,
+            new
+            {
+                name = "Unknown Identity Result",
+                email = "local-agent+unknown-result@local-agent.test",
+                password = "local-unknown-result-password"
+            });
+        var body = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.InternalServerError,
+            "internal_error");
+        await using var scope = isolated.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+        Assert.False(await db.Users.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain("__Host-template.session", response.Headers.ToString());
+        Assert.DoesNotContain(
+            UnknownIdentityResultValidator.ErrorCode,
+            body,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            UnknownIdentityResultValidator.ErrorDescription,
+            body,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -746,6 +794,25 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
         DateTimeOffset UpdatedAt,
         DateTimeOffset ExpiresAt);
     private sealed record ApiProblem(string Code, string Detail);
+
+    private sealed class UnknownIdentityResultValidator
+        : IUserValidator<ApplicationUser>
+    {
+        internal const string ErrorCode = "CustomProviderFailure";
+        internal const string ErrorDescription =
+            "Sensitive custom provider failure detail.";
+
+        public Task<IdentityResult> ValidateAsync(
+            UserManager<ApplicationUser> manager,
+            ApplicationUser user) =>
+            Task.FromResult(
+                IdentityResult.Failed(
+                    new IdentityError
+                    {
+                        Code = ErrorCode,
+                        Description = ErrorDescription
+                    }));
+    }
 
     private sealed class FailingTicketStore : ITicketStore
     {

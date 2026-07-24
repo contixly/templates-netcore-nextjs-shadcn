@@ -43,7 +43,14 @@ internal sealed class IdentityGateway(
                     throw new DuplicateLocalIdentityException();
                 }
 
-                throw new LocalIdentityValidationException();
+                if (result.Errors.Any() &&
+                    result.Errors.All(IsKnownInputValidationError))
+                {
+                    throw new LocalIdentityValidationException();
+                }
+
+                throw new InvalidOperationException(
+                    "Identity user creation failed unexpectedly.");
             }
         }
         catch (DbUpdateException exception)
@@ -102,4 +109,15 @@ internal sealed class IdentityGateway(
             user.EmailConfirmed,
             user.ImageUrl,
             user.IsLocalAutomation);
+
+    private static bool IsKnownInputValidationError(IdentityError error) =>
+        error.Code is
+            "InvalidUserName" or
+            "InvalidEmail" or
+            "PasswordTooShort" or
+            "PasswordRequiresNonAlphanumeric" or
+            "PasswordRequiresDigit" or
+            "PasswordRequiresLower" or
+            "PasswordRequiresUpper" or
+            "PasswordRequiresUniqueChars";
 }

@@ -88,12 +88,15 @@ true. Their OpenAPI operations carry tag `local-only` and
 `x-local-only: true`.
 
 The Application local-namespace policy remains the source of truth for which
-normalized scenario emails are eligible. If Identity applies an additional
-username validation rule during local-user creation, Infrastructure reports a
-typed validation condition to Application; scenario creation rolls back and
-returns the existing `400 validation_failed` email path without exposing
-Identity error codes or creating a user/session. Duplicate identities retain
-the separate `409 local_auth_user_exists` path.
+normalized scenario emails are eligible. When local-user creation fails only
+with recognized built-in Identity username, email, or password input-validation
+codes, Infrastructure reports a typed validation condition to Application;
+scenario creation rolls back and returns the existing
+`400 validation_failed` path. Duplicate identities retain the separate
+`409 local_auth_user_exists` path. Unknown or custom Identity result codes
+remain unexpected `500 internal_error` failures: the transaction rolls back,
+no user/session or cookie is created, and the provider code and detail are not
+exposed.
 
 The browser never reads the HttpOnly cookie and never stores a bearer token.
 Browser requests send the same-origin cookie automatically. The combined
