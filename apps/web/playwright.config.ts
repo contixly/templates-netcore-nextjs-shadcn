@@ -19,14 +19,15 @@ export default defineConfig({
   webServer: [
     {
       command:
-        "dotnet run --no-launch-profile --project ../api/src/Template.Api/Template.Api.csproj",
+        "dotnet run --no-launch-profile --project ../api/tests/Template.E2EHost/Template.E2EHost.csproj",
       env: {
-        ASPNETCORE_ENVIRONMENT: "Development",
+        ASPNETCORE_ENVIRONMENT: "Test",
         ASPNETCORE_URLS: apiOrigin,
+        LocalAutomationAuth__Enabled: "true",
       },
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-      url: `${apiOrigin}/api/health`,
+      reuseExistingServer: false,
+      timeout: 180_000,
+      url: `${apiOrigin}/api/health/ready`,
     },
     {
       command: "npm run dev -- --hostname 127.0.0.1 --port 3127",
