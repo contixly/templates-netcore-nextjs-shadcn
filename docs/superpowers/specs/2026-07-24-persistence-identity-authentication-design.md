@@ -717,11 +717,11 @@ git diff --exit-code -- contracts/openapi/v1.json
 
 dotnet ef migrations has-pending-model-changes \
   --project apps/api/src/Template.Infrastructure \
-  --startup-project apps/api/src/Template.Api
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj
 
 dotnet ef migrations script --idempotent \
   --project apps/api/src/Template.Infrastructure \
-  --startup-project apps/api/src/Template.Api
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj
 ```
 
 From `apps/web`:

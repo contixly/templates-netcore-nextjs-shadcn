@@ -1574,7 +1574,7 @@ Run:
 dotnet tool restore
 dotnet ef migrations add InitialAuthPersistence \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext \
   --output-dir Persistence/Migrations
 ```
@@ -1603,12 +1603,12 @@ Run:
 ```bash
 dotnet ef migrations has-pending-model-changes \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext
 
 dotnet ef migrations script --idempotent \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext \
   --output /tmp/template-auth-idempotent.sql
 test -s /tmp/template-auth-idempotent.sql
@@ -7855,17 +7855,17 @@ The API never applies migrations automatically.
 dotnet tool restore
 dotnet ef database update \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext
 
 dotnet ef migrations has-pending-model-changes \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext
 
 dotnet ef migrations script --idempotent \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext
 ```
 
@@ -7961,12 +7961,12 @@ git diff --exit-code -- contracts/openapi/v1.json
 
 dotnet ef migrations has-pending-model-changes \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext
 
 dotnet ef migrations script --idempotent \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
-  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --context AuthDbContext \
   --output /tmp/template-auth-idempotent.sql
 test -s /tmp/template-auth-idempotent.sql
