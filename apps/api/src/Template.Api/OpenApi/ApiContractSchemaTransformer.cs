@@ -10,7 +10,7 @@ namespace Template.Api.OpenApi;
 internal sealed class ApiContractSchemaTransformer : IOpenApiSchemaTransformer
 {
     private const string LocalAutomationEmailPattern =
-        """[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\+[^@]+@[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\.[tT][eE][sS][tT]""";
+        """^[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\+[^@\s]+@[lL][oO][cC][aA][lL]-[aA][gG][eE][nN][tT]\.[tT][eE][sS][tT]$""";
 
     private static readonly string[] ProblemInvariantProperties =
     [
@@ -81,7 +81,7 @@ internal sealed class ApiContractSchemaTransformer : IOpenApiSchemaTransformer
         {
             AddExtension(email, "x-trimmed-max-length", 254);
             AddExtension(email, "x-trimmed-format", "email");
-            email.Pattern = LocalAutomationEmailPattern;
+            AddExtension(email, "x-trimmed-pattern", LocalAutomationEmailPattern);
             email.Description =
                 "Trimmed and lowercased before use; the trimmed value must be a valid email " +
                 "of at most 254 characters in the case-insensitive " +

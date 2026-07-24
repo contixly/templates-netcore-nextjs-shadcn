@@ -238,13 +238,20 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             "lower",
             email["description"]!.GetValue<string>(),
             StringComparison.OrdinalIgnoreCase);
-        var localEmailPattern = email["pattern"]!.GetValue<string>();
+        Assert.Null(email["pattern"]);
+        var localEmailPattern = email["x-trimmed-pattern"]!.GetValue<string>();
         Assert.Matches(
             localEmailPattern,
-            "  LOCAL-AGENT+SCENARIO@LOCAL-AGENT.TEST  ");
+            "LOCAL-AGENT+SCENARIO@LOCAL-AGENT.TEST");
         Assert.DoesNotMatch(
             localEmailPattern,
-            "scenario@example.test");
+            "evil-local-agent+scenario@local-agent.test");
+        Assert.DoesNotMatch(
+            localEmailPattern,
+            "local-agent+scenario@local-agent.test.example");
+        Assert.DoesNotMatch(
+            localEmailPattern,
+            "local-agent+not valid@local-agent.test");
     }
 
     [Fact]
