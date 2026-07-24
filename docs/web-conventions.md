@@ -30,8 +30,19 @@ first currently audited stable release.
 The override versions pass generation, CLI/MCP-HTTP transport, lint, typecheck,
 Jest, production build, standalone-runtime, and full-stack E2E checks. Remove
 an override only after an exact upstream dependency accepts an audited version
-and the same matrix passes. `npm audit --json` checks the full tree;
-`npm run audit:prod` is the required production-dependency gate.
+and the same matrix passes.
+
+After [`GHSA-mh99-v99m-4gvg`](https://github.com/advisories/GHSA-mh99-v99m-4gvg)
+was published on 2026-07-23 and updated on 2026-07-24, `npm audit --json`
+started reporting 26 high findings in the development-only ESLint/Jest graph.
+The advisory's only patched line is
+`brace-expansion` 5.0.8. Current stable Next/ESLint plugins and Jest still
+declare older `minimatch`/`glob` ranges; replacing those transitive packages
+with their major-10/5 APIs would break old CommonJS callable imports. Do not
+silence the audit or force that incompatible override. Re-run the full audit
+when stable upstream ranges move; it remains a known external tooling blocker,
+not an accepted zero-finding result. `npm run audit:prod` remains the required
+production-dependency gate and reports zero findings for this application.
 
 ## Generated REST contract
 
