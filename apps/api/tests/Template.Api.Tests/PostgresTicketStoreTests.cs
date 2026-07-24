@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.DataProtection;
@@ -223,6 +224,33 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             TestContext.Current.CancellationToken);
         var serialized = TicketSerializer.Default.Serialize(ticket);
         await MutateStoredTicketAsync(Protect(scope.ServiceProvider, serialized[..^1]));
+
+        Assert.Null(await store.RetrieveAsync(
+            key,
+            context,
+            TestContext.Current.CancellationToken));
+        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            .Sessions.AnyAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RetrieveLazilyDeletesProtectedV5TicketWithMalformedSerializerData()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+        var store = scope.ServiceProvider.GetRequiredService<PostgresTicketStore>();
+        var ticket = CreateTicket(Guid.CreateVersion7(), _time.GetUtcNow().AddDays(7));
+        var key = await store.StoreAsync(
+            ticket,
+            context,
+            TestContext.Current.CancellationToken);
+        var malformed = CreateV5PayloadThatThrowsArgumentException(
+            TicketSerializer.Default.Serialize(ticket));
+
+        Assert.Equal(5, BinaryPrimitives.ReadInt32LittleEndian(malformed));
+        Assert.Throws<ArgumentException>(() =>
+            TicketSerializer.Default.Deserialize(malformed));
+        await MutateStoredTicketAsync(Protect(scope.ServiceProvider, malformed));
 
         Assert.Null(await store.RetrieveAsync(
             key,
@@ -486,6 +514,39 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             .CreateProtector(
                 "Template.Infrastructure.Authentication.PostgresTicketStore.v1")
             .Protect(serializedTicket);
+
+    private static byte[] CreateV5PayloadThatThrowsArgumentException(
+        byte[] serializedTicket)
+    {
+        for (var index = sizeof(int); index < serializedTicket.Length; index++)
+        {
+            for (var value = byte.MinValue; value <= byte.MaxValue; value++)
+            {
+                if (value == serializedTicket[index])
+                {
+                    continue;
+                }
+
+                var malformed = (byte[])serializedTicket.Clone();
+                malformed[index] = (byte)value;
+                try
+                {
+                    _ = TicketSerializer.Default.Deserialize(malformed);
+                }
+                catch (ArgumentException)
+                {
+                    return malformed;
+                }
+                catch (IOException)
+                {
+                    // Keep searching for the serializer format exception under test.
+                }
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Unable to create malformed TicketSerializer v5 data that throws ArgumentException.");
+    }
 
     private async Task AssertNoSessionsAsync()
     {

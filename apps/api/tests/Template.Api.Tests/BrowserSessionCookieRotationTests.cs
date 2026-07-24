@@ -56,6 +56,13 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         });
         services.AddAuthInfrastructure(configuration);
         services.AddApiAuthentication();
+        services.PostConfigure<CookieAuthenticationOptions>(
+            ApiAuthenticationDefaults.SchemeName,
+            options =>
+            {
+                options.ExpireTimeSpan = TimeSpan.FromDays(7);
+                options.SlidingExpiration = true;
+            });
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();
@@ -101,6 +108,42 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         Assert.True(newAuthentication.Succeeded);
         Assert.Equal(
             _firstUserId.ToString(),
+            newAuthentication.Principal!.FindFirstValue(ClaimTypes.NameIdentifier));
+        await AssertOnlySessionAsync(replacement.Id.Value);
+    }
+
+    [Fact]
+    public async Task ReplacementSuppressesPrimaryHandlerSlidingRefresh()
+    {
+        var oldCookie = await IssueCookieAsync(CreateAuthUser(
+            _firstUserId,
+            "local-agent+cookie-one@local-agent.test",
+            "Cookie One"));
+        _time.Advance(TimeSpan.FromDays(4));
+
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider, oldCookie);
+        var oldAuthentication = await context.AuthenticateAsync(
+            ApiAuthenticationDefaults.SchemeName);
+        Assert.True(oldAuthentication.Succeeded);
+
+        var replacement = await scope.ServiceProvider
+            .GetRequiredService<IBrowserSessionGateway>()
+            .SignInAsync(
+                CreateAuthUser(
+                    _secondUserId,
+                    "local-agent+cookie-two@local-agent.test",
+                    "Cookie Two"),
+                TestContext.Current.CancellationToken);
+        await context.Response.StartAsync(TestContext.Current.CancellationToken);
+
+        var newCookie = AssertSingleLiveSessionCookie(context);
+        Assert.NotEqual(oldCookie, newCookie);
+        Assert.False((await AuthenticateAsync(oldCookie)).Succeeded);
+        var newAuthentication = await AuthenticateAsync(newCookie);
+        Assert.True(newAuthentication.Succeeded);
+        Assert.Equal(
+            _secondUserId.ToString(),
             newAuthentication.Principal!.FindFirstValue(ClaimTypes.NameIdentifier));
         await AssertOnlySessionAsync(replacement.Id.Value);
     }
@@ -376,7 +419,11 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
     private sealed class MutableTimeProvider(DateTimeOffset utcNow)
         : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => utcNow;
+        private DateTimeOffset _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        internal void Advance(TimeSpan value) => _utcNow += value;
     }
 
     public async ValueTask DisposeAsync()

@@ -171,6 +171,11 @@ public sealed class PostgresTicketStore(
             await DeleteIfUnchangedAsync(db, row, cancellationToken);
             return null;
         }
+        catch (ArgumentException)
+        {
+            await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            return null;
+        }
     }
 
     public Task RemoveAsync(string key) =>
