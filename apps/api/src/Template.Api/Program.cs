@@ -21,6 +21,7 @@ builder.Services
         tags: ["ready"],
         timeout: TimeSpan.FromSeconds(2));
 builder.Services.AddApiAuthentication();
+builder.Services.AddApiAuthSecurity(builder.Configuration);
 builder.Services.AddApiErrorHandling();
 builder.Services.AddApiOpenApi();
 builder.Services.AddEndpointModules();
@@ -35,10 +36,13 @@ app.UseWhen(
         api.UseExceptionHandler();
         api.UseStatusCodePages();
         api.UseMiddleware<RequestLoggingMiddleware>();
+        api.UseMiddleware<AuthResponseCacheMiddleware>();
+        api.UseMiddleware<LocalAutomationAvailabilityMiddleware>();
     });
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.MapEndpointModules();
 
 if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test"))

@@ -1,0 +1,115 @@
+using System.Globalization;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Options;
+using Template.Api.Errors;
+
+namespace Template.Api.Authentication;
+
+internal static class AuthRateLimitPolicies
+{
+    internal const string LocalAutomationCreate = "LocalAutomationCreate";
+    internal const string LocalAutomationSignIn = "LocalAutomationSignIn";
+}
+
+internal static class AuthSecurityServiceCollectionExtensions
+{
+    internal static IServiceCollection AddApiAuthSecurity(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services
+            .AddOptions<LocalAutomationAuthOptions>()
+            .Bind(configuration.GetSection(LocalAutomationAuthOptions.SectionName))
+            .Validate(
+                options =>
+                    options.CreateRateLimitPerMinute > 0 &&
+                    options.SignInRateLimitPerFiveMinutes > 0,
+                "Local automation rate limits must be positive.")
+            .ValidateOnStart();
+        services.AddSingleton<
+            ILocalAutomationAuthAvailability,
+            LocalAutomationAuthAvailability>();
+        services.AddAntiforgery(options =>
+        {
+            options.HeaderName = "X-CSRF-TOKEN";
+            options.Cookie.Name = "__Host-template.antiforgery";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.Path = "/";
+            options.Cookie.Domain = null;
+        });
+
+        services.AddRateLimiter(options =>
+        {
+            options.AddPolicy(
+                AuthRateLimitPolicies.LocalAutomationCreate,
+                context =>
+                {
+                    var local = context.RequestServices
+                        .GetRequiredService<IOptions<LocalAutomationAuthOptions>>()
+                        .Value;
+                    return Partition(
+                        context,
+                        local.CreateRateLimitPerMinute,
+                        TimeSpan.FromMinutes(1));
+                });
+            options.AddPolicy(
+                AuthRateLimitPolicies.LocalAutomationSignIn,
+                context =>
+                {
+                    var local = context.RequestServices
+                        .GetRequiredService<IOptions<LocalAutomationAuthOptions>>()
+                        .Value;
+                    return Partition(
+                        context,
+                        local.SignInRateLimitPerFiveMinutes,
+                        TimeSpan.FromMinutes(5));
+                });
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.OnRejected = async (rejected, cancellationToken) =>
+            {
+                if (rejected.Lease.TryGetMetadata(
+                        MetadataName.RetryAfter,
+                        out var retryAfter))
+                {
+                    rejected.HttpContext.Response.Headers.RetryAfter =
+                        Math.Ceiling(retryAfter.TotalSeconds)
+                            .ToString(CultureInfo.InvariantCulture);
+                }
+
+                rejected.HttpContext.Response.StatusCode =
+                    StatusCodes.Status429TooManyRequests;
+                var details = new ProblemDetails
+                {
+                    Status = StatusCodes.Status429TooManyRequests
+                };
+                details.Extensions["code"] = ApiProblemCodes.RateLimited;
+                await rejected.HttpContext.RequestServices
+                    .GetRequiredService<IProblemDetailsService>()
+                    .TryWriteAsync(new ProblemDetailsContext
+                    {
+                        HttpContext = rejected.HttpContext,
+                        ProblemDetails = details
+                    });
+            };
+        });
+        return services;
+    }
+
+    private static RateLimitPartition<string> Partition(
+        HttpContext context,
+        int permitLimit,
+        TimeSpan window) =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = permitLimit,
+                QueueLimit = 0,
+                Window = window
+            });
+}

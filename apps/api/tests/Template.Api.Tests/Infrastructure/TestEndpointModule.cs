@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
+using Template.Api.Authentication;
 using Template.Api.Endpoints;
 
 namespace Template.Api.Tests.Infrastructure;
@@ -29,6 +32,39 @@ internal sealed class TestEndpointModule : IEndpointModule
                     ["address.PostalCode"] = ["Postal code has an invalid format."],
                     ["ContactInfo.EmailAddress"] = ["Email address is invalid."]
                 }))
+            .ExcludeFromDescription();
+
+        context.Root.MapGet(
+                "/api/testing/csrf",
+                (IAntiforgery antiforgery, HttpContext httpContext) =>
+                {
+                    var tokens = antiforgery.GetAndStoreTokens(httpContext);
+                    return Results.Ok(new { requestToken = tokens.RequestToken });
+                })
+            .AllowAnonymous()
+            .ExcludeFromDescription();
+
+        context.Root.MapPost(
+                "/api/testing/csrf",
+                () => Results.Ok(new { accepted = true }))
+            .AllowAnonymous()
+            .RequireApiAntiforgery()
+            .ExcludeFromDescription();
+
+        context.Root.MapGet(
+                "/api/local-auth/testing",
+                () => Results.Ok(new { enabled = true }))
+            .AllowAnonymous()
+            .WithLocalOnly()
+            .ExcludeFromDescription();
+
+        context.Root.MapPost(
+                "/api/local-auth/testing-rate",
+                () => Results.Ok(new { accepted = true }))
+            .AllowAnonymous()
+            .RequireApiAntiforgery()
+            .RequireRateLimiting(AuthRateLimitPolicies.LocalAutomationCreate)
+            .WithLocalOnly()
             .ExcludeFromDescription();
 
         context.VersionedApi.MapGet("/testing/consumer", () => Results.Ok())
