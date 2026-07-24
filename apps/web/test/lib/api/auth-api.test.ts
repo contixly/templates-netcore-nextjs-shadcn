@@ -12,6 +12,9 @@ import { createLocalAutomationBrowserSession } from "@/src/lib/api/auth/browser/
 import { logoutBrowserSession } from "@/src/lib/api/auth/browser/logout-browser-session";
 import { loadAuthCapabilities } from "@/src/lib/api/auth/load-auth-capabilities";
 import { loadAuthSession } from "@/src/lib/api/auth/load-auth-session";
+import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
+import { createServerApiClient } from "@/src/lib/api/server/client";
+import { readForwardedApiHeaders } from "@/src/lib/api/server/request-headers";
 
 jest.mock("@/src/lib/api/generated", () => ({
   createLocalAutomationScenario: jest.fn(),
@@ -20,6 +23,12 @@ jest.mock("@/src/lib/api/generated", () => ({
   getAuthSession: jest.fn(),
   logout: jest.fn(),
 }));
+jest.mock("@/src/lib/api/server/client", () => ({
+  createServerApiClient: jest.fn(),
+}));
+jest.mock("@/src/lib/api/server/request-headers", () => ({
+  readForwardedApiHeaders: jest.fn(),
+}));
 
 const client = {} as Client;
 const mockedCapabilities = jest.mocked(getAuthCapabilities);
@@ -27,6 +36,8 @@ const mockedSession = jest.mocked(getAuthSession);
 const mockedCsrf = jest.mocked(getAuthCsrf);
 const mockedCreate = jest.mocked(createLocalAutomationScenario);
 const mockedLogout = jest.mocked(logout);
+const mockedCreateServerClient = jest.mocked(createServerApiClient);
+const mockedReadForwardedApiHeaders = jest.mocked(readForwardedApiHeaders);
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -57,6 +68,59 @@ it("loads capability and session data from generated envelopes", async () => {
   await expect(loadAuthSession(client)).resolves.toEqual({
     ok: true,
     data: { authenticated: false, user: null, session: null },
+  });
+  expect(mockedCapabilities).toHaveBeenCalledWith({
+    client,
+    cache: "no-store",
+  });
+  expect(mockedSession).toHaveBeenCalledWith({
+    client,
+    cache: "no-store",
+  });
+});
+
+it("composes request-bound server authentication state", async () => {
+  mockedReadForwardedApiHeaders.mockResolvedValue({
+    cookie: "__Host-template.session=opaque",
+    correlationId: "trace-auth",
+  });
+  mockedCreateServerClient.mockReturnValue({ ok: true, client });
+  mockedCapabilities.mockResolvedValue({
+    data: {
+      data: { localAutomationEnabled: true, providers: [] },
+    },
+    error: undefined,
+    request: new Request("https://example.test"),
+    response: new Response(),
+  });
+  mockedSession.mockResolvedValue({
+    data: {
+      data: { authenticated: false, user: null, session: null },
+    },
+    error: undefined,
+    request: new Request("https://example.test"),
+    response: new Response(),
+  });
+
+  await expect(loadServerAuthState()).resolves.toEqual({
+    ok: true,
+    data: {
+      capabilities: { localAutomationEnabled: true, providers: [] },
+      session: { authenticated: false, user: null, session: null },
+    },
+  });
+  expect(mockedReadForwardedApiHeaders).toHaveBeenCalledTimes(1);
+  expect(mockedCreateServerClient).toHaveBeenCalledWith({
+    cookie: "__Host-template.session=opaque",
+    correlationId: "trace-auth",
+  });
+  expect(mockedCapabilities).toHaveBeenCalledWith({
+    client,
+    cache: "no-store",
+  });
+  expect(mockedSession).toHaveBeenCalledWith({
+    client,
+    cache: "no-store",
   });
 });
 
