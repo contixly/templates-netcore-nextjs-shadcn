@@ -18,8 +18,6 @@ public sealed class PostgresTicketStore(
     TimeProvider timeProvider)
     : ITicketStore
 {
-    private static readonly object SessionReplacementRequested = new();
-    private static readonly object SignedOutTicketKey = new();
     private readonly IDataProtector _protector = dataProtectionProvider.CreateProtector(
         "Template.Infrastructure.Authentication.PostgresTicketStore.v1");
 
@@ -38,8 +36,6 @@ public sealed class PostgresTicketStore(
     {
         var key = WebEncoders.Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
         await StoreCoreAsync(ticket, key, httpContext, cancellationToken);
-        httpContext.Items.Remove(SessionReplacementRequested);
-        httpContext.Items.Remove(SignedOutTicketKey);
         return key;
     }
 
@@ -104,7 +100,7 @@ public sealed class PostgresTicketStore(
         var expiresAt = (ticket.Properties.ExpiresUtc ??
             throw new InvalidOperationException("A persistent ticket requires ExpiresUtc."))
             .ToUniversalTime();
-        var updated = await db.Sessions
+        await db.Sessions
             .Where(session =>
                 session.TicketKeyHash.SequenceEqual(hash) &&
                 session.Id == sessionId &&
@@ -117,13 +113,6 @@ public sealed class PostgresTicketStore(
                     .SetProperty(session => session.UpdatedAt, updatedAt)
                     .SetProperty(session => session.ExpiresAt, expiresAt),
                 cancellationToken);
-        if (updated == 0 &&
-            httpContext.Items.TryGetValue(SignedOutTicketKey, out var signedOutKey) &&
-            string.Equals(signedOutKey as string, key, StringComparison.Ordinal))
-        {
-            await StoreCoreAsync(ticket, key, httpContext, cancellationToken);
-            httpContext.Items.Remove(SignedOutTicketKey);
-        }
     }
 
     public Task<AuthenticationTicket?> RetrieveAsync(string key) =>
@@ -164,14 +153,20 @@ public sealed class PostgresTicketStore(
         {
             var ticket = TicketSerializer.Default.Deserialize(
                 _protector.Unprotect(row.ProtectedTicket));
-            if (ticket is null)
+            if (ticket is null || !IsExpectedTicket(ticket, row))
             {
                 await DeleteIfUnchangedAsync(db, row, cancellationToken);
+                return null;
             }
 
             return ticket;
         }
         catch (CryptographicException)
+        {
+            await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            return null;
+        }
+        catch (IOException)
         {
             await DeleteIfUnchangedAsync(db, row, cancellationToken);
             return null;
@@ -194,10 +189,6 @@ public sealed class PostgresTicketStore(
         await db.Sessions
             .Where(session => session.TicketKeyHash.SequenceEqual(hash))
             .ExecuteDeleteAsync(cancellationToken);
-        if (httpContext.Items.Remove(SessionReplacementRequested))
-        {
-            httpContext.Items[SignedOutTicketKey] = key;
-        }
     }
 
     private HttpContext RequiredHttpContext() =>
@@ -211,9 +202,6 @@ public sealed class PostgresTicketStore(
     private static byte[] HashKey(string key) =>
         SHA256.HashData(Encoding.UTF8.GetBytes(key));
 
-    internal static void BeginSessionReplacement(HttpContext context) =>
-        context.Items[SessionReplacementRequested] = true;
-
     private static Task<int> DeleteIfUnchangedAsync(
         AuthDbContext db,
         AuthSessionEntity row,
@@ -226,6 +214,35 @@ public sealed class PostgresTicketStore(
 
     private byte[] Protect(AuthenticationTicket ticket) =>
         _protector.Protect(TicketSerializer.Default.Serialize(ticket));
+
+    private static bool IsExpectedTicket(
+        AuthenticationTicket ticket,
+        AuthSessionEntity row) =>
+        IsExpectedScheme(ticket.AuthenticationScheme) &&
+        HasSingleMatchingGuidClaim(
+            ticket.Principal,
+            BrowserSessionClaimTypes.SessionId,
+            row.Id) &&
+        HasSingleMatchingGuidClaim(
+            ticket.Principal,
+            ClaimTypes.NameIdentifier,
+            row.UserId);
+
+    private static bool IsExpectedScheme(string scheme) =>
+        scheme is
+            BrowserSessionAuthenticationDefaults.PrimaryScheme or
+            BrowserSessionAuthenticationDefaults.IssuerScheme;
+
+    private static bool HasSingleMatchingGuidClaim(
+        ClaimsPrincipal principal,
+        string claimType,
+        Guid expected)
+    {
+        var claims = principal.FindAll(claimType).ToArray();
+        return claims.Length == 1 &&
+            Guid.TryParse(claims[0].Value, out var actual) &&
+            actual == expected;
+    }
 
     private static Guid ParseRequiredGuid(ClaimsPrincipal principal, string claimType)
     {

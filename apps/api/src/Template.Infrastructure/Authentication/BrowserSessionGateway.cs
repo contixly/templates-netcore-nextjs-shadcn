@@ -61,9 +61,11 @@ internal sealed class BrowserSessionGateway(
             sessionId.Value.ToString()));
         var window = SessionWindow.Start(timeProvider.GetUtcNow(), SessionLifetime);
 
-        PostgresTicketStore.BeginSessionReplacement(context);
-        await context.SignOutAsync();
+        BrowserSessionReplacement.Begin(context);
+        await context.SignOutAsync(
+            BrowserSessionAuthenticationDefaults.PrimaryScheme);
         await context.SignInAsync(
+            BrowserSessionAuthenticationDefaults.IssuerScheme,
             principal,
             new AuthenticationProperties
             {
@@ -80,7 +82,8 @@ internal sealed class BrowserSessionGateway(
     }
 
     public Task SignOutAsync(CancellationToken cancellationToken) =>
-        RequiredHttpContext().SignOutAsync();
+        RequiredHttpContext().SignOutAsync(
+            BrowserSessionAuthenticationDefaults.PrimaryScheme);
 
     private HttpContext RequiredHttpContext() =>
         httpContextAccessor.HttpContext ??

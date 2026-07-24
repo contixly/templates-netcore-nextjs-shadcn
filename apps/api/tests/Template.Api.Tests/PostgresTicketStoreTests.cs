@@ -1,15 +1,13 @@
-using System.Collections.Concurrent;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
+using Template.Api.Authentication;
 using Template.Api.Tests.Infrastructure;
 using Template.Domain.Authentication;
 using Template.Infrastructure.Authentication;
@@ -24,7 +22,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
     private string _databaseName = string.Empty;
     private ServiceProvider _services = null!;
     private Guid _userId;
-    private readonly SessionWriteBarrier _writeBarrier = new();
+    private readonly SessionCommandBarrier _commandBarrier = new();
     private readonly MutableTimeProvider _time = new(
         new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero));
 
@@ -46,17 +44,15 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<TimeProvider>(_time);
         services.AddHttpContextAccessor();
-        services.AddAuthentication("TicketStoreTest")
-            .AddCookie("TicketStoreTest");
-        services.AddAuthInfrastructure(configuration);
-        services.AddSingleton(_writeBarrier);
+        services.AddApiAuthentication();
+        services.AddSingleton(_commandBarrier);
         services.AddDbContext<AuthDbContext>((provider, options) =>
+        {
+            AuthDbContext.Configure(options, database.ConnectionString);
             options.AddInterceptors(
-                provider.GetRequiredService<SessionWriteBarrier>()));
-        services
-            .AddOptions<CookieAuthenticationOptions>("TicketStoreTest")
-            .Configure<PostgresTicketStore>((options, store) =>
-                options.SessionStore = store);
+                provider.GetRequiredService<SessionCommandBarrier>());
+        });
+        services.AddAuthInfrastructure(configuration);
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();
@@ -159,7 +155,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
     }
 
     [Fact]
-    public async Task RepeatedGatewaySignInReplacesTheExistingCookieSession()
+    public async Task GatewaySignInPersistsTheIssuedCookieSession()
     {
         await using var scope = _services.CreateAsyncScope();
         var context = CreateHttpContext(scope.ServiceProvider);
@@ -173,10 +169,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             null,
             true);
 
-        var first = await gateway.SignInAsync(
-            user,
-            TestContext.Current.CancellationToken);
-        var second = await gateway.SignInAsync(
+        var issued = await gateway.SignInAsync(
             user,
             TestContext.Current.CancellationToken);
 
@@ -185,8 +178,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         var stored = Assert.Single(await db.Sessions
             .AsNoTracking()
             .ToListAsync(TestContext.Current.CancellationToken));
-        Assert.NotEqual(first.Id, second.Id);
-        Assert.Equal(second.Id.Value, stored.Id);
+        Assert.Equal(issued.Id.Value, stored.Id);
     }
 
     [Fact]
@@ -219,11 +211,114 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
     }
 
     [Fact]
+    public async Task RetrieveDeletesSupportedButTruncatedTicketPayload()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+        var store = scope.ServiceProvider.GetRequiredService<PostgresTicketStore>();
+        var ticket = CreateTicket(Guid.CreateVersion7(), _time.GetUtcNow().AddDays(7));
+        var key = await store.StoreAsync(
+            ticket,
+            context,
+            TestContext.Current.CancellationToken);
+        var serialized = TicketSerializer.Default.Serialize(ticket);
+        await MutateStoredTicketAsync(Protect(scope.ServiceProvider, serialized[..^1]));
+
+        Assert.Null(await store.RetrieveAsync(
+            key,
+            context,
+            TestContext.Current.CancellationToken));
+        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            .Sessions.AnyAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RetrieveDeletesTicketWithUnexpectedAuthenticationScheme()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+        var store = scope.ServiceProvider.GetRequiredService<PostgresTicketStore>();
+        var ticket = CreateTicket(Guid.CreateVersion7(), _time.GetUtcNow().AddDays(7));
+        var key = await store.StoreAsync(
+            ticket,
+            context,
+            TestContext.Current.CancellationToken);
+        var unexpected = new AuthenticationTicket(
+            ticket.Principal,
+            ticket.Properties,
+            "Unexpected.Cookie.Scheme");
+        await MutateStoredTicketAsync(Protect(
+            scope.ServiceProvider,
+            TicketSerializer.Default.Serialize(unexpected)));
+
+        Assert.Null(await store.RetrieveAsync(
+            key,
+            context,
+            TestContext.Current.CancellationToken));
+        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            .Sessions.AnyAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RetrieveDeletesTicketWhoseClaimsDoNotMatchPersistedRow()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+        var store = scope.ServiceProvider.GetRequiredService<PostgresTicketStore>();
+        var ticket = CreateTicket(Guid.CreateVersion7(), _time.GetUtcNow().AddDays(7));
+        var key = await store.StoreAsync(
+            ticket,
+            context,
+            TestContext.Current.CancellationToken);
+        var mismatched = CreateTicket(
+            Guid.CreateVersion7(),
+            _time.GetUtcNow().AddDays(7));
+        await MutateStoredTicketAsync(Protect(
+            scope.ServiceProvider,
+            TicketSerializer.Default.Serialize(mismatched)));
+
+        Assert.Null(await store.RetrieveAsync(
+            key,
+            context,
+            TestContext.Current.CancellationToken));
+        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            .Sessions.AnyAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task RetrieveDeletesTicketWithDuplicateIdentityClaims()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+        var store = scope.ServiceProvider.GetRequiredService<PostgresTicketStore>();
+        var sessionId = Guid.CreateVersion7();
+        var ticket = CreateTicket(sessionId, _time.GetUtcNow().AddDays(7));
+        var key = await store.StoreAsync(
+            ticket,
+            context,
+            TestContext.Current.CancellationToken);
+        var identity = (ClaimsIdentity)ticket.Principal.Identity!;
+        identity.AddClaim(new Claim(
+            BrowserSessionClaimTypes.SessionId,
+            sessionId.ToString()));
+        await MutateStoredTicketAsync(Protect(
+            scope.ServiceProvider,
+            TicketSerializer.Default.Serialize(ticket)));
+
+        Assert.Null(await store.RetrieveAsync(
+            key,
+            context,
+            TestContext.Current.CancellationToken));
+        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            .Sessions.AnyAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task ConcurrentRemoveIsIdempotent()
     {
         var key = await StoreTicketAsync(
             CreateTicket(Guid.CreateVersion7(), _time.GetUtcNow().AddDays(7)));
-        _writeBarrier.CoordinateParallelDeletes(2);
+        _commandBarrier.CoordinateParallelSessionDeletes(2);
 
         await using var firstScope = _services.CreateAsyncScope();
         await using var secondScope = _services.CreateAsyncScope();
@@ -240,7 +335,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
                 CreateHttpContext(secondScope.ServiceProvider),
                 TestContext.Current.CancellationToken);
 
-        await _writeBarrier.ReleaseWhenBlockedOrCompletedAsync(
+        await _commandBarrier.ReleaseParallelCommandsAsync(
             Task.WhenAll(first, second),
             TestContext.Current.CancellationToken);
         await AssertNoSessionsAsync();
@@ -252,7 +347,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         var key = await StoreTicketAsync(
             CreateTicket(Guid.CreateVersion7(), _time.GetUtcNow().AddMinutes(1)));
         _time.Advance(TimeSpan.FromMinutes(2));
-        _writeBarrier.CoordinateParallelDeletes(2);
+        _commandBarrier.CoordinateParallelSessionDeletes(2);
 
         await using var firstScope = _services.CreateAsyncScope();
         await using var secondScope = _services.CreateAsyncScope();
@@ -269,7 +364,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
                 CreateHttpContext(secondScope.ServiceProvider),
                 TestContext.Current.CancellationToken);
 
-        await _writeBarrier.ReleaseWhenBlockedOrCompletedAsync(
+        await _commandBarrier.ReleaseParallelCommandsAsync(
             Task.WhenAll(first, second),
             TestContext.Current.CancellationToken);
         Assert.Null(await first);
@@ -283,7 +378,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         var key = await StoreTicketAsync(
             CreateTicket(Guid.CreateVersion7(), _time.GetUtcNow().AddDays(7)));
         await MutateStoredTicketAsync([1, 2, 3]);
-        _writeBarrier.CoordinateParallelDeletes(2);
+        _commandBarrier.CoordinateParallelSessionDeletes(2);
 
         await using var firstScope = _services.CreateAsyncScope();
         await using var secondScope = _services.CreateAsyncScope();
@@ -300,7 +395,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
                 CreateHttpContext(secondScope.ServiceProvider),
                 TestContext.Current.CancellationToken);
 
-        await _writeBarrier.ReleaseWhenBlockedOrCompletedAsync(
+        await _commandBarrier.ReleaseParallelCommandsAsync(
             Task.WhenAll(first, second),
             TestContext.Current.CancellationToken);
         Assert.Null(await first);
@@ -314,7 +409,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         var sessionId = Guid.CreateVersion7();
         var key = await StoreTicketAsync(
             CreateTicket(sessionId, _time.GetUtcNow().AddDays(7)));
-        _writeBarrier.CoordinateDeleteBeforeUpdate();
+        _commandBarrier.CoordinateSessionDeleteBeforeUpdate();
 
         await using var removeScope = _services.CreateAsyncScope();
         await using var renewScope = _services.CreateAsyncScope();
@@ -383,6 +478,15 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
+    private static byte[] Protect(
+        IServiceProvider services,
+        byte[] serializedTicket) =>
+        services
+            .GetRequiredService<IDataProtectionProvider>()
+            .CreateProtector(
+                "Template.Infrastructure.Authentication.PostgresTicketStore.v1")
+            .Protect(serializedTicket);
+
     private async Task AssertNoSessionsAsync()
     {
         await using var scope = _services.CreateAsyncScope();
@@ -408,7 +512,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
                 new Claim(ClaimTypes.NameIdentifier, _userId.ToString()),
                 new Claim(BrowserSessionClaimTypes.SessionId, sessionId.ToString())
             ],
-            "TicketStoreTest");
+            ApiAuthenticationDefaults.SchemeName);
         return new AuthenticationTicket(
             new ClaimsPrincipal(identity),
             new AuthenticationProperties
@@ -418,7 +522,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
                 ExpiresUtc = expiresAt,
                 AllowRefresh = true
             },
-            "TicketStoreTest");
+            ApiAuthenticationDefaults.SchemeName);
     }
 
     private sealed class MutableTimeProvider(DateTimeOffset utcNow)
@@ -429,123 +533,6 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         public override DateTimeOffset GetUtcNow() => _utcNow;
 
         internal void Advance(TimeSpan value) => _utcNow += value;
-    }
-
-    private sealed class SessionWriteBarrier : SaveChangesInterceptor
-    {
-        private readonly ConcurrentDictionary<DbContext, EntityState> _writes = new();
-        private CoordinationMode _mode;
-        private int _participants;
-        private int _arrived;
-        private TaskCompletionSource _allBlocked = NewSignal();
-        private TaskCompletionSource _release = NewSignal();
-        private TaskCompletionSource _updateReady = NewSignal();
-        private TaskCompletionSource _deleteCompleted = NewSignal();
-
-        internal void CoordinateParallelDeletes(int participants)
-        {
-            _mode = CoordinationMode.ParallelDeletes;
-            _participants = participants;
-        }
-
-        internal void CoordinateDeleteBeforeUpdate() =>
-            _mode = CoordinationMode.DeleteBeforeUpdate;
-
-        internal async Task ReleaseWhenBlockedOrCompletedAsync(
-            Task operations,
-            CancellationToken cancellationToken)
-        {
-            await Task.WhenAny(_allBlocked.Task, operations)
-                .WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
-            _release.TrySetResult();
-            await operations;
-        }
-
-        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData,
-            InterceptionResult<int> result,
-            CancellationToken cancellationToken = default)
-        {
-            var context = eventData.Context;
-            if (context is null || _mode == CoordinationMode.None)
-            {
-                return result;
-            }
-
-            var state = context.ChangeTracker
-                .Entries<AuthSessionEntity>()
-                .Select(entry => entry.State)
-                .SingleOrDefault(value =>
-                    value is EntityState.Deleted or EntityState.Modified);
-            if (state == EntityState.Detached)
-            {
-                return result;
-            }
-
-            _writes[context] = state;
-            if (_mode == CoordinationMode.ParallelDeletes &&
-                state == EntityState.Deleted)
-            {
-                if (Interlocked.Increment(ref _arrived) == _participants)
-                {
-                    _allBlocked.TrySetResult();
-                }
-
-                await _release.Task.WaitAsync(cancellationToken);
-            }
-            else if (_mode == CoordinationMode.DeleteBeforeUpdate)
-            {
-                if (state == EntityState.Modified)
-                {
-                    _updateReady.TrySetResult();
-                    await _deleteCompleted.Task.WaitAsync(cancellationToken);
-                }
-                else if (state == EntityState.Deleted)
-                {
-                    await _updateReady.Task.WaitAsync(cancellationToken);
-                }
-            }
-
-            return result;
-        }
-
-        public override ValueTask<int> SavedChangesAsync(
-            SaveChangesCompletedEventData eventData,
-            int result,
-            CancellationToken cancellationToken = default)
-        {
-            SignalDeleteCompleted(eventData.Context);
-            return ValueTask.FromResult(result);
-        }
-
-        public override Task SaveChangesFailedAsync(
-            DbContextErrorEventData eventData,
-            CancellationToken cancellationToken = default)
-        {
-            SignalDeleteCompleted(eventData.Context);
-            return Task.CompletedTask;
-        }
-
-        private void SignalDeleteCompleted(DbContext? context)
-        {
-            if (_mode == CoordinationMode.DeleteBeforeUpdate &&
-                context is not null &&
-                _writes.TryGetValue(context, out var state) &&
-                state == EntityState.Deleted)
-            {
-                _deleteCompleted.TrySetResult();
-            }
-        }
-
-        private static TaskCompletionSource NewSignal() =>
-            new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        private enum CoordinationMode
-        {
-            None,
-            ParallelDeletes,
-            DeleteBeforeUpdate
-        }
     }
 
     public async ValueTask DisposeAsync()
