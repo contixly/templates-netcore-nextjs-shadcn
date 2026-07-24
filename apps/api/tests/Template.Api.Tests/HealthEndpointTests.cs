@@ -15,7 +15,7 @@ public sealed class HealthEndpointTests(ApiWebApplicationFactory factory)
     [InlineData("/api/health/ready")]
     public async Task HealthyProbeReturnsEnvelopeAndDisablesCaching(string uri)
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(uri, TestContext.Current.CancellationToken);
 
@@ -36,7 +36,10 @@ public sealed class HealthEndpointTests(ApiWebApplicationFactory factory)
                     "test-ready",
                     () => HealthCheckResult.Unhealthy(),
                     tags: ["ready"])));
-        using var client = unhealthyFactory.CreateClient();
+        using var client = unhealthyFactory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
 
         using var ready = await client.GetAsync(
             "/api/health/ready",

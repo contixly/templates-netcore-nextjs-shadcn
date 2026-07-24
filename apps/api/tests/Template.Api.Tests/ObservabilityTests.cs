@@ -22,7 +22,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     {
         var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
         logs.Clear();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.Add(CorrelationIdMiddleware.HeaderName, "client.trace-123");
 
         using var response = await client.GetAsync(
@@ -50,7 +50,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task InvalidCorrelationIdIsIgnoredWithoutRejectingRequest()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.TryAddWithoutValidation(
             CorrelationIdMiddleware.HeaderName,
             "invalid value with spaces");
@@ -71,7 +71,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
         string uri,
         HttpStatusCode expectedStatus)
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.Add(
             CorrelationIdMiddleware.HeaderName,
             "exception.trace-123");
@@ -94,7 +94,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     {
         var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
         logs.Clear();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/health/live",
@@ -112,7 +112,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     {
         var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
         logs.Clear();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/testing/bad-request",

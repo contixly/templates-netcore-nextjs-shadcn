@@ -1,14 +1,25 @@
+using Template.Application.Authentication;
 using Template.Api.Authentication;
 using Template.Api.Endpoints;
 using Template.Api.Errors;
 using Template.Api.Observability;
 using Template.Api.OpenApi;
+using Template.Infrastructure.Health;
+using Template.Infrastructure.Persistence;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddValidation();
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddHealthChecks();
+builder.Services.AddAuthInfrastructure(builder.Configuration);
+builder.Services.AddScoped<LocalAutomationAuthService>();
+builder.Services.AddScoped<BrowserAuthenticationService>();
+builder.Services
+    .AddHealthChecks()
+    .AddCheck<AuthDatabaseHealthCheck>(
+        "postgres-auth-schema",
+        tags: ["ready"],
+        timeout: TimeSpan.FromSeconds(2));
 builder.Services.AddApiAuthentication();
 builder.Services.AddApiErrorHandling();
 builder.Services.AddApiOpenApi();

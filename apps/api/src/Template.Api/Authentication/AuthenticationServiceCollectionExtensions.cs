@@ -49,9 +49,13 @@ internal static class AuthenticationServiceCollectionExtensions
             ApiAuthenticationDefaults.IssuerSchemeName);
 
         services.AddAuthorization(options =>
+        {
             options.AddPolicy(
-                ApiPolicies.Authenticated,
-                policy => policy.RequireAuthenticatedUser()));
+                ApiPolicies.BrowserSession,
+                policy => policy
+                    .AddAuthenticationSchemes(ApiAuthenticationDefaults.SchemeName)
+                    .RequireAuthenticatedUser());
+        });
 
         return services;
     }
@@ -64,6 +68,8 @@ internal static class AuthenticationServiceCollectionExtensions
         options.Cookie.SameSite = SameSiteMode.Lax;
         options.Cookie.Path = "/";
         options.Cookie.Domain = null;
+        options.ExpireTimeSpan = ApiAuthenticationDefaults.Lifetime;
+        options.SlidingExpiration = true;
     }
 
     private static void ConfigurePersistentTicketServices(

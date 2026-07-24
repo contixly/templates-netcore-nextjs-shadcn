@@ -43,7 +43,7 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
         HttpStatusCode expectedStatus,
         string expectedCode)
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         using var request = new HttpRequestMessage(method, uri);
 
         using var response = await client.SendAsync(
@@ -69,7 +69,7 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
         HttpStatusCode expectedStatus,
         string expectedCode)
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.Accept.ParseAdd("text/plain");
 
@@ -89,7 +89,7 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task ValidationFailureUsesCamelCaseFieldErrors()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/v1/system/status?echo=" + new string('x', 65),
@@ -107,7 +107,7 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task NestedValidationKeysUseJsonPathsAndMergeCollisions()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/testing/nested-validation",
@@ -128,7 +128,7 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task AuthenticatedPrincipalWithoutRequiredClaimGetsForbiddenProblem()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.Add(TestAuthenticationHandler.UserHeaderName, "user-1");
 
         using var response = await client.GetAsync(
@@ -144,7 +144,7 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task UnhandledExceptionDoesNotExposeExceptionMessage()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/testing/fault",

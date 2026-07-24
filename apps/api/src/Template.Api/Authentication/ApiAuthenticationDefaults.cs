@@ -10,4 +10,5 @@ internal static class ApiAuthenticationDefaults
         BrowserSessionAuthenticationDefaults.IssuerScheme;
     internal const string CookieName =
         BrowserSessionAuthenticationDefaults.CookieName;
+    internal static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
 }

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Template.Api.Authentication;
 using Template.Api.Tests.Infrastructure;
+using Template.Infrastructure.Authentication;
 
 namespace Template.Api.Tests;
 
@@ -15,7 +16,7 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task PublicStatusReturnsTypedDataEnvelope()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/v1/system/status?echo=hello",
@@ -34,7 +35,7 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task ProtectedProbeRejectsAnonymousRequest()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/v1/system/authenticated",
@@ -46,7 +47,7 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task ProtectedProbeAcceptsTestAuthenticatedRequest()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.Add(TestAuthenticationHandler.UserHeaderName, "user-1");
 
         using var response = await client.GetAsync(
@@ -62,12 +63,12 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task VersionedConsumerRoutesAreProtectedByDefault()
     {
-        using var anonymousClient = factory.CreateClient();
+        using var anonymousClient = factory.CreateApiClient();
         using var anonymousResponse = await anonymousClient.GetAsync(
             "/api/v1/testing/consumer",
             TestContext.Current.CancellationToken);
 
-        using var authenticatedClient = factory.CreateClient();
+        using var authenticatedClient = factory.CreateApiClient();
         authenticatedClient.DefaultRequestHeaders.Add(
             TestAuthenticationHandler.UserHeaderName,
             "user-1");
@@ -80,19 +81,30 @@ public sealed class SystemEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
-    public void ProductionCookieUsesHostPrefixSecurityRequirements()
+    public void ProductionCookiesUsePersistentHostPrefixSecurityRequirements()
     {
         using var scope = factory.Services.CreateScope();
-        var options = scope.ServiceProvider
-            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
-            .Get(ApiAuthenticationDefaults.SchemeName);
+        var monitor = scope.ServiceProvider
+            .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>();
 
-        Assert.Equal("__Host-template.session", options.Cookie.Name);
-        Assert.True(options.Cookie.HttpOnly);
-        Assert.Equal(CookieSecurePolicy.Always, options.Cookie.SecurePolicy);
-        Assert.Equal(SameSiteMode.Lax, options.Cookie.SameSite);
-        Assert.Equal("/", options.Cookie.Path);
-        Assert.Null(options.Cookie.Domain);
+        foreach (var scheme in new[]
+                 {
+                     ApiAuthenticationDefaults.SchemeName,
+                     ApiAuthenticationDefaults.IssuerSchemeName
+                 })
+        {
+            var options = monitor.Get(scheme);
+
+            Assert.Equal("__Host-template.session", options.Cookie.Name);
+            Assert.True(options.Cookie.HttpOnly);
+            Assert.Equal(CookieSecurePolicy.Always, options.Cookie.SecurePolicy);
+            Assert.Equal(SameSiteMode.Lax, options.Cookie.SameSite);
+            Assert.Equal("/", options.Cookie.Path);
+            Assert.Null(options.Cookie.Domain);
+            Assert.Equal(TimeSpan.FromDays(7), options.ExpireTimeSpan);
+            Assert.True(options.SlidingExpiration);
+            Assert.IsType<PostgresTicketStore>(options.SessionStore);
+        }
     }
 
     private sealed record SystemStatusEnvelope(SystemStatusData Data);

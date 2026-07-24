@@ -11,7 +11,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task TestHostPublishesVersionedOpenApi31Contract()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/openapi/v1.json",
@@ -35,7 +35,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task CookieSchemeAppliesOnlyToProtectedOperation()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         var document = JsonNode.Parse(await client.GetStringAsync(
             "/api/openapi/v1.json",
             TestContext.Current.CancellationToken))!;
@@ -51,7 +51,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task SuccessEnvelopeSchemasRequireNonNullData()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         var document = JsonNode.Parse(await client.GetStringAsync(
             "/api/openapi/v1.json",
             TestContext.Current.CancellationToken))!;
@@ -76,7 +76,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task StandardProblemSchemaRequiresWireInvariantFields()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         var document = JsonNode.Parse(await client.GetStringAsync(
             "/api/openapi/v1.json",
             TestContext.Current.CancellationToken))!;
@@ -95,7 +95,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task ValidationProblemSchemaRequiresWireInvariantFieldsAndErrors()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         var document = JsonNode.Parse(await client.GetStringAsync(
             "/api/openapi/v1.json",
             TestContext.Current.CancellationToken))!;
@@ -117,7 +117,10 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     {
         await using var productionFactory = factory.WithWebHostBuilder(
             builder => builder.UseEnvironment("Production"));
-        using var client = productionFactory.CreateClient();
+        using var client = productionFactory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
 
         using var response = await client.GetAsync(
             "/api/openapi/v1.json",
@@ -129,7 +132,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task RuntimeDocumentSemanticallyMatchesCommittedContract()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         var runtime = JsonNode.Parse(await client.GetStringAsync(
             "/api/openapi/v1.json",
             TestContext.Current.CancellationToken));
