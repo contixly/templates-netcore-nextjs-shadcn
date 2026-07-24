@@ -218,10 +218,13 @@ The composition root distinguishes policy intent:
 - `MachineApiKey` is a reserved future boundary for iteration 7;
 - `Bearer` is a reserved future extension point.
 
-Only the `BrowserSession` handler and policy are registered in this iteration.
-Future constants/interfaces and composition seams do not register unusable
-policies, create fake schemes, advertise unsupported OpenAPI security
-definitions or allow browser cookies to satisfy machine-only endpoints.
+The `BrowserSession` primary handler and policy are registered in this
+iteration. A non-default, write-only cookie issuer is also registered solely to
+rotate a browser session's opaque lookup key safely; it is not a separately
+authorizable scheme, a machine credential, or an OpenAPI security definition.
+Future constants/interfaces otherwise do not register unusable policies, create
+fake schemes, advertise unsupported OpenAPI security definitions or allow
+browser cookies to satisfy machine-only endpoints.
 
 External OAuth login in iteration 4 will finish by issuing the same browser
 session cookie. It does not imply a browser bearer token.
@@ -387,6 +390,36 @@ The cookie contains a Data-Protection-protected ticket-store key with at least
 corresponding PostgreSQL record is the revocation source of truth. OpenAPI keeps
 the existing `cookieAuth` scheme name.
 
+### Lookup-key rotation on replacement
+
+Credential sign-in and local scenario creation must issue a fresh opaque
+ticket-store lookup key even when the request already carries a valid browser
+cookie. ASP.NET Core `10.0.10` retains the primary cookie handler's internal
+store key after same-request sign-out and would otherwise call `RenewAsync` for
+the following sign-in. Reusing that key would keep a stolen pre-replacement
+cookie valid for the newly authenticated session.
+
+The application therefore uses two standard cookie handlers with the same secure
+cookie name, `PostgresTicketStore`, and explicit shared Data Protection ticket
+format:
+
+- `Template.Session` is the only default authenticate/challenge/forbid/sign-out
+  scheme and reads the request cookie normally.
+- `Template.Session.Issuer` is non-default and write-only: its cookie manager
+  returns no request cookie, so the handler calls `StoreAsync` and obtains a
+  fresh random key.
+
+`BrowserSessionGateway` starts a replacement once per request, signs out the
+primary handler to revoke the old row and suppress any pending sliding refresh,
+suppresses only that intentional delete-cookie response, and signs in through
+the issuer. Normal logout is unaffected. A second replacement in one request
+fails closed. `RenewAsync` never recreates a missing row. Retrieval accepts only
+the two expected stored-ticket schemes and exactly one matching persisted
+user/session claim; mismatched, expired, malformed, or incompatible tickets are
+conditionally deleted. Regression tests cover same-user and cross-user
+replacement, old-cookie invalidation, normal logout, half-life refresh
+suppression, and coordinated revoke/renew races.
+
 ### Antiforgery
 
 `GET /api/v1/auth/csrf` calls the ASP.NET Core antiforgery service, returns the
@@ -468,7 +501,8 @@ security-audit storage remains an iteration-4 decision.
 
 - Scenario creation stores the user and first session in one EF transaction.
 - Credential sign-in verifies the password and atomically stores one new
-  session without mutating the user except Identity lockout state.
+  session with a fresh opaque lookup key, revoking any current browser session,
+  without mutating the user except Identity lockout state.
 - Logout removes the server-side current session before expiring the cookie.
 - Cleanup verifies both the local-user marker and email namespace, then deletes
   user and all sessions in one transaction. `deletedOrganizations` is `0`
@@ -488,9 +522,10 @@ persistence so sign-in ticket writes can enlist in the active transaction.
 - Testcontainers uses exact image `postgres:18.4` and injects a dynamic
   connection string.
 
-The migration assembly is `Template.Infrastructure`; `Template.Api` remains the
-startup project. The initial migration and model snapshot are committed and
-reviewed.
+The migration assembly and EF CLI design-time startup project are both
+`Template.Infrastructure`: it owns the design-time factory and the private EF
+Design dependency. `Template.Api` remains the only HTTP host. The initial
+migration and model snapshot are committed and reviewed.
 
 The API never auto-applies migrations. Local development uses explicit
 `dotnet ef database update`; integration/E2E fixtures call `MigrateAsync` on

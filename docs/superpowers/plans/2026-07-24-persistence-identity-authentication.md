@@ -15,8 +15,9 @@
 - Keep all browser authentication in secure HttpOnly same-origin cookies; never put bearer tokens or session tokens in browser storage.
 - Support reference-compatible email/password only when both the environment is `Development` or `Test` and `LocalAutomationAuth:Enabled=true`; Production always reports `local_auth_disabled`.
 - Do not expose production password registration/login. Social providers, account lifecycle, API keys, `x-api-key`, real Bearer issuance/validation, organizations, Aspire, YARP, Redis, and production Data Protection key storage remain outside iteration 3.
-- Register only the `Template.Session` cookie handler and `Api.BrowserSession` policy now. Keep future machine/Bearer extension points conceptual; do not register fake schemes or advertise them in OpenAPI.
+- Register the primary `Template.Session` cookie handler and its non-default, write-only `Template.Session.Issuer` companion only for secure browser-session key rotation; `Api.BrowserSession` accepts only the primary handler. Keep future machine/Bearer extension points conceptual; do not register fake schemes or advertise them in OpenAPI.
 - Use `ConnectionStrings:Postgres`; do not commit database passwords. Runtime code never auto-applies migrations.
+- Run EF CLI design-time commands with `Template.Infrastructure` as both `--project` and `--startup-project`: it owns the design-time factory and the private EF Design package. `Template.Api` remains the only HTTP host.
 - Pin all persistence acceptance to PostgreSQL `18.4`; do not use EF InMemory or SQLite.
 - Use `{ "data": ... }` for success and RFC Problem Details with stable `code`/`traceId` for failures; all auth responses set `Cache-Control: no-store`.
 - Reject unknown JSON members. Name is trimmed and `2–50`, email is trimmed/lowercased and at most `254`, explicit password is `12–128`, generated password contains at least `256` random bits.
@@ -29,6 +30,47 @@
 - For every behavior, add the focused failing test first, observe the intended failure, implement the smallest behavior, rerun focused tests, then commit.
 - Do not create an active OpenSpec change/spec.
 - Before completion run the full command matrix in Task 15 and prove both `git diff --exit-code -- template/` and `git diff --exit-code origin/main...HEAD -- template/`.
+
+---
+
+## Security amendment: browser-session lookup-key rotation
+
+Task 6 implementation evidence exposed an ASP.NET Core `10.0.10` behavior that
+the original single-handler recipe could not safely support: after a same-request
+cookie sign-out, `CookieAuthenticationHandler` retains its private session-store
+key and a following sign-in uses `ITicketStore.RenewAsync` rather than allocating
+a new opaque key. Reusing that key would let a pre-replacement cookie authenticate
+the new session, including across an account switch.
+
+The locked correction is deliberately based only on public ASP.NET Core APIs:
+
+- `Template.Session` remains the only default authenticate/challenge/forbid/sign-out
+  scheme. Its cookie manager reads request cookies normally.
+- `Template.Session.Issuer` is a non-default standard `AddCookie` scheme used only
+  by `BrowserSessionGateway` to issue a replacement. Its cookie manager never
+  returns a request cookie, forcing `ITicketStore.StoreAsync` to generate a fresh
+  256-bit lookup key.
+- Both schemes share the same `__Host-template.session` cookie policy,
+  `PostgresTicketStore`, and an explicit application-owned `TicketDataFormat` Data
+  Protection purpose. The primary scheme can therefore authenticate a cookie that
+  the issuer writes.
+- A replacement starts once per `HttpContext`, signs out the primary scheme first
+  (revoking the old database row and suppressing a pending sliding refresh),
+  suppresses only that intentional delete-cookie header, then signs in via the
+  issuer scheme. A second gateway sign-in in the same request fails closed.
+- `RenewAsync` never recreates a deleted row. Retrieval validates the protected
+  ticket's known scheme plus exactly one matching persisted user/session claim;
+  expired, malformed, incompatible, or mismatched tickets are lazily and
+  conditionally deleted.
+
+Do not collapse the two schemes into a single-handler sign-out/sign-in sequence,
+manually serialize the outer cookie ticket, use reflection, or reintroduce a
+fallback that stores a new session under a removed key. Task 7 extends this
+already-established composition with seven-day/sliding options and the browser
+policy; it must not replace it. Regression coverage proves same-user and
+cross-user replacement revoke the old cookie, ordinary logout still revokes, a
+half-life sliding refresh cannot append a stale cookie, and coordinated
+revoke/renew paths remain idempotent.
 
 ---
 
@@ -53,7 +95,7 @@
 - Create `apps/api/src/Template.Infrastructure/Identity/ApplicationUser.cs` and `Identity/IdentityGateway.cs`.
 - Create `apps/api/src/Template.Infrastructure/Persistence/AuthDbContext.cs`, `AuthDbContextFactory.cs`, `AuthSessionEntity.cs`, `EfAuthenticationUnitOfWork.cs`, and `InfrastructureServiceCollectionExtensions.cs`.
 - Generate `apps/api/src/Template.Infrastructure/Persistence/Migrations/*_InitialAuthPersistence.cs`, its designer, and `AuthDbContextModelSnapshot.cs`.
-- Create `apps/api/src/Template.Infrastructure/Authentication/CryptographicLocalAutomationCredentialGenerator.cs`, `BrowserSessionGateway.cs`, and `PostgresTicketStore.cs`.
+- Create `apps/api/src/Template.Infrastructure/Authentication/CryptographicLocalAutomationCredentialGenerator.cs`, `BrowserSessionAuthenticationDefaults.cs`, `BrowserSessionCookieManagers.cs`, `BrowserSessionGateway.cs`, and `PostgresTicketStore.cs`.
 - Create `apps/api/src/Template.Infrastructure/Health/AuthDatabaseHealthCheck.cs`.
 - Create `apps/api/src/Template.Infrastructure/Properties/AssemblyInfo.cs` for API-test internals visibility only.
 
@@ -81,7 +123,7 @@
 
 - Modify `docs/api-conventions.md`, `docs/web-conventions.md`, and `docs/aspnetcore-migration-plan.md`.
 - Create `docs/authentication-persistence-operations.md`.
-- Keep the approved design at `docs/superpowers/specs/2026-07-24-persistence-identity-authentication-design.md` unchanged unless implementation evidence exposes a real contradiction.
+- Keep the approved design at `docs/superpowers/specs/2026-07-24-persistence-identity-authentication-design.md` updated when implementation evidence exposes a real contradiction, including the locked Task 6 browser-session rotation correction above.
 
 ## Task 1: Add framework-neutral identifiers and session invariants
 
@@ -2785,16 +2827,29 @@ public sealed class AuthDatabaseHealthCheck(IConfiguration configuration)
 }
 ```
 
-- [ ] **Step 4: Configure the cookie and browser-only policy**
+- [ ] **Step 4: Extend the established dual-scheme cookie composition and add the browser-only policy**
+
+> **Security-critical supersession:** Task 6 has already established the
+> dual-scheme rotation composition described in the security amendment above.
+> Do **not** replace it with a single `AddCookie` registration or set the
+> primary scheme as the default sign-in scheme. The primary handler reads and
+> signs out; `Template.Session.Issuer` is the explicit write-only issuer used by
+> `BrowserSessionGateway` to force a new opaque lookup key. Preserve shared
+> `PostgresTicketStore`, shared explicit `TicketDataFormat`, shared host-cookie
+> attributes, `PrimaryBrowserSessionCookieManager`, and
+> `WriteOnlyBrowserSessionCookieManager`.
 
 ```csharp
 // apps/api/src/Template.Api/Authentication/ApiAuthenticationDefaults.cs
+using Template.Infrastructure.Authentication;
+
 namespace Template.Api.Authentication;
 
 internal static class ApiAuthenticationDefaults
 {
-    internal const string SchemeName = "Template.Session";
-    internal const string CookieName = "__Host-template.session";
+    internal const string SchemeName = BrowserSessionAuthenticationDefaults.PrimaryScheme;
+    internal const string IssuerSchemeName = BrowserSessionAuthenticationDefaults.IssuerScheme;
+    internal const string CookieName = BrowserSessionAuthenticationDefaults.CookieName;
     internal static readonly TimeSpan Lifetime = TimeSpan.FromDays(7);
 }
 ```
@@ -2811,62 +2866,21 @@ internal static class ApiPolicies
 
 ```csharp
 // apps/api/src/Template.Api/Authentication/AuthenticationServiceCollectionExtensions.cs
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Template.Infrastructure.Authentication;
+// Retain Task 6's two AddCookie registrations and shared persistent-ticket
+// configuration. Extend ConfigureHostCookie so it applies these options to
+// *both* handlers:
+options.ExpireTimeSpan = ApiAuthenticationDefaults.Lifetime;
+options.SlidingExpiration = true;
 
-namespace Template.Api.Authentication;
-
-internal static class AuthenticationServiceCollectionExtensions
-{
-    internal static IServiceCollection AddApiAuthentication(this IServiceCollection services)
-    {
-        services
-            .AddAuthentication(options =>
-            {
-                options.DefaultAuthenticateScheme = ApiAuthenticationDefaults.SchemeName;
-                options.DefaultChallengeScheme = ApiAuthenticationDefaults.SchemeName;
-                options.DefaultForbidScheme = ApiAuthenticationDefaults.SchemeName;
-                options.DefaultSignInScheme = ApiAuthenticationDefaults.SchemeName;
-                options.DefaultSignOutScheme = ApiAuthenticationDefaults.SchemeName;
-            })
-            .AddCookie(ApiAuthenticationDefaults.SchemeName, options =>
-            {
-                options.Cookie.Name = ApiAuthenticationDefaults.CookieName;
-                options.Cookie.HttpOnly = true;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                options.Cookie.SameSite = SameSiteMode.Lax;
-                options.Cookie.Path = "/";
-                options.Cookie.Domain = null;
-                options.ExpireTimeSpan = ApiAuthenticationDefaults.Lifetime;
-                options.SlidingExpiration = true;
-                options.Events.OnRedirectToLogin = context =>
-                {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    return Task.CompletedTask;
-                };
-                options.Events.OnRedirectToAccessDenied = context =>
-                {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    return Task.CompletedTask;
-                };
-            });
-
-        services
-            .AddOptions<CookieAuthenticationOptions>(
-                ApiAuthenticationDefaults.SchemeName)
-            .Configure<PostgresTicketStore>(
-                (options, store) => options.SessionStore = store);
-
-        services.AddAuthorization(options =>
-            options.AddPolicy(
-                ApiPolicies.BrowserSession,
-                policy => policy
-                    .AddAuthenticationSchemes(ApiAuthenticationDefaults.SchemeName)
-                    .RequireAuthenticatedUser()));
-
-        return services;
-    }
-}
+// Keep the existing primary redirect overrides and default authenticate,
+// challenge, forbid and sign-out selections. Do not add DefaultSignInScheme.
+// Add/retain this browser-only policy:
+services.AddAuthorization(options =>
+    options.AddPolicy(
+        ApiPolicies.BrowserSession,
+        policy => policy
+            .AddAuthenticationSchemes(ApiAuthenticationDefaults.SchemeName)
+            .RequireAuthenticatedUser()));
 ```
 
 Change the versioned API group in
