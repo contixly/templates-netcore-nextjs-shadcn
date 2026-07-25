@@ -245,6 +245,109 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ConcurrentExplicitDuplicateRollsBackAndReturnsConflict()
+    {
+        var barrier = new ConcurrentUserValidationBarrier(participants: 2);
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton(barrier);
+                services.AddScoped<
+                    IUserValidator<ApplicationUser>,
+                    ConcurrentUserValidationBarrierValidator>();
+            });
+        });
+        var clientOptions = new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        };
+        using var firstClient = isolated.CreateClient(clientOptions);
+        using var secondClient = isolated.CreateClient(clientOptions);
+        var scenario = new
+        {
+            name = "Concurrent User",
+            email = "local-agent+concurrent@local-agent.test",
+            password = "local-concurrent-password"
+        };
+
+        var responses = await Task.WhenAll(
+            LocalAuthTestClient.CreateScenarioAsync(firstClient, scenario),
+            LocalAuthTestClient.CreateScenarioAsync(secondClient, scenario));
+        using var firstResponse = responses[0];
+        using var secondResponse = responses[1];
+        var statuses = responses
+            .Select(response => response.StatusCode)
+            .OrderBy(status => (int)status)
+            .ToArray();
+        var conflict = Assert.Single(
+            responses,
+            response => response.StatusCode == HttpStatusCode.Conflict);
+        var problem = await conflict.Content.ReadFromJsonAsync<ApiProblem>(
+            TestContext.Current.CancellationToken);
+        await using var scope = isolated.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+        Assert.Equal(
+            [HttpStatusCode.Created, HttpStatusCode.Conflict],
+            statuses);
+        Assert.Equal("local_auth_user_exists", problem!.Code);
+        Assert.Equal(1, await db.Users.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(1, await db.Sessions.CountAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ScenarioRejectsShortExplicitPasswordAtHttpBoundary()
+    {
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "100"
+                    })));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false,
+                HandleCookies = true
+            });
+
+        using var response = await LocalAuthTestClient.CreateScenarioAsync(
+            client,
+            new
+            {
+                name = "Short Password",
+                email = "local-agent+short-password@local-agent.test",
+                password = "short"
+            });
+        var problem = await response.Content
+            .ReadFromJsonAsync<ApiValidationProblem>(
+                TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("validation_failed", problem!.Code);
+        var passwordError = Assert.Single(
+            problem.Errors,
+            error => string.Equals(
+                error.Key,
+                "password",
+                StringComparison.OrdinalIgnoreCase));
+        await using var scope = isolated.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+
+        Assert.NotEmpty(passwordError.Value);
+        Assert.DoesNotContain(
+            problem.Errors.Keys,
+            field => string.Equals(field, "email", StringComparison.OrdinalIgnoreCase));
+        Assert.False(await db.Users.AnyAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task ExplicitNameAndEmailAreTrimmedAndEmailIsNormalized()
     {
         using var client = factory.CreateApiClient();
@@ -885,6 +988,39 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
         DateTimeOffset UpdatedAt,
         DateTimeOffset ExpiresAt);
     private sealed record ApiProblem(string Code, string Detail);
+    private sealed record ApiValidationProblem(
+        string Code,
+        Dictionary<string, string[]> Errors);
+
+    private sealed class ConcurrentUserValidationBarrier(int participants)
+    {
+        private readonly TaskCompletionSource _release =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _arrivals;
+
+        internal async Task SignalAndWaitAsync()
+        {
+            if (Interlocked.Increment(ref _arrivals) == participants)
+            {
+                _release.TrySetResult();
+            }
+
+            await _release.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+    }
+
+    private sealed class ConcurrentUserValidationBarrierValidator(
+        ConcurrentUserValidationBarrier barrier)
+        : IUserValidator<ApplicationUser>
+    {
+        public async Task<IdentityResult> ValidateAsync(
+            UserManager<ApplicationUser> manager,
+            ApplicationUser user)
+        {
+            await barrier.SignalAndWaitAsync();
+            return IdentityResult.Success;
+        }
+    }
 
     private sealed class UnknownIdentityResultValidator
         : IUserValidator<ApplicationUser>
