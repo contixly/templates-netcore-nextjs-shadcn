@@ -23,6 +23,12 @@ The default local limits are:
 - `LocalAutomationAuth__CreateRateLimitPerMinute=20`
 - `LocalAutomationAuth__SignInRateLimitPerFiveMinutes=10`
 
+The development Next.js rewrite is a one-hop loopback proxy. ASP.NET Core
+processes one `X-Forwarded-For` value from that trusted loopback boundary before
+auth rate limiting, so different originating clients receive independent
+partitions. Forwarded client addresses from non-loopback peers are ignored; do
+not clear the framework trusted-proxy lists to broaden this boundary.
+
 ## Apply and inspect migrations
 
 The API never applies migrations automatically.
@@ -49,8 +55,14 @@ dotnet ef migrations script --idempotent \
 its `AuthDbContextFactory` owns the private EF Design package.
 `Template.Api` remains the only HTTP host.
 
-Integration tests and `Template.E2EHost` apply migrations only to disposable
-PostgreSQL 18.4 databases created by Testcontainers.
+Integration tests and `Template.E2EHost` use disposable PostgreSQL 18.4
+databases created by Testcontainers. Despite its historical project name,
+`Template.E2EHost` is an orchestration executable rather than an HTTP host: it
+creates and migrates the database, then launches the real `Template.Api`
+project as a child process. Its explicit
+`Testing__AssumeHttpsBoundary=true` setting is honored only in the `Test`
+environment so the loopback HTTP listener can model the production HTTPS
+boundary required by secure antiforgery cookies.
 
 ## Local sign-in
 
@@ -88,7 +100,14 @@ invisible persisted-ticket renewal whose `Set-Cookie` cannot reach the browser;
 the capabilities hop cannot authenticate or renew at all. The authenticated
 dashboard follows with an unmarked same-origin generated-SDK session read, so
 normal half-life sliding renewal updates both PostgreSQL and the browser's
-secure HttpOnly cookie.
+secure HttpOnly cookie before the endpoint projects `updatedAt` and `expiresAt`.
+The response therefore describes the renewed server-side session rather than
+the pre-renewal row.
+
+When a valid opaque cookie references a missing, expired, corrupt, or mismatched
+server-side ticket, authentication remains anonymous and the same response
+expires the browser cookie. Transient database failures do not trigger this
+deletion.
 
 The antiforgery cookie is `__Host-template.antiforgery`: HttpOnly, Secure,
 SameSite Strict, Path `/`, no Domain. Send its paired request token in

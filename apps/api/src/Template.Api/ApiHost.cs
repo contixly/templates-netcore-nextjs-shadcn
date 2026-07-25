@@ -34,6 +34,17 @@ public static class ApiHost
 
         var app = builder.Build();
 
+        if (app.Environment.IsEnvironment("Test") &&
+            app.Configuration.GetValue<bool>("Testing:AssumeHttpsBoundary"))
+        {
+            app.Use((context, next) =>
+            {
+                context.Request.Scheme = Uri.UriSchemeHttps;
+                return next(context);
+            });
+        }
+
+        app.UseForwardedHeaders();
         app.UseWhen(
             context => context.Request.Path.StartsWithSegments("/api"),
             api =>
@@ -47,6 +58,7 @@ public static class ApiHost
             });
 
         app.UseAuthentication();
+        app.UseMiddleware<InvalidBrowserSessionCookieMiddleware>();
         app.UseAuthorization();
         app.UseRateLimiter();
         app.MapEndpointModules();

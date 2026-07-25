@@ -187,9 +187,12 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             scenario.Data.Password);
 
         using var cleanup = await LocalAuthTestClient.CleanupAsync(second);
-        var firstState = await first.GetFromJsonAsync<SessionEnvelope>(
+        using var firstStateResponse = await first.GetAsync(
             "/api/v1/auth/session",
             TestContext.Current.CancellationToken);
+        var firstState = await firstStateResponse.Content
+            .ReadFromJsonAsync<SessionEnvelope>(
+                TestContext.Current.CancellationToken);
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
 
@@ -197,6 +200,14 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
         Assert.False(firstState!.Data.Authenticated);
         Assert.False(await db.Users.AnyAsync(TestContext.Current.CancellationToken));
         Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
+        var expiredCookie = firstStateResponse.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith(
+                "__Host-template.session=",
+                StringComparison.Ordinal));
+        Assert.Contains(
+            "expires=Thu, 01 Jan 1970",
+            expiredCookie,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -58,6 +59,9 @@ public sealed class BrowserSessionSlidingExpirationTests(
         using var browserResponse = await client.GetAsync(
             "/api/v1/auth/session",
             TestContext.Current.CancellationToken);
+        var browserState = await browserResponse.Content
+            .ReadFromJsonAsync<AuthEndpointTests.SessionEnvelope>(
+                TestContext.Current.CancellationToken);
         var afterBrowser = await ReadOnlySessionAsync(timeControlled);
 
         Assert.Equal(HttpStatusCode.OK, browserResponse.StatusCode);
@@ -66,6 +70,12 @@ public sealed class BrowserSessionSlidingExpirationTests(
         Assert.Equal(
             _time.GetUtcNow() + ApiAuthenticationDefaults.Lifetime,
             afterBrowser.ExpiresAt);
+        Assert.Equal(
+            afterBrowser.UpdatedAt,
+            browserState!.Data.Session!.UpdatedAt);
+        Assert.Equal(
+            afterBrowser.ExpiresAt,
+            browserState.Data.Session.ExpiresAt);
     }
 
     private static async Task<AuthSessionEntity> ReadOnlySessionAsync(

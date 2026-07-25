@@ -96,11 +96,7 @@ internal static class AuthenticationServiceCollectionExtensions
         options.SlidingExpiration = true;
         options.Events.OnCheckSlidingExpiration = context =>
         {
-            if (BrowserSessionRenewal.IsSuppressed(context.HttpContext))
-            {
-                context.ShouldRenew = false;
-            }
-
+            BrowserSessionRenewal.HandleSlidingExpiration(context);
             return Task.CompletedTask;
         };
     }

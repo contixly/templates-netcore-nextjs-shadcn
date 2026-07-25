@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
@@ -19,6 +20,11 @@ internal static class AuthSecurityServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
+            options.ForwardLimit = 1;
+        });
         services
             .AddOptions<LocalAutomationAuthOptions>()
             .Bind(configuration.GetSection(LocalAutomationAuthOptions.SectionName))

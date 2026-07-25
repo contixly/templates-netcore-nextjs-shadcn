@@ -42,6 +42,7 @@ internal sealed class AuthEndpointModule : IEndpointModule
                     CancellationToken cancellationToken) =>
                 {
                     NoStore(http);
+                    await BrowserSessionRenewal.RenewIfRequestedAsync(http);
                     return Results.Ok(new ApiResponse<AuthSessionResponse>(
                         Map(await auth.GetSessionAsync(cancellationToken))));
                 })

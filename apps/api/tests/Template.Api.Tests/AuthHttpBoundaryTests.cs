@@ -1,7 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Template.Api.Tests.Infrastructure;
 
@@ -66,6 +69,28 @@ public sealed class AuthHttpBoundaryTests(ApiWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Contains("no-store", response.Headers.CacheControl?.ToString());
+    }
+
+    [Fact]
+    public async Task E2EHarnessCanModelHttpsBoundaryInTestEnvironment()
+    {
+        await using var e2e = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Testing:AssumeHttpsBoundary"] = "true"
+                })));
+        using var client = e2e.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("http://localhost")
+        });
+
+        using var response = await client.GetAsync(
+            "/api/v1/auth/csrf",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -143,6 +168,85 @@ public sealed class AuthHttpBoundaryTests(ApiWebApplicationFactory factory)
         Assert.Equal("rate_limited", problem!.Code);
     }
 
+    [Fact]
+    public async Task CreateLimiterSeparatesClientsBehindTrustedLoopbackProxy()
+    {
+        await using var limited = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "1"
+                }));
+            builder.ConfigureServices(services =>
+                services.AddSingleton<IStartupFilter, RemoteIpStartupFilter>());
+        });
+        using var client = limited.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        var csrf = await client.GetFromJsonAsync<CsrfToken>(
+            "/api/testing/csrf",
+            TestContext.Current.CancellationToken);
+
+        using var firstClient = await SendProxiedProtectedPost(
+            client,
+            csrf!.RequestToken,
+            "198.51.100.10");
+        using var secondClient = await SendProxiedProtectedPost(
+            client,
+            csrf.RequestToken,
+            "198.51.100.11");
+        using var repeatedFirstClient = await SendProxiedProtectedPost(
+            client,
+            csrf.RequestToken,
+            "198.51.100.10");
+
+        Assert.Equal(HttpStatusCode.OK, firstClient.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondClient.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.TooManyRequests,
+            repeatedFirstClient.StatusCode);
+    }
+
+    [Fact]
+    public async Task CreateLimiterIgnoresForwardedClientFromUntrustedPeer()
+    {
+        await using var limited = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "1"
+                }));
+            builder.ConfigureServices(services =>
+                services.AddSingleton<IStartupFilter, RemoteIpStartupFilter>());
+        });
+        using var client = limited.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        var csrf = await client.GetFromJsonAsync<CsrfToken>(
+            "/api/testing/csrf",
+            TestContext.Current.CancellationToken);
+
+        using var first = await SendProxiedProtectedPost(
+            client,
+            csrf!.RequestToken,
+            "198.51.100.10",
+            "203.0.113.50");
+        using var spoofedSecondClient = await SendProxiedProtectedPost(
+            client,
+            csrf.RequestToken,
+            "198.51.100.11",
+            "203.0.113.50");
+
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        Assert.Equal(
+            HttpStatusCode.TooManyRequests,
+            spoofedSecondClient.StatusCode);
+    }
+
     private static Task<HttpResponseMessage> SendProtectedPost(
         HttpClient client,
         string token)
@@ -152,6 +256,44 @@ public sealed class AuthHttpBoundaryTests(ApiWebApplicationFactory factory)
             "/api/local-auth/testing-rate");
         request.Headers.Add("X-CSRF-TOKEN", token);
         return client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private static Task<HttpResponseMessage> SendProxiedProtectedPost(
+        HttpClient client,
+        string token,
+        string forwardedFor,
+        string? remoteIp = null)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "/api/local-auth/testing-rate");
+        request.Headers.Add("X-CSRF-TOKEN", token);
+        request.Headers.Add("X-Forwarded-For", forwardedFor);
+        request.Headers.Add(
+            "X-Testing-Remote-IP",
+            remoteIp ?? IPAddress.Loopback.ToString());
+        return client.SendAsync(request, TestContext.Current.CancellationToken);
+    }
+
+    private sealed class RemoteIpStartupFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(
+            Action<IApplicationBuilder> next) =>
+            application =>
+            {
+                application.Use(async (context, nextMiddleware) =>
+                {
+                    if (IPAddress.TryParse(
+                            context.Request.Headers["X-Testing-Remote-IP"],
+                            out var remoteIp))
+                    {
+                        context.Connection.RemoteIpAddress = remoteIp;
+                    }
+
+                    await nextMiddleware();
+                });
+                next(application);
+            };
     }
 
     private sealed record CsrfToken(string RequestToken);

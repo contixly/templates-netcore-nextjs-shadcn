@@ -400,7 +400,8 @@ product UI и auth-dependent parity остаются известными gaps.
 
 **Scope:** `Template.Domain`, `Template.Application`,
 `Template.Infrastructure`, `Template.Api`, Application/API integration tests и
-`Template.E2EHost`; initial EF migration чистой PostgreSQL `auth` schema;
+`Template.E2EHost` как non-hosting E2E orchestrator; initial EF migration чистой
+PostgreSQL `auth` schema;
 OpenAPI и generated TypeScript SDK; `/auth/login` и временный `/dashboard`;
 Jest/Testcontainers/Playwright acceptance; operations, API, web и migration
 documentation. `template/` не менялся, Prisma/Better Auth data не переносились,
@@ -536,6 +537,29 @@ lockfile.
 | `npm test -- --runInBand`                                                                                    | PASS; 24/24 suites, 98/98 tests                                                                                                                                                                                                                                                                                                                               |
 | clean `.next`, standalone build, `npm run e2e:install`, `npm run e2e`                                        | PASS; standalone server exists; Playwright 4/4                                                                                                                                                                                                                                                                                                                |
 | `git diff --check`, working-tree and branch-range `template/` diffs                                          | PASS; whitespace clean and immutable reference untouched                                                                                                                                                                                                                                                                                                      |
+
+**PR #4 review hardening 2026-07-25:** four unresolved review findings were
+verified against the implementation and repaired without expanding iteration
+scope. The API now consumes one originating client address only from the
+trusted loopback Next.js proxy before auth rate limiting; browser session reads
+complete a due sliding renewal before projecting timestamps; a definitively
+invalid server-side ticket expires the corresponding browser cookie; and the
+historically named `Template.E2EHost` now only orchestrates PostgreSQL and
+launches `Template.Api`, which remains the sole HTTP host.
+
+| Команда / проверка                                                                                           | Наблюдаемый результат                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused architecture, stale-cookie, proxy-partition, renewal-projection and E2E-boundary RED tests           | FAIL as intended; each regression exposed the reviewed behavior before production changes                                                                                     |
+| focused covering API run                                                                                     | PASS; 33/33 architecture, HTTP-boundary, ticket-store, cookie-rotation, cleanup and sliding-renewal tests                                                                     |
+| changed-file `dotnet format --verify-no-changes`                                                             | PASS; every changed C# file uses configured formatting                                                                                                                        |
+| `dotnet restore Template.sln`                                                                                | PASS; all seven solution projects restored or up-to-date                                                                                                                      |
+| `dotnet build Template.sln --no-restore`                                                                     | PASS; 0 warnings, 0 errors                                                                                                                                                    |
+| `dotnet test Template.sln --no-restore`                                                                      | PASS; Application 19/19 and API 117/117: 136/136 total                                                                                                                        |
+| OpenAPI export build and `git diff --exit-code -- contracts/openapi/v1.json`                                 | PASS; build 0 warnings/errors and committed OpenAPI contract unchanged                                                                                                        |
+| `npm ci`                                                                                                     | PASS; 978 packages added; reproduced the already documented 26 high dev-only findings                                                                                         |
+| `npm run api:check`, `npm run boundaries:check`, `npm run format:check`, `npm run lint`, `npm run typecheck` | PASS; generated SDK deterministic, 3/3 boundary tests, formatting, lint and typecheck clean                                                                                   |
+| `npm test -- --runInBand`                                                                                    | PASS; 24/24 suites and 98/98 tests                                                                                                                                            |
+| `npm run e2e`                                                                                                | PASS; Playwright 4/4 in 20.5s; the orchestration process, child API, Next listener and disposable database terminated, leaving no listener on the configured API or web ports |
 
 `Template.Session.Selector` is the default authenticate scheme: it forwards
 ordinary paths to the primary `Template.Session` handler and the canonical

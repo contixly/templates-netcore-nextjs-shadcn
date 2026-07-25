@@ -135,6 +135,7 @@ public sealed class PostgresTicketStore(
             cancellationToken);
         if (row is null)
         {
+            BrowserSessionCookieInvalidation.Request(httpContext);
             return null;
         }
 
@@ -146,6 +147,7 @@ public sealed class PostgresTicketStore(
                     session.TicketKeyHash.SequenceEqual(hash) &&
                     session.ExpiresAt <= now)
                 .ExecuteDeleteAsync(cancellationToken);
+            BrowserSessionCookieInvalidation.Request(httpContext);
             return null;
         }
 
@@ -158,22 +160,26 @@ public sealed class PostgresTicketStore(
         catch (CryptographicException)
         {
             await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            BrowserSessionCookieInvalidation.Request(httpContext);
             return null;
         }
         catch (IOException)
         {
             await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            BrowserSessionCookieInvalidation.Request(httpContext);
             return null;
         }
         catch (ArgumentException)
         {
             await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            BrowserSessionCookieInvalidation.Request(httpContext);
             return null;
         }
 
         if (ticket is null || !IsExpectedTicket(ticket, row))
         {
             await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            BrowserSessionCookieInvalidation.Request(httpContext);
             return null;
         }
 
