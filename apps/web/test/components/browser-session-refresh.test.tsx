@@ -3,6 +3,11 @@ import { render, waitFor } from "@testing-library/react";
 import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
 import { refreshBrowserAuthSession } from "@/src/lib/api/auth/browser/refresh-browser-auth-session";
 
+const refreshRoute = jest.fn();
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: refreshRoute }),
+}));
 jest.mock("@/src/lib/api/auth/browser/refresh-browser-auth-session", () => ({
   refreshBrowserAuthSession: jest.fn(),
 }));
@@ -36,5 +41,20 @@ it("refreshes the authenticated browser session after hydration", async () => {
   const { container } = render(<BrowserSessionRefresh />);
 
   expect(container).toBeEmptyDOMElement();
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(refreshRoute).toHaveBeenCalledTimes(1);
+  });
+});
+
+it("does not refresh the dashboard when the browser session read fails", async () => {
+  refreshSession.mockResolvedValueOnce({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+
+  render(<BrowserSessionRefresh />);
+
   await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
+  expect(refreshRoute).not.toHaveBeenCalled();
 });

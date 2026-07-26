@@ -561,6 +561,22 @@ launches `Template.Api`, which remains the sole HTTP host.
 | `npm test -- --runInBand`                                                                                    | PASS; 24/24 suites and 98/98 tests                                                                                                                                            |
 | `npm run e2e`                                                                                                | PASS; Playwright 4/4 in 20.5s; the orchestration process, child API, Next listener and disposable database terminated, leaving no listener on the configured API or web ports |
 
+**PR #4 dashboard-renewal follow-up 2026-07-26:** the browser-owned session
+read now applies a successful sliding-renewal result to the visible dashboard
+through an App Router refresh. The refreshed Server Component performs its
+uncached, renewal-suppressed read and projects the timestamps already committed
+by the browser request; failed browser reads do not trigger a route refresh.
+
+| Команда / проверка                                                                  | Наблюдаемый результат                                                                                                  |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| focused `browser-session-refresh` Jest RED                                           | FAIL as intended; the successful API response was discarded and `router.refresh()` had 0 calls                        |
+| `npm test -- --runInBand test/components/browser-session-refresh.test.tsx`           | PASS; 2/2 success and failure-path component tests                                                                      |
+| `npm ci`                                                                            | PASS; 978 packages added; reproduced the already documented 26 high dev-only findings                                  |
+| `npm run boundaries:check`, `npm run format:check`, `npm run lint`, `npm run typecheck` | PASS; 3/3 boundary tests, formatting, lint and generated-route/type checks clean                                     |
+| `npm test -- --runInBand`                                                           | PASS; 24/24 suites and 99/99 tests                                                                                      |
+| `npm run build`                                                                     | PASS; Next.js 16.2.11 production build completed with `/`, `/auth/login`, and `/dashboard`                              |
+| `npm run e2e`                                                                       | PASS; Playwright 4/4 in 15.4s                                                                                           |
+
 `Template.Session.Selector` is the default authenticate scheme: it forwards
 ordinary paths to the primary `Template.Session` handler and the canonical
 liveness path plus its route-equivalent trailing-slash form to the process-only

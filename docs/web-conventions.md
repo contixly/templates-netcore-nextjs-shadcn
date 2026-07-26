@@ -109,8 +109,11 @@ button and logout control follow this CSRF-first path. Automation-only
 credential sign-in and cleanup use the same generated contract and CSRF rule.
 After an authenticated dashboard renders, a minimal Client Component performs
 an unmarked same-origin `getAuthSession` generated-SDK call. That browser-owned
-request can receive the secure HttpOnly sliding-renewal cookie; JavaScript never
-reads or copies the cookie.
+request can receive the secure HttpOnly sliding-renewal cookie. After a
+successful read, it refreshes the current App Router route so the uncached
+Server Component projects the now-current session timestamps; failed reads
+leave the existing server-rendered state in place. JavaScript never reads or
+copies the cookie.
 
 Redirect targets are normalized to safe same-origin application paths. Full
 URLs, protocol-relative `//` values, malformed/encoded escape forms, and
