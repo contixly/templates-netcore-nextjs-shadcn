@@ -31,8 +31,10 @@ describe("fixed deployment locale", () => {
       loadMessages("ru"),
     ]);
 
+    expect(Object.keys(russian.auth)).toEqual(Object.keys(english.auth));
     expect(Object.keys(russian.common)).toEqual(Object.keys(english.common));
     expect(Object.keys(russian.system)).toEqual(Object.keys(english.system));
+    expect(russian.auth.login.title).not.toBe(english.auth.login.title);
     expect(russian.system.page.title).not.toBe(english.system.page.title);
   });
 

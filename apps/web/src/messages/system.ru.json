@@ -4,9 +4,10 @@
     "description": "Проверка REST-связи из браузера и с сервера"
   },
   "page": {
-    "eyebrow": "Итерация миграции 2",
+    "eyebrow": "Итерация миграции 3",
     "title": "REST-соединение",
-    "description": "Один generated SDK вызывает ASP.NET Core при серверном рендеринге и из браузера."
+    "description": "Один generated SDK вызывает ASP.NET Core при серверном рендеринге и из браузера.",
+    "getStarted": "Начать"
   },
   "status": {
     "ssrTitle": "Состояние API при серверном рендеринге",

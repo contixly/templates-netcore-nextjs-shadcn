@@ -1,4 +1,5 @@
 using Template.Api.Authentication;
+using Template.Api.Features.Auth;
 using Template.Api.Features.Health;
 using Template.Api.Features.System;
 
@@ -8,6 +9,8 @@ internal static class EndpointModuleExtensions
 {
     internal static IServiceCollection AddEndpointModules(this IServiceCollection services)
     {
+        services.AddSingleton<IEndpointModule, AuthEndpointModule>();
+        services.AddScoped<ApiJsonRequestReader>();
         services.AddSingleton<IEndpointModule, HealthEndpointModule>();
         services.AddSingleton<IEndpointModule, SystemEndpointModule>();
         return services;
@@ -19,7 +22,7 @@ internal static class EndpointModuleExtensions
         var context = new EndpointRouteContext(
             endpoints,
             endpoints.MapGroup("/api/v1")
-                .RequireAuthorization(ApiPolicies.Authenticated));
+                .RequireAuthorization(ApiPolicies.BrowserSession));
 
         foreach (var module in endpoints.ServiceProvider
                      .GetRequiredService<IEnumerable<IEndpointModule>>())

@@ -10,6 +10,8 @@ const packageJson = JSON.parse(
 const violations = [];
 const sourceExtensionPattern = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
 const routeHandlerPattern = /\/route\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
+const handwrittenTransportTypePattern =
+  /(?:interface|type)\s+(?:SystemStatusResponse|ProblemDetails|HttpValidationProblemDetails|ApiResponseOfSystemStatusResponse|AuthCapabilitiesResponse|AuthSessionResponse|AuthUserResponse|AuthSessionMetadataResponse|AuthCsrfResponse|LocalAutomationScenarioResponse|LocalAutomationCleanupResponse|CreateLocalAutomationScenarioRequest|LocalAutomationSignInRequest)\b/;
 
 const forbiddenPackages = [
   "@better-auth/prisma-adapter",
@@ -80,11 +82,7 @@ for (const path of await sourceFiles(sourceRoot)) {
   ) {
     violations.push(`browser credential storage: ${localPath}`);
   }
-  if (
-    /(?:interface|type)\s+(?:SystemStatusResponse|ProblemDetails|HttpValidationProblemDetails|ApiResponseOfSystemStatusResponse)\b/.test(
-      content,
-    )
-  ) {
+  if (handwrittenTransportTypePattern.test(content)) {
     violations.push(`handwritten OpenAPI DTO: ${localPath}`);
   }
   if (
@@ -106,8 +104,19 @@ const generatedSdk = await readFile(
   "utf8",
 );
 
-if (!/export const getSystemStatus\b/.test(generatedSdk)) {
-  violations.push("generated getSystemStatus operation is missing");
+for (const operation of [
+  "getSystemStatus",
+  "getAuthCapabilities",
+  "getAuthSession",
+  "getAuthCsrf",
+  "logout",
+  "createLocalAutomationScenario",
+  "signInLocalAutomation",
+  "deleteLocalAutomationScenario",
+]) {
+  if (!new RegExp(`export const ${operation}\\b`).test(generatedSdk)) {
+    violations.push(`generated ${operation} operation is missing`);
+  }
 }
 
 if (violations.length > 0) {

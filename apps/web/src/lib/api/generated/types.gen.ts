@@ -4,20 +4,87 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type ApiResponseOfAuthCapabilitiesResponse = {
+    data: AuthCapabilitiesResponse;
+};
+
+export type ApiResponseOfAuthCsrfResponse = {
+    data: AuthCsrfResponse;
+};
+
 export type ApiResponseOfAuthenticatedResponse = {
     data: AuthenticatedResponse;
+};
+
+export type ApiResponseOfAuthSessionResponse = {
+    data: AuthSessionResponse;
 };
 
 export type ApiResponseOfHealthResponse = {
     data: HealthResponse;
 };
 
+export type ApiResponseOfLocalAutomationCleanupResponse = {
+    data: LocalAutomationCleanupResponse;
+};
+
+export type ApiResponseOfLocalAutomationScenarioResponse = {
+    data: LocalAutomationScenarioResponse;
+};
+
 export type ApiResponseOfSystemStatusResponse = {
     data: SystemStatusResponse;
 };
 
+export type AuthCapabilitiesResponse = {
+    localAutomationEnabled: boolean;
+    providers: Array<AuthProviderResponse>;
+};
+
+export type AuthCsrfResponse = {
+    requestToken: string;
+};
+
 export type AuthenticatedResponse = {
     status: string;
+};
+
+export type AuthProviderResponse = {
+    id: string;
+    displayName: string;
+};
+
+export type AuthSessionMetadataResponse = {
+    id: string;
+    createdAt: string;
+    updatedAt: string;
+    expiresAt: string;
+};
+
+export type AuthSessionResponse = {
+    authenticated: boolean;
+    user: null | AuthUserResponse;
+    session: null | AuthSessionMetadataResponse;
+};
+
+export type AuthUserResponse = {
+    id: string;
+    name: string;
+    email: string;
+    emailVerified: boolean;
+    image: null | string;
+};
+
+export type CreateLocalAutomationScenarioRequest = {
+    /**
+     * Trimmed before use; the trimmed name must contain 2 to 50 characters.
+     */
+    name?: null | string;
+    /**
+     * Trimmed and lowercased before use; the trimmed value must be a valid email of at most 254 characters in the case-insensitive local-agent+...@local-agent.test namespace.
+     */
+    email?: null | string;
+    password?: null | string;
 };
 
 export type HealthResponse = {
@@ -38,6 +105,22 @@ export type HttpValidationProblemDetails = {
     traceId: string;
 };
 
+export type LocalAutomationCleanupResponse = {
+    deletedOrganizations: number | string;
+};
+
+export type LocalAutomationScenarioResponse = {
+    user: AuthUserResponse;
+    email: string;
+    password: string;
+    cleanupUrl: string;
+};
+
+export type LocalAutomationSignInRequest = {
+    email: string;
+    password: string;
+};
+
 export type ProblemDetails = {
     type: string;
     title: string;
@@ -54,6 +137,156 @@ export type SystemStatusResponse = {
     timestamp: string;
     echo: null | string;
 };
+
+export type GetAuthCapabilitiesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/capabilities';
+};
+
+export type GetAuthCapabilitiesErrors = {
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAuthCapabilitiesError = GetAuthCapabilitiesErrors[keyof GetAuthCapabilitiesErrors];
+
+export type GetAuthCapabilitiesResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAuthCapabilitiesResponse;
+};
+
+export type GetAuthCapabilitiesResponse = GetAuthCapabilitiesResponses[keyof GetAuthCapabilitiesResponses];
+
+export type GetAuthSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/session';
+};
+
+export type GetAuthSessionErrors = {
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAuthSessionError = GetAuthSessionErrors[keyof GetAuthSessionErrors];
+
+export type GetAuthSessionResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAuthSessionResponse;
+};
+
+export type GetAuthSessionResponse = GetAuthSessionResponses[keyof GetAuthSessionResponses];
+
+export type GetAuthCsrfData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/csrf';
+};
+
+export type GetAuthCsrfErrors = {
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAuthCsrfError = GetAuthCsrfErrors[keyof GetAuthCsrfErrors];
+
+export type GetAuthCsrfResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAuthCsrfResponse;
+};
+
+export type GetAuthCsrfResponse = GetAuthCsrfResponses[keyof GetAuthCsrfResponses];
+
+export type LogoutData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/logout';
+};
+
+export type LogoutErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type LogoutError = LogoutErrors[keyof LogoutErrors];
+
+export type LogoutResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAuthSessionResponse;
+};
+
+export type LogoutResponse = LogoutResponses[keyof LogoutResponses];
 
 export type GetSystemStatusData = {
     body?: never;
@@ -134,6 +367,159 @@ export type GetAuthenticatedStatusResponses = {
 };
 
 export type GetAuthenticatedStatusResponse = GetAuthenticatedStatusResponses[keyof GetAuthenticatedStatusResponses];
+
+export type DeleteLocalAutomationScenarioData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/local-auth/scenario';
+};
+
+export type DeleteLocalAutomationScenarioErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type DeleteLocalAutomationScenarioError = DeleteLocalAutomationScenarioErrors[keyof DeleteLocalAutomationScenarioErrors];
+
+export type DeleteLocalAutomationScenarioResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfLocalAutomationCleanupResponse;
+};
+
+export type DeleteLocalAutomationScenarioResponse = DeleteLocalAutomationScenarioResponses[keyof DeleteLocalAutomationScenarioResponses];
+
+export type CreateLocalAutomationScenarioData = {
+    body?: CreateLocalAutomationScenarioRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/local-auth/scenario';
+};
+
+export type CreateLocalAutomationScenarioErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateLocalAutomationScenarioError = CreateLocalAutomationScenarioErrors[keyof CreateLocalAutomationScenarioErrors];
+
+export type CreateLocalAutomationScenarioResponses = {
+    /**
+     * Created
+     */
+    201: ApiResponseOfLocalAutomationScenarioResponse;
+};
+
+export type CreateLocalAutomationScenarioResponse = CreateLocalAutomationScenarioResponses[keyof CreateLocalAutomationScenarioResponses];
+
+export type SignInLocalAutomationData = {
+    body: LocalAutomationSignInRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/local-auth/sign-in';
+};
+
+export type SignInLocalAutomationErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type SignInLocalAutomationError = SignInLocalAutomationErrors[keyof SignInLocalAutomationErrors];
+
+export type SignInLocalAutomationResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAuthSessionResponse;
+};
+
+export type SignInLocalAutomationResponse = SignInLocalAutomationResponses[keyof SignInLocalAutomationResponses];
 
 export type GetHealthData = {
     body?: never;

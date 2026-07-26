@@ -4,9 +4,10 @@
     "description": "Browser and server REST connectivity smoke test"
   },
   "page": {
-    "eyebrow": "Migration iteration 2",
+    "eyebrow": "Migration iteration 3",
     "title": "REST connectivity",
-    "description": "The same generated SDK calls ASP.NET Core from server rendering and from the browser."
+    "description": "The same generated SDK calls ASP.NET Core from server rendering and from the browser.",
+    "getStarted": "Get Started"
   },
   "status": {
     "ssrTitle": "Server-rendered API status",

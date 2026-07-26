@@ -8,7 +8,8 @@ internal sealed record CapturedLog(
     string Category,
     string Message,
     IReadOnlyDictionary<string, object?> State,
-    IReadOnlyDictionary<string, object?> Scope);
+    IReadOnlyDictionary<string, object?> Scope,
+    Exception? Exception);
 
 internal sealed class CapturedLogProvider : ILoggerProvider, ISupportExternalScope
 {
@@ -68,7 +69,8 @@ internal sealed class CapturedLogProvider : ILoggerProvider, ISupportExternalSco
                 category,
                 formatter(state, exception),
                 stateValues,
-                scopeValues));
+                scopeValues,
+                exception));
         }
 
         private static IReadOnlyDictionary<string, object?> ToDictionary<TState>(TState state)

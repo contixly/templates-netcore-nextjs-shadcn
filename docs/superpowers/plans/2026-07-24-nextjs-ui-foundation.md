@@ -3807,7 +3807,7 @@ export default defineConfig({
       },
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
-      url: `${apiOrigin}/api/health`,
+      url: `${apiOrigin}/api/health/ready`,
     },
     {
       command: "npm run dev -- --hostname 127.0.0.1 --port 3127",
@@ -4115,7 +4115,7 @@ test -f .next/standalone/server.js
 ```
 
 E2E starts ASP.NET Core on `127.0.0.1:5297` and Next.js on
-`127.0.0.1:3127`. The API readiness probe is `/api/health`.
+`127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.
 ````
 
 - [ ] **Step 2: Run the mandatory .NET and OpenAPI verification from repository root**

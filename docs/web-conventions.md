@@ -30,8 +30,19 @@ first currently audited stable release.
 The override versions pass generation, CLI/MCP-HTTP transport, lint, typecheck,
 Jest, production build, standalone-runtime, and full-stack E2E checks. Remove
 an override only after an exact upstream dependency accepts an audited version
-and the same matrix passes. `npm audit --json` checks the full tree;
-`npm run audit:prod` is the required production-dependency gate.
+and the same matrix passes.
+
+After [`GHSA-mh99-v99m-4gvg`](https://github.com/advisories/GHSA-mh99-v99m-4gvg)
+was published on 2026-07-23 and updated on 2026-07-24, `npm audit --json`
+started reporting 26 high findings in the development-only ESLint/Jest graph.
+The advisory's only patched line is
+`brace-expansion` 5.0.8. Current stable Next/ESLint plugins and Jest still
+declare older `minimatch`/`glob` ranges; replacing those transitive packages
+with their major-10/5 APIs would break old CommonJS callable imports. Do not
+silence the audit or force that incompatible override. Re-run the full audit
+when stable upstream ranges move; it remains a known external tooling blocker,
+not an accepted zero-finding result. `npm run audit:prod` remains the required
+production-dependency gate and reports zero findings for this application.
 
 ## Generated REST contract
 
@@ -64,15 +75,59 @@ where Kestrel owns `/api/**` directly.
 ## Server-rendered API calls
 
 SSR uses absolute server-only `API_INTERNAL_BASE_URL`. A new generated client is
-created for each call. The factory accepts only
+created for each isolated credential context. The factory accepts only
 `{ cookie?: string; correlationId?: string }`; it never accepts an arbitrary
-header collection and never forwards `Authorization`. Callers read request state
-outside cached scopes and pass only explicitly permitted values. The anonymous
-system-status probe passes no forwarded headers.
+header collection and never forwards `Authorization`. The combined login auth
+loader gives its anonymous capabilities client only the correlation ID; its
+separate session client receives the incoming `Cookie` and correlation ID.
+Callers read request state outside cached scopes and pass only explicitly
+permitted values. The anonymous system-status probe passes no forwarded
+headers.
 
 Uncached request-time calls use `cache: "no-store"`. With Cache Components,
 runtime SSR work begins below `connection()` and a `Suspense` boundary so builds
 do not require a live API and request configuration is not frozen at build time.
+Login loads capabilities and session in parallel there without placing the
+cookie on the capabilities request; dashboard loads its session there. An
+explicit anonymous session causes navigation between login and dashboard,
+while network/configuration/Problem Details failures render the safe
+API-failure state rather than being treated as anonymous.
+
+Server-rendered session reads add
+`X-Template-Session-Renewal: suppress` through the generated SDK. ASP.NET Core
+still authenticates and projects the request, but it does not slide the
+persistent ticket or emit an unusable renewal cookie during Server Component
+rendering. This marker grants no access and is not forwarded to other API
+operations.
+
+## Authentication UI and mutations
+
+Browser authentication mutations use generated SDK operations and always fetch
+a fresh CSRF pair first with `GET /api/v1/auth/csrf`. The request token is sent
+as `X-CSRF-TOKEN`; browser credentials remain `same-origin`. The current local
+button and logout control follow this CSRF-first path. Automation-only
+credential sign-in and cleanup use the same generated contract and CSRF rule.
+After an authenticated dashboard renders, a minimal Client Component performs
+an unmarked same-origin `getAuthSession` generated-SDK call. That browser-owned
+request can receive the secure HttpOnly sliding-renewal cookie. After a
+successful read, it refreshes the current App Router route so the uncached
+Server Component projects the now-current session timestamps; failed reads
+leave the existing server-rendered state in place. JavaScript never reads or
+copies the cookie.
+
+Redirect targets are normalized to safe same-origin application paths. Full
+URLs, protocol-relative `//` values, malformed/encoded escape forms, and
+`/api/**` or `/auth/**` targets are rejected in favor of `/dashboard`.
+
+`/auth/login` has no name, email, or password fields. When the API advertises
+local automation, the page offers one **Create local automation user** button.
+The scenario API returns plaintext generated credentials once for automation,
+but the visible UI never renders or retains them and discards the response
+before refreshing and navigating.
+
+The iteration-3 `/dashboard` is only a protected session proof. It distinguishes
+anonymous state from API failure, renders the safe user/session projection and
+logout, and is not the product dashboard planned for iteration 9.
 
 ## Locale and theme
 
@@ -119,4 +174,4 @@ test -f .next/standalone/server.js
 ```
 
 E2E starts ASP.NET Core on `127.0.0.1:5297` and Next.js on
-`127.0.0.1:3127`. The API readiness probe is `/api/health`.
+`127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.

@@ -1,0 +1,43 @@
+{
+  "login": {
+    "eyebrow": "Authentication",
+    "title": "Sign in",
+    "description": "Use an available sign-in method.",
+    "unavailable": "No production sign-in provider is configured yet.",
+    "loading": "Checking available sign-in methods",
+    "failure": {
+      "title": "Authentication is unavailable",
+      "description": "Try again later."
+    }
+  },
+  "localAutomation": {
+    "title": "Local automation",
+    "description": "Create a local credential user for development and browser automation.",
+    "button": "Create local automation user",
+    "pending": "Creating local automation user",
+    "failure": "Local authentication failed.",
+    "rateLimited": "Too many local sign-in attempts.",
+    "invalidRequest": "The local sign-in request was rejected.",
+    "unavailable": "The authentication API is unavailable.",
+    "traceId": "Trace ID: {traceId}"
+  },
+  "dashboard": {
+    "eyebrow": "Iteration 3 session proof",
+    "title": "Authenticated dashboard",
+    "description": "This temporary page proves the PostgreSQL-backed browser session. Product dashboard work remains in iteration 9.",
+    "name": "Name",
+    "email": "Email",
+    "emailVerified": "Email verified",
+    "sessionId": "Session ID",
+    "expiresAt": "Expires",
+    "yes": "Yes",
+    "no": "No",
+    "loading": "Loading authenticated session"
+  },
+  "logout": {
+    "button": "Log out",
+    "pending": "Logging out",
+    "failure": "Could not log out safely.",
+    "traceId": "Trace ID: {traceId}"
+  }
+}

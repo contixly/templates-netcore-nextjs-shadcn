@@ -2,13 +2,41 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Template.Api.OpenApi;
 
+internal sealed record BadRequestVariantsMetadata;
+internal sealed record ManuallyReadJsonBodyMetadata(bool IsOptional);
+
 internal static class OpenApiEndpointConventionExtensions
 {
+    internal static RouteHandlerBuilder AcceptsManuallyReadJson<TRequest>(
+        this RouteHandlerBuilder builder,
+        bool isOptional)
+        where TRequest : notnull =>
+        builder
+            .Accepts<TRequest>(isOptional, "*/*")
+            .WithMetadata(new ManuallyReadJsonBodyMetadata(isOptional));
+
     internal static RouteHandlerBuilder ProducesValidationProblem(
         this RouteHandlerBuilder builder) =>
         builder.Produces<HttpValidationProblemDetails>(
             StatusCodes.Status400BadRequest,
             OpenApiDefaults.ProblemContentType);
+
+    internal static RouteHandlerBuilder ProducesBadRequestProblem(
+        this RouteHandlerBuilder builder) =>
+        builder.Produces<ProblemDetails>(
+            StatusCodes.Status400BadRequest,
+            OpenApiDefaults.ProblemContentType);
+
+    internal static RouteHandlerBuilder ProducesBadRequestVariants(
+        this RouteHandlerBuilder builder) =>
+        builder
+            .Produces<ProblemDetails>(
+                StatusCodes.Status400BadRequest,
+                OpenApiDefaults.ProblemContentType)
+            .Produces<HttpValidationProblemDetails>(
+                StatusCodes.Status400BadRequest,
+                OpenApiDefaults.ProblemContentType)
+            .WithMetadata(new BadRequestVariantsMetadata());
 
     internal static RouteHandlerBuilder ProducesPublicApiProblems(
         this RouteHandlerBuilder builder) =>
@@ -31,6 +59,28 @@ internal static class OpenApiEndpointConventionExtensions
                 OpenApiDefaults.ProblemContentType)
             .Produces<ProblemDetails>(
                 StatusCodes.Status403Forbidden,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesPublicApiProblems();
+
+    internal static RouteHandlerBuilder ProducesLocalCreateProblems(
+        this RouteHandlerBuilder builder) =>
+        builder
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .Produces<ProblemDetails>(
+                StatusCodes.Status429TooManyRequests,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesPublicApiProblems();
+
+    internal static RouteHandlerBuilder ProducesLocalSignInProblems(
+        this RouteHandlerBuilder builder) =>
+        builder
+            .Produces<ProblemDetails>(
+                StatusCodes.Status401Unauthorized,
+                OpenApiDefaults.ProblemContentType)
+            .Produces<ProblemDetails>(
+                StatusCodes.Status429TooManyRequests,
                 OpenApiDefaults.ProblemContentType)
             .ProducesPublicApiProblems();
 }

@@ -1,0 +1,132 @@
+import type { APIRequestContext } from "@playwright/test";
+
+import {
+  deleteLocalAutomationScenario,
+  getAuthCsrf,
+  getAuthSession,
+  signInLocalAutomation,
+} from "../../src/lib/api/generated";
+import { createClient, type Client } from "../../src/lib/api/generated/client";
+
+const webOrigin = "http://127.0.0.1:3127";
+
+async function sharedCookieHeader(
+  request: APIRequestContext,
+  url: URL,
+): Promise<string | undefined> {
+  // Chromium sends Secure cookies on trusted loopback origins; Playwright's
+  // API transport needs the matching cookies copied from its shared context.
+  const state = await request.storageState();
+  const cookies = state.cookies.filter((cookie) => {
+    const domain = cookie.domain.startsWith(".")
+      ? cookie.domain.slice(1)
+      : cookie.domain;
+    const domainMatches =
+      url.hostname === domain || url.hostname.endsWith(`.${domain}`);
+    const pathMatches =
+      url.pathname === cookie.path ||
+      url.pathname.startsWith(
+        cookie.path.endsWith("/") ? cookie.path : `${cookie.path}/`,
+      );
+    return domainMatches && pathMatches;
+  });
+  return cookies.length > 0
+    ? cookies.map((cookie) => `${cookie.name}=${cookie.value}`).join("; ")
+    : undefined;
+}
+
+function createPlaywrightFetch(request: APIRequestContext): typeof fetch {
+  return async (input, init) => {
+    const source = input instanceof Request ? input : new Request(input, init);
+    const url = new URL(source.url);
+    if (url.origin !== webOrigin) {
+      throw new Error(`E2E SDK request escaped the web origin: ${url.origin}.`);
+    }
+    const headers: Record<string, string> = {};
+    source.headers.forEach((value, name) => {
+      headers[name] = value;
+    });
+    const cookie = await sharedCookieHeader(request, url);
+    if (cookie) {
+      headers.cookie = cookie;
+    }
+    const body =
+      source.method === "GET" || source.method === "HEAD"
+        ? undefined
+        : Buffer.from(await source.arrayBuffer());
+    const response = await request.fetch(source.url, {
+      data: body,
+      failOnStatusCode: false,
+      headers,
+      method: source.method,
+    });
+    const responseHeaders = new Headers();
+    for (const header of response.headersArray()) {
+      responseHeaders.append(header.name, header.value);
+    }
+    return new Response(new Uint8Array(await response.body()), {
+      headers: responseHeaders,
+      status: response.status(),
+    });
+  };
+}
+
+function clientFor(request: APIRequestContext): Client {
+  return createClient({
+    baseUrl: webOrigin,
+    fetch: createPlaywrightFetch(request),
+  });
+}
+
+async function csrf(client: Client): Promise<string> {
+  const result = await getAuthCsrf({ client });
+  if (!result.data) {
+    throw new Error(
+      `CSRF request failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data.requestToken;
+}
+
+export async function signInLocalAutomationUser(
+  request: APIRequestContext,
+  email: string,
+  password: string,
+) {
+  const client = clientFor(request);
+  const result = await signInLocalAutomation({
+    client,
+    body: { email, password },
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!result.data) {
+    throw new Error(
+      `Local credential sign-in failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data;
+}
+
+export async function cleanupLocalAutomationUser(request: APIRequestContext) {
+  const client = clientFor(request);
+  const result = await deleteLocalAutomationScenario({
+    client,
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!result.data) {
+    throw new Error(
+      `Local cleanup failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data;
+}
+
+export async function getGeneratedAuthSession(request: APIRequestContext) {
+  const result = await getAuthSession({ client: clientFor(request) });
+  if (!result.data) {
+    throw new Error(
+      `Session lookup failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data;
+}

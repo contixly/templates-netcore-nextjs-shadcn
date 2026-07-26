@@ -1,7 +1,11 @@
 import { applicationRoutes } from "@/src/features/application/application-routes";
 
 describe("applicationRoutes", () => {
-  it("keeps the only iteration-2 route unprefixed", () => {
-    expect(applicationRoutes).toEqual({ home: "/" });
+  it("keeps browser routes unprefixed", () => {
+    expect(applicationRoutes).toEqual({
+      home: "/",
+      login: "/auth/login",
+      dashboard: "/dashboard",
+    });
   });
 });

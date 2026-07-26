@@ -1,9 +1,13 @@
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 
+import { Button } from "@/src/components/ui/button";
 import { BrowserSystemStatus } from "@/src/components/system/browser-system-status";
 import { ServerSystemStatus } from "@/src/components/system/server-system-status";
 import { StatusCardSkeleton } from "@/src/components/system/status-card";
+import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
+import { authLoginUrl } from "@/src/features/authentication/sanitize-auth-redirect";
 
 export default async function HomePage() {
   const page = await getTranslations("system.page");
@@ -21,6 +25,11 @@ export default async function HomePage() {
         <p className="text-sm leading-6 text-muted-foreground">
           {page("description")}
         </p>
+        <Button asChild>
+          <Link href={authLoginUrl(authenticationRoutes.dashboard)}>
+            {page("getStarted")}
+          </Link>
+        </Button>
       </section>
       <section className="grid gap-4 md:grid-cols-2">
         <Suspense

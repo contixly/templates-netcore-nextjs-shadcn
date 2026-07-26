@@ -11,7 +11,10 @@ internal static class ApiProblemDetailsDefaults
         var problem = context.ProblemDetails;
         var status = problem.Status ?? context.HttpContext.Response.StatusCode;
         var isValidation = problem is HttpValidationProblemDetails;
-        var definition = Resolve(status, isValidation);
+        var requestedCode = problem.Extensions.TryGetValue("code", out var rawCode)
+            ? rawCode as string
+            : null;
+        var definition = Resolve(status, isValidation, requestedCode);
 
         problem.Status = status;
         problem.Type = $"urn:template:problem:{definition.Code}";
@@ -48,8 +51,45 @@ internal static class ApiProblemDetailsDefaults
         }
     }
 
-    private static ProblemDefinition Resolve(int status, bool isValidation) =>
-        (status, isValidation) switch
+    private static ProblemDefinition Resolve(
+        int status,
+        bool isValidation,
+        string? requestedCode)
+    {
+        var custom = requestedCode switch
+        {
+            ApiProblemCodes.AntiforgeryFailed => new ProblemDefinition(
+                requestedCode,
+                "Antiforgery validation failed",
+                "The request antiforgery token is missing or invalid."),
+            ApiProblemCodes.LocalAuthInvalidCredentials => new ProblemDefinition(
+                requestedCode,
+                "Authentication failed",
+                "The supplied local credentials are invalid."),
+            ApiProblemCodes.LocalAuthUserRequired => new ProblemDefinition(
+                requestedCode,
+                "Local automation user required",
+                "This operation requires a local automation user."),
+            ApiProblemCodes.LocalAuthDisabled => new ProblemDefinition(
+                requestedCode,
+                "Local authentication unavailable",
+                "Local automation authentication is not available."),
+            ApiProblemCodes.LocalAuthUserExists => new ProblemDefinition(
+                requestedCode,
+                "Local automation user already exists",
+                "The requested local automation identity cannot be created."),
+            ApiProblemCodes.RateLimited => new ProblemDefinition(
+                requestedCode,
+                "Too many requests",
+                "The authentication request rate limit was exceeded."),
+            _ => null
+        };
+        if (custom is not null)
+        {
+            return custom;
+        }
+
+        return (status, isValidation) switch
         {
             (StatusCodes.Status400BadRequest, true) => new(
                 ApiProblemCodes.ValidationFailed,
@@ -84,6 +124,7 @@ internal static class ApiProblemDetailsDefaults
                 "Invalid request",
                 "The request could not be processed.")
         };
+    }
 
     private sealed record ProblemDefinition(string Code, string Title, string Detail);
 }

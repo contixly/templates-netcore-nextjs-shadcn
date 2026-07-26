@@ -1,7 +1,7 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 2 — чистый Next.js UI foundation (завершена 2026-07-24).
+**Текущая итерация:** 3 — persistence, Identity и базовая аутентификация (завершена 2026-07-24).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -107,16 +107,16 @@ flowchart LR
 
 ## 5. Реестр исходного функционала
 
-| Исходная область в `template/` | Основные маршруты/контракты | Целевой срез |
-| --- | --- | --- |
-| `src/features/accounts`, Better Auth | `/auth/*`, `/user/*`, сессии, OAuth connections | Identity и account lifecycle |
-| `src/features/organizations`, `src/features/workspaces` | `/workspaces`, `/w/[organizationKey]/*`, роли, members | organizations, membership, teams, invitations |
-| `src/features/api-keys` | personal/organization API keys, `/api/v1/**` | machine API and API-key management |
-| `src/features/documents-system` | `/docs/**`, search, OG endpoint | public documentation and search |
-| `src/features/application`, `dashboard` | app shell, dashboard, theme, navigation | shared UI shell and dashboard |
-| `prisma/schema.prisma` | User, Session, Account, Verification, Organization, Member, Team, TeamMember, Invitation, ApiKey | EF Core schema, Identity, domain model |
-| `src/app/api/**`, `src/proxy.ts` | health, auth, local automation, v1 endpoints, route protection | API modules, auth policies, BFF/proxy rules |
-| `e2e/**`, `test/**` | reference behavior and acceptance evidence | new .NET, contract and Playwright test suites |
+| Исходная область в `template/`                          | Основные маршруты/контракты                                                                      | Целевой срез                                  |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `src/features/accounts`, Better Auth                    | `/auth/*`, `/user/*`, сессии, OAuth connections                                                  | Identity и account lifecycle                  |
+| `src/features/organizations`, `src/features/workspaces` | `/workspaces`, `/w/[organizationKey]/*`, роли, members                                           | organizations, membership, teams, invitations |
+| `src/features/api-keys`                                 | personal/organization API keys, `/api/v1/**`                                                     | machine API and API-key management            |
+| `src/features/documents-system`                         | `/docs/**`, search, OG endpoint                                                                  | public documentation and search               |
+| `src/features/application`, `dashboard`                 | app shell, dashboard, theme, navigation                                                          | shared UI shell and dashboard                 |
+| `prisma/schema.prisma`                                  | User, Session, Account, Verification, Organization, Member, Team, TeamMember, Invitation, ApiKey | EF Core schema, Identity, domain model        |
+| `src/app/api/**`, `src/proxy.ts`                        | health, auth, local automation, v1 endpoints, route protection                                   | API modules, auth policies, BFF/proxy rules   |
+| `e2e/**`, `test/**`                                     | reference behavior and acceptance evidence                                                       | new .NET, contract and Playwright test suites |
 
 ## 6. Очередь итераций
 
@@ -158,15 +158,15 @@ flowchart LR
 **Выход:** `apps/web` собирается standalone, использует только generated REST client для данных и проходит smoke test против API.
 **Не входит:** перенос страницы логина или продуктовых компонентов.
 
-### Итерация 3 — Persistence, Identity и базовая аутентификация
+### Итерация 3 — Persistence, Identity и базовая аутентификация **(функциональный scope завершён; dev-tooling audit blocker зафиксирован)**
 
 **Цель:** заменить Prisma/Better Auth новым источником правды без переноса старых записей.
 
-**Состав:** PostgreSQL, EF Core migrations, ASP.NET Core Identity, схема пользователя/сессии, register/login/logout/current-user, HttpOnly same-origin cookie, antiforgery/CSRF policy, rate limits, пароль/verification policy, тестовые fixtures и local-only automation login.
+**Состав:** PostgreSQL 18.4, EF Core migration, ASP.NET Core Identity Core, чистая схема пользователя/сессии, persistent `ITicketStore`, current-session/logout REST, secure HttpOnly same-origin cookie, explicit CSRF, local-only automation scenario/sign-in/cleanup, rate limits/lockout, database readiness, OpenAPI/generated SDK и login/dashboard UI.
 
-**Вход:** итерации 1–2; утвержденные DB connection/secrets conventions.
-**Выход:** чистый пользователь может зарегистрироваться, войти, выйти и получить текущую сессию через API и новый UI; старые Better Auth/Prisma записи не используются.
-**Отложено:** OAuth providers и account settings, если они не требуются для базового входа.
+**Вход:** итерации 1–2; `ConnectionStrings:Postgres` и environment/user-secrets conventions.
+**Выход:** в opted-in Development/Test одна кнопка создаёт local credential user и persistent browser session; credentials позволяют automation-вход во вторую независимую сессию; logout/cleanup/current-session работают только через REST; Production password auth недоступен.
+**Отложено:** внешний OAuth и account/session management — итерация 4; API keys/`x-api-key` — итерация 7; реальный Bearer требует отдельного issuer/consumer contract.
 
 ### Итерация 4 — Accounts и внешний OAuth
 
@@ -269,12 +269,13 @@ flowchart LR
 
 ## 8. Журнал выполнения
 
-| Итерация | Состояние | Примечание |
-| --- | --- | --- |
-| 0 — bootstrap | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился. |
-| 1 — API foundation | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты. |
-| 2 — чистый Next.js UI foundation | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты. |
-| 3–12 | Не начаты | Следующий dependency gate — PostgreSQL, EF Core, Identity и базовая cookie authentication без переноса старых данных. |
+| Итерация                                           | Состояние | Примечание                                                                                                                                                                                |
+| -------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                             |
+| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                       |
+| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                       |
+| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты. |
+| 4–12                                               | Не начаты | Следующий dependency gate — внешний OAuth/accounts; API keys и `x-api-key` остаются итерацией 7.                                                                                          |
 
 ## Acceptance evidence: итерация 1
 
@@ -283,27 +284,27 @@ configuration (`Directory.Packages.props`), `contracts/openapi` и докуме�
 (включая корневой `AGENTS.md`). `Template.Domain`, `Template.Application`,
 `Template.Infrastructure`, `apps/web` и persistent schema не менялись.
 
-| Reference | Новый API | Новый UI | Test/evidence |
-| --- | --- | --- | --- |
-| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts` | `/api/health`, `/api/health/live`, `/api/health/ready` | N/A до итерации 2 | `HealthEndpointTests` |
-| `template/src/features/routes.ts`, `template/src/proxy.ts` | public status и protected authenticated probe | N/A | `SystemEndpointTests`, `ProblemDetailsTests` |
-| `template/src/lib/actions.ts`, `template/src/types/actions.ts`, API-key errors | `{ data }`, validation и RFC Problem Details | N/A | 400/401/403/404/405/500 и incompatible-`Accept` contract cases |
-| `template/src/lib/logger.ts` | `ILogger`, correlation scope, completion events | N/A | `ObservabilityTests`, including correlation parity for handled 400/500 exceptions |
-| reference API auth tests | cookie/policy extension points без API-key domain | N/A | test-only authentication and deny policy |
-| `template/prisma/schema.prisma` | schema отсутствует в scope | N/A | нет EF packages/migrations |
+| Reference                                                                      | Новый API                                              | Новый UI          | Test/evidence                                                                     |
+| ------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------- | --------------------------------------------------------------------------------- |
+| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts`       | `/api/health`, `/api/health/live`, `/api/health/ready` | N/A до итерации 2 | `HealthEndpointTests`                                                             |
+| `template/src/features/routes.ts`, `template/src/proxy.ts`                     | public status и protected authenticated probe          | N/A               | `SystemEndpointTests`, `ProblemDetailsTests`                                      |
+| `template/src/lib/actions.ts`, `template/src/types/actions.ts`, API-key errors | `{ data }`, validation и RFC Problem Details           | N/A               | 400/401/403/404/405/500 и incompatible-`Accept` contract cases                    |
+| `template/src/lib/logger.ts`                                                   | `ILogger`, correlation scope, completion events        | N/A               | `ObservabilityTests`, including correlation parity for handled 400/500 exceptions |
+| reference API auth tests                                                       | cookie/policy extension points без API-key domain      | N/A               | test-only authentication and deny policy                                          |
+| `template/prisma/schema.prisma`                                                | schema отсутствует в scope                             | N/A               | нет EF packages/migrations                                                        |
 
 **Проверки 2026-07-23:**
 
-| Команда | Результат |
-| --- | --- |
-| `dotnet restore Template.sln` | PASS |
-| `dotnet build Template.sln --no-restore` | PASS |
-| `dotnet test Template.sln --no-restore` | PASS; 35/35 tests |
-| OpenAPI export with `-p:OpenApiGenerateDocuments=true` | PASS; deterministic `contracts/openapi/v1.json` |
-| OpenAPI semantic drift test | PASS |
-| `git diff --exit-code -- contracts/openapi/v1.json` after second export | PASS |
-| `git diff -- template/` | empty |
-| UI build / Playwright E2E | N/A: `apps/web` starts in iteration 2 |
+| Команда                                                                 | Результат                                       |
+| ----------------------------------------------------------------------- | ----------------------------------------------- |
+| `dotnet restore Template.sln`                                           | PASS                                            |
+| `dotnet build Template.sln --no-restore`                                | PASS                                            |
+| `dotnet test Template.sln --no-restore`                                 | PASS; 35/35 tests                               |
+| OpenAPI export with `-p:OpenApiGenerateDocuments=true`                  | PASS; deterministic `contracts/openapi/v1.json` |
+| OpenAPI semantic drift test                                             | PASS                                            |
+| `git diff --exit-code -- contracts/openapi/v1.json` after second export | PASS                                            |
+| `git diff -- template/`                                                 | empty                                           |
+| UI build / Playwright E2E                                               | N/A: `apps/web` starts in iteration 2           |
 
 **Известные расхождения с reference:** ошибки используют RFC Problem Details
 вместо `{ "error": ... }`; health использует `{ "data": ... }`; live/ready,
@@ -325,16 +326,16 @@ may simulate them with browser bearer storage or direct database access.
 Committed OpenAPI contract и generated SDK остались byte-identical после
 экспорта и регенерации.
 
-| Reference | Новый API | Новый UI | Test/evidence |
-| --- | --- | --- | --- |
-| `template/src/app/layout.tsx`, `globals.css`, `app-providers.tsx` | N/A | root layout, providers, Tailwind/shadcn tokens | layout/component tests, standalone production build |
-| `template/src/i18n/**`, `common.{en,ru}.json` | N/A | fixed deployment locale with common/system bundles | locale fallback and bundle-shape tests |
-| `template/src/components/application/theme/theme-switcher.tsx` | N/A | hydration-safe theme switcher | SSR markup, click, and keyboard E2E |
-| `template/src/features/application/application-routes.ts`, public header primitives | N/A | typed `/` and minimal header | route/header tests |
-| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts` | existing `/api/health`, `/api/v1/system/status` | SSR and browser status regions over one generated SDK | adapter tests and full-stack Playwright |
-| `template/src/app/global-error.tsx`, `not-found.tsx`, error components | existing RFC Problem Details | loading/error/not-found/global boundaries | boundary and intercepted-error tests |
-| reference public home account/workspace loaders | outside scope | not copied | source/dependency guard |
-| all reference Prisma models | no schema change | no data access | source/dependency guard |
+| Reference                                                                           | Новый API                                       | Новый UI                                              | Test/evidence                                       |
+| ----------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------- | --------------------------------------------------- |
+| `template/src/app/layout.tsx`, `globals.css`, `app-providers.tsx`                   | N/A                                             | root layout, providers, Tailwind/shadcn tokens        | layout/component tests, standalone production build |
+| `template/src/i18n/**`, `common.{en,ru}.json`                                       | N/A                                             | fixed deployment locale with common/system bundles    | locale fallback and bundle-shape tests              |
+| `template/src/components/application/theme/theme-switcher.tsx`                      | N/A                                             | hydration-safe theme switcher                         | SSR markup, click, and keyboard E2E                 |
+| `template/src/features/application/application-routes.ts`, public header primitives | N/A                                             | typed `/` and minimal header                          | route/header tests                                  |
+| `template/src/app/api/health/route.ts`, `template/e2e/support/config.ts`            | existing `/api/health`, `/api/v1/system/status` | SSR and browser status regions over one generated SDK | adapter tests and full-stack Playwright             |
+| `template/src/app/global-error.tsx`, `not-found.tsx`, error components              | existing RFC Problem Details                    | loading/error/not-found/global boundaries             | boundary and intercepted-error tests                |
+| reference public home account/workspace loaders                                     | outside scope                                   | not copied                                            | source/dependency guard                             |
+| all reference Prisma models                                                         | no schema change                                | no data access                                        | source/dependency guard                             |
 
 **Проверки 2026-07-24 (fresh clean-lock acceptance, final-review refresh):**
 
@@ -343,34 +344,34 @@ Committed OpenAPI contract и generated SDK остались byte-identical по
 сохранён без изменения из исходной acceptance-проверки: эти команды не
 перезапускались в final-review fix wave.
 
-| Команда | Наблюдаемый результат |
-| --- | --- |
-| `dotnet restore Template.sln` | PASS; все проекты up-to-date |
-| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
-| `dotnet test Template.sln --no-restore` | PASS; 35/35 tests, 0 failed, 0 skipped |
-| `dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore -p:OpenApiGenerateDocuments=true` | PASS; OpenAPI export build, 0 warnings, 0 errors |
-| `git diff --exit-code -- contracts/openapi/v1.json` | PASS; empty |
-| `npm ci` | PASS; 978 packages added, 979 audited, 0 vulnerabilities |
-| `npm audit --json` | PASS; 0 total vulnerabilities (0 info/low/moderate/high/critical) |
-| `npm audit --omit=dev --json` | PASS; production tree has 0 total vulnerabilities |
-| `npm run audit:prod` | PASS; `npm audit --omit=dev` reported 0 vulnerabilities |
-| `npm ls next postcss sharp js-yaml @hono/node-server shadcn --all` | PASS; Next 16.2.11 resolves PostCSS 8.5.22 and sharp 0.35.3; JavaScript YAML 4 consumers resolve js-yaml 4.3.0; shadcn 4.14.1 is development-only and its MCP stack resolves `@hono/node-server` 2.0.11 |
-| `npx --no-install shadcn --help` and `shadcn info` | PASS; CLI loads, recognizes Next 16.2.11/Tailwind v4/radix-lyra, and finds the four installed primitives |
-| MCP/Hono HTTP adapter probe | PASS; SDK `StreamableHTTPServerTransport` with Hono 2.0.11 returned the expected HTTP 406 negotiation response and terminated |
-| `npm run api:check` | PASS; generated REST tree deterministic and current (4 files) |
-| `npm run boundaries:check` | PASS; focused Node tests 2/2 and dependency/source boundaries clean for all eight enabled JS/TS forms |
-| `npm run format:check` | PASS; all matched files use Prettier style |
-| `npm run lint` | PASS; ESLint exited 0 |
-| `npm run typecheck` | PASS; Next route types generated and `tsc --noEmit` exited 0 |
-| `npm test -- --runInBand` | PASS; 15/15 suites, 46/46 tests, 0 snapshots |
-| `node -e "require('node:fs').rmSync('.next', { recursive: true, force: true })"` | PASS; prior build output removed |
-| `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build` | PASS; Next.js 16.2.11 compiled and completed the production build without a live API |
-| `test -f .next/standalone/server.js` | PASS; standalone artifact exists |
-| Standalone runtime probe on `127.0.0.1:3130` | PASS; HTTP 200 and expected heading; listener terminated |
-| `npm run e2e:install` | PASS; Chromium installation gate exited 0 |
-| `npm run e2e` | PASS; Playwright 3/3 tests in 11.0s; API and Next E2E listeners terminated |
-| Generated TypeScript metadata check | PASS; `next-env.d.ts` and `tsconfig.tsbuildinfo` regenerated, remained ignored/untracked, and typecheck/dev/E2E/build did not change tracked state |
-| `git diff --exit-code HEAD -- template contracts/openapi apps/api apps/web/src/lib/api/generated` (checked per path) | PASS; all protected/reference/contract/API/generated trees empty |
+| Команда                                                                                                              | Наблюдаемый результат                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                                                                        | PASS; все проекты up-to-date                                                                                                                                                                            |
+| `dotnet build Template.sln --no-restore`                                                                             | PASS; 0 warnings, 0 errors                                                                                                                                                                              |
+| `dotnet test Template.sln --no-restore`                                                                              | PASS; 35/35 tests, 0 failed, 0 skipped                                                                                                                                                                  |
+| `dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore -p:OpenApiGenerateDocuments=true`           | PASS; OpenAPI export build, 0 warnings, 0 errors                                                                                                                                                        |
+| `git diff --exit-code -- contracts/openapi/v1.json`                                                                  | PASS; empty                                                                                                                                                                                             |
+| `npm ci`                                                                                                             | PASS; 978 packages added, 979 audited, 0 vulnerabilities                                                                                                                                                |
+| `npm audit --json`                                                                                                   | PASS; 0 total vulnerabilities (0 info/low/moderate/high/critical)                                                                                                                                       |
+| `npm audit --omit=dev --json`                                                                                        | PASS; production tree has 0 total vulnerabilities                                                                                                                                                       |
+| `npm run audit:prod`                                                                                                 | PASS; `npm audit --omit=dev` reported 0 vulnerabilities                                                                                                                                                 |
+| `npm ls next postcss sharp js-yaml @hono/node-server shadcn --all`                                                   | PASS; Next 16.2.11 resolves PostCSS 8.5.22 and sharp 0.35.3; JavaScript YAML 4 consumers resolve js-yaml 4.3.0; shadcn 4.14.1 is development-only and its MCP stack resolves `@hono/node-server` 2.0.11 |
+| `npx --no-install shadcn --help` and `shadcn info`                                                                   | PASS; CLI loads, recognizes Next 16.2.11/Tailwind v4/radix-lyra, and finds the four installed primitives                                                                                                |
+| MCP/Hono HTTP adapter probe                                                                                          | PASS; SDK `StreamableHTTPServerTransport` with Hono 2.0.11 returned the expected HTTP 406 negotiation response and terminated                                                                           |
+| `npm run api:check`                                                                                                  | PASS; generated REST tree deterministic and current (4 files)                                                                                                                                           |
+| `npm run boundaries:check`                                                                                           | PASS; focused Node tests 2/2 and dependency/source boundaries clean for all eight enabled JS/TS forms                                                                                                   |
+| `npm run format:check`                                                                                               | PASS; all matched files use Prettier style                                                                                                                                                              |
+| `npm run lint`                                                                                                       | PASS; ESLint exited 0                                                                                                                                                                                   |
+| `npm run typecheck`                                                                                                  | PASS; Next route types generated and `tsc --noEmit` exited 0                                                                                                                                            |
+| `npm test -- --runInBand`                                                                                            | PASS; 15/15 suites, 46/46 tests, 0 snapshots                                                                                                                                                            |
+| `node -e "require('node:fs').rmSync('.next', { recursive: true, force: true })"`                                     | PASS; prior build output removed                                                                                                                                                                        |
+| `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build`                            | PASS; Next.js 16.2.11 compiled and completed the production build without a live API                                                                                                                    |
+| `test -f .next/standalone/server.js`                                                                                 | PASS; standalone artifact exists                                                                                                                                                                        |
+| Standalone runtime probe on `127.0.0.1:3130`                                                                         | PASS; HTTP 200 and expected heading; listener terminated                                                                                                                                                |
+| `npm run e2e:install`                                                                                                | PASS; Chromium installation gate exited 0                                                                                                                                                               |
+| `npm run e2e`                                                                                                        | PASS; Playwright 3/3 tests in 11.0s; API and Next E2E listeners terminated                                                                                                                              |
+| Generated TypeScript metadata check                                                                                  | PASS; `next-env.d.ts` and `tsconfig.tsbuildinfo` regenerated, remained ignored/untracked, and typecheck/dev/E2E/build did not change tracked state                                                      |
+| `git diff --exit-code HEAD -- template contracts/openapi apps/api apps/web/src/lib/api/generated` (checked per path) | PASS; all protected/reference/contract/API/generated trees empty                                                                                                                                        |
 
 Final review originally identified `@hono/node-server` 2.0.5 as a patched
 candidate, but the live audit now marks 2.0.0–2.0.9 vulnerable; exact 2.0.11 was
@@ -394,6 +395,224 @@ proxy: конечная production topology с Kestrel/YARP остаётся о�
 register/login/logout/current-user, выдача secure HttpOnly same-origin cookie и
 antiforgery. До него persistence, Identity, cookie issuance, account/workspace/
 product UI и auth-dependent parity остаются известными gaps.
+
+## Acceptance evidence: итерация 3
+
+**Scope:** `Template.Domain`, `Template.Application`,
+`Template.Infrastructure`, `Template.Api`, Application/API integration tests и
+`Template.E2EHost` как non-hosting E2E orchestrator; initial EF migration чистой
+PostgreSQL `auth` schema;
+OpenAPI и generated TypeScript SDK; `/auth/login` и временный `/dashboard`;
+Jest/Testcontainers/Playwright acceptance; operations, API, web и migration
+documentation. `template/` не менялся, Prisma/Better Auth data не переносились,
+активный OpenSpec change/spec не создавался.
+
+**Состояние:** функциональный scope реализован и повторно проверен. Полный
+dev-dependency audit сейчас остаётся внешним blocker: опубликованный 2026-07-23
+и обновлённый 2026-07-24 `GHSA-mh99-v99m-4gvg` помечает транзитивные ветви
+ESLint/Jest, для которых
+стабильные upstream-пакеты ещё не выпустили совместимый patched путь. Это не
+ослабляет gate: мажорные несовместимые overrides намеренно не подменяются;
+production dependency tree при этом остаётся без findings. Подробное решение и
+повторная проверка зафиксированы в `docs/web-conventions.md` и финальной
+матрице ниже.
+
+| Reference                                                            | Новый API/данные                                             | Новый UI                                | Test/evidence                                                       |
+| -------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------------------------- | ------------------------------------------------------------------- |
+| `prisma/schema.prisma`: `User`, `Session`, `Account`, `Verification` | Identity users/logins/tokens plus persistent session tickets | N/A                                     | migration, indexes, uniqueness and cascade tests against PostgreSQL |
+| `src/server/auth.ts`, `/api/auth/[...all]` session lookup            | `GET /api/v1/auth/session`                                   | protected `/dashboard` session proof    | anonymous/authenticated API and Playwright cases                    |
+| Better Auth `signOut`                                                | `POST /api/v1/auth/logout`                                   | logout control                          | current-session removal, cookie expiry and browser redirect         |
+| `POST /api/local-auth/scenario`                                      | same route with new envelope/Problem Details                 | one-click automation panel              | API, component and E2E create cases                                 |
+| `/api/auth/sign-in/email`                                            | `POST /api/local-auth/sign-in`                               | no visible form; automation helper only | second-browser-context sign-in                                      |
+| `DELETE /api/local-auth/scenario`                                    | same route; user/session cleanup                             | no product control; E2E helper only     | local-user authorization and cross-context invalidation             |
+| `/auth/login`, `LoginForm`, local automation panel                   | capabilities/session REST composition                        | reference-like `/auth/login`            | capability, rendering, navigation and failure tests                 |
+| `proxy.ts` protected-page redirect                                   | session projection remains API-owned                         | `/dashboard` server-side auth gate      | safe redirect and anonymous navigation E2E                          |
+| account session list/revoke actions and tests                        | persistent-session foundation only                           | no `/user/security`                     | explicitly deferred to iteration 4                                  |
+| API key auth and `/api/v1/**` reference tests                        | no runtime implementation                                    | none                                    | future policies cannot be accidentally satisfied by browser cookie  |
+
+**Проверки 2026-07-24 (fresh full matrix):**
+
+Integration and E2E fixtures used disposable Testcontainers databases from
+PostgreSQL image `postgres:18.4`. EF design-time commands intentionally use
+`Template.Infrastructure.csproj` as both project and startup project because
+its factory owns the private EF Design package; `Template.Api` remains the only
+HTTP host.
+
+| Команда                                                                                                                                                                                                                                                                           | Наблюдаемый результат                                                                                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet tool restore`                                                                                                                                                                                                                                                             | PASS; `dotnet-ef` 10.0.10 restored                                                                                                                                                                                                                  |
+| `dotnet restore Template.sln`                                                                                                                                                                                                                                                     | PASS; all projects up-to-date                                                                                                                                                                                                                       |
+| `dotnet build Template.sln --no-restore`                                                                                                                                                                                                                                          | PASS; 0 warnings, 0 errors                                                                                                                                                                                                                          |
+| `dotnet test Template.sln --no-restore`                                                                                                                                                                                                                                           | PASS; Application 17/17 and API 93/93: 110/110 total, 0 failed, 0 skipped                                                                                                                                                                           |
+| `dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore -p:OpenApiGenerateDocuments=true`                                                                                                                                                                        | PASS; OpenAPI 3.1 export build, 0 warnings, 0 errors                                                                                                                                                                                                |
+| `git diff --exit-code -- contracts/openapi/v1.json`                                                                                                                                                                                                                               | PASS; empty after export                                                                                                                                                                                                                            |
+| `dotnet ef migrations has-pending-model-changes --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj --context AuthDbContext`                                      | PASS; no model changes since the migration                                                                                                                                                                                                          |
+| `dotnet ef migrations script --idempotent --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj --startup-project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj --context AuthDbContext --output /tmp/template-auth-idempotent.sql` | PASS; design-time build succeeded                                                                                                                                                                                                                   |
+| `test -s /tmp/template-auth-idempotent.sql`                                                                                                                                                                                                                                       | PASS; non-empty, 6,199 bytes and 172 lines                                                                                                                                                                                                          |
+| `cd apps/web`                                                                                                                                                                                                                                                                     | PASS; subsequent npm commands ran from `apps/web`                                                                                                                                                                                                   |
+| `npm ci`                                                                                                                                                                                                                                                                          | PASS; 978 packages added, 979 audited, 0 vulnerabilities                                                                                                                                                                                            |
+| `npm audit --json`                                                                                                                                                                                                                                                                | PASS; 0 info, 0 low, 0 moderate, 0 high, 0 critical, 0 total findings                                                                                                                                                                               |
+| `npm run audit:prod`                                                                                                                                                                                                                                                              | PASS; production audit found 0 vulnerabilities                                                                                                                                                                                                      |
+| `npm run api:check`                                                                                                                                                                                                                                                               | PASS; generated SDK deterministic and current, 4 files                                                                                                                                                                                              |
+| `npm run boundaries:check`                                                                                                                                                                                                                                                        | PASS; 3/3 focused boundary tests and source/dependency guard                                                                                                                                                                                        |
+| `npm run format:check`                                                                                                                                                                                                                                                            | PASS; all matched files use Prettier style                                                                                                                                                                                                          |
+| `npm run lint`                                                                                                                                                                                                                                                                    | PASS; ESLint exited 0                                                                                                                                                                                                                               |
+| `npm run typecheck`                                                                                                                                                                                                                                                               | PASS; route types generated and `tsc --noEmit` exited 0                                                                                                                                                                                             |
+| `npm test -- --runInBand`                                                                                                                                                                                                                                                         | PASS; Jest 23/23 suites, 91/91 tests, 0 snapshots                                                                                                                                                                                                   |
+| clean `.next` before the production build                                                                                                                                                                                                                                         | PASS; the Codex command policy rejected literal `rm -rf .next` before process launch, so the approved non-shell equivalent `node -e "require('node:fs').rmSync('.next', { recursive: true, force: true })"` removed it and `test ! -e .next` passed |
+| `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build`                                                                                                                                                                                         | PASS; Next.js 16.2.11 production build completed without API/database configuration                                                                                                                                                                 |
+| `test -f .next/standalone/server.js`                                                                                                                                                                                                                                              | PASS; standalone artifact exists                                                                                                                                                                                                                    |
+| `npm run e2e:install`                                                                                                                                                                                                                                                             | PASS; Chromium installation gate exited 0                                                                                                                                                                                                           |
+| `npm run e2e`                                                                                                                                                                                                                                                                     | PASS; Playwright 4/4 tests in 13.0s                                                                                                                                                                                                                 |
+| `cd ../..`                                                                                                                                                                                                                                                                        | PASS; repository-root guards ran from the root                                                                                                                                                                                                      |
+| `git diff --check`                                                                                                                                                                                                                                                                | PASS; no whitespace errors                                                                                                                                                                                                                          |
+| `git diff --exit-code -- template/`                                                                                                                                                                                                                                               | PASS; working-tree reference diff empty                                                                                                                                                                                                             |
+| `git diff --exit-code origin/main...HEAD -- template/`                                                                                                                                                                                                                            | PASS; branch-range reference diff empty                                                                                                                                                                                                             |
+| `git status --short`                                                                                                                                                                                                                                                              | PASS; clean before evidence editing; final documentation pass contained only the four Task 15 docs                                                                                                                                                  |
+
+**Post-review repairs 2026-07-24:** the final whole-branch audit added explicit
+regressions for cookie-bearing liveness, SSR/browser sliding renewal, required
+local credentials, and unsafe-operation `400` variants. The subsequent SSR
+capability repair isolated anonymous capabilities from the browser cookie and
+aligned the optional scenario request body, manual JSON reader, OpenAPI, and
+generated SDK. The final strict-boundary repair rejects malformed UTF-8 before
+JSON validation, publishes the normalized scenario-name/email constraints,
+regenerates the SDK, and rejects case variants of protected `/api/**` and
+`/auth/**` redirect targets. The final Identity-result classification repair
+preserves the approved local namespace while classifying only non-empty,
+homogeneous built-in Identity result sets: duplicate-only codes retain `409`,
+and recognized input-validation-only codes use the transactional
+`400 validation_failed` path. Unknown/custom codes and mixed categories,
+including duplicate plus custom, remain non-disclosing `500 internal_error`
+failures with no persisted user/session or issued cookie.
+
+| Команда                                                                                                                                                                                                                                                                                                                                                                           | Наблюдаемый результат                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused API health/sliding/OpenAPI RED                                                                                                                                                                                                                                                                                                                                            | FAIL as intended: 4/4 new regressions exposed ticket-store liveness access, invisible SSR renewal, and contract drift                                                   |
+| focused Jest RED                                                                                                                                                                                                                                                                                                                                                                  | FAIL as intended: missing browser refresh plus SSR-marker and contract/SDK drift                                                                                        |
+| focused SSR/API-body/OpenAPI RED                                                                                                                                                                                                                                                                                                                                                  | FAIL as intended: 3 failed and 28 passed; cookie-bearing capability reuse, runtime `415` for non-JSON auth bodies, and required scenario body were exposed              |
+| focused SSR/generated-SDK Jest RED                                                                                                                                                                                                                                                                                                                                                | FAIL as intended: 3 failed and 5 passed; two direct contract/client failures plus one queued-mock cascade, which was removed by resetting the client mock between tests |
+| `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter FullyQualifiedName~InvalidUtf8AuthJsonUsesStableInvalidRequest`                                                                                                                                                                                                                    | FAIL as intended: 2/2 malformed UTF-8 regressions returned `201`/`401` after replacement decoding rather than stable `400 invalid_request`                              |
+| `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter FullyQualifiedName~ScenarioSchemaPublishesNormalizedInputConstraints`                                                                                                                                                                                                              | FAIL as intended: generated OpenAPI lacked the normalized scenario name/email constraints                                                                               |
+| `npm test -- --runInBand test/features/sanitize-auth-redirect.test.ts -t "rejects case-variant protected path"`                                                                                                                                                                                                                                                                   | FAIL as intended: 4/4 case-variant `/api/**` and `/auth/**` targets remained redirectable                                                                               |
+| `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter "FullyQualifiedName~AuthEndpointTests\|FullyQualifiedName~OpenApiContractTests"`                                                                                                                                                                                                   | PASS; 31/31 focused endpoint/OpenAPI tests                                                                                                                              |
+| `npm test -- --runInBand test/lib/api/auth-api.test.ts test/contracts/generated-sdk.test.ts`                                                                                                                                                                                                                                                                                      | PASS; 2/2 suites and 8/8 focused SSR/SDK tests                                                                                                                          |
+| `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter "FullyQualifiedName~HealthEndpointTests\|FullyQualifiedName~DatabaseReadinessTests\|FullyQualifiedName~BrowserSessionSlidingExpirationTests\|FullyQualifiedName~BrowserSessionCookieRotationTests\|FullyQualifiedName~AuthEndpointTests\|FullyQualifiedName~OpenApiContractTests"` | PASS; 48/48 focused API regressions                                                                                                                                     |
+| focused strict UTF-8/normalized-contract API covering run                                                                                                                                                                                                                                                                                                                         | PASS; 6/6 focused malformed UTF-8, padded normalized runtime, OpenAPI, and committed-contract regressions                                                               |
+| `npm test -- --runInBand test/features/sanitize-auth-redirect.test.ts`                                                                                                                                                                                                                                                                                                            | PASS; 30/30 redirect-policy tests                                                                                                                                       |
+| `dotnet restore Template.sln && dotnet build Template.sln --no-restore && dotnet test Template.sln --no-restore`                                                                                                                                                                                                                                                                  | PASS; build 0 warnings/errors, Application 17/17 and API 110/110: 127/127 total                                                                                         |
+| repeat OpenAPI export with `-p:OpenApiGenerateDocuments=true` and compare SHA-256                                                                                                                                                                                                                                                                                                 | PASS; deterministic OpenAPI 3.1 artifact, SHA-256 `0470424bdd4e1e942b5fddafd950f32b65321db7e35a45fd839fcf55896d80de`                                                    |
+| `npm run api:check && npm run boundaries:check`                                                                                                                                                                                                                                                                                                                                   | PASS; deterministic generated SDK, 3/3 focused boundary tests, and clean dependency/source boundaries                                                                   |
+| `npm run format:check && npm run lint && npm run typecheck && npm test -- --runInBand`                                                                                                                                                                                                                                                                                            | PASS; Prettier, ESLint, Next route generation, `tsc --noEmit`, Jest 24/24 suites and 98/98 tests                                                                        |
+| targeted Prettier check for the updated durable Markdown files                                                                                                                                                                                                                                                                                                                    | PASS; `docs/api-conventions.md` and this migration plan use Prettier formatting                                                                                         |
+| clean `.next`, `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build`, and standalone check                                                                                                                                                                                                                                                    | PASS; Next.js 16.2.11 production build and `.next/standalone/server.js`                                                                                                 |
+| `npm run e2e`                                                                                                                                                                                                                                                                                                                                                                     | PASS; Playwright 4/4 tests                                                                                                                                              |
+| `git diff --exit-code -- template/ && git diff --exit-code 9c39993 -- template/ && git diff --check`                                                                                                                                                                                                                                                                              | PASS; immutable reference and whitespace checks remained clean                                                                                                          |
+| focused local Identity-validation Application/API RED                                                                                                                                                                                                                                                                                                                             | FAIL as intended: the typed condition was absent and actual `local-agent+foo!@local-agent.test` scenario creation returned `500 internal_error`                         |
+| focused unknown Identity-result RED                                                                                                                                                                                                                                                                                                                                               | FAIL as intended: the injected custom validator code returned `400 validation_failed` rather than `500 internal_error`                                                  |
+| focused mixed duplicate/custom Identity-result RED                                                                                                                                                                                                                                                                                                                                | FAIL as intended: a real API-host duplicate plus injected custom validator result returned `409 local_auth_user_exists` rather than `500 internal_error`                |
+| focused local Identity-result GREEN and covering checks                                                                                                                                                                                                                                                                                                                           | PASS; recognized/default and injected/unknown 2/2; Application typed/duplicate 3/3; API creation/duplicate/unexpected 5/5                                               |
+| final `dotnet restore Template.sln && dotnet build Template.sln --no-restore && dotnet test Template.sln --no-restore`                                                                                                                                                                                                                                                            | PASS; build 0 warnings/errors, Application 19/19 and API 112/112: 131/131 total                                                                                         |
+| OpenAPI export, `npm --prefix apps/web run api:check`, targeted durable-doc Prettier, `git diff --check`, and working-tree/branch-range `template/` checks                                                                                                                                                                                                                        | PASS; contract/generated SDK unchanged, docs formatted, and immutable reference remained untouched                                                                      |
+| focused mixed duplicate/custom API Identity regression                                                                                                                                                                                                                                                                                                                            | PASS; 1/1 returned non-disclosing `500`, issued no cookie, and preserved the seeded user with no session                                                                |
+| covering endpoint and gateway Identity regressions                                                                                                                                                                                                                                                                                                                                | PASS; 34/34 preserved duplicate-only `409`, known-input `400`, and unexpected-result rollback                                                                           |
+| final .NET verification after mixed-result repair                                                                                                                                                                                                                                                                                                                                 | PASS; build 0 warnings/errors, Application 19/19 and API 113/113: 132/132 total                                                                                         |
+
+**Финальный refresh 2026-07-24:** эта матрица заменяет более ранние
+same-date результаты там, где они расходятся. В частности, full npm audit
+изменился после публикации нового advisory, без изменения application source или
+lockfile.
+
+| Команда / проверка                                                                                           | Наблюдаемый результат                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet tool restore`                                                                                        | PASS; `dotnet-ef` 10.0.10 restored                                                                                                                                                                                                                                                                                                                            |
+| `dotnet restore Template.sln`                                                                                | PASS                                                                                                                                                                                                                                                                                                                                                          |
+| `dotnet build Template.sln --no-restore`                                                                     | PASS; 0 warnings, 0 errors                                                                                                                                                                                                                                                                                                                                    |
+| `dotnet test Template.sln --no-restore`                                                                      | PASS; Application 19/19 and API 113/113: 132/132 total                                                                                                                                                                                                                                                                                                        |
+| OpenAPI export, committed-contract comparison, EF model-drift check and idempotent migration script          | PASS; `contracts/openapi/v1.json` SHA-256 `e319dd504210aa0eedabc8c710153e79f1f71fc9d320e5bdf449c44539f61a59`, no drift, script non-empty (6,199 bytes)                                                                                                                                                                                                        |
+| `npm ci`                                                                                                     | PASS; 978 packages added; npm reported the currently known 26 high dev-only findings                                                                                                                                                                                                                                                                          |
+| `npm audit --json`                                                                                           | **EXTERNAL BLOCKER**; 26 high, all dev-only transitive findings from `GHSA-mh99-v99m-4gvg` through the stable ESLint/Jest toolchain. `npm audit fix --dry-run --json` proposed 0 changes. `brace-expansion` 5.0.8 is the only published patched line; forcing it into old CJS `minimatch` consumers changes their callable API and is intentionally rejected. |
+| `npm audit --omit=dev --json` and `npm run audit:prod`                                                       | PASS; 0 info/low/moderate/high/critical production findings                                                                                                                                                                                                                                                                                                   |
+| `npm run api:check`, `npm run boundaries:check`, `npm run format:check`, `npm run lint`, `npm run typecheck` | PASS; generated SDK current, 3/3 boundary tests, formatting/lint/typecheck clean                                                                                                                                                                                                                                                                              |
+| `npm test -- --runInBand`                                                                                    | PASS; 24/24 suites, 98/98 tests                                                                                                                                                                                                                                                                                                                               |
+| clean `.next`, standalone build, `npm run e2e:install`, `npm run e2e`                                        | PASS; standalone server exists; Playwright 4/4                                                                                                                                                                                                                                                                                                                |
+| `git diff --check`, working-tree and branch-range `template/` diffs                                          | PASS; whitespace clean and immutable reference untouched                                                                                                                                                                                                                                                                                                      |
+
+**PR #4 review hardening 2026-07-25:** four unresolved review findings were
+verified against the implementation and repaired without expanding iteration
+scope. The API now consumes one originating client address only from the
+trusted loopback Next.js proxy before auth rate limiting; browser session reads
+complete a due sliding renewal before projecting timestamps; a definitively
+invalid server-side ticket expires the corresponding browser cookie; and the
+historically named `Template.E2EHost` now only orchestrates PostgreSQL and
+launches `Template.Api`, which remains the sole HTTP host.
+
+| Команда / проверка                                                                                           | Наблюдаемый результат                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused architecture, stale-cookie, proxy-partition, renewal-projection and E2E-boundary RED tests           | FAIL as intended; each regression exposed the reviewed behavior before production changes                                                                                     |
+| focused covering API run                                                                                     | PASS; 33/33 architecture, HTTP-boundary, ticket-store, cookie-rotation, cleanup and sliding-renewal tests                                                                     |
+| changed-file `dotnet format --verify-no-changes`                                                             | PASS; every changed C# file uses configured formatting                                                                                                                        |
+| `dotnet restore Template.sln`                                                                                | PASS; all seven solution projects restored or up-to-date                                                                                                                      |
+| `dotnet build Template.sln --no-restore`                                                                     | PASS; 0 warnings, 0 errors                                                                                                                                                    |
+| `dotnet test Template.sln --no-restore`                                                                      | PASS; Application 19/19 and API 117/117: 136/136 total                                                                                                                        |
+| OpenAPI export build and `git diff --exit-code -- contracts/openapi/v1.json`                                 | PASS; build 0 warnings/errors and committed OpenAPI contract unchanged                                                                                                        |
+| `npm ci`                                                                                                     | PASS; 978 packages added; reproduced the already documented 26 high dev-only findings                                                                                         |
+| `npm run api:check`, `npm run boundaries:check`, `npm run format:check`, `npm run lint`, `npm run typecheck` | PASS; generated SDK deterministic, 3/3 boundary tests, formatting, lint and typecheck clean                                                                                   |
+| `npm test -- --runInBand`                                                                                    | PASS; 24/24 suites and 98/98 tests                                                                                                                                            |
+| `npm run e2e`                                                                                                | PASS; Playwright 4/4 in 20.5s; the orchestration process, child API, Next listener and disposable database terminated, leaving no listener on the configured API or web ports |
+
+**PR #4 dashboard-renewal follow-up 2026-07-26:** the browser-owned session
+read now applies a successful sliding-renewal result to the visible dashboard
+through an App Router refresh. The refreshed Server Component performs its
+uncached, renewal-suppressed read and projects the timestamps already committed
+by the browser request; failed browser reads do not trigger a route refresh.
+
+| Команда / проверка                                                                  | Наблюдаемый результат                                                                                                  |
+| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| focused `browser-session-refresh` Jest RED                                           | FAIL as intended; the successful API response was discarded and `router.refresh()` had 0 calls                        |
+| `npm test -- --runInBand test/components/browser-session-refresh.test.tsx`           | PASS; 2/2 success and failure-path component tests                                                                      |
+| `npm ci`                                                                            | PASS; 978 packages added; reproduced the already documented 26 high dev-only findings                                  |
+| `npm run boundaries:check`, `npm run format:check`, `npm run lint`, `npm run typecheck` | PASS; 3/3 boundary tests, formatting, lint and generated-route/type checks clean                                     |
+| `npm test -- --runInBand`                                                           | PASS; 24/24 suites and 99/99 tests                                                                                      |
+| `npm run build`                                                                     | PASS; Next.js 16.2.11 production build completed with `/`, `/auth/login`, and `/dashboard`                              |
+| `npm run e2e`                                                                       | PASS; Playwright 4/4 in 15.4s                                                                                           |
+
+`Template.Session.Selector` is the default authenticate scheme: it forwards
+ordinary paths to the primary `Template.Session` handler and the canonical
+liveness path plus its route-equivalent trailing-slash form to the process-only
+no-result handler. The primary remains the default challenge, forbid, and
+sign-out scheme and the sole scheme named by `Api.BrowserSession`; the internal
+write-only issuer is `Template.Session.Issuer`. Both cookie handlers use the
+same cookie/ticket-store format and Data Protection purpose for safe session
+replacement and key rotation. Only `cookieAuth` is advertised in OpenAPI.
+There is no Bearer or API-key runtime.
+
+**Intentional differences from reference:**
+
+- success uses the typed `{ "data": ... }` envelope and failures use RFC
+  Problem Details with stable `code`/`traceId`;
+- production password login is absent; the two-part-gated credential flow is
+  local automation only;
+- social/external login is deferred to iteration 4;
+- persistence starts from a clean Identity Core `auth` schema rather than
+  migrating Prisma/Better Auth records;
+- `/dashboard` is a temporary session proof, not the product dashboard;
+- cleanup reports zero deleted organizations because organization persistence
+  starts in iteration 5;
+- PostgreSQL tickets are authoritative and no session JWT cache exists;
+- API-key/`x-api-key` remains iteration 7 and no API-key or Bearer scheme is
+  registered.
+
+**Следующий gate:** agree external-provider priority, credentials and callback
+URLs; define provider email-verification mapping; design persistent/encrypted
+production Data Protection key storage; and approve the exact iteration-4
+account/session-management scope. Until that gate, production password/social
+login remains unavailable and iteration-4/5/7 product domains are not pulled
+forward.
+
+Both immutable-reference checks were explicitly empty:
+`git diff --exit-code -- template/` and
+`git diff --exit-code origin/main...HEAD -- template/`.
 
 ## 9. Правило обновления этого документа
 

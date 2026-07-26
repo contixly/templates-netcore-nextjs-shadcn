@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Template.Api.Observability;
@@ -22,7 +24,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     {
         var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
         logs.Clear();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.Add(CorrelationIdMiddleware.HeaderName, "client.trace-123");
 
         using var response = await client.GetAsync(
@@ -50,7 +52,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task InvalidCorrelationIdIsIgnoredWithoutRejectingRequest()
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.TryAddWithoutValidation(
             CorrelationIdMiddleware.HeaderName,
             "invalid value with spaces");
@@ -71,7 +73,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
         string uri,
         HttpStatusCode expectedStatus)
     {
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
         client.DefaultRequestHeaders.Add(
             CorrelationIdMiddleware.HeaderName,
             "exception.trace-123");
@@ -94,7 +96,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     {
         var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
         logs.Clear();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/health/live",
@@ -112,7 +114,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     {
         var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
         logs.Clear();
-        using var client = factory.CreateClient();
+        using var client = factory.CreateApiClient();
 
         using var response = await client.GetAsync(
             "/api/testing/bad-request",
@@ -129,6 +131,117 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
         Assert.Equal(400, completion.State["StatusCode"]);
         Assert.Equal(LogLevel.Warning, completion.Level);
     }
+
+    [Fact]
+    public async Task AntiforgeryFailureLogsFinalClientStatusAtWarning()
+    {
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+        using var client = factory.CreateApiClient();
+        client.DefaultRequestHeaders.Add(
+            CorrelationIdMiddleware.HeaderName,
+            "antiforgery.trace-123");
+
+        using var response = await client.PostAsync(
+            "/api/local-auth/testing-rate",
+            content: null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var completion = FindCompletion(logs, "/api/local-auth/testing-rate");
+        Assert.Equal(400, completion.State["StatusCode"]);
+        Assert.Equal(LogLevel.Warning, completion.Level);
+        Assert.Equal("antiforgery.trace-123", completion.Scope["TraceId"]);
+    }
+
+    [Fact]
+    public async Task DisabledLocalAuthLogsFinalNotFoundAtWarning()
+    {
+        await using var production = factory.WithWebHostBuilder(
+            builder => builder.UseEnvironment("Production"));
+        var logs = production.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+        using var client = production.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+        client.DefaultRequestHeaders.Add(
+            CorrelationIdMiddleware.HeaderName,
+            "local-disabled.trace-123");
+
+        using var response = await client.GetAsync(
+            "/api/local-auth/testing",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        var completion = FindCompletion(logs, "/api/local-auth/testing");
+        Assert.Equal(404, completion.State["StatusCode"]);
+        Assert.Equal(LogLevel.Warning, completion.Level);
+        Assert.Equal("local-disabled.trace-123", completion.Scope["TraceId"]);
+    }
+
+    [Fact]
+    public async Task UnhandledExceptionLogContainsOnlySafeOperationalFields()
+    {
+        const string sensitiveMessage = "sensitive-database-message";
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+        using var client = factory.CreateApiClient();
+        client.DefaultRequestHeaders.Add(
+            CorrelationIdMiddleware.HeaderName,
+            "fault.trace-123");
+
+        using var response = await client.GetAsync(
+            "/api/testing/fault?secret=query-value",
+            TestContext.Current.CancellationToken);
+        var body = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.DoesNotContain(sensitiveMessage, body, StringComparison.OrdinalIgnoreCase);
+        var error = Assert.Single(
+            logs.Logs,
+            log => log.Category.EndsWith("ApiExceptionHandler", StringComparison.Ordinal) &&
+                   log.Level == LogLevel.Error);
+        Assert.Null(error.Exception);
+        Assert.Equal(
+            typeof(InvalidOperationException).FullName,
+            error.State["ExceptionType"]);
+        Assert.Equal("/api/testing/fault", error.State["Path"]);
+        Assert.Equal("fault.trace-123", error.State["TraceId"]);
+        Assert.Equal("fault.trace-123", error.Scope["TraceId"]);
+        Assert.DoesNotContain(sensitiveMessage, error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("query-value", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            error.State.Values,
+            value => value?.ToString()?.Contains(
+                sensitiveMessage,
+                StringComparison.OrdinalIgnoreCase) is true);
+        Assert.DoesNotContain(
+            logs.Logs,
+            log =>
+                log.Message.Contains(
+                    sensitiveMessage,
+                    StringComparison.OrdinalIgnoreCase) ||
+                log.State.Values.Any(
+                    value => value?.ToString()?.Contains(
+                        sensitiveMessage,
+                        StringComparison.OrdinalIgnoreCase) is true) ||
+                log.Exception?.ToString().Contains(
+                    sensitiveMessage,
+                    StringComparison.OrdinalIgnoreCase) is true);
+    }
+
+    private static CapturedLog FindCompletion(
+        CapturedLogProvider logs,
+        string path) =>
+        Assert.Single(
+            logs.Logs,
+            log => log.Category.EndsWith(
+                       nameof(RequestLoggingMiddleware),
+                       StringComparison.Ordinal) &&
+                   log.State.TryGetValue("Path", out var actualPath) &&
+                   Equals(actualPath, path));
 
     private sealed record ProblemTrace(string TraceId);
 }

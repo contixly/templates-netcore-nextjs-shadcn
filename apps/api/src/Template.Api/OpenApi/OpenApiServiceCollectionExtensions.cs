@@ -1,4 +1,6 @@
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 using Template.Api.Authentication;
@@ -34,6 +36,64 @@ internal static class OpenApiServiceCollectionExtensions
             options.AddOperationTransformer((operation, context, _) =>
             {
                 var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+                if (metadata.OfType<AntiforgeryProtectedEndpointMetadata>().Any())
+                {
+                    operation.Parameters ??= [];
+                    operation.Parameters.Add(new OpenApiParameter
+                    {
+                        Name = "X-CSRF-TOKEN",
+                        In = ParameterLocation.Header,
+                        Required = true,
+                        Description = "Request token returned by GET /api/v1/auth/csrf.",
+                        Schema = new OpenApiSchema { Type = JsonSchemaType.String }
+                    });
+                }
+
+                if (metadata.OfType<LocalOnlyEndpointMetadata>().Any())
+                {
+                    operation.Extensions ??=
+                        new Dictionary<string, IOpenApiExtension>(StringComparer.Ordinal);
+                    operation.Extensions["x-local-only"] =
+                        new JsonNodeExtension(JsonValue.Create(true)!);
+                }
+
+                if (metadata.OfType<ManuallyReadJsonBodyMetadata>()
+                        .SingleOrDefault() is { } jsonBody &&
+                    operation.RequestBody is OpenApiRequestBody requestBody &&
+                    requestBody.Content?.Values.SingleOrDefault() is { } jsonMediaType)
+                {
+                    requestBody.Required = !jsonBody.IsOptional;
+                    requestBody.Content =
+                        new Dictionary<string, OpenApiMediaType>(StringComparer.Ordinal)
+                        {
+                            ["application/json"] = jsonMediaType
+                        };
+                }
+
+                if (metadata.OfType<BadRequestVariantsMetadata>().Any() &&
+                    operation.Responses?.TryGetValue(
+                        StatusCodes.Status400BadRequest.ToString(),
+                        out var response) == true &&
+                    response is OpenApiResponse badRequest &&
+                    badRequest.Content?.TryGetValue(
+                        OpenApiDefaults.ProblemContentType,
+                        out var content) == true &&
+                    content is OpenApiMediaType mediaType)
+                {
+                    mediaType.Schema = new OpenApiSchema
+                    {
+                        OneOf =
+                        [
+                            new OpenApiSchemaReference(
+                                nameof(ProblemDetails),
+                                context.Document),
+                            new OpenApiSchemaReference(
+                                nameof(HttpValidationProblemDetails),
+                                context.Document)
+                        ]
+                    };
+                }
+
                 if (metadata.OfType<IAllowAnonymous>().Any() ||
                     !metadata.OfType<IAuthorizeData>().Any())
                 {

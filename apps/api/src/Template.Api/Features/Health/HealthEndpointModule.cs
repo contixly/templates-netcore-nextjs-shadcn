@@ -7,6 +7,8 @@ namespace Template.Api.Features.Health;
 
 internal sealed class HealthEndpointModule : IEndpointModule
 {
+    internal const string LivenessPath = "/api/health/live";
+
     public void MapEndpoints(EndpointRouteContext context)
     {
         MapReady(context.Root, "/api/health", "GetHealth");
@@ -17,7 +19,7 @@ internal sealed class HealthEndpointModule : IEndpointModule
     private static void MapLive(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet(
-                "/api/health/live",
+                LivenessPath,
                 (HealthCheckService checks, TimeProvider timeProvider,
                     HttpContext context, CancellationToken cancellationToken) =>
                     Evaluate(
