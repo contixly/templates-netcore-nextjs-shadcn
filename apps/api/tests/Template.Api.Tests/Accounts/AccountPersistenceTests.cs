@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using System.Diagnostics;
 using Template.Application.Accounts;
 using Template.Application.Authentication;
 using Template.Api.Tests.Infrastructure;
@@ -190,6 +191,13 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
 
         await using var firstDb = CreateContext();
         await using var secondDb = CreateContext();
+        await firstDb.Database.OpenConnectionAsync(
+            TestContext.Current.CancellationToken);
+        await secondDb.Database.OpenConnectionAsync(
+            TestContext.Current.CancellationToken);
+        var blockingPid = ((NpgsqlConnection)firstDb.Database.GetDbConnection()).ProcessID;
+        var blockedPid = ((NpgsqlConnection)secondDb.Database.GetDbConnection()).ProcessID;
+        Assert.NotEqual(blockingPid, blockedPid);
         var firstStore = new EfExternalAccountStore(firstDb, TimeProvider.System);
         var secondStore = new EfExternalAccountStore(secondDb, TimeProvider.System);
         var email = VerifiedEmail.Create("race-shared@example.test");
@@ -209,13 +217,24 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
                 primary: false,
                 TestContext.Current.CancellationToken),
             TestContext.Current.CancellationToken);
-        await Task.Delay(
-            TimeSpan.FromMilliseconds(200),
-            TestContext.Current.CancellationToken);
-        Assert.False(competingLink.IsCompleted);
+        Assert.True(await WaitUntilBlockedAsync(
+            blockedPid,
+            blockingPid,
+            TimeSpan.FromSeconds(5)));
 
         await firstTransaction.CommitAsync(TestContext.Current.CancellationToken);
         await Assert.ThrowsAsync<AccountConcurrencyException>(() => competingLink);
+
+        await using var verify = CreateContext();
+        var ownership = await verify.UserEmails.AsNoTracking()
+            .Where(row => row.NormalizedEmail == email.NormalizedValue)
+            .Select(row => row.UserId)
+            .ToArrayAsync(TestContext.Current.CancellationToken);
+        Assert.Equal([firstId], ownership);
+        Assert.False(await verify.UserEmails.AnyAsync(
+            row => row.UserId == secondId
+                && row.NormalizedEmail == email.NormalizedValue,
+            TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -552,18 +571,23 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
                 ExternalProvider.Google,
                 TestContext.Current.CancellationToken));
 
-        await Assert.ThrowsAsync<PostgresException>(() =>
+        var exception = await Assert.ThrowsAsync<PostgresException>(() =>
             store.DisconnectAsync(
                 snapshot,
                 TestContext.Current.CancellationToken));
+        Assert.Equal("P0001", exception.SqlState);
+        Assert.Equal("test email delete rejected", exception.MessageText);
 
         await using var verify = CreateContext();
-        Assert.True(await verify.UserLogins.AnyAsync(
+        Assert.Equal(1, await verify.UserLogins.CountAsync(
             row => row.UserId == user.Id
-                && row.LoginProvider == ExternalProvider.Google.Value,
+                && row.LoginProvider == ExternalProvider.Google.Value
+                && row.ProviderKey == "google-rollback",
             TestContext.Current.CancellationToken));
-        Assert.True(await verify.UserEmails.AnyAsync(
-            row => row.Id == secondary.Id,
+        Assert.Equal(1, await verify.UserEmails.CountAsync(
+            row => row.Id == secondary.Id
+                && row.UserId == user.Id
+                && row.NormalizedEmail == secondary.NormalizedEmail,
             TestContext.Current.CancellationToken));
     }
 
@@ -798,6 +822,35 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         }
 
         return values;
+    }
+
+    private async Task<bool> WaitUntilBlockedAsync(
+        int blockedPid,
+        int blockingPid,
+        TimeSpan timeout)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        var stopwatch = Stopwatch.StartNew();
+        while (stopwatch.Elapsed < timeout)
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                "SELECT @blockingPid = ANY(pg_blocking_pids(@blockedPid))";
+            command.Parameters.AddWithValue("blockingPid", blockingPid);
+            command.Parameters.AddWithValue("blockedPid", blockedPid);
+            if (Assert.IsType<bool>(await command.ExecuteScalarAsync(
+                    TestContext.Current.CancellationToken)))
+            {
+                return true;
+            }
+
+            await Task.Delay(
+                TimeSpan.FromMilliseconds(20),
+                TestContext.Current.CancellationToken);
+        }
+
+        return false;
     }
 
     public async ValueTask DisposeAsync()

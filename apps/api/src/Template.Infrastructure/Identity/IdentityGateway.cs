@@ -4,13 +4,15 @@ using Npgsql;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
 using Template.Domain.Authentication;
+using Template.Infrastructure.Persistence;
 
 namespace Template.Infrastructure.Identity;
 
 internal sealed class IdentityGateway(
     UserManager<ApplicationUser> users,
     SignInManager<ApplicationUser> signInManager,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    AuthDbContext db)
     : ILocalIdentityGateway
 {
     public async Task<AuthUser> CreateLocalAsync(
@@ -32,6 +34,9 @@ internal sealed class IdentityGateway(
             UpdatedAt = now
         };
 
+        var transaction = db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
         try
         {
             var result = await users.CreateAsync(user, credentials.Password);
@@ -51,14 +56,46 @@ internal sealed class IdentityGateway(
                 throw new InvalidOperationException(
                     "Identity user creation failed unexpectedly.");
             }
+
+            db.UserEmails.Add(new UserEmailEntity
+            {
+                Id = Guid.CreateVersion7(now),
+                UserId = user.Id,
+                Email = user.Email
+                    ?? throw new InvalidOperationException(
+                        "Identity did not retain the required local email."),
+                NormalizedEmail = user.NormalizedEmail
+                    ?? throw new InvalidOperationException(
+                        "Identity did not normalize the required local email."),
+                IsPrimary = true,
+                CreatedAt = now
+            });
+            await db.SaveChangesAsync(cancellationToken);
+            if (transaction is not null)
+            {
+                await transaction.CommitAsync(cancellationToken);
+            }
         }
         catch (DbUpdateException exception)
             when (exception.InnerException is PostgresException
-                  {
-                      SqlState: PostgresErrorCodes.UniqueViolation
-                  })
+            {
+                SqlState: PostgresErrorCodes.UniqueViolation
+            })
         {
+            await RollbackOwnedTransactionAsync(transaction);
             throw new DuplicateLocalIdentityException();
+        }
+        catch
+        {
+            await RollbackOwnedTransactionAsync(transaction);
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync();
+            }
         }
 
         return Map(user);
@@ -122,4 +159,26 @@ internal sealed class IdentityGateway(
             "PasswordRequiresLower" or
             "PasswordRequiresUpper" or
             "PasswordRequiresUniqueChars";
+
+    private async Task RollbackOwnedTransactionAsync(
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction)
+    {
+        if (transaction is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // Preserve the creation failure when rollback cannot complete.
+        }
+        finally
+        {
+            db.ChangeTracker.Clear();
+        }
+    }
 }
