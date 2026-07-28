@@ -131,8 +131,14 @@ public sealed class ExternalIdentityService(
             identity.ImageUrl,
             cancellationToken);
 
+        var effectiveUser = user with
+        {
+            Name = identity.DisplayName ?? user.Name,
+            Image = identity.ImageUrl?.AbsoluteUri ?? user.Image
+        };
+
         return Succeeded(new ExternalAuthentication(
-            user,
+            effectiveUser,
             identity.Provider,
             createdUser,
             AddedConnection: true));
@@ -187,7 +193,9 @@ public sealed class ExternalIdentityService(
         await accounts.UpdateLoginEmailAsync(
             login.UserId,
             identity,
-            timeProvider.GetUtcNow(),
+            intent == ExternalAuthIntent.SignIn
+                ? timeProvider.GetUtcNow()
+                : null,
             cancellationToken);
 
         return Succeeded(new ExternalAuthentication(

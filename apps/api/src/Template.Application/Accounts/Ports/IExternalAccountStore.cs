@@ -35,7 +35,7 @@ public interface IExternalAccountStore
     Task UpdateLoginEmailAsync(
         UserId userId,
         ExternalIdentity identity,
-        DateTimeOffset usedAt,
+        DateTimeOffset? usedAt,
         CancellationToken ct);
 
     Task UpdateLinkedProfileAsync(

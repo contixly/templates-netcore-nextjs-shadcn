@@ -51,6 +51,8 @@ public sealed class ExternalIdentityServiceTests
         Assert.Equal(owner.Id, result.Value!.User.Id);
         Assert.True(result.Value.AddedConnection);
         Assert.False(result.Value.CreatedUser);
+        Assert.Equal("Provider Name", result.Value.User.Name);
+        Assert.Equal("https://cdn.example.test/avatar.png", result.Value.User.Image);
         Assert.Empty(fixture.Store.EnsuredEmails);
         Assert.Equal(owner.Id, Assert.Single(fixture.Store.AddedLogins).UserId);
     }
@@ -89,6 +91,8 @@ public sealed class ExternalIdentityServiceTests
         Assert.Equal(current.User.Id, result.Value!.User.Id);
         Assert.False(result.Value.CreatedUser);
         Assert.True(result.Value.AddedConnection);
+        Assert.Equal("Provider Name", result.Value.User.Name);
+        Assert.Equal("https://cdn.example.test/avatar.png", result.Value.User.Image);
         Assert.Empty(fixture.Store.EnsuredEmails);
         var login = Assert.Single(fixture.Store.AddedLogins);
         Assert.Equal(current.User.Id, login.UserId);
@@ -159,6 +163,58 @@ public sealed class ExternalIdentityServiceTests
         Assert.Empty(fixture.Store.AddedLogins);
         Assert.Equal("find-login", fixture.Store.Operations[0]);
         Assert.Equal("find-email", fixture.Store.Operations[1]);
+    }
+
+    [Fact]
+    public async Task SameOwnerExistingLoginConnectPreservesLastUsedAt()
+    {
+        var fixture = new Fixture();
+        var lastUsedAt = Now.AddDays(-1);
+        var owner = fixture.Store.AddUser(Email(), primary: true);
+        var identity = Identity();
+        fixture.Store.AddLogin(owner, identity, Now.AddDays(-2), lastUsedAt);
+
+        var result = await fixture.Subject.ReconcileAsync(
+            identity,
+            ExternalAuthIntent.Connect,
+            fixture.Session(owner),
+            Ct);
+
+        Assert.Null(result.Failure);
+        Assert.False(result.Value!.AddedConnection);
+        var update = Assert.Single(fixture.Store.UpdatedLogins);
+        Assert.Null(update.UsedAt);
+        Assert.Equal(Email(), update.Identity.Email);
+        Assert.Equal(lastUsedAt, fixture.Store.GetLogin(identity).LastUsedAt);
+    }
+
+    [Fact]
+    public async Task SameOwnerExistingLoginConnectChangesEmailAndPreservesLastUsedAt()
+    {
+        var fixture = new Fixture();
+        var oldEmail = VerifiedEmail.Create("old@example.test");
+        var lastUsedAt = Now.AddDays(-1);
+        var owner = fixture.Store.AddUser(oldEmail, primary: true);
+        var oldIdentity = Identity(email: oldEmail);
+        fixture.Store.AddLogin(owner, oldIdentity, Now.AddDays(-2), lastUsedAt);
+        var changedIdentity = Identity();
+
+        var result = await fixture.Subject.ReconcileAsync(
+            changedIdentity,
+            ExternalAuthIntent.Connect,
+            fixture.Session(owner),
+            Ct);
+
+        Assert.Null(result.Failure);
+        var email = Assert.Single(fixture.Store.EnsuredEmails);
+        Assert.Equal(owner.Id, email.UserId);
+        Assert.False(email.Primary);
+        var update = Assert.Single(fixture.Store.UpdatedLogins);
+        Assert.Null(update.UsedAt);
+        Assert.Equal(changedIdentity.Email, update.Identity.Email);
+        var persistedLogin = fixture.Store.GetLogin(changedIdentity);
+        Assert.Equal(changedIdentity.Email, persistedLogin.Email);
+        Assert.Equal(lastUsedAt, persistedLogin.LastUsedAt);
     }
 
     [Fact]
@@ -379,7 +435,7 @@ public sealed class ExternalIdentityServiceTests
         public List<(UserId UserId, VerifiedEmail Email, bool Primary)> EnsuredEmails { get; } = [];
         public List<(UserId UserId, ExternalIdentity Identity, DateTimeOffset ConnectedAt, bool UsedForSignIn)>
             AddedLogins { get; } = [];
-        public List<(UserId UserId, ExternalIdentity Identity, DateTimeOffset UsedAt)> UpdatedLogins { get; } = [];
+        public List<(UserId UserId, ExternalIdentity Identity, DateTimeOffset? UsedAt)> UpdatedLogins { get; } = [];
         public List<(UserId UserId, string? DisplayName, Uri? ImageUrl)> ProfileUpdates { get; } = [];
         public Queue<Exception> CreateFailures { get; } = [];
 
@@ -396,7 +452,11 @@ public sealed class ExternalIdentityServiceTests
             return user;
         }
 
-        public void AddLogin(AuthUser user, ExternalIdentity identity, DateTimeOffset connectedAt)
+        public void AddLogin(
+            AuthUser user,
+            ExternalIdentity identity,
+            DateTimeOffset connectedAt,
+            DateTimeOffset? lastUsedAt = null)
         {
             logins[(identity.Provider, identity.Subject)] = new ExternalLoginSnapshot(
                 user.Id,
@@ -404,8 +464,11 @@ public sealed class ExternalIdentityServiceTests
                 identity.Subject,
                 identity.Email,
                 connectedAt,
-                null);
+                lastUsedAt);
         }
+
+        public ExternalLoginSnapshot GetLogin(ExternalIdentity identity) =>
+            logins[(identity.Provider, identity.Subject)];
 
         public Task<ExternalLoginSnapshot?> FindLoginAsync(
             ExternalProvider provider,
@@ -481,14 +544,18 @@ public sealed class ExternalIdentityServiceTests
         public Task UpdateLoginEmailAsync(
             UserId userId,
             ExternalIdentity identity,
-            DateTimeOffset usedAt,
+            DateTimeOffset? usedAt,
             CancellationToken ct)
         {
             Operations.Add("update-login");
             UpdatedLogins.Add((userId, identity, usedAt));
             var previous = logins[(identity.Provider, identity.Subject)];
             logins[(identity.Provider, identity.Subject)] =
-                previous with { Email = identity.Email, LastUsedAt = usedAt };
+                previous with
+                {
+                    Email = identity.Email,
+                    LastUsedAt = usedAt ?? previous.LastUsedAt
+                };
             return Task.CompletedTask;
         }
 
