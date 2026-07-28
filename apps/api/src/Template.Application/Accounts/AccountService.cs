@@ -6,6 +6,8 @@ namespace Template.Application.Accounts;
 
 public sealed class AccountService(IAccountStore accounts)
 {
+    private const int MaximumDisconnectAttempts = 2;
+
     public Task<AccountSnapshot?> GetAsync(
         UserId userId,
         CancellationToken cancellationToken) =>
@@ -86,25 +88,43 @@ public sealed class AccountService(IAccountStore accounts)
         ExternalProvider provider,
         CancellationToken cancellationToken)
     {
-        var snapshot = await accounts.GetDisconnectSnapshotAsync(
-            userId,
-            provider,
-            cancellationToken);
-        if (snapshot is null)
+        for (var attempt = 0; attempt < MaximumDisconnectAttempts; attempt++)
         {
-            return Failed<AccountDisconnection>(AccountFailure.ConnectionNotFound);
-        }
-
-        if (!ExternalConnectionPolicy.CanDisconnect(
-                currentAuthenticationProvider,
+            var snapshot = await accounts.GetDisconnectSnapshotAsync(
+                userId,
                 provider,
-                snapshot.ProductionConnectionCount))
-        {
-            return Failed<AccountDisconnection>(AccountFailure.ConnectionRequired);
+                cancellationToken);
+            if (snapshot is null)
+            {
+                return Failed<AccountDisconnection>(AccountFailure.ConnectionNotFound);
+            }
+
+            if (!ExternalConnectionPolicy.CanDisconnect(
+                    currentAuthenticationProvider,
+                    provider,
+                    snapshot.ProductionConnectionCount))
+            {
+                return Failed<AccountDisconnection>(AccountFailure.ConnectionRequired);
+            }
+
+            try
+            {
+                await accounts.DisconnectAsync(snapshot, cancellationToken);
+                return Succeeded(new AccountDisconnection(provider));
+            }
+            catch (AccountConcurrencyException)
+                when (attempt < MaximumDisconnectAttempts - 1)
+            {
+                // Re-run the complete decision from a fresh atomic snapshot.
+            }
+            catch (AccountConcurrencyException)
+            {
+                return Failed<AccountDisconnection>(
+                    AccountFailure.ConcurrencyConflict);
+            }
         }
 
-        await accounts.DisconnectAsync(snapshot, cancellationToken);
-        return Succeeded(new AccountDisconnection(provider));
+        return Failed<AccountDisconnection>(AccountFailure.ConcurrencyConflict);
     }
 
     public async Task<AccountOperationResult<AccountDeletion>> DeleteAsync(

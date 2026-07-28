@@ -135,7 +135,7 @@ public sealed class AccountServiceTests
 
         Assert.Null(result.Value);
         Assert.Equal(AccountFailure.ConnectionNotFound, result.Failure);
-        Assert.Empty(store.DisconnectedSnapshots);
+        Assert.Empty(store.DisconnectAttempts);
     }
 
     [Fact]
@@ -155,7 +155,7 @@ public sealed class AccountServiceTests
 
         Assert.Null(result.Value);
         Assert.Equal(AccountFailure.ConnectionRequired, result.Failure);
-        Assert.Empty(store.DisconnectedSnapshots);
+        Assert.Empty(store.DisconnectAttempts);
     }
 
     [Fact]
@@ -175,18 +175,17 @@ public sealed class AccountServiceTests
 
         Assert.Null(result.Value);
         Assert.Equal(AccountFailure.ConnectionRequired, result.Failure);
-        Assert.Empty(store.DisconnectedSnapshots);
+        Assert.Empty(store.DisconnectAttempts);
     }
 
     [Fact]
-    public async Task AllowedDisconnectRemovesAnOrphanSecondaryEmail()
+    public async Task AllowedDisconnectDelegatesApprovedSnapshotToAtomicStoreOperation()
     {
         var snapshot = DisconnectSnapshot(
             ExternalProvider.GitHub,
             productionConnectionCount: 2,
             emailIsPrimary: false);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        store.EmailVoucherCounts[snapshot.Email.NormalizedValue] = 1;
         var service = new AccountService(store);
 
         var result = await service.DisconnectAsync(
@@ -197,48 +196,84 @@ public sealed class AccountServiceTests
 
         Assert.Null(result.Failure);
         Assert.Equal(ExternalProvider.GitHub, result.Value!.Provider);
-        Assert.Equal(snapshot, Assert.Single(store.DisconnectedSnapshots));
-        Assert.Contains(snapshot.Email.NormalizedValue, store.RemovedSecondaryEmails);
+        Assert.Equal(snapshot, Assert.Single(store.DisconnectAttempts));
     }
 
     [Fact]
-    public async Task DisconnectNeverRemovesPrimaryEmail()
+    public async Task StaleDisconnectSnapshotThatBecomesMissingMapsFreshDecision()
     {
-        var snapshot = DisconnectSnapshot(
+        var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 2,
-            emailIsPrimary: true);
-        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        store.EmailVoucherCounts[snapshot.Email.NormalizedValue] = 1;
+            productionConnectionCount: 2);
+        var store = new FakeAccountStore(Account());
+        store.DisconnectSnapshotReads.Enqueue(initial);
+        store.DisconnectSnapshotReads.Enqueue(null);
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
         var service = new AccountService(store);
 
-        await service.DisconnectAsync(
+        var result = await service.DisconnectAsync(
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
             Ct);
 
-        Assert.Empty(store.RemovedSecondaryEmails);
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionNotFound, result.Failure);
+        Assert.Equal(2, store.DisconnectSnapshotRequests.Count);
+        Assert.Single(store.DisconnectAttempts);
     }
 
     [Fact]
-    public async Task DisconnectKeepsSecondaryEmailVouchedForByAnotherConnection()
+    public async Task StaleDisconnectSnapshotThatBecomesLastMapsFreshDecision()
     {
-        var snapshot = DisconnectSnapshot(
+        var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 3,
-            emailIsPrimary: false);
-        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        store.EmailVoucherCounts[snapshot.Email.NormalizedValue] = 2;
+            productionConnectionCount: 2);
+        var last = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 1);
+        var store = new FakeAccountStore(Account());
+        store.DisconnectSnapshotReads.Enqueue(initial);
+        store.DisconnectSnapshotReads.Enqueue(last);
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
         var service = new AccountService(store);
 
-        await service.DisconnectAsync(
+        var result = await service.DisconnectAsync(
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
             Ct);
 
-        Assert.Empty(store.RemovedSecondaryEmails);
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionRequired, result.Failure);
+        Assert.Equal(2, store.DisconnectSnapshotRequests.Count);
+        Assert.Single(store.DisconnectAttempts);
+    }
+
+    [Fact]
+    public async Task SecondStaleDisconnectConflictReturnsBoundedConcurrencyFailure()
+    {
+        var initial = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 3);
+        var fresh = initial with { ProductionConnectionCount = 2 };
+        var store = new FakeAccountStore(Account());
+        store.DisconnectSnapshotReads.Enqueue(initial);
+        store.DisconnectSnapshotReads.Enqueue(fresh);
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConcurrencyConflict, result.Failure);
+        Assert.Equal(2, store.DisconnectSnapshotRequests.Count);
+        Assert.Equal([initial, fresh], store.DisconnectAttempts);
     }
 
     [Theory]
@@ -316,10 +351,12 @@ public sealed class AccountServiceTests
     {
         public List<AccountConnection> Connections { get; } = [];
         public List<string> UpdatedDisplayNames { get; } = [];
-        public List<DisconnectSnapshot> DisconnectedSnapshots { get; } = [];
+        public List<DisconnectSnapshot> DisconnectAttempts { get; } = [];
+        public List<(UserId UserId, ExternalProvider Provider)>
+            DisconnectSnapshotRequests { get; } = [];
+        public Queue<DisconnectSnapshot?> DisconnectSnapshotReads { get; } = [];
+        public Queue<AccountConcurrencyException> DisconnectFailures { get; } = [];
         public List<UserId> DeletedUserIds { get; } = [];
-        public Dictionary<string, int> EmailVoucherCounts { get; } = [];
-        public HashSet<string> RemovedSecondaryEmails { get; } = [];
         public DisconnectSnapshot? DisconnectSnapshot { get; init; }
         public bool DeleteCompleted { get; private set; }
 
@@ -344,19 +381,23 @@ public sealed class AccountServiceTests
         public Task<DisconnectSnapshot?> GetDisconnectSnapshotAsync(
             UserId userId,
             ExternalProvider provider,
-            CancellationToken ct) =>
-            Task.FromResult(
-                DisconnectSnapshot?.Provider == provider
+            CancellationToken ct)
+        {
+            DisconnectSnapshotRequests.Add((userId, provider));
+            var snapshot = DisconnectSnapshotReads.Count > 0
+                ? DisconnectSnapshotReads.Dequeue()
+                : DisconnectSnapshot?.Provider == provider
                     ? DisconnectSnapshot
-                    : null);
+                    : null;
+            return Task.FromResult(snapshot);
+        }
 
         public Task DisconnectAsync(DisconnectSnapshot snapshot, CancellationToken ct)
         {
-            DisconnectedSnapshots.Add(snapshot);
-            var vouchers = EmailVoucherCounts.GetValueOrDefault(snapshot.Email.NormalizedValue);
-            if (!snapshot.EmailIsPrimary && vouchers == 1)
+            DisconnectAttempts.Add(snapshot);
+            if (DisconnectFailures.TryDequeue(out var failure))
             {
-                RemovedSecondaryEmails.Add(snapshot.Email.NormalizedValue);
+                throw failure;
             }
 
             return Task.CompletedTask;

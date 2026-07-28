@@ -122,14 +122,17 @@ public sealed class AccountSessionServiceTests
     {
         var store = new FakeAccountSessionStore();
         var service = new AccountSessionService(store);
-        var foreignSessionId =
-            new SessionId(Guid.Parse("01987712-9e00-7000-8000-000000000004"));
-        var missingSessionId =
+        var foreignUserId =
+            new UserId(Guid.Parse("01987712-9e00-7000-8000-000000000004"));
+        var sharedSessionId =
             new SessionId(Guid.Parse("01987712-9e00-7000-8000-000000000005"));
+        var missingSessionId =
+            new SessionId(Guid.Parse("01987712-9e00-7000-8000-000000000006"));
+        store.OwnedSessions.Add((foreignUserId, sharedSessionId));
 
         var foreign = await service.RevokeAsync(
             UserId,
-            foreignSessionId,
+            sharedSessionId,
             CurrentSessionId,
             Ct);
         var missing = await service.RevokeAsync(
@@ -142,13 +145,17 @@ public sealed class AccountSessionServiceTests
         Assert.Null(missing.Value);
         Assert.Equal(AccountFailure.SessionNotFound, foreign.Failure);
         Assert.Equal(foreign.Failure, missing.Failure);
+        Assert.Equal(
+            [(UserId, sharedSessionId), (UserId, missingSessionId)],
+            store.RevokeRequests);
+        Assert.Contains((foreignUserId, sharedSessionId), store.OwnedSessions);
     }
 
     [Fact]
     public async Task OwnedNonCurrentSessionIsRevoked()
     {
         var store = new FakeAccountSessionStore();
-        store.OwnedSessionIds.Add(OtherSessionId);
+        store.OwnedSessions.Add((UserId, OtherSessionId));
         var service = new AccountSessionService(store);
 
         var result = await service.RevokeAsync(
@@ -166,7 +173,8 @@ public sealed class AccountSessionServiceTests
     public async Task RevokeOthersPreservesTheCurrentSession()
     {
         var store = new FakeAccountSessionStore();
-        store.OwnedSessionIds.UnionWith([CurrentSessionId, OtherSessionId]);
+        store.OwnedSessions.UnionWith(
+            [(UserId, CurrentSessionId), (UserId, OtherSessionId)]);
         var service = new AccountSessionService(store);
 
         var revoked = await service.RevokeOthersAsync(
@@ -175,16 +183,18 @@ public sealed class AccountSessionServiceTests
             Ct);
 
         Assert.Equal(1, revoked);
-        Assert.Contains(CurrentSessionId, store.OwnedSessionIds);
-        Assert.DoesNotContain(OtherSessionId, store.OwnedSessionIds);
+        Assert.Contains((UserId, CurrentSessionId), store.OwnedSessions);
+        Assert.DoesNotContain((UserId, OtherSessionId), store.OwnedSessions);
         Assert.Equal(CurrentSessionId, Assert.Single(store.PreservedSessionIds));
     }
 
     private sealed class FakeAccountSessionStore : IAccountSessionStore
     {
-        public HashSet<SessionId> OwnedSessionIds { get; } = [];
+        public HashSet<(UserId UserId, SessionId SessionId)> OwnedSessions { get; } =
+            [];
         public List<SessionCursor?> Cursors { get; } = [];
         public List<int> Limits { get; } = [];
+        public List<(UserId UserId, SessionId SessionId)> RevokeRequests { get; } = [];
         public List<SessionId> RevokedSessionIds { get; } = [];
         public List<SessionId> PreservedSessionIds { get; } = [];
 
@@ -204,7 +214,8 @@ public sealed class AccountSessionServiceTests
             SessionId sessionId,
             CancellationToken ct)
         {
-            if (!OwnedSessionIds.Remove(sessionId))
+            RevokeRequests.Add((userId, sessionId));
+            if (!OwnedSessions.Remove((userId, sessionId)))
             {
                 return Task.FromResult(false);
             }
@@ -219,7 +230,8 @@ public sealed class AccountSessionServiceTests
             CancellationToken ct)
         {
             PreservedSessionIds.Add(current);
-            var revoked = OwnedSessionIds.RemoveWhere(id => id != current);
+            var revoked = OwnedSessions.RemoveWhere(
+                session => session.UserId == userId && session.SessionId != current);
             return Task.FromResult(revoked);
         }
     }
