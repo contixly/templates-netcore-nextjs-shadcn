@@ -11,8 +11,11 @@ public sealed class ExternalConnectionPolicyTests
     [InlineData("gitlab")]
     [InlineData("vk")]
     [InlineData("yandex")]
-    public void ProviderIdsAreClosedAndCanonical(string value) =>
-        Assert.True(ExternalProvider.TryParse(value, out _));
+    public void ProviderIdsAreClosedAndCanonical(string value)
+    {
+        Assert.True(ExternalProvider.TryParse(value, out var provider));
+        Assert.Equal(value, provider.Value);
+    }
 
     [Theory]
     [InlineData("Google")]
@@ -22,12 +25,17 @@ public sealed class ExternalConnectionPolicyTests
     public void UnknownOrNonCanonicalProviderIdsAreRejected(string value)
     {
         Assert.False(ExternalProvider.TryParse(value, out var provider));
-        Assert.Equal(default, provider);
+        Assert.Null(provider);
     }
 
     [Fact]
-    public void ProvidersCannotBeConstructedOutsideTheClosedSet() =>
+    public void ProvidersCannotBeConstructedOutsideTheClosedSet()
+    {
+        Assert.False(typeof(ExternalProvider).IsValueType);
+        Assert.Null(default(ExternalProvider));
+        Assert.Null(typeof(ExternalProvider).GetConstructor(Type.EmptyTypes));
         Assert.Null(typeof(ExternalProvider).GetConstructor([typeof(string)]));
+    }
 
     [Theory]
     [InlineData(" Example@Example.com ", "Example@Example.com", "EXAMPLE@EXAMPLE.COM")]
@@ -49,6 +57,10 @@ public sealed class ExternalConnectionPolicyTests
     [InlineData("email\n@example.com")]
     public void VerifiedEmailRejectsEmptyOrControlContainingValues(string value) =>
         Assert.Throws<ArgumentException>(() => VerifiedEmail.Create(value));
+
+    [Fact]
+    public void VerifiedEmailRejectsNullValues() =>
+        Assert.Throws<ArgumentNullException>(() => VerifiedEmail.Create(null!));
 
     [Fact]
     public void VerifiedEmailRejectsValuesLongerThan254Characters() =>

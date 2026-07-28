@@ -1,6 +1,8 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Template.Domain.Accounts;
 
-public readonly record struct ExternalProvider
+public sealed record ExternalProvider
 {
     private ExternalProvider(string value) => Value = value;
 
@@ -12,7 +14,7 @@ public readonly record struct ExternalProvider
     public static ExternalProvider Vk { get; } = new("vk");
     public static ExternalProvider Yandex { get; } = new("yandex");
 
-    public static bool TryParse(string value, out ExternalProvider provider)
+    public static bool TryParse(string value, [NotNullWhen(true)] out ExternalProvider? provider)
     {
         switch (value)
         {
@@ -32,7 +34,7 @@ public readonly record struct ExternalProvider
                 provider = Yandex;
                 return true;
             default:
-                provider = default;
+                provider = null;
                 return false;
         }
     }
