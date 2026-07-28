@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Template.Application.Accounts.Ports;
 using Template.Application.Authentication.Ports;
+using Template.Infrastructure.Accounts;
 using Template.Infrastructure.Authentication;
 using Template.Infrastructure.Identity;
 
@@ -49,6 +51,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IBrowserSessionGateway, BrowserSessionGateway>();
         services.AddSingleton<PostgresTicketStore>();
         services.AddScoped<IAuthenticationUnitOfWork, EfAuthenticationUnitOfWork>();
+        services.AddScoped<IExternalAccountStore, EfExternalAccountStore>();
+        services.AddScoped<IAccountStore, EfAccountStore>();
+        services.AddScoped<IAccountSessionStore, EfAccountSessionStore>();
         services.AddSingleton<
             ILocalAutomationCredentialGenerator,
             CryptographicLocalAutomationCredentialGenerator>();
