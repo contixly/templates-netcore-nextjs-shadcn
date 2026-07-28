@@ -491,6 +491,11 @@ management. The issued ticket receives a bounded authentication-method claim:
 `local` or a configured provider id. Existing iteration-3 sessions without the
 claim project as `local`.
 
+The session row stores the same bounded authentication-method projection so
+account-session listings never decrypt or deserialize protected tickets. The
+additive column defaults existing rows to `local` and has a database check
+constraint for `local` plus the five closed provider ids.
+
 No provider token columns are added.
 
 ### OpenIddict state

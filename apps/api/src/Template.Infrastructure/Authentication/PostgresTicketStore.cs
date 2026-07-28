@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Template.Application.Authentication;
 using Template.Infrastructure.Persistence;
 
 namespace Template.Infrastructure.Authentication;
@@ -52,6 +53,7 @@ public sealed class PostgresTicketStore(
             ticket.Principal,
             BrowserSessionClaimTypes.SessionId);
         var userId = ParseRequiredGuid(ticket.Principal, ClaimTypes.NameIdentifier);
+        var authenticationMethod = ReadAuthenticationMethod(ticket.Principal);
         var userAgent = httpContext.Request.Headers.UserAgent.ToString();
         if (userAgent.Length > 512)
         {
@@ -68,6 +70,7 @@ public sealed class PostgresTicketStore(
             CreatedAt = now,
             UpdatedAt = now,
             ExpiresAt = expiresAt.ToUniversalTime(),
+            AuthenticationMethod = authenticationMethod,
             IpAddress = httpContext.Connection.RemoteIpAddress,
             UserAgent = userAgent.Length == 0 ? null : userAgent
         });
@@ -95,6 +98,8 @@ public sealed class PostgresTicketStore(
             ticket.Principal,
             BrowserSessionClaimTypes.SessionId);
         var userId = ParseRequiredGuid(ticket.Principal, ClaimTypes.NameIdentifier);
+        var authenticationMethod = NormalizeAuthenticationMethodClaim(
+            ticket.Principal);
         var protectedTicket = Protect(ticket);
         var updatedAt = timeProvider.GetUtcNow();
         var expiresAt = (ticket.Properties.ExpiresUtc ??
@@ -111,7 +116,10 @@ public sealed class PostgresTicketStore(
                         session => session.ProtectedTicket,
                         protectedTicket)
                     .SetProperty(session => session.UpdatedAt, updatedAt)
-                    .SetProperty(session => session.ExpiresAt, expiresAt),
+                    .SetProperty(session => session.ExpiresAt, expiresAt)
+                    .SetProperty(
+                        session => session.AuthenticationMethod,
+                        authenticationMethod),
                 cancellationToken);
     }
 
@@ -183,6 +191,7 @@ public sealed class PostgresTicketStore(
             return null;
         }
 
+        NormalizeAuthenticationMethodClaim(ticket.Principal);
         return ticket;
     }
 
@@ -263,5 +272,35 @@ public sealed class PostgresTicketStore(
         return Guid.TryParse(value, out var parsed)
             ? parsed
             : throw new InvalidOperationException($"Required claim '{claimType}' is missing.");
+    }
+
+    private static string ReadAuthenticationMethod(ClaimsPrincipal principal)
+    {
+        var claims = principal
+            .FindAll(BrowserSessionClaimTypes.AuthenticationMethod)
+            .ToArray();
+        return claims.Length == 1
+            ? BrowserAuthenticationMethods.Project(claims[0].Value)
+            : BrowserAuthenticationMethods.Local;
+    }
+
+    private static string NormalizeAuthenticationMethodClaim(
+        ClaimsPrincipal principal)
+    {
+        var authenticationMethod = ReadAuthenticationMethod(principal);
+        var identity = principal.Identity as ClaimsIdentity ??
+            throw new InvalidOperationException(
+                "A persistent ticket requires a ClaimsIdentity.");
+        foreach (var claim in principal
+                     .FindAll(BrowserSessionClaimTypes.AuthenticationMethod)
+                     .ToArray())
+        {
+            claim.Subject?.RemoveClaim(claim);
+        }
+
+        identity.AddClaim(new Claim(
+            BrowserSessionClaimTypes.AuthenticationMethod,
+            authenticationMethod));
+        return authenticationMethod;
     }
 }

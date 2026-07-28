@@ -106,6 +106,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _firstUserId,
                     "local-agent+cookie-one@local-agent.test",
                     "Cookie One"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         var newCookie = AssertSingleLiveSessionCookie(context);
 
@@ -142,6 +143,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _secondUserId,
                     "local-agent+cookie-two@local-agent.test",
                     "Cookie Two"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         await context.Response.StartAsync(TestContext.Current.CancellationToken);
 
@@ -173,6 +175,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _secondUserId,
                     "local-agent+cookie-two@local-agent.test",
                     "Cookie Two"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         var newCookie = AssertSingleLiveSessionCookie(context);
 
@@ -221,9 +224,13 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
 
         var session = await gateway.SignInAsync(
             user,
+            BrowserAuthenticationMethods.Local,
             TestContext.Current.CancellationToken);
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            gateway.SignInAsync(user, TestContext.Current.CancellationToken));
+            gateway.SignInAsync(
+                user,
+                BrowserAuthenticationMethods.Local,
+                TestContext.Current.CancellationToken));
 
         Assert.Contains("already", exception.Message, StringComparison.OrdinalIgnoreCase);
         AssertSingleLiveSessionCookie(context);
@@ -255,6 +262,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _secondUserId,
                     "local-agent+cookie-two@local-agent.test",
                     "Cookie Two"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         }
 
@@ -332,7 +340,10 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         var context = CreateHttpContext(scope.ServiceProvider);
         await scope.ServiceProvider
             .GetRequiredService<IBrowserSessionGateway>()
-            .SignInAsync(user, TestContext.Current.CancellationToken);
+            .SignInAsync(
+                user,
+                BrowserAuthenticationMethods.Local,
+                TestContext.Current.CancellationToken);
         return AssertSingleLiveSessionCookie(context);
     }
 

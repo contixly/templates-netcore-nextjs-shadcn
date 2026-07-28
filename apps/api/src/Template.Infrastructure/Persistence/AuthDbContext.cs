@@ -131,10 +131,25 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
 
         builder.Entity<AuthSessionEntity>(entity =>
         {
-            entity.ToTable("sessions", table =>
-                table.HasCheckConstraint(
-                    "ck_sessions_expiry",
-                    "expires_at > created_at"));
+            entity.ToTable(
+                "sessions",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "ck_sessions_expiry",
+                        "expires_at > created_at");
+                    table.HasCheckConstraint(
+                        "ck_sessions_authentication_method",
+                        """
+                        authentication_method IN (
+                            'local',
+                            'google',
+                            'github',
+                            'gitlab',
+                            'vk',
+                            'yandex')
+                        """);
+                });
             entity.HasKey(value => value.Id).HasName("pk_sessions");
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.UserId).HasColumnName("user_id");
@@ -153,6 +168,10 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
             entity.Property(value => value.ExpiresAt)
                 .HasColumnName("expires_at")
                 .HasColumnType("timestamp with time zone");
+            entity.Property(value => value.AuthenticationMethod)
+                .HasColumnName("authentication_method")
+                .HasMaxLength(6)
+                .HasDefaultValue("local");
             entity.Property(value => value.IpAddress)
                 .HasColumnName("ip_address")
                 .HasColumnType("inet");

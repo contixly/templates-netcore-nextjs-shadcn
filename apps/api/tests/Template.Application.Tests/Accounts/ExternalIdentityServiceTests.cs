@@ -403,7 +403,8 @@ public sealed class ExternalIdentityServiceTests
                     new SessionId(Guid.NewGuid()),
                     Now.AddHours(-1),
                     Now.AddHours(-1),
-                    Now.AddHours(1)));
+                    Now.AddHours(1),
+                    BrowserAuthenticationMethods.Local));
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

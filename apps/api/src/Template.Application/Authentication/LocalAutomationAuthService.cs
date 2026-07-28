@@ -41,6 +41,7 @@ public sealed class LocalAutomationAuthService(
                             transactionCancellationToken);
                         var session = await sessions.SignInAsync(
                             user,
+                            BrowserAuthenticationMethods.Local,
                             transactionCancellationToken);
                         return AuthOperationResult<LocalAutomationScenario>.Success(
                             new LocalAutomationScenario(
@@ -95,6 +96,7 @@ public sealed class LocalAutomationAuthService(
 
                 var session = await sessions.SignInAsync(
                     user,
+                    BrowserAuthenticationMethods.Local,
                     transactionCancellationToken);
                 return AuthOperationResult<AuthenticatedSession>.Success(
                     new AuthenticatedSession(user, session));

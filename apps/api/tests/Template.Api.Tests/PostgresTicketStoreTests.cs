@@ -172,6 +172,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
 
         var issued = await gateway.SignInAsync(
             user,
+            BrowserAuthenticationMethods.Local,
             TestContext.Current.CancellationToken);
 
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();

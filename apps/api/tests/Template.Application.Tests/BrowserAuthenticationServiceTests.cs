@@ -38,8 +38,13 @@ public sealed class BrowserAuthenticationServiceTests
 
         public Task<BrowserSession> SignInAsync(
             AuthUser user,
+            string authenticationMethod,
             CancellationToken cancellationToken) =>
             throw new InvalidOperationException("Sign-in is not part of this test.");
+
+        public Task<BrowserSession> RenewCurrentAsync(
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Renewal is not part of this test.");
 
         public Task SignOutAsync(CancellationToken cancellationToken) =>
             Task.CompletedTask;

@@ -639,7 +639,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         var foreign = CreateSession(other.Id, Now.AddMinutes(3), 4);
         db.Sessions.AddRange(oldest, middle, newest, foreign);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
-        var store = new EfAccountSessionStore(db);
+        var store = new EfAccountSessionStore(db, new FixedTimeProvider(Now));
 
         var firstPage = await store.ListAsync(
             new UserId(owner.Id),
@@ -765,6 +765,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             CreatedAt = updatedAt.AddMinutes(-1),
             UpdatedAt = updatedAt,
             ExpiresAt = updatedAt.AddDays(7),
+            AuthenticationMethod = BrowserAuthenticationMethods.Local,
             IpAddress = System.Net.IPAddress.Parse($"192.0.2.{discriminator}"),
             UserAgent = $"agent-{discriminator}"
         };

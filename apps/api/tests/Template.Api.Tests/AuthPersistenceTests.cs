@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Template.Api.Tests.Infrastructure;
+using Template.Application.Authentication;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Persistence;
 
@@ -79,7 +80,8 @@ public sealed class AuthPersistenceTests(PostgreSqlContainerFixture postgres)
             ProtectedTicket = [1, 2, 3],
             CreatedAt = now,
             UpdatedAt = now,
-            ExpiresAt = now.AddDays(7)
+            ExpiresAt = now.AddDays(7),
+            AuthenticationMethod = BrowserAuthenticationMethods.Local
         };
         db.Users.Add(user);
         db.Sessions.Add(session);
