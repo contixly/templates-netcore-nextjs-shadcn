@@ -1,0 +1,372 @@
+using Template.Application.Accounts;
+using Template.Application.Accounts.Ports;
+using Template.Application.Authentication;
+using Template.Domain.Accounts;
+using Template.Domain.Authentication;
+
+namespace Template.Application.Tests.Accounts;
+
+public sealed class AccountServiceTests
+{
+    private static readonly CancellationToken Ct = CancellationToken.None;
+    private static readonly UserId UserId = new(Guid.Parse("01987712-9e00-7000-8000-000000000001"));
+    private static readonly DateTimeOffset CreatedAt =
+        new(2026, 7, 28, 10, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task ProfileReturnsTheStoredAccountSnapshot()
+    {
+        var account = Account();
+        var store = new FakeAccountStore(account);
+        var service = new AccountService(store);
+
+        var result = await service.GetAsync(UserId, Ct);
+
+        Assert.Equal(account, result);
+    }
+
+    [Fact]
+    public async Task DisplayNameIsTrimmedBeforeUpdate()
+    {
+        var store = new FakeAccountStore(Account());
+        var service = new AccountService(store);
+
+        var result = await service.UpdateDisplayNameAsync(UserId, "  Ada Lovelace  ", Ct);
+
+        Assert.Null(result.Failure);
+        Assert.Equal("Ada Lovelace", result.Value!.User.Name);
+        Assert.Equal("Ada Lovelace", Assert.Single(store.UpdatedDisplayNames));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("A")]
+    [InlineData(" A ")]
+    [InlineData("abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxy")]
+    [InlineData("valid\u0000name")]
+    public async Task DisplayNameOutsideTheExactPolicyIsRejected(string displayName)
+    {
+        var store = new FakeAccountStore(Account());
+        var service = new AccountService(store);
+
+        var result = await service.UpdateDisplayNameAsync(UserId, displayName, Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.InvalidDisplayName, result.Failure);
+        Assert.Empty(store.UpdatedDisplayNames);
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(50)]
+    public async Task DisplayNameAcceptsInclusiveLengthBounds(int length)
+    {
+        var store = new FakeAccountStore(Account());
+        var service = new AccountService(store);
+        var displayName = new string('x', length);
+
+        var result = await service.UpdateDisplayNameAsync(UserId, displayName, Ct);
+
+        Assert.Null(result.Failure);
+        Assert.Equal(displayName, Assert.Single(store.UpdatedDisplayNames));
+    }
+
+    [Fact]
+    public async Task ConnectionsAreTheUnionOfConfiguredAndExistingProviders()
+    {
+        var store = new FakeAccountStore(Account());
+        store.Connections.Add(Connection(ExternalProvider.GitHub));
+        store.Connections.Add(Connection(ExternalProvider.Vk));
+        var service = new AccountService(store);
+
+        var result = await service.ListConnectionsAsync(
+            UserId,
+            [ExternalProvider.Google, ExternalProvider.GitHub],
+            Ct);
+
+        Assert.Collection(
+            result,
+            google =>
+            {
+                Assert.Equal(ExternalProvider.Google, google.Provider);
+                Assert.True(google.Configured);
+                Assert.Null(google.Email);
+            },
+            github =>
+            {
+                Assert.Equal(ExternalProvider.GitHub, github.Provider);
+                Assert.True(github.Configured);
+                Assert.NotNull(github.Email);
+            },
+            vk =>
+            {
+                Assert.Equal(ExternalProvider.Vk, vk.Provider);
+                Assert.False(vk.Configured);
+                Assert.NotNull(vk.Email);
+            });
+    }
+
+    [Fact]
+    public async Task DuplicateConfiguredProvidersDoNotDuplicateProjection()
+    {
+        var store = new FakeAccountStore(Account());
+        var service = new AccountService(store);
+
+        var result = await service.ListConnectionsAsync(
+            UserId,
+            [ExternalProvider.Google, ExternalProvider.Google],
+            Ct);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task MissingConnectionUsesConnectionNotFoundFailure()
+    {
+        var store = new FakeAccountStore(Account());
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionNotFound, result.Failure);
+        Assert.Empty(store.DisconnectedSnapshots);
+    }
+
+    [Fact]
+    public async Task CurrentAuthenticationConnectionCannotBeDisconnected()
+    {
+        var snapshot = DisconnectSnapshot(
+            ExternalProvider.Google,
+            productionConnectionCount: 2);
+        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.Google,
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionRequired, result.Failure);
+        Assert.Empty(store.DisconnectedSnapshots);
+    }
+
+    [Fact]
+    public async Task LastProductionConnectionCannotBeDisconnected()
+    {
+        var snapshot = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 1);
+        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionRequired, result.Failure);
+        Assert.Empty(store.DisconnectedSnapshots);
+    }
+
+    [Fact]
+    public async Task AllowedDisconnectRemovesAnOrphanSecondaryEmail()
+    {
+        var snapshot = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 2,
+            emailIsPrimary: false);
+        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
+        store.EmailVoucherCounts[snapshot.Email.NormalizedValue] = 1;
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Null(result.Failure);
+        Assert.Equal(ExternalProvider.GitHub, result.Value!.Provider);
+        Assert.Equal(snapshot, Assert.Single(store.DisconnectedSnapshots));
+        Assert.Contains(snapshot.Email.NormalizedValue, store.RemovedSecondaryEmails);
+    }
+
+    [Fact]
+    public async Task DisconnectNeverRemovesPrimaryEmail()
+    {
+        var snapshot = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 2,
+            emailIsPrimary: true);
+        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
+        store.EmailVoucherCounts[snapshot.Email.NormalizedValue] = 1;
+        var service = new AccountService(store);
+
+        await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Empty(store.RemovedSecondaryEmails);
+    }
+
+    [Fact]
+    public async Task DisconnectKeepsSecondaryEmailVouchedForByAnotherConnection()
+    {
+        var snapshot = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 3,
+            emailIsPrimary: false);
+        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
+        store.EmailVoucherCounts[snapshot.Email.NormalizedValue] = 2;
+        var service = new AccountService(store);
+
+        await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Empty(store.RemovedSecondaryEmails);
+    }
+
+    [Theory]
+    [InlineData("OWNER@EXAMPLE.TEST")]
+    [InlineData("  owner@example.test  ")]
+    [InlineData("  OwNeR@Example.Test  ")]
+    public async Task DeleteConfirmationUsesTrimmedNormalizedPrimaryEmail(
+        string confirmation)
+    {
+        var store = new FakeAccountStore(Account());
+        var service = new AccountService(store);
+
+        var result = await service.DeleteAsync(UserId, confirmation, Ct);
+
+        Assert.Null(result.Failure);
+        Assert.Equal(UserId, result.Value!.UserId);
+        Assert.Equal(UserId, Assert.Single(store.DeletedUserIds));
+        Assert.True(store.DeleteCompleted);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("other@example.test")]
+    [InlineData("owner@example.test\u0000")]
+    public async Task DeleteConfirmationMismatchDoesNotDelete(string confirmation)
+    {
+        var store = new FakeAccountStore(Account());
+        var service = new AccountService(store);
+
+        var result = await service.DeleteAsync(UserId, confirmation, Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConfirmationMismatch, result.Failure);
+        Assert.Empty(store.DeletedUserIds);
+    }
+
+    private static AccountSnapshot Account() =>
+        new(
+            new AuthUser(
+                UserId,
+                "Owner",
+                "owner@example.test",
+                EmailVerified: true,
+                Image: null,
+                IsLocalAutomation: false),
+            VerifiedEmail.Create("owner@example.test"),
+            [
+                new AccountEmail(
+                    VerifiedEmail.Create("owner@example.test"),
+                    IsPrimary: true,
+                    [ExternalProvider.Google])
+            ],
+            CreatedAt);
+
+    private static AccountConnection Connection(ExternalProvider provider) =>
+        new(
+            provider,
+            Configured: false,
+            VerifiedEmail.Create($"{provider.Value}@example.test"),
+            CreatedAt,
+            CreatedAt.AddHours(1));
+
+    private static DisconnectSnapshot DisconnectSnapshot(
+        ExternalProvider provider,
+        int productionConnectionCount,
+        bool emailIsPrimary = false) =>
+        new(
+            UserId,
+            provider,
+            VerifiedEmail.Create($"{provider.Value}@example.test"),
+            emailIsPrimary,
+            productionConnectionCount);
+
+    private sealed class FakeAccountStore(AccountSnapshot account) : IAccountStore
+    {
+        public List<AccountConnection> Connections { get; } = [];
+        public List<string> UpdatedDisplayNames { get; } = [];
+        public List<DisconnectSnapshot> DisconnectedSnapshots { get; } = [];
+        public List<UserId> DeletedUserIds { get; } = [];
+        public Dictionary<string, int> EmailVoucherCounts { get; } = [];
+        public HashSet<string> RemovedSecondaryEmails { get; } = [];
+        public DisconnectSnapshot? DisconnectSnapshot { get; init; }
+        public bool DeleteCompleted { get; private set; }
+
+        public Task<AccountSnapshot?> GetAsync(UserId userId, CancellationToken ct) =>
+            Task.FromResult<AccountSnapshot?>(userId == account.User.Id ? account : null);
+
+        public Task<AccountSnapshot> UpdateDisplayNameAsync(
+            UserId userId,
+            string displayName,
+            CancellationToken ct)
+        {
+            UpdatedDisplayNames.Add(displayName);
+            account = account with { User = account.User with { Name = displayName } };
+            return Task.FromResult(account);
+        }
+
+        public Task<IReadOnlyList<AccountConnection>> ListConnectionsAsync(
+            UserId userId,
+            CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<AccountConnection>>(Connections);
+
+        public Task<DisconnectSnapshot?> GetDisconnectSnapshotAsync(
+            UserId userId,
+            ExternalProvider provider,
+            CancellationToken ct) =>
+            Task.FromResult(
+                DisconnectSnapshot?.Provider == provider
+                    ? DisconnectSnapshot
+                    : null);
+
+        public Task DisconnectAsync(DisconnectSnapshot snapshot, CancellationToken ct)
+        {
+            DisconnectedSnapshots.Add(snapshot);
+            var vouchers = EmailVoucherCounts.GetValueOrDefault(snapshot.Email.NormalizedValue);
+            if (!snapshot.EmailIsPrimary && vouchers == 1)
+            {
+                RemovedSecondaryEmails.Add(snapshot.Email.NormalizedValue);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        public async Task DeleteAsync(UserId userId, CancellationToken ct)
+        {
+            DeletedUserIds.Add(userId);
+            await Task.Yield();
+            DeleteCompleted = true;
+        }
+    }
+}
