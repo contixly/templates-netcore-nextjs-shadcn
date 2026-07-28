@@ -1,7 +1,11 @@
 namespace Template.Domain.Accounts;
 
-public readonly record struct ExternalProvider(string Value)
+public readonly record struct ExternalProvider
 {
+    private ExternalProvider(string value) => Value = value;
+
+    public string Value { get; }
+
     public static ExternalProvider Google { get; } = new("google");
     public static ExternalProvider GitHub { get; } = new("github");
     public static ExternalProvider GitLab { get; } = new("gitlab");
