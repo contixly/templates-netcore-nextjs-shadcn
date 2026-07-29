@@ -21,6 +21,8 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
     public DbSet<AuthSessionEntity> Sessions => Set<AuthSessionEntity>();
     public DbSet<UserEmailEntity> UserEmails => Set<UserEmailEntity>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+    public DbSet<OpenIddictEntityFrameworkCoreToken> OpenIddictTokens =>
+        Set<OpenIddictEntityFrameworkCoreToken>();
 
     public static void Configure(
         DbContextOptionsBuilder options,
