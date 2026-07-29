@@ -1,7 +1,9 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 4 — accounts и внешний OAuth (завершена 2026-07-29).
+**Текущая итерация:** 4 — accounts и внешний OAuth (функциональный scope
+завершён 2026-07-29; live authorization-screen smoke частичный; live callbacks
+не выполнялись).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -168,7 +170,7 @@ flowchart LR
 **Выход:** в opted-in Development/Test одна кнопка создаёт local credential user и persistent browser session; credentials позволяют automation-вход во вторую независимую сессию; logout/cleanup/current-session работают только через REST; Production password auth недоступен.
 **Отложено:** внешний OAuth и account/session management — итерация 4; API keys/`x-api-key` — итерация 7; реальный Bearer требует отдельного issuer/consumer contract.
 
-### Итерация 4 — Accounts и внешний OAuth **(завершена; live callback не заявлен)**
+### Итерация 4 — Accounts и внешний OAuth **(функциональный scope завершён; live authorization-screen smoke частичный; live callbacks не выполнялись)**
 
 **Цель:** восстановить пользовательский lifecycle из `template/src/features/accounts`.
 
@@ -280,14 +282,14 @@ callbacks проверены fake-provider integration tests; live успешн�
 
 ## 8. Журнал выполнения
 
-| Итерация                                           | Состояние | Примечание                                                                                                                                                                                |
-| -------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                             |
-| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                       |
-| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                       |
-| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты. |
-| 4 — accounts и внешний OAuth                       | Завершена | Five-provider OAuth/account lifecycle, verified emails, session management, hard delete, persistent/protected Data Protection keys, REST/UI/E2E приняты; live callback не заявлен.        |
-| 5–12                                               | Не начаты | Следующий dependency gate — organizations/membership/onboarding; API keys и `x-api-key` остаются итерацией 7.                                                                             |
+| Итерация                                           | Состояние | Примечание                                                                                                                                                                                               |
+| -------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                            |
+| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                      |
+| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                      |
+| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                |
+| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись. |
+| 5–12                                               | Не начаты | Следующий dependency gate — organizations/membership/onboarding; API keys и `x-api-key` остаются итерацией 7.                                                                                            |
 
 ## Acceptance evidence: итерация 1
 
@@ -636,7 +638,8 @@ Playwright coverage; durable API/web/auth/migration documentation.
 `template/` остался immutable. Prisma/Better Auth records, provider tokens и
 secrets не переносились; активный OpenSpec change/spec не создавался.
 
-**Состояние:** функциональный согласованный scope завершён 2026-07-29.
+**Состояние:** функциональный согласованный scope завершён 2026-07-29; live
+authorization-screen smoke частичный, live callbacks не выполнялись.
 Детерминированные callback/state/replay/provider-normalization сценарии
 проверены integration tests; обычный full-stack E2E использует synthetic
 provider configuration. Live authorization-screen smoke открыл официальные
@@ -672,15 +675,25 @@ Anonymous sign-in с новым subject не создаёт duplicate user, ес
 secondary normalized verified email уже принадлежит существующему user.
 Explicit connect может переиспользовать email текущего user или создать
 свободный secondary email; чужой owner даёт conflict. Новая connection может
-обновить display name/HTTPS avatar; повторный sign-in обновляет только
-`lastUsedAt`.
+обновить display name/HTTPS avatar.
+
+Для известного `(provider, subject)` changed email другого user даёт conflict
+без перемещения login. Email того же user переиспользуется, а свободный
+создаётся как secondary; login затем reassociate-ится с принятым row. Прежний
+non-primary email удаляется только когда на него больше не ссылается ни один
+login; primary никогда не удаляется. Повторный sign-in с неизменным email
+обновляет только `lastUsedAt` и не применяет profile data повторно. Connect,
+включая reassociation email, сохраняет прежний `lastUsedAt`.
 
 Disconnect выполняется локально и атомарно. Он удаляет provider login и удаляет
 его non-primary secondary email только когда ни одна remaining connection
 больше не подтверждает этот row. Primary email сохраняется. Current provider и
 последняя production provider connection не отключаются. Provider-side
 consent/token не отзывается, потому что provider access/refresh tokens нигде не
-сохраняются.
+сохраняются. Production callback владеет mutable ephemeral token bag и очищает
+его в `finally`; normalization дополнительно делает best-effort clear, если
+`IReadOnlyDictionary` фактически mutable. Для immutable/read-only caller
+остаётся владельцем cleanup.
 
 Session list сортируется `(lastSeenAt DESC, id DESC)`, default limit `20`,
 границы `1..100`. Cursor — opaque versioned canonical base64url tuple с
@@ -695,6 +708,21 @@ snapshot и rollback-ит login/email вместе. Hard delete commit-ит Iden
 transaction, database cascades удаляют verified emails, logins, Identity
 children и все sessions, затем cookie expires. Organization/API-key cleanup
 counts не фабрикуются, поскольку этих domains ещё нет.
+
+External reconciliation commit-ится до того, как callback выпускает новую
+provider-authenticated browser session для sign-in или rotates существующий
+session principal для connect. Session issuance/rotation намеренно находится
+вне account transaction.
+
+Structured OAuth audit содержит только closed operation/provider, stable
+outcome, correlation id и post-auth user id там, где он применим. Account audit
+содержит closed operation, stable outcome, user id и optional closed provider
+id или opaque session id; correlation приходит из существующего trace scope.
+Оба контракта исключают email, subject, raw profile/provider error, code, state,
+access/refresh token, cookie, protected ticket, lookup hash и credential
+material. Производные metrics могут использовать только bounded
+operation/outcome и closed provider labels; correlation/user/session ids не
+являются metric labels. Отдельный metrics backend в итерации 4 не добавлен.
 
 Data Protection key ring persist-ится в `auth.data_protection_keys` со stable
 application discriminator `Template`. Production требует mounted RSA PFX path
@@ -751,7 +779,9 @@ a time; values and authorization query URLs were not printed or written.
 - Problem Details replaces Better Auth/Server Action error shapes. ASP.NET Core
   owns callbacks even though stable callback paths remain reference-compatible.
 - Provider tokens, remote refresh/API calls and remote consent revocation are
-  out of scope. The target stores only state-token bookkeeping.
+  out of scope. The target stores only state-token bookkeeping. Immutable or
+  read-only normalization callers retain in-memory token cleanup ownership;
+  direct evidence for that caller contract is deferred.
 - Invitations, organizations, teams and API keys are absent from account
   navigation and deletion until iterations 5–7. `/dashboard` remains the
   iteration-3 proof until iteration 9.
@@ -767,6 +797,15 @@ a time; values and authorization query URLs were not printed or written.
   tamper authorization. UI recovery after `invalid_cursor` retries the rejected
   cursor instead of refreshing page one, and revoke-others visibility is based
   on loaded rows.
+- `VerifiedEmail` rejects an empty value, but its current Domain exception says
+  only that email must contain at most 254 characters; validation-message
+  precision is deferred.
+- OpenAPI publishes the session `limit` min/max/default, but canonical
+  cursor/`nextCursor` length/pattern and collection `maxItems` are not yet fully
+  machine-readable.
+- Direct PostgreSQL evidence remains incomplete for equal-`lastSeenAt`
+  `id DESC` tie-breaking and several valid/foreign cursor boundary cases;
+  ordering and validation are covered by the existing layers.
 - Live GitLab/Yandex authorization hosts and VK credential completeness remain
   external acceptance gaps. No successful live callback was attempted.
 

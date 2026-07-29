@@ -155,10 +155,14 @@ Yandex `default_email` are provider-confirmed under the approved mapping.
 Missing or unverified evidence fails closed.
 
 Provider access/refresh tokens are callback-local normalization inputs only.
-They are cleared after use and are not saved to OpenIddict, Identity, the
-account schema, logs, responses, or browser storage. Consequently local
-disconnect cannot revoke remote provider consent, and no provider API refresh
-workflow exists.
+The production callback copies them into its owned mutable bag, removes them
+from authentication properties, and clears the bag in `finally`. Normalization
+also attempts to clear mutable input, but the `IReadOnlyDictionary` abstraction
+cannot clear an immutable/read-only bag; such callers retain cleanup ownership,
+and direct evidence for that caller contract is deferred. Tokens are never
+saved to OpenIddict, Identity, the account schema, logs, responses, or browser
+storage. Consequently local disconnect cannot revoke remote provider consent,
+and no provider API refresh workflow exists.
 
 Authorization-screen smoke is explicitly opt-in. It may prove that a configured
 button reaches an official provider host without submitting credentials or
@@ -225,6 +229,20 @@ reads. New anonymous identities implicitly link to the owner of a matching
 primary or secondary verified email; explicit connect can add a free secondary
 email but cannot claim another user's email.
 
+When a known `(provider, subject)` returns a changed email, reconciliation first
+checks normalized ownership. Another user's email produces a conflict without
+moving the login. An email already owned by the same user is reused; a free
+email is created as secondary. The login then moves to the accepted row, and
+its previous non-primary email is deleted only when no remaining login
+references it. Primary email is never removed. An unchanged-email repeat
+sign-in updates only `LastUsedAt`; connect, including email reassociation,
+preserves the previous `LastUsedAt`.
+
+The reconciliation unit of work commits before the HTTP callback issues a new
+provider-authenticated browser session for sign-in or rotates the existing
+session principal for connect. Session issuance/rotation is deliberately not
+part of the account transaction.
+
 Disconnect takes and locks a fresh connection/email snapshot, revalidates the
 provider count and ownership, deletes the selected login, and deletes its
 non-primary email only when no remaining login references that row. Any failure
@@ -244,6 +262,22 @@ Session list cursors are opaque versioned base64url values for
 Clients must not decode or synthesize them. Lists include only unexpired rows;
 single revoke is ownership-qualified and cannot target the current id;
 revoke-others uses one set-based delete and preserves the current browser.
+
+## Security audit contract
+
+Structured OAuth events contain only the closed operation/provider id, stable
+outcome, correlation id, and authenticated user id when applicable after a
+trusted session/provider result. Structured account events contain the closed
+operation, stable outcome, authenticated user id, an optional closed provider
+id or opaque session id, and the existing correlation/trace logging scope.
+
+Neither event family may contain email, provider subject, display name, avatar
+or other raw profile data, raw provider error/description, authorization code,
+state, access/refresh token, cookie, protected ticket, lookup hash, password,
+client secret, or certificate material. Metrics derived from these events may
+use only bounded operation/outcome and closed provider labels; correlation,
+user, and session ids are audit fields, not metric labels. No separate metrics
+backend is introduced by this iteration.
 
 ## Health and failure diagnosis
 

@@ -174,10 +174,14 @@ Provider identity/email normalization is:
 
 Subjects and profile values are bounded; avatars must be credential-free HTTPS
 URLs. GitHub and Yandex backchannel tokens exist only in callback memory.
-Access/refresh tokens are cleared on the normalization path and are not stored
-in Identity, account tables, OpenIddict rows, browser storage, logs, or
-responses. There is no offline-access scope, provider API token vault, remote
-token refresh, or provider-side consent revocation in this iteration.
+The production callback owns a mutable ephemeral token bag and clears it in
+`finally`; normalization additionally makes a best-effort clear when its
+`IReadOnlyDictionary` input is mutable. Immutable/read-only callers retain
+cleanup ownership. Regardless of that in-memory cleanup boundary, access/refresh
+tokens are not persisted to Identity, account tables, OpenIddict rows, browser
+storage, logs, or responses. There is no offline-access scope, provider API
+token vault, remote token refresh, or provider-side consent revocation in this
+iteration.
 
 ## Account lifecycle
 
@@ -201,7 +205,17 @@ verified email; otherwise it creates a user and primary email. Explicit connect
 may reuse an email already owned by the current user or add a free secondary
 verified email, but an email owned by another user is a conflict. A newly
 connected provider may update display name and HTTPS avatar. Ordinary repeat
-sign-in updates only the provider connection's `lastUsedAt`.
+sign-in for an unchanged `(provider, subject, email)` updates only the provider
+connection's `lastUsedAt`; it does not reapply profile data.
+
+For an existing `(provider, subject)`, a changed incoming email is reconciled
+inside the same transaction. If another user owns it, the operation fails
+without moving the login. If the current user already owns it, the login is
+reassociated with that verified-email row. If it is free, a secondary verified
+email is created and the login is reassociated. The previous non-primary email
+is then deleted only when no login still references it; a primary email is
+never removed. Connect preserves `lastUsedAt`, while sign-in records the new use
+time.
 
 Disconnect is local only: it deletes the selected login and deletes its
 non-primary secondary email only when no remaining provider connection vouches
@@ -223,11 +237,14 @@ Profile writes update the Identity user and timestamp atomically. External
 reconciliation executes in one transaction per attempt and retries a classified
 uniqueness race once with fresh reads. Disconnect locks and revalidates the
 user's connection snapshot, deletes the login, and conditionally removes the
-email in one transaction. Account deletion commits the Identity user delete
-first; database cascades remove verified emails, logins, claims/tokens, and all
-persistent sessions, after which the API expires the current cookie. Session
-revokes are ownership-qualified SQL deletes, and missing/foreign ids share the
-same `404`.
+email in one transaction. Only after reconciliation commits does the callback
+issue a new provider-authenticated browser session for sign-in or rotate the
+existing session principal for connect; browser-session issuance/rotation is
+deliberately outside the account transaction. Account deletion commits the
+Identity user delete first; database cascades remove verified emails, logins,
+claims/tokens, and all persistent sessions, after which the API expires the
+current cookie. Session revokes are ownership-qualified SQL deletes, and
+missing/foreign ids share the same `404`.
 
 ## Health
 
@@ -264,6 +281,23 @@ and trace scope. Bodies, query values, cookies, and credential headers are not
 logged. Health completion is `Debug`; normal API success is `Information`; 4xx
 is `Warning`; 5xx is `Error`.
 
+OAuth and account security audit events have a separate bounded contract:
+
+- OAuth records a closed operation, closed provider id, stable outcome,
+  correlation id, and authenticated user id only when applicable after a
+  trusted session/provider result exists;
+- account records a closed operation, stable outcome, authenticated user id,
+  and an optional closed provider id or opaque session id; correlation comes from the
+  existing `TraceId` logging scope;
+- both exclude email, provider subject, display name/avatar/raw profile,
+  provider error/description, authorization code, state, access/refresh token,
+  cookie, protected ticket, lookup hash, and credential values.
+
+Metrics derived from these events may label only the closed provider and
+bounded operation/outcome sets. Correlation, user, and session ids are
+high-cardinality audit fields and must not become metric labels. This defines
+the label contract; iteration 4 does not add a separate metrics backend.
+
 Problem Details/status middleware is limited to `/api/**`, preserving future
 Next.js/YARP response ownership.
 
@@ -291,6 +325,12 @@ values, and typed Problem Details alternatives. Provider protocol callbacks are
 not REST consumer operations and remain excluded from the document and
 generated SDK, as do provider subjects, credentials, tokens, and endpoint
 hosts.
+
+The session `limit` range/default is machine-readable, but the current document
+does not fully publish the canonical cursor/`nextCursor` length/pattern or
+`maxItems` for every account collection. Runtime validation and bounded
+projections remain authoritative; this is a known contract-metadata/evidence
+gap rather than permission to synthesize cursors or unbounded responses.
 
 Success-envelope schemas require non-null `data`. Standard and validation
 Problem Details schemas publish the same required invariant fields that runtime
