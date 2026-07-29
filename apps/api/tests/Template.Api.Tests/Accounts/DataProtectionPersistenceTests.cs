@@ -3,6 +3,7 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Template.Api.Tests.Infrastructure;
@@ -156,6 +157,82 @@ public sealed class DataProtectionPersistenceTests(
                 database.DatabaseName,
                 CancellationToken.None);
         }
+    }
+
+    [Fact]
+    public async Task ProductionBuildWithoutStartDefersCertificateLoad()
+    {
+        var missingCertificatePath = Path.Combine(
+            Path.GetTempPath(),
+            $"template-not-created-{Guid.NewGuid():N}.pfx");
+
+        await using var host = BuildHost(
+            Environments.Production,
+            UnusedConnectionString,
+            certificatePath: missingCertificatePath,
+            certificatePassword: "not-a-real-password");
+
+        Assert.False(File.Exists(missingCertificatePath));
+    }
+
+    [Fact]
+    public void ProductionBuildFailureAfterRegistrationDoesNotLoadCertificate()
+    {
+        var configuration = CreateProductionConfiguration(
+            Path.Combine(
+                Path.GetTempPath(),
+                $"template-not-created-{Guid.NewGuid():N}.pfx"),
+            "not-a-real-password");
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAuthInfrastructure(
+            configuration,
+            new TestHostEnvironment
+            {
+                EnvironmentName = Environments.Production
+            });
+        services.AddSingleton<BuildFailureService>();
+
+        var exception = Assert.ThrowsAny<Exception>(() =>
+            services.BuildServiceProvider(
+                new ServiceProviderOptions
+                {
+                    ValidateOnBuild = true
+                }));
+
+        Assert.Contains(
+            nameof(IUnregisteredBuildDependency),
+            FlattenMessages(exception),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "certificate could not be loaded",
+            FlattenMessages(exception),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DuplicateProductionRegistrationKeepsSingleCertificateOwner()
+    {
+        var configuration = CreateProductionConfiguration(
+            Path.Combine(
+                Path.GetTempPath(),
+                $"template-not-created-{Guid.NewGuid():N}.pfx"),
+            "not-a-real-password");
+        var services = new ServiceCollection();
+        services.AddLogging();
+        var environment = new TestHostEnvironment
+        {
+            EnvironmentName = Environments.Production
+        };
+
+        services.AddAuthInfrastructure(configuration, environment);
+        services.AddAuthInfrastructure(configuration, environment);
+
+        Assert.Single(
+            services,
+            descriptor =>
+                descriptor.ServiceType ==
+                typeof(ProductionDataProtectionCertificate));
     }
 
     [Fact]
@@ -364,6 +441,19 @@ public sealed class DataProtectionPersistenceTests(
         return new AuthDbContext(options.Options);
     }
 
+    private static IConfiguration CreateProductionConfiguration(
+        string certificatePath,
+        string certificatePassword) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:Postgres"] = UnusedConnectionString,
+                ["DataProtection:ApplicationName"] = "Template",
+                ["DataProtection:CertificatePath"] = certificatePath,
+                ["DataProtection:CertificatePassword"] = certificatePassword
+            })
+            .Build();
+
     private static async Task<WebApplication> StartHostAsync(
         string environment,
         string connectionString,
@@ -440,5 +530,16 @@ public sealed class DataProtectionPersistenceTests(
         }
 
         return string.Join(Environment.NewLine, messages);
+    }
+
+    private interface IUnregisteredBuildDependency
+    {
+    }
+
+    private sealed class BuildFailureService
+    {
+        public BuildFailureService(IUnregisteredBuildDependency dependency)
+        {
+        }
     }
 }

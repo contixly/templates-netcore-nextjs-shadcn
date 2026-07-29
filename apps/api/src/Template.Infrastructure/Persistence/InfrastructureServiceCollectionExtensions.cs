@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection.KeyManagement;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Template.Application.Accounts.Ports;
@@ -37,8 +39,6 @@ public static class InfrastructureServiceCollectionExtensions
 
         var dataProtectionSection = configuration.GetSection(
             AuthenticationDataProtectionOptions.SectionName);
-        var dataProtectionOptions =
-            dataProtectionSection.Get<AuthenticationDataProtectionOptions>() ?? new();
         services
             .AddOptions<AuthenticationDataProtectionOptions>()
             .Bind(dataProtectionSection)
@@ -56,29 +56,25 @@ public static class InfrastructureServiceCollectionExtensions
                 "DataProtection certificate path and password are required in Production.")
             .ValidateOnStart();
 
-        var dataProtection = services
+        services
             .AddDataProtection()
             .SetApplicationName(
                 AuthenticationDataProtectionOptions.RequiredApplicationName)
             .PersistKeysToDbContext<AuthDbContext>();
         if (environment.IsProduction())
         {
-            var certificate =
-                ProductionDataProtectionCertificate.Load(dataProtectionOptions);
-            try
-            {
-                services.AddSingleton(_ => certificate);
-                services
-                    .AddHostedService<DataProtectionCertificateStartupService>();
-                dataProtection
-                    .ProtectKeysWithCertificate(certificate.Certificate)
-                    .UnprotectKeysWithAnyCertificate(certificate.Certificate);
-            }
-            catch
-            {
-                certificate.Dispose();
-                throw;
-            }
+            services.TryAddSingleton(provider =>
+                ProductionDataProtectionCertificate.Load(
+                    provider
+                        .GetRequiredService<
+                            IOptions<AuthenticationDataProtectionOptions>>()
+                        .Value));
+            services.TryAddEnumerable(
+                ServiceDescriptor.Singleton<
+                    IConfigureOptions<KeyManagementOptions>,
+                    ProductionDataProtectionKeyManagementSetup>());
+            services
+                .AddHostedService<DataProtectionCertificateStartupService>();
         }
 
         services
