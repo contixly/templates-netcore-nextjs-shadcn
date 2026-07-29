@@ -679,13 +679,14 @@ Explicit connect может переиспользовать email текуще�
 
 Для известного `(provider, subject)` changed email другого user даёт conflict
 без перемещения login. Email того же user переиспользуется, а свободный
-создаётся как secondary; actual login row блокируется и перечитывается через
-`FOR UPDATE`, после чего reassociate-ится с принятым row. Поэтому concurrent
-reassociation сериализуется, а реально заменённый non-primary email удаляется
-только когда на него больше не ссылается ни один login; primary/shared rows
-сохраняются. Повторный sign-in с неизменным email обновляет только `lastUsedAt`
-и не применяет profile data повторно. Connect, включая reassociation email,
-сохраняет прежний `lastUsedAt`.
+создаётся как secondary. Первый existing-login read блокирует actual
+`(provider, subject)` row через `FOR UPDATE` и читает его текущий email в той же
+authentication transaction. Поэтому ownership validation и reassociation
+сериализуются от первого snapshot. Update path сохраняет defensive lock/reload,
+а реально заменённый non-primary email удаляется только когда на него больше не
+ссылается ни один login; primary/shared rows сохраняются. Повторный sign-in с
+неизменным email обновляет только `lastUsedAt` и не применяет profile data
+повторно. Connect, включая reassociation email, сохраняет прежний `lastUsedAt`.
 
 Disconnect выполняется локально и атомарно. Он удаляет provider login и удаляет
 его non-primary secondary email только когда ни одна remaining connection
@@ -745,7 +746,7 @@ Ignored `appsettings.Local.json` загружается последним то�
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dotnet restore Template.sln`                                                                                                                                       | PASS; все projects up-to-date                                                                                                                                                                 |
 | `dotnet build Template.sln --no-restore`                                                                                                                            | PASS; 0 warnings, 0 errors                                                                                                                                                                    |
-| `dotnet test Template.sln --no-restore`                                                                                                                             | PASS; Application 100/100, API 303/303, total 403/403, 0 failed/skipped; API suite применила migrations к disposable PostgreSQL и проверила transactions/state/Data Protection/callbacks      |
+| `dotnet test Template.sln --no-restore`                                                                                                                             | PASS; Application 100/100, API 304/304, total 404/404, 0 failed/skipped; API suite применила migrations к disposable PostgreSQL и проверила transactions/state/Data Protection/callbacks      |
 | `dotnet ef migrations has-pending-model-changes --project apps/api/src/Template.Infrastructure --startup-project apps/api/src/Template.Api --context AuthDbContext` | PASS; build succeeded, model changes отсутствуют                                                                                                                                              |
 | exact OpenAPI export build, повторный export/hash и `git diff --exit-code -- contracts/openapi/v1.json`                                                             | PASS; 0 warnings/errors; SHA-256 до/после `05831e17145a9dcdb95cc725592ee45c6dff7ad8175997202102767c9de56cbb`; committed contract unchanged                                                    |
 | `cd apps/web && npm run api:check`                                                                                                                                  | PASS; 4 generated files regenerated/byte-compared, SDK deterministic/current                                                                                                                  |

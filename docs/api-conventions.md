@@ -212,12 +212,15 @@ For an existing `(provider, subject)`, a changed incoming email is reconciled
 inside the same transaction. If another user owns it, the operation fails
 without moving the login. If the current user already owns it, the login is
 reassociated with that verified-email row. If it is free, a secondary verified
-email is created and the login is reassociated. The login row is locked and
-reloaded before its previous email is selected, so concurrent reassociations
-serialize and cleanup applies to the email actually replaced. That previous
-non-primary email is then deleted only when no login still references it; a
-primary email is never removed. Connect preserves `lastUsedAt`, while sign-in
-records the new use time.
+email is created and the login is reassociated. The first existing-login lookup
+locks that `(provider, subject)` row with `FOR UPDATE` for the surrounding
+authentication transaction, then reads its current verified email. Ownership
+validation and reassociation therefore use one serialized snapshot. The update
+path retains a defensive lock/reload before selecting the previous email, so
+cleanup applies to the email actually replaced. That previous non-primary email
+is then deleted only when no login still references it; a primary email is
+never removed. Connect preserves `lastUsedAt`, while sign-in records the new
+use time.
 
 Disconnect is local only: it deletes the selected login and deletes its
 non-primary secondary email only when no remaining provider connection vouches

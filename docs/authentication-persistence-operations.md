@@ -232,13 +232,16 @@ email but cannot claim another user's email.
 When a known `(provider, subject)` returns a changed email, reconciliation first
 checks normalized ownership. Another user's email produces a conflict without
 moving the login. An email already owned by the same user is reused; a free
-email is created as secondary. Before moving the login, persistence locks and
-reloads the actual `(user, provider, subject)` row with `FOR UPDATE`. Concurrent
-email reassociations therefore serialize, and each operation deletes the
-non-primary email it actually replaced only when no remaining login references
-it. Primary and still-shared emails are never removed. An unchanged-email
-repeat sign-in updates only `LastUsedAt`; connect, including email
-reassociation, preserves the previous `LastUsedAt`.
+email is created as secondary. At the first existing-login read, persistence
+locks the actual `(provider, subject)` row with `FOR UPDATE` and reads its
+current verified email inside the same authentication unit-of-work transaction.
+Ownership validation and changed-email handling therefore serialize from their
+first snapshot. The update path retains a defensive lock/reload before moving
+the login, and each operation deletes the non-primary email it actually
+replaced only when no remaining login references it. Primary and still-shared
+emails are never removed. An unchanged-email repeat sign-in updates only
+`LastUsedAt`; connect, including email reassociation, preserves the previous
+`LastUsedAt`.
 
 The reconciliation unit of work commits before the HTTP callback issues a new
 provider-authenticated browser session for sign-in or rotates the existing
