@@ -1,0 +1,128 @@
+{
+  "navigation": {
+    "label": "Account settings",
+    "profile": "Profile",
+    "connections": "Connections",
+    "security": "Security",
+    "danger": "Danger"
+  },
+  "pages": {
+    "profile": {
+      "title": "Profile settings",
+      "description": "Manage your public display name and review your account identity.",
+      "loading": "Loading profile"
+    },
+    "connections": {
+      "title": "Connections",
+      "description": "Manage the external providers you can use to sign in.",
+      "loading": "Loading connections"
+    },
+    "security": {
+      "title": "Security",
+      "description": "Review active sessions and revoke access from other devices.",
+      "loading": "Loading security"
+    },
+    "danger": {
+      "title": "Danger zone",
+      "description": "Manage irreversible account actions.",
+      "loading": "Loading danger zone"
+    }
+  },
+  "failure": {
+    "title": "Account settings are unavailable",
+    "description": "Account settings could not be loaded safely. Try again."
+  },
+  "profile": {
+    "avatar": "Profile avatar",
+    "avatarFallback": "Profile initials",
+    "avatarDescription": "The avatar is managed by a connected provider.",
+    "displayName": "Display name",
+    "displayNameHint": "Use 2 to 50 characters. Leading and trailing spaces are removed.",
+    "save": "Save profile",
+    "saving": "Saving profile",
+    "updated": "Profile updated.",
+    "updateFailure": "Profile could not be updated.",
+    "validation": {
+      "tooShort": "Use at least 2 characters.",
+      "tooLong": "Use 50 characters or fewer."
+    },
+    "emails": "Verified email addresses",
+    "primary": "Primary",
+    "secondary": "Secondary",
+    "verifiedBy": "Verified by {providers}",
+    "userId": "User ID",
+    "memberSince": "Member since"
+  },
+  "connections": {
+    "connectionLabel": "{provider} connection",
+    "connected": "Connected",
+    "notConnected": "Not connected",
+    "configurationUnavailable": "Provider configuration is unavailable",
+    "email": "Provider email: {email}",
+    "connectedAt": "Connected {date}",
+    "lastUsedAt": "Last used {date}",
+    "neverUsed": "Not yet used to sign in",
+    "currentMethod": "Current sign-in method",
+    "connect": "Connect {provider}",
+    "connecting": "Connecting {provider}",
+    "disconnect": "Disconnect {provider}",
+    "disconnecting": "Disconnecting {provider}",
+    "connectedNavigationFailure": "The provider connection could not be started.",
+    "invalidAuthorizationUrl": "The connection destination was rejected.",
+    "disconnectFailure": "The provider could not be disconnected.",
+    "disconnectSuccess": "{provider} disconnected.",
+    "disabledReasons": {
+      "external_connection_required": "The server requires this connection to remain available.",
+      "unknown": "The server does not allow this connection to be disconnected."
+    }
+  },
+  "sessions": {
+    "listLabel": "Active sessions",
+    "current": "Current session",
+    "unknownBrowser": "Unknown browser",
+    "unknownOs": "Unknown operating system",
+    "browserOnOs": "{browser} on {os}",
+    "authenticationMethods": {
+      "local": "Local",
+      "google": "Google",
+      "github": "GitHub",
+      "gitlab": "GitLab",
+      "vk": "VK",
+      "yandex": "Yandex"
+    },
+    "signedInWith": "Signed in with {method}",
+    "ipAddress": "IP address {address}",
+    "created": "Created {date}",
+    "lastActive": "Last active {date}",
+    "expires": "Expires {date}",
+    "revoke": "Revoke session",
+    "revoking": "Revoking session",
+    "revokeOthers": "Revoke all other sessions",
+    "revokingOthers": "Revoking other sessions",
+    "loadMore": "Load more sessions",
+    "loadingMore": "Loading more sessions",
+    "empty": "No active sessions were returned.",
+    "loadFailure": "Sessions could not be loaded.",
+    "revokeFailure": "The session could not be revoked.",
+    "revokeOthersFailure": "Other sessions could not be revoked.",
+    "revokeSuccess": "Session revoked.",
+    "revokeOthersSuccess": "{count, plural, one {# other session revoked.} other {# other sessions revoked.}}"
+  },
+  "danger": {
+    "title": "Delete account",
+    "description": "Permanently delete your account, provider connections, and active sessions.",
+    "warning": "This action cannot be undone.",
+    "open": "Delete account"
+  },
+  "deleteAccount": {
+    "title": "Delete account?",
+    "description": "Your account, verified emails, provider connections, and sessions will be permanently deleted.",
+    "confirmationLabel": "Type {email} to confirm",
+    "confirmationHint": "The email must match exactly.",
+    "cancel": "Cancel",
+    "confirm": "Permanently delete account",
+    "deleting": "Deleting account",
+    "success": "Account deleted.",
+    "failure": "The account could not be deleted."
+  }
+}

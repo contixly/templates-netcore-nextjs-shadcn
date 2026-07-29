@@ -2,15 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 import { accountRoutes } from "@/src/features/account/account-routes";
 import { cn } from "@/src/lib/utils";
 
 const accountNavigation = [
-  { href: accountRoutes.profile, label: "Profile", destructive: false },
-  { href: accountRoutes.connections, label: "Connections", destructive: false },
-  { href: accountRoutes.security, label: "Security", destructive: false },
-  { href: accountRoutes.danger, label: "Danger", destructive: true },
+  { href: accountRoutes.profile, label: "profile", destructive: false },
+  {
+    href: accountRoutes.connections,
+    label: "connections",
+    destructive: false,
+  },
+  { href: accountRoutes.security, label: "security", destructive: false },
+  { href: accountRoutes.danger, label: "danger", destructive: true },
 ] as const;
 
 function isActiveAccountRoute(pathname: string, href: string): boolean {
@@ -32,9 +37,11 @@ function CurrentAccountNav() {
 }
 
 function AccountNavLinks({ pathname }: Readonly<{ pathname: string }>) {
+  const t = useTranslations("account.navigation");
+
   return (
     <nav
-      aria-label="Account settings"
+      aria-label={t("label")}
       className="w-full shrink-0 border-b md:w-56 md:border-r md:border-b-0"
     >
       <ul className="flex gap-1 overflow-x-auto p-2 md:flex-col md:overflow-visible">
@@ -52,7 +59,7 @@ function AccountNavLinks({ pathname }: Readonly<{ pathname: string }>) {
                 )}
                 href={item.href}
               >
-                {item.label}
+                {t(item.label)}
               </Link>
             </li>
           );

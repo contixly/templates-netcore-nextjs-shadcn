@@ -1,0 +1,285 @@
+"use client";
+
+import { useLocale, useTranslations } from "next-intl";
+import { useState } from "react";
+
+import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
+import { disconnectBrowserAccountProvider } from "@/src/lib/api/account/browser/account-mutations";
+import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
+import { createBrowserApiClient } from "@/src/lib/api/browser/client";
+import type {
+  AccountConnectionResponse,
+  AccountConnectionsResponse,
+} from "@/src/lib/api/generated";
+import type { ApiFailure } from "@/src/lib/api/result";
+
+type Feedback =
+  | { kind: "failure"; message: string; traceId?: string }
+  | { kind: "success"; message: string }
+  | null;
+
+function formattedDate(value: string, locale: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf())
+    ? value
+    : new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium",
+        timeZone: "UTC",
+      }).format(date);
+}
+
+function failureTrace(failure: ApiFailure): string | undefined {
+  return failure.kind === "problem" ? failure.traceId : undefined;
+}
+
+function safeAuthorizationUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      url.hostname.length > 0 &&
+      !url.username &&
+      !url.password
+      ? url.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function ConnectionsList({
+  initialConnections,
+}: Readonly<{ initialConnections: AccountConnectionsResponse }>) {
+  const t = useTranslations("account.connections");
+  const locale = useLocale();
+  const [connections, setConnections] = useState(initialConnections.items);
+  const [pendingProvider, setPendingProvider] = useState<
+    AccountConnectionResponse["provider"] | null
+  >(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
+
+  async function connect(connection: AccountConnectionResponse) {
+    if (pendingProvider || !connection.configured || !connection.canConnect) {
+      return;
+    }
+
+    setPendingProvider(connection.provider);
+    setFeedback(null);
+    const result = await startExternalAuth({
+      provider: connection.provider,
+      intent: "connect",
+      returnUrl: "/user/connections",
+    });
+
+    if (!result.ok) {
+      setFeedback({
+        kind: "failure",
+        message: t("connectedNavigationFailure"),
+        traceId: failureTrace(result.failure),
+      });
+      setPendingProvider(null);
+      return;
+    }
+
+    const authorizationUrl = safeAuthorizationUrl(result.data.authorizationUrl);
+    if (!authorizationUrl) {
+      setFeedback({
+        kind: "failure",
+        message: t("invalidAuthorizationUrl"),
+      });
+      setPendingProvider(null);
+      return;
+    }
+
+    try {
+      window.location.assign(authorizationUrl);
+    } catch {
+      setFeedback({
+        kind: "failure",
+        message: t("invalidAuthorizationUrl"),
+      });
+      setPendingProvider(null);
+    }
+  }
+
+  async function disconnect(connection: AccountConnectionResponse) {
+    if (pendingProvider || !connection.canDisconnect) {
+      return;
+    }
+
+    setPendingProvider(connection.provider);
+    setFeedback(null);
+    const result = await disconnectBrowserAccountProvider(
+      createBrowserApiClient(),
+      connection.provider,
+    );
+    setPendingProvider(null);
+
+    if (!result.ok) {
+      setFeedback({
+        kind: "failure",
+        message: t("disconnectFailure"),
+        traceId: failureTrace(result.failure),
+      });
+      return;
+    }
+
+    setConnections((current) =>
+      current.flatMap((item) => {
+        if (item.provider !== result.data.provider) {
+          return [item];
+        }
+        return item.configured
+          ? [
+              {
+                ...item,
+                connected: false,
+                email: null,
+                connectedAt: null,
+                lastUsedAt: null,
+                isCurrentAuthenticationMethod: false,
+                canConnect: true,
+                canDisconnect: false,
+                disabledReason: null,
+              },
+            ]
+          : [];
+      }),
+    );
+    setFeedback({
+      kind: "success",
+      message: t("disconnectSuccess", { provider: connection.displayName }),
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {feedback ? (
+        <div
+          className={
+            feedback.kind === "failure"
+              ? "flex flex-col gap-1 text-sm text-destructive"
+              : "text-sm"
+          }
+          role={feedback.kind === "failure" ? "alert" : "status"}
+        >
+          <p>{feedback.message}</p>
+          {feedback.kind === "failure" && feedback.traceId ? (
+            <p className="font-mono text-xs">{feedback.traceId}</p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="grid gap-3">
+        {connections.map((connection) => {
+          const pending = pendingProvider === connection.provider;
+          const disconnectedReason = connection.disabledReason
+            ? t(`disabledReasons.${connection.disabledReason}`)
+            : t("disabledReasons.unknown");
+
+          return (
+            <article
+              aria-label={t("connectionLabel", {
+                provider: connection.displayName,
+              })}
+              className="flex flex-col gap-4 border p-4 sm:flex-row sm:items-start sm:justify-between"
+              key={connection.provider}
+            >
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-sm font-semibold">
+                    {connection.displayName}
+                  </h2>
+                  <Badge
+                    variant={connection.connected ? "secondary" : "outline"}
+                  >
+                    {connection.connected ? t("connected") : t("notConnected")}
+                  </Badge>
+                  {connection.isCurrentAuthenticationMethod ? (
+                    <Badge>{t("currentMethod")}</Badge>
+                  ) : null}
+                </div>
+
+                {!connection.configured ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t("configurationUnavailable")}
+                  </p>
+                ) : null}
+                {connection.email ? (
+                  <p className="text-xs break-all text-muted-foreground">
+                    {t("email", { email: connection.email })}
+                  </p>
+                ) : null}
+                {connection.connectedAt ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t("connectedAt", {
+                      date: formattedDate(connection.connectedAt, locale),
+                    })}
+                  </p>
+                ) : null}
+                {connection.connected ? (
+                  <p className="text-xs text-muted-foreground">
+                    {connection.lastUsedAt
+                      ? t("lastUsedAt", {
+                          date: formattedDate(connection.lastUsedAt, locale),
+                        })
+                      : t("neverUsed")}
+                  </p>
+                ) : null}
+                {connection.connected && !connection.canDisconnect ? (
+                  <p className="text-xs text-muted-foreground">
+                    {disconnectedReason}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="shrink-0">
+                {connection.connected ? (
+                  <Button
+                    aria-label={t("disconnect", {
+                      provider: connection.displayName,
+                    })}
+                    disabled={
+                      pendingProvider !== null || !connection.canDisconnect
+                    }
+                    onClick={() => void disconnect(connection)}
+                    type="button"
+                    variant="outline"
+                  >
+                    {pending
+                      ? t("disconnecting", {
+                          provider: connection.displayName,
+                        })
+                      : t("disconnect", {
+                          provider: connection.displayName,
+                        })}
+                  </Button>
+                ) : (
+                  <Button
+                    aria-label={t("connect", {
+                      provider: connection.displayName,
+                    })}
+                    disabled={
+                      pendingProvider !== null ||
+                      !connection.configured ||
+                      !connection.canConnect
+                    }
+                    onClick={() => void connect(connection)}
+                    type="button"
+                    variant="outline"
+                  >
+                    {pending
+                      ? t("connecting", {
+                          provider: connection.displayName,
+                        })
+                      : t("connect", { provider: connection.displayName })}
+                  </Button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

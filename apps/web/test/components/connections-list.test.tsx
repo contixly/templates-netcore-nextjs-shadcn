@@ -1,0 +1,216 @@
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+
+import { ConnectionsList } from "@/src/components/account/connections-list";
+import { disconnectBrowserAccountProvider } from "@/src/lib/api/account/browser/account-mutations";
+import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
+import type { AccountConnectionsResponse } from "@/src/lib/api/generated";
+import { renderWithMessages } from "@/test/support/render";
+
+jest.mock("@/src/lib/api/browser/client", () => ({
+  createBrowserApiClient: () => ({ id: "browser-client" }),
+}));
+jest.mock("@/src/lib/api/account/browser/account-mutations", () => ({
+  disconnectBrowserAccountProvider: jest.fn(),
+}));
+jest.mock("@/src/lib/api/auth/browser/start-external-auth", () => ({
+  startExternalAuth: jest.fn(),
+}));
+
+const initialConnections = {
+  items: [
+    {
+      provider: "google",
+      displayName: "Google",
+      configured: true,
+      connected: true,
+      email: "google@example.test",
+      connectedAt: "2026-07-20T10:00:00Z",
+      lastUsedAt: "2026-07-28T10:00:00Z",
+      isCurrentAuthenticationMethod: true,
+      canConnect: false,
+      canDisconnect: false,
+      disabledReason: "external_connection_required",
+    },
+    {
+      provider: "github",
+      displayName: "GitHub",
+      configured: true,
+      connected: false,
+      email: null,
+      connectedAt: null,
+      lastUsedAt: null,
+      isCurrentAuthenticationMethod: false,
+      canConnect: true,
+      canDisconnect: false,
+      disabledReason: null,
+    },
+    {
+      provider: "gitlab",
+      displayName: "GitLab",
+      configured: false,
+      connected: true,
+      email: "gitlab@example.test",
+      connectedAt: "2026-07-18T10:00:00Z",
+      lastUsedAt: null,
+      isCurrentAuthenticationMethod: false,
+      canConnect: false,
+      canDisconnect: true,
+      disabledReason: null,
+    },
+  ],
+} satisfies AccountConnectionsResponse;
+
+const startAuth = jest.mocked(startExternalAuth);
+const disconnect = jest.mocked(disconnectBrowserAccountProvider);
+
+type LocationImplementation = {
+  assign(url: string): void;
+};
+
+function locationImplementation(): LocationImplementation {
+  const implementationSymbol = Object.getOwnPropertySymbols(
+    window.location,
+  ).find((symbol) => symbol.description === "impl");
+
+  if (!implementationSymbol) {
+    throw new Error("JSDOM location implementation is unavailable.");
+  }
+
+  return (window.location as unknown as Record<symbol, LocationImplementation>)[
+    implementationSymbol
+  ];
+}
+
+let assignSpy: jest.SpiedFunction<LocationImplementation["assign"]>;
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  assignSpy = jest
+    .spyOn(locationImplementation(), "assign")
+    .mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  assignSpy.mockRestore();
+});
+
+it("renders configured, connected, current, and disabled server states", () => {
+  renderWithMessages(
+    <ConnectionsList initialConnections={initialConnections} />,
+  );
+
+  const google = screen.getByRole("article", { name: "Google connection" });
+  expect(google).toHaveTextContent("Connected");
+  expect(google).toHaveTextContent("google@example.test");
+  expect(google).toHaveTextContent("Current sign-in method");
+  expect(google).toHaveTextContent(
+    "The server requires this connection to remain available.",
+  );
+  expect(
+    within(google).getByRole("button", { name: "Disconnect Google" }),
+  ).toBeDisabled();
+
+  const github = screen.getByRole("article", { name: "GitHub connection" });
+  expect(github).toHaveTextContent("Not connected");
+  expect(
+    within(github).getByRole("button", { name: "Connect GitHub" }),
+  ).toBeEnabled();
+
+  const gitlab = screen.getByRole("article", { name: "GitLab connection" });
+  expect(gitlab).toHaveTextContent("Provider configuration is unavailable");
+  expect(
+    within(gitlab).getByRole("button", { name: "Disconnect GitLab" }),
+  ).toBeEnabled();
+});
+
+it("connects only through the API-issued OAuth navigation", async () => {
+  const authorizationUrl =
+    "https://github.com/login/oauth/authorize?state=opaque";
+  startAuth.mockResolvedValue({
+    ok: true,
+    data: { authorizationUrl },
+  });
+  renderWithMessages(
+    <ConnectionsList initialConnections={initialConnections} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Connect GitHub" }));
+
+  await waitFor(() => {
+    expect(startAuth).toHaveBeenCalledWith({
+      provider: "github",
+      intent: "connect",
+      returnUrl: "/user/connections",
+    });
+    expect(assignSpy).toHaveBeenCalledWith(authorizationUrl);
+  });
+});
+
+it("rejects an unsafe authorization destination and recovers", async () => {
+  startAuth.mockResolvedValue({
+    ok: true,
+    data: { authorizationUrl: "javascript:alert('unsafe')" },
+  });
+  renderWithMessages(
+    <ConnectionsList initialConnections={initialConnections} />,
+  );
+
+  const connect = screen.getByRole("button", { name: "Connect GitHub" });
+  fireEvent.click(connect);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "The connection destination was rejected.",
+  );
+  expect(assignSpy).not.toHaveBeenCalled();
+  expect(connect).toBeEnabled();
+});
+
+it("applies a confirmed disconnect and preserves configured providers", async () => {
+  disconnect.mockResolvedValue({
+    ok: true,
+    data: { provider: "gitlab" },
+  });
+  const configuredConnection = {
+    ...initialConnections.items[2],
+    configured: true,
+  };
+  renderWithMessages(
+    <ConnectionsList initialConnections={{ items: [configuredConnection] }} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Disconnect GitLab" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "GitLab disconnected.",
+  );
+  expect(disconnect).toHaveBeenCalledWith({ id: "browser-client" }, "gitlab");
+  expect(
+    screen.getByRole("article", { name: "GitLab connection" }),
+  ).toHaveTextContent("Not connected");
+});
+
+it("renders disconnect server failures and re-enables the action", async () => {
+  disconnect.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "external_connection_required",
+      status: 409,
+      traceId: "trace-disconnect",
+    },
+  });
+  renderWithMessages(
+    <ConnectionsList initialConnections={initialConnections} />,
+  );
+
+  const disconnectButton = screen.getByRole("button", {
+    name: "Disconnect GitLab",
+  });
+  fireEvent.click(disconnectButton);
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "The provider could not be disconnected.",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("trace-disconnect");
+  expect(disconnectButton).toBeEnabled();
+});

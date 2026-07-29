@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import { screen } from "@testing-library/react";
 
 import {
   AuthenticatedAccountShell,
@@ -6,6 +7,8 @@ import {
 } from "@/src/app/(site)/user/layout";
 import { AccountNav } from "@/src/components/account/account-nav";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
+import accountRu from "@/src/messages/account.ru.json";
+import { renderWithMessages, withMessages } from "@/test/support/render";
 
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),
@@ -36,7 +39,7 @@ beforeEach(() => {
 });
 
 it("renders only iteration-four account destinations", () => {
-  render(<AccountNav pathname="/user/profile" />);
+  renderWithMessages(<AccountNav pathname="/user/profile" />);
 
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
     "Profile",
@@ -61,7 +64,7 @@ it("renders only iteration-four account destinations", () => {
 });
 
 it("marks exact and nested destinations active without prefix collisions", () => {
-  const { rerender } = render(
+  const { rerender } = renderWithMessages(
     <AccountNav pathname="/user/security/sessions/current" />,
   );
 
@@ -73,7 +76,7 @@ it("marks exact and nested destinations active without prefix collisions", () =>
     "aria-current",
   );
 
-  rerender(<AccountNav pathname="/user/profiled" />);
+  rerender(withMessages(<AccountNav pathname="/user/profiled" />));
 
   for (const link of screen.getAllByRole("link")) {
     expect(link).not.toHaveAttribute("aria-current");
@@ -81,12 +84,31 @@ it("marks exact and nested destinations active without prefix collisions", () =>
 });
 
 it("keeps the account navigation responsive", () => {
-  render(<AccountNav pathname="/user/connections" />);
+  renderWithMessages(<AccountNav pathname="/user/connections" />);
 
   expect(screen.getByRole("list")).toHaveClass(
     "overflow-x-auto",
     "md:flex-col",
   );
+});
+
+it("uses the fixed Russian deployment locale for account navigation", () => {
+  renderWithMessages(
+    <NextIntlClientProvider
+      locale="ru"
+      messages={{ account: accountRu }}
+      timeZone="UTC"
+    >
+      <AccountNav pathname="/user/profile" />
+    </NextIntlClientProvider>,
+  );
+
+  expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
+    "Профиль",
+    "Подключения",
+    "Безопасность",
+    "Опасная зона",
+  ]);
 });
 
 it("redirects an explicit anonymous account shell to the profile login return", async () => {
@@ -106,7 +128,7 @@ it("renders a safe failure instead of redirecting on an auth API failure", async
     failure: { kind: "network", code: "api_unavailable" },
   });
 
-  render(
+  renderWithMessages(
     await AuthenticatedAccountShell({
       children: <p>Protected account</p>,
     }),
@@ -139,7 +161,7 @@ it("renders protected children only after server-confirmed authentication", asyn
     },
   });
 
-  render(
+  renderWithMessages(
     await AuthenticatedAccountShell({
       children: <p>Protected account</p>,
     }),

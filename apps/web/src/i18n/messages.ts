@@ -1,3 +1,5 @@
+import accountEn from "@/src/messages/account.en.json";
+import accountRu from "@/src/messages/account.ru.json";
 import authEn from "@/src/messages/auth.en.json";
 import authRu from "@/src/messages/auth.ru.json";
 import commonEn from "@/src/messages/common.en.json";
@@ -11,6 +13,7 @@ import {
 } from "@/src/i18n/config";
 
 const englishMessages = {
+  account: accountEn,
   auth: authEn,
   common: commonEn,
   system: systemEn,
@@ -21,6 +24,7 @@ export type I18nMessages = typeof englishMessages;
 const messagesByLocale = {
   en: englishMessages,
   ru: {
+    account: accountRu,
     auth: authRu,
     common: commonRu,
     system: systemRu,
