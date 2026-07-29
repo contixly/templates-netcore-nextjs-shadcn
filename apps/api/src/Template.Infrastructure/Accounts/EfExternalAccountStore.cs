@@ -20,31 +20,32 @@ internal sealed class EfExternalAccountStore(
         string subject,
         CancellationToken ct)
     {
-        var row = await (
-            from login in db.UserLogins.AsNoTracking()
-            join email in db.UserEmails.AsNoTracking()
-                on login.VerifiedEmailId equals email.Id
-            where login.LoginProvider == provider.Value
-                && login.ProviderKey == subject
-            select new
-            {
-                login.UserId,
-                login.ProviderKey,
-                email.Email,
-                email.NormalizedEmail,
-                login.ConnectedAt,
-                login.LastUsedAt
-            }).SingleOrDefaultAsync(ct);
+        EnsureActiveAuthenticationTransaction();
+        var login = await db.UserLogins
+            .FromSqlInterpolated(
+                $"""
+                SELECT *
+                FROM auth.user_logins
+                WHERE login_provider = {provider.Value}
+                  AND provider_key = {subject}
+                FOR UPDATE
+                """)
+            .AsNoTracking()
+            .SingleOrDefaultAsync(ct);
+        if (login is null)
+        {
+            return null;
+        }
 
-        return row is null
-            ? null
-            : new ExternalLoginSnapshot(
-                new UserId(row.UserId),
-                provider,
-                row.ProviderKey,
-                new VerifiedEmail(row.Email, row.NormalizedEmail),
-                row.ConnectedAt,
-                row.LastUsedAt);
+        var email = await db.UserEmails.AsNoTracking()
+            .SingleAsync(row => row.Id == login.VerifiedEmailId, ct);
+        return new ExternalLoginSnapshot(
+            new UserId(login.UserId),
+            provider,
+            login.ProviderKey,
+            new VerifiedEmail(email.Email, email.NormalizedEmail),
+            login.ConnectedAt,
+            login.LastUsedAt);
     }
 
     public async Task<AuthUser?> FindUserByEmailAsync(
@@ -169,6 +170,7 @@ internal sealed class EfExternalAccountStore(
         DateTimeOffset? usedAt,
         CancellationToken ct)
     {
+        EnsureActiveAuthenticationTransaction();
         var login = await db.UserLogins
             .FromSqlInterpolated(
                 $"""
@@ -253,6 +255,15 @@ internal sealed class EfExternalAccountStore(
         {
             db.ChangeTracker.Clear();
             throw new AccountConcurrencyException();
+        }
+    }
+
+    private void EnsureActiveAuthenticationTransaction()
+    {
+        if (db.Database.CurrentTransaction is null)
+        {
+            throw new InvalidOperationException(
+                "External identity reconciliation requires an active authentication transaction.");
         }
     }
 

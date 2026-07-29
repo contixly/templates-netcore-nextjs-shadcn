@@ -4,8 +4,18 @@ using Template.Domain.Authentication;
 
 namespace Template.Application.Accounts.Ports;
 
+/// <summary>
+/// Persists one external-identity reconciliation attempt. Calls that belong to
+/// an attempt run inside the same <c>IAuthenticationUnitOfWork</c> transaction.
+/// </summary>
 public interface IExternalAccountStore
 {
+    /// <summary>
+    /// Returns the stable owner snapshot for a provider subject. Persistence
+    /// implementations lock an existing login until the surrounding
+    /// authentication transaction completes; a new subject returns
+    /// <see langword="null"/> without a row lock.
+    /// </summary>
     Task<ExternalLoginSnapshot?> FindLoginAsync(
         ExternalProvider provider,
         string subject,

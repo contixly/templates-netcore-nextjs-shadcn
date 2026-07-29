@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Diagnostics;
 using Template.Application.Accounts;
+using Template.Application.Accounts.Ports;
 using Template.Application.Authentication;
 using Template.Api.Tests.Infrastructure;
 using Template.Domain.Accounts;
@@ -323,6 +324,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         await MigrateAsync();
         await using var db = CreateContext();
         var store = new EfExternalAccountStore(db, new FixedTimeProvider(Now));
+        var transactions = new EfAuthenticationUnitOfWork(db);
         var primaryIdentity = Identity(
             ExternalProvider.Google,
             "google-subject",
@@ -330,27 +332,34 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             "Provider Owner",
             "https://cdn.example.test/avatar.png");
 
-        var created = await store.CreateUserAsync(
-            primaryIdentity,
-            TestContext.Current.CancellationToken);
-        await store.EnsureVerifiedEmailAsync(
-            created.Id,
-            primaryIdentity.Email,
-            primary: true,
-            TestContext.Current.CancellationToken);
-        await store.AddLoginAsync(
-            created.Id,
-            primaryIdentity,
-            Now.AddMinutes(1),
-            usedForSignIn: false,
+        var created = await transactions.ExecuteAsync(
+            async ct =>
+            {
+                var user = await store.CreateUserAsync(primaryIdentity, ct);
+                await store.EnsureVerifiedEmailAsync(
+                    user.Id,
+                    primaryIdentity.Email,
+                    primary: true,
+                    ct);
+                await store.AddLoginAsync(
+                    user.Id,
+                    primaryIdentity,
+                    Now.AddMinutes(1),
+                    usedForSignIn: false,
+                    ct);
+                return user;
+            },
             TestContext.Current.CancellationToken);
 
-        var foundByEmail = await store.FindUserByEmailAsync(
-            primaryIdentity.Email.NormalizedValue,
-            TestContext.Current.CancellationToken);
-        var login = await store.FindLoginAsync(
-            ExternalProvider.Google,
-            "google-subject",
+        var (foundByEmail, login) = await transactions.ExecuteAsync(
+            async ct => (
+                await store.FindUserByEmailAsync(
+                    primaryIdentity.Email.NormalizedValue,
+                    ct),
+                await store.FindLoginAsync(
+                    ExternalProvider.Google,
+                    "google-subject",
+                    ct)),
             TestContext.Current.CancellationToken);
         Assert.Equal(created.Id, foundByEmail?.Id);
         Assert.Equal(Now.AddMinutes(1), login?.ConnectedAt);
@@ -362,25 +371,33 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             "new-owner@example.test",
             "Updated Owner",
             "https://cdn.example.test/new-avatar.png");
-        await store.EnsureVerifiedEmailAsync(
-            created.Id,
-            refreshedIdentity.Email,
-            primary: false,
-            TestContext.Current.CancellationToken);
-        await store.UpdateLoginEmailAsync(
-            created.Id,
-            refreshedIdentity,
-            usedAt: null,
-            TestContext.Current.CancellationToken);
-        await store.UpdateLinkedProfileAsync(
-            created.Id,
-            refreshedIdentity.DisplayName,
-            refreshedIdentity.ImageUrl,
+        await transactions.ExecuteAsync(
+            async ct =>
+            {
+                await store.EnsureVerifiedEmailAsync(
+                    created.Id,
+                    refreshedIdentity.Email,
+                    primary: false,
+                    ct);
+                await store.UpdateLoginEmailAsync(
+                    created.Id,
+                    refreshedIdentity,
+                    usedAt: null,
+                    ct);
+                await store.UpdateLinkedProfileAsync(
+                    created.Id,
+                    refreshedIdentity.DisplayName,
+                    refreshedIdentity.ImageUrl,
+                    ct);
+                return true;
+            },
             TestContext.Current.CancellationToken);
 
-        login = await store.FindLoginAsync(
-            ExternalProvider.Google,
-            "google-subject",
+        login = await transactions.ExecuteAsync(
+            ct => store.FindLoginAsync(
+                ExternalProvider.Google,
+                "google-subject",
+                ct),
             TestContext.Current.CancellationToken);
         Assert.Equal("NEW-OWNER@EXAMPLE.TEST", login?.Email.NormalizedValue);
         Assert.Null(login?.LastUsedAt);
@@ -388,14 +405,22 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             row => row.NormalizedEmail == "OWNER@EXAMPLE.TEST" && !row.IsPrimary,
             TestContext.Current.CancellationToken));
 
-        await store.UpdateLoginEmailAsync(
-            created.Id,
-            refreshedIdentity,
-            Now.AddMinutes(5),
+        await transactions.ExecuteAsync(
+            async ct =>
+            {
+                await store.UpdateLoginEmailAsync(
+                    created.Id,
+                    refreshedIdentity,
+                    Now.AddMinutes(5),
+                    ct);
+                return true;
+            },
             TestContext.Current.CancellationToken);
-        login = await store.FindLoginAsync(
-            ExternalProvider.Google,
-            "google-subject",
+        login = await transactions.ExecuteAsync(
+            ct => store.FindLoginAsync(
+                ExternalProvider.Google,
+                "google-subject",
+                ct),
             TestContext.Current.CancellationToken);
         var user = await db.Users.SingleAsync(
             row => row.Id == created.Id.Value,
@@ -539,6 +564,157 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         Assert.False(await verify.UserEmails.AnyAsync(
             row => row.UserId == userId
                 && row.NormalizedEmail == "RACE-OLD-A@EXAMPLE.TEST",
+            TestContext.Current.CancellationToken));
+        Assert.True(await verify.UserEmails.AnyAsync(
+            row => row.Id == primaryEmailId && row.IsPrimary,
+            TestContext.Current.CancellationToken));
+        Assert.True(await verify.UserEmails.AnyAsync(
+            row => row.Id == sharedEmailId && !row.IsPrimary,
+            TestContext.Current.CancellationToken));
+        Assert.True(await verify.UserLogins.AnyAsync(
+            row => row.UserId == userId
+                && row.LoginProvider == ExternalProvider.GitHub.Value
+                && row.VerifiedEmailId == sharedEmailId,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ConcurrentReconciliationLocksFromExistingLoginReadAndBothCallbacksSucceed()
+    {
+        await MigrateAsync();
+        Guid userId;
+        Guid primaryEmailId;
+        Guid sharedEmailId;
+        await using (var seed = CreateContext())
+        {
+            var user = CreateUser("reconcile-race-primary@example.test");
+            seed.Users.Add(user);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var primary = AddEmail(
+                seed,
+                user,
+                "reconcile-race-primary@example.test",
+                primary: true);
+            var old = AddEmail(
+                seed,
+                user,
+                "reconcile-race-old-a@example.test",
+                primary: false);
+            var shared = AddEmail(
+                seed,
+                user,
+                "reconcile-race-shared@example.test",
+                primary: false);
+            seed.UserLogins.AddRange(
+                CreateLogin(
+                    user.Id,
+                    old.Id,
+                    ExternalProvider.Google,
+                    "google-reconciliation-race"),
+                CreateLogin(
+                    user.Id,
+                    shared.Id,
+                    ExternalProvider.GitHub,
+                    "github-reconciliation-shared"));
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            userId = user.Id;
+            primaryEmailId = primary.Id;
+            sharedEmailId = shared.Id;
+        }
+
+        await using var firstDb = CreateContext();
+        await using var secondDb = CreateContext();
+        await firstDb.Database.OpenConnectionAsync(
+            TestContext.Current.CancellationToken);
+        await secondDb.Database.OpenConnectionAsync(
+            TestContext.Current.CancellationToken);
+        var firstPid =
+            ((NpgsqlConnection)firstDb.Database.GetDbConnection()).ProcessID;
+        var secondPid =
+            ((NpgsqlConnection)secondDb.Database.GetDbConnection()).ProcessID;
+        Assert.NotEqual(firstPid, secondPid);
+        var existingLoginRead = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseFirstCallback = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstStore = new PauseAfterExistingLoginStore(
+            new EfExternalAccountStore(firstDb, TimeProvider.System),
+            existingLoginRead,
+            releaseFirstCallback.Task);
+        var secondStore =
+            new EfExternalAccountStore(secondDb, TimeProvider.System);
+        var firstService = new ExternalIdentityService(
+            firstStore,
+            new EfAuthenticationUnitOfWork(firstDb),
+            new FixedTimeProvider(Now));
+        var secondService = new ExternalIdentityService(
+            secondStore,
+            new EfAuthenticationUnitOfWork(secondDb),
+            new FixedTimeProvider(Now.AddMinutes(1)));
+        var firstIncoming = Identity(
+            ExternalProvider.Google,
+            "google-reconciliation-race",
+            "reconcile-race-incoming-b@example.test");
+        var secondIncoming = Identity(
+            ExternalProvider.Google,
+            "google-reconciliation-race",
+            "reconcile-race-incoming-c@example.test");
+
+        var firstCallback = firstService.ReconcileAsync(
+            firstIncoming,
+            ExternalAuthIntent.SignIn,
+            current: null,
+            TestContext.Current.CancellationToken);
+        await existingLoginRead.Task.WaitAsync(
+            TimeSpan.FromSeconds(5),
+            TestContext.Current.CancellationToken);
+        var secondCallback = Task.Run(
+            () => secondService.ReconcileAsync(
+                secondIncoming,
+                ExternalAuthIntent.SignIn,
+                current: null,
+                TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken);
+
+        var blockedOnFirstLoginLock = await WaitUntilBlockedAsync(
+            secondPid,
+            firstPid,
+            TimeSpan.FromSeconds(5));
+        var secondStayedIncomplete = !secondCallback.IsCompleted;
+        releaseFirstCallback.TrySetResult();
+        var firstResult = await firstCallback;
+        var secondResult = await secondCallback;
+
+        Assert.True(blockedOnFirstLoginLock);
+        Assert.True(secondStayedIncomplete);
+        Assert.Null(firstResult.Failure);
+        Assert.NotNull(firstResult.Value);
+        Assert.Null(secondResult.Failure);
+        Assert.NotNull(secondResult.Value);
+
+        await using var verify = CreateContext();
+        var finalEmail = await (
+            from login in verify.UserLogins.AsNoTracking()
+            join email in verify.UserEmails.AsNoTracking()
+                on login.VerifiedEmailId equals email.Id
+            where login.UserId == userId
+                && login.LoginProvider == ExternalProvider.Google.Value
+                && login.ProviderKey == "google-reconciliation-race"
+            select email.NormalizedEmail).SingleAsync(
+                TestContext.Current.CancellationToken);
+        Assert.Equal(secondIncoming.Email.NormalizedValue, finalEmail);
+        Assert.False(await verify.UserEmails.AnyAsync(
+            row => row.UserId == userId
+                && (row.NormalizedEmail ==
+                    firstIncoming.Email.NormalizedValue
+                    || row.NormalizedEmail ==
+                    "RECONCILE-RACE-OLD-A@EXAMPLE.TEST"),
+            TestContext.Current.CancellationToken));
+        Assert.True(await verify.UserEmails.AnyAsync(
+            row => row.UserId == userId
+                && row.NormalizedEmail ==
+                secondIncoming.Email.NormalizedValue
+                && !row.IsPrimary,
             TestContext.Current.CancellationToken));
         Assert.True(await verify.UserEmails.AnyAsync(
             row => row.Id == primaryEmailId && row.IsPrimary,
@@ -1226,5 +1402,71 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class PauseAfterExistingLoginStore(
+        IExternalAccountStore inner,
+        TaskCompletionSource existingLoginRead,
+        Task release)
+        : IExternalAccountStore
+    {
+        public async Task<ExternalLoginSnapshot?> FindLoginAsync(
+            ExternalProvider provider,
+            string subject,
+            CancellationToken ct)
+        {
+            var login = await inner.FindLoginAsync(provider, subject, ct);
+            if (login is not null)
+            {
+                existingLoginRead.TrySetResult();
+                await release.WaitAsync(ct);
+            }
+
+            return login;
+        }
+
+        public Task<AuthUser?> FindUserByEmailAsync(
+            string normalizedEmail,
+            CancellationToken ct) =>
+            inner.FindUserByEmailAsync(normalizedEmail, ct);
+
+        public Task<AuthUser> CreateUserAsync(
+            ExternalIdentity identity,
+            CancellationToken ct) =>
+            inner.CreateUserAsync(identity, ct);
+
+        public Task EnsureVerifiedEmailAsync(
+            UserId userId,
+            VerifiedEmail email,
+            bool primary,
+            CancellationToken ct) =>
+            inner.EnsureVerifiedEmailAsync(userId, email, primary, ct);
+
+        public Task AddLoginAsync(
+            UserId userId,
+            ExternalIdentity identity,
+            DateTimeOffset connectedAt,
+            bool usedForSignIn,
+            CancellationToken ct) =>
+            inner.AddLoginAsync(
+                userId,
+                identity,
+                connectedAt,
+                usedForSignIn,
+                ct);
+
+        public Task UpdateLoginEmailAsync(
+            UserId userId,
+            ExternalIdentity identity,
+            DateTimeOffset? usedAt,
+            CancellationToken ct) =>
+            inner.UpdateLoginEmailAsync(userId, identity, usedAt, ct);
+
+        public Task UpdateLinkedProfileAsync(
+            UserId userId,
+            string? displayName,
+            Uri? imageUrl,
+            CancellationToken ct) =>
+            inner.UpdateLinkedProfileAsync(userId, displayName, imageUrl, ct);
     }
 }
