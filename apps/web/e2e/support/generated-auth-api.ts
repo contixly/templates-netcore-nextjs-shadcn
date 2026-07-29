@@ -1,11 +1,14 @@
 import type { APIRequestContext } from "@playwright/test";
 
 import {
+  createLocalAutomationScenario,
   deleteLocalAutomationScenario,
+  getAccount,
   getAccountSessions,
   getAuthCsrf,
   getAuthSession,
   signInLocalAutomation,
+  type CreateLocalAutomationScenarioRequest,
 } from "../../src/lib/api/generated";
 import { createClient, type Client } from "../../src/lib/api/generated/client";
 
@@ -117,6 +120,37 @@ export async function cleanupLocalAutomationUser(request: APIRequestContext) {
   if (!result.data) {
     throw new Error(
       `Local cleanup failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data;
+}
+
+export async function createLocalAutomationUser(
+  request: APIRequestContext,
+  body: CreateLocalAutomationScenarioRequest,
+) {
+  const client = clientFor(request);
+  const result = await createLocalAutomationScenario({
+    client,
+    body,
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!result.data) {
+    throw new Error(
+      `Local account creation failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data;
+}
+
+export async function getGeneratedAccount(request: APIRequestContext) {
+  const result = await getAccount({
+    client: clientFor(request),
+    cache: "no-store",
+  });
+  if (!result.data) {
+    throw new Error(
+      `Account lookup failed with ${result.response?.status ?? 0}.`,
     );
   }
   return result.data.data;

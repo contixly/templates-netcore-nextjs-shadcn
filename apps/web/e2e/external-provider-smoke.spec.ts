@@ -46,8 +46,6 @@ function hasCompleteProcessConfiguration(configurationName: string): boolean {
 }
 
 test.describe("live external provider authorization screens", () => {
-  test.describe.configure({ mode: "serial" });
-
   for (const provider of providers) {
     test(`${provider.displayName} external provider reaches its official authorization host`, async ({
       page,
@@ -68,24 +66,19 @@ test.describe("live external provider authorization screens", () => {
       });
       await expect(button).toBeEnabled();
       const officialHosts: string[] = [...provider.hosts];
+      const officialNavigation = page.waitForURL(
+        (url) => officialHosts.includes(url.hostname),
+        { timeout: 30_000, waitUntil: "commit" },
+      );
 
       try {
-        await button.click();
-        await page.waitForFunction(
-          (officialHosts) => officialHosts.includes(window.location.hostname),
-          officialHosts,
-          { timeout: 30_000 },
-        );
+        await Promise.all([officialNavigation, button.click()]);
       } catch {
         throw new Error(
           `${provider.displayName} did not reach its official authorization host.`,
         );
       }
-      const reachedOfficialHost = await page.evaluate(
-        (officialHosts) => officialHosts.includes(window.location.hostname),
-        officialHosts,
-      );
-      expect(reachedOfficialHost).toBe(true);
+      expect(officialHosts).toContain(new URL(page.url()).hostname);
     });
   }
 });

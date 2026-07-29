@@ -3,6 +3,8 @@ import { expect, test, type Page } from "@playwright/test";
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
 import {
   cleanupLocalAutomationUser,
+  createLocalAutomationUser,
+  getGeneratedAccount,
   getGeneratedAuthSession,
 } from "./support/generated-auth-api";
 
@@ -84,32 +86,106 @@ test("configured external providers are available in login and account states", 
   }
 });
 
-test("account deletion rejects a mismatched confirmation and clears access on success", async ({
+test("account deletion rejects a mismatched confirmation and does not reuse the deleted identity", async ({
   page,
 }) => {
   const scenario = await createLocalAccount(page);
-  await page.goto("/user/danger");
-  await page.getByRole("button", { name: "Delete account" }).click();
 
-  const confirmation = page.getByRole("textbox", {
-    name: `Type ${scenario.email} to confirm`,
-  });
-  const submit = page.getByRole("button", {
-    name: "Permanently delete account",
-  });
+  try {
+    const oldAccount = await getGeneratedAccount(page.context().request);
+    expect(oldAccount.id).toBe(scenario.user.id);
 
-  await confirmation.fill(`wrong-${scenario.email}`);
-  await expect(submit).toBeDisabled();
-  expect(
-    (await getGeneratedAuthSession(page.context().request)).authenticated,
-  ).toBe(true);
+    await page.goto("/user/danger");
+    await page.getByRole("button", { name: "Delete account" }).click();
 
-  await confirmation.fill(scenario.email);
-  await expect(submit).toBeEnabled();
-  await submit.click();
+    const confirmation = page.getByRole("textbox", {
+      name: `Type ${scenario.email} to confirm`,
+    });
+    const submit = page.getByRole("button", {
+      name: "Permanently delete account",
+    });
 
-  await expect(page).toHaveURL(/\/$/);
-  expect(
-    (await getGeneratedAuthSession(page.context().request)).authenticated,
-  ).toBe(false);
+    await confirmation.fill(`wrong-${scenario.email}`);
+    await expect(submit).toBeDisabled();
+    expect(
+      (await getGeneratedAuthSession(page.context().request)).authenticated,
+    ).toBe(true);
+
+    await confirmation.fill(scenario.email);
+    await expect(submit).toBeEnabled();
+
+    let resolveDeletionResponse:
+      ((value: { body: unknown; status: number }) => void) | undefined;
+    const deletionResponsePromise = new Promise<{
+      body: unknown;
+      status: number;
+    }>((resolve) => {
+      resolveDeletionResponse = resolve;
+    });
+    await page.route(
+      "http://127.0.0.1:3127/api/v1/account",
+      async (route, request) => {
+        if (request.method() !== "DELETE") {
+          await route.continue();
+          return;
+        }
+        const response = await route.fetch();
+        resolveDeletionResponse?.({
+          body: await response.json(),
+          status: response.status(),
+        });
+        await route.fulfill({ response });
+      },
+    );
+    await submit.click();
+
+    const deletionResponse = await deletionResponsePromise;
+    expect(deletionResponse.status).toBe(200);
+    expect(deletionResponse.body).toEqual({
+      data: { deleted: true },
+    });
+
+    await page.waitForURL((url) => {
+      return (
+        url.origin === "http://127.0.0.1:3127" &&
+        url.pathname === "/" &&
+        url.search === "" &&
+        url.hash === ""
+      );
+    });
+    const finalUrl = new URL(page.url());
+    expect(finalUrl.origin).toBe("http://127.0.0.1:3127");
+    expect(finalUrl.pathname).toBe("/");
+    expect(finalUrl.search).toBe("");
+    expect(finalUrl.hash).toBe("");
+
+    expect(
+      (await getGeneratedAuthSession(page.context().request)).authenticated,
+    ).toBe(false);
+    expect(
+      (await page.context().request.storageState()).cookies.filter(
+        (cookie) => cookie.name === "__Host-template.session",
+      ),
+    ).toEqual([]);
+
+    const replacement = await createLocalAutomationUser(
+      page.context().request,
+      {
+        name: "Replacement account",
+        email: scenario.email,
+        password: scenario.password,
+      },
+    );
+    expect(replacement.user.id).not.toBe(oldAccount.id);
+    expect((await getGeneratedAccount(page.context().request)).id).toBe(
+      replacement.user.id,
+    );
+  } finally {
+    const currentSession = await getGeneratedAuthSession(
+      page.context().request,
+    );
+    if (currentSession.authenticated) {
+      await cleanupLocalAutomationUser(page.context().request);
+    }
+  }
 });
