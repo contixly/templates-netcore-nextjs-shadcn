@@ -123,6 +123,45 @@ it("renders configured, connected, current, and disabled server states", () => {
   ).toBeEnabled();
 });
 
+it("keeps a configured candidate disabled when only unconfigured logins would survive", () => {
+  const projection = {
+    items: [
+      {
+        ...initialConnections.items[0],
+        configured: false,
+      },
+      {
+        ...initialConnections.items[1],
+        connected: true,
+        email: "github@example.test",
+        connectedAt: "2026-07-20T10:00:00Z",
+        lastUsedAt: "2026-07-28T10:00:00Z",
+        canConnect: false,
+        canDisconnect: false,
+        disabledReason: "external_connection_required",
+      },
+      {
+        ...initialConnections.items[2],
+        canDisconnect: false,
+        disabledReason: "external_connection_required",
+      },
+    ],
+  } satisfies AccountConnectionsResponse;
+  renderWithMessages(<ConnectionsList initialConnections={projection} />);
+
+  const github = screen.getByRole("article", { name: "GitHub connection" });
+  const disconnectGithub = within(github).getByRole("button", {
+    name: "Disconnect GitHub",
+  });
+
+  expect(github).toHaveTextContent(
+    "The server requires this connection to remain available.",
+  );
+  expect(disconnectGithub).toBeDisabled();
+  fireEvent.click(disconnectGithub);
+  expect(disconnect).not.toHaveBeenCalled();
+});
+
 it("connects only through the API-issued OAuth navigation", async () => {
   const authorizationUrl =
     "https://github.com/login/oauth/authorize?state=opaque";

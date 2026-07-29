@@ -12,6 +12,14 @@ public sealed class AccountServiceTests
     private static readonly UserId UserId = new(Guid.Parse("01987712-9e00-7000-8000-000000000001"));
     private static readonly DateTimeOffset CreatedAt =
         new(2026, 7, 28, 10, 0, 0, TimeSpan.Zero);
+    private static readonly ExternalProvider[] ConfiguredProviders =
+    [
+        ExternalProvider.Google,
+        ExternalProvider.GitHub,
+        ExternalProvider.GitLab,
+        ExternalProvider.Vk,
+        ExternalProvider.Yandex
+    ];
 
     [Fact]
     public async Task ProfileReturnsTheStoredAccountSnapshot()
@@ -152,6 +160,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -164,7 +173,7 @@ public sealed class AccountServiceTests
     {
         var snapshot = DisconnectSnapshot(
             ExternalProvider.Google,
-            productionConnectionCount: 2);
+            configuredSurvivorCount: 2);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
         var service = new AccountService(store);
 
@@ -172,6 +181,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.Google,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -180,11 +190,11 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
-    public async Task LastProductionConnectionCannotBeDisconnected()
+    public async Task ConnectionWithoutConfiguredSurvivorCannotBeDisconnected()
     {
         var snapshot = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 1);
+            configuredSurvivorCount: 0);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
         var service = new AccountService(store);
 
@@ -192,6 +202,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -200,11 +211,57 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
+    public async Task ConfiguredCandidateCannotBeRemovedWhenStoredSurvivorsAreUnconfigured()
+    {
+        var snapshot = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            configuredSurvivorCount: 0);
+        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            configuredProviders: [ExternalProvider.GitHub],
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionRequired, result.Failure);
+        Assert.Empty(store.DisconnectAttempts);
+    }
+
+    [Fact]
+    public async Task CandidateCanBeRemovedWhenAConfiguredSurvivorRemains()
+    {
+        var snapshot = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            configuredSurvivorCount: 1);
+        var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Vk,
+            provider: ExternalProvider.GitHub,
+            configuredProviders:
+            [
+                ExternalProvider.GitHub,
+                ExternalProvider.Google
+            ],
+            Ct);
+
+        Assert.Null(result.Failure);
+        Assert.Equal(ExternalProvider.GitHub, result.Value!.Provider);
+        Assert.Equal(snapshot, Assert.Single(store.DisconnectAttempts));
+    }
+
+    [Fact]
     public async Task AllowedDisconnectDelegatesApprovedSnapshotToAtomicStoreOperation()
     {
         var snapshot = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 2,
+            configuredSurvivorCount: 2,
             emailIsPrimary: false);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
         var service = new AccountService(store);
@@ -213,6 +270,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Failure);
@@ -225,7 +283,7 @@ public sealed class AccountServiceTests
     {
         var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 2);
+            configuredSurvivorCount: 2);
         var store = new FakeAccountStore(Account());
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(null);
@@ -236,6 +294,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -249,10 +308,10 @@ public sealed class AccountServiceTests
     {
         var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 2);
+            configuredSurvivorCount: 2);
         var last = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 1);
+            configuredSurvivorCount: 0);
         var store = new FakeAccountStore(Account());
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(last);
@@ -263,6 +322,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -276,8 +336,8 @@ public sealed class AccountServiceTests
     {
         var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 3);
-        var fresh = initial with { ProductionConnectionCount = 2 };
+            configuredSurvivorCount: 2);
+        var fresh = initial with { ConfiguredSurvivorCount = 1 };
         var store = new FakeAccountStore(Account());
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(fresh);
@@ -290,6 +350,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -303,9 +364,9 @@ public sealed class AccountServiceTests
     {
         var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 3);
-        var fresh = initial with { ProductionConnectionCount = 2 };
-        var last = initial with { ProductionConnectionCount = 1 };
+            configuredSurvivorCount: 2);
+        var fresh = initial with { ConfiguredSurvivorCount = 1 };
+        var last = initial with { ConfiguredSurvivorCount = 0 };
         var store = new FakeAccountStore(Account());
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(fresh);
@@ -318,6 +379,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -331,9 +393,9 @@ public sealed class AccountServiceTests
     {
         var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
-            productionConnectionCount: 3);
-        var fresh = initial with { ProductionConnectionCount = 2 };
-        var terminal = initial with { ProductionConnectionCount = 4 };
+            configuredSurvivorCount: 2);
+        var fresh = initial with { ConfiguredSurvivorCount = 1 };
+        var terminal = initial with { ConfiguredSurvivorCount = 3 };
         var store = new FakeAccountStore(Account());
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(fresh);
@@ -346,6 +408,7 @@ public sealed class AccountServiceTests
             UserId,
             currentAuthenticationProvider: ExternalProvider.Google,
             provider: ExternalProvider.GitHub,
+            ConfiguredProviders,
             Ct);
 
         Assert.Null(result.Value);
@@ -416,14 +479,14 @@ public sealed class AccountServiceTests
 
     private static DisconnectSnapshot DisconnectSnapshot(
         ExternalProvider provider,
-        int productionConnectionCount,
+        int configuredSurvivorCount,
         bool emailIsPrimary = false) =>
         new(
             UserId,
             provider,
             VerifiedEmail.Create($"{provider.Value}@example.test"),
             emailIsPrimary,
-            productionConnectionCount);
+            configuredSurvivorCount);
 
     private sealed class FakeAccountStore(AccountSnapshot account) : IAccountStore
     {
@@ -466,6 +529,7 @@ public sealed class AccountServiceTests
         public Task<DisconnectSnapshot?> GetDisconnectSnapshotAsync(
             UserId userId,
             ExternalProvider provider,
+            IReadOnlyCollection<ExternalProvider> configuredProviders,
             CancellationToken ct)
         {
             DisconnectSnapshotRequests.Add((userId, provider));
@@ -477,7 +541,10 @@ public sealed class AccountServiceTests
             return Task.FromResult(snapshot);
         }
 
-        public Task DisconnectAsync(DisconnectSnapshot snapshot, CancellationToken ct)
+        public Task DisconnectAsync(
+            DisconnectSnapshot snapshot,
+            IReadOnlyCollection<ExternalProvider> configuredProviders,
+            CancellationToken ct)
         {
             DisconnectAttempts.Add(snapshot);
             if (DisconnectFailures.TryDequeue(out var failure))

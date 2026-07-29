@@ -93,20 +93,21 @@ public sealed class ExternalConnectionPolicyTests
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
-    public void NonPositiveProductionConnectionCountsCannotDisconnect(int productionConnectionCount) =>
+    public void NonPositiveConfiguredSurvivorCountsCannotDisconnect(
+        int configuredSurvivorCount) =>
         Assert.False(ExternalConnectionPolicy.CanDisconnect(
             null,
             ExternalProvider.Google,
-            productionConnectionCount));
+            configuredSurvivorCount));
 
     [Fact]
-    public void CurrentOrLastProductionConnectionCannotBeDisconnected()
+    public void CurrentMethodOrCandidateWithoutConfiguredSurvivorCannotBeDisconnected()
     {
         Assert.False(ExternalConnectionPolicy.CanDisconnect(
-            ExternalProvider.Google, ExternalProvider.Google, 2));
+            ExternalProvider.Google, ExternalProvider.Google, 1));
         Assert.False(ExternalConnectionPolicy.CanDisconnect(
-            null, ExternalProvider.Google, 1));
+            null, ExternalProvider.Google, 0));
         Assert.True(ExternalConnectionPolicy.CanDisconnect(
-            null, ExternalProvider.Google, 2));
+            null, ExternalProvider.Google, 1));
     }
 }

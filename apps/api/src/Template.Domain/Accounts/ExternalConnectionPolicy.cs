@@ -24,6 +24,6 @@ public static class ExternalConnectionPolicy
     public static bool CanDisconnect(
         ExternalProvider? currentAuthenticationProvider,
         ExternalProvider candidate,
-        int productionConnectionCount) =>
-        currentAuthenticationProvider != candidate && productionConnectionCount > 1;
+        int configuredSurvivorCount) =>
+        currentAuthenticationProvider != candidate && configuredSurvivorCount > 0;
 }

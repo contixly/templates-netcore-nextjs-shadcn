@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OpenIddict.EntityFrameworkCore.Models;
 using Template.Api.Tests.Infrastructure;
@@ -88,29 +89,59 @@ public sealed class AccountSecurityTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task AccountAuditEventsContainSafeBoundedContextOnly()
     {
-        using var client = factory.CreateApiClient();
+        await using var configuredFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["ExternalAuthentication:PublicOrigin"] =
+                            "https://localhost",
+                        ["ExternalAuthentication:Providers:Google:ClientId"] =
+                            "audit-google-client",
+                        ["ExternalAuthentication:Providers:Google:ClientSecret"] =
+                            "audit-google-secret",
+                        ["ExternalAuthentication:Providers:GitHub:ClientId"] =
+                            "audit-github-client",
+                        ["ExternalAuthentication:Providers:GitHub:ClientSecret"] =
+                            "audit-github-secret"
+                    })));
+        using var client = configuredFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
         var scenario = await AccountEndpointTestSupport.CreateScenarioAsync(
             client,
             "Audit Owner",
             "local-agent+audit-owner@local-agent.test",
             "local-audit-owner-password");
         await AccountEndpointTestSupport.SeedExternalLoginAsync(
-            factory.Services,
+            configuredFactory.Services,
             scenario.UserId,
             "google",
             "sensitive-provider-subject-771");
         await AccountEndpointTestSupport.SeedExternalLoginAsync(
-            factory.Services,
+            configuredFactory.Services,
             scenario.UserId,
             "github",
             "sensitive-provider-subject-772");
-        using var other = factory.CreateApiClient();
+        using var other = configuredFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
         using var signIn = await LocalAuthTestClient.SignInAsync(
             other,
             scenario.Email,
             scenario.Password);
         Assert.Equal(HttpStatusCode.OK, signIn.StatusCode);
-        factory.Services.GetRequiredService<CapturedLogProvider>().Clear();
+        configuredFactory.Services
+            .GetRequiredService<CapturedLogProvider>()
+            .Clear();
 
         using var profile = await AccountEndpointTestSupport.SendWithCsrfAsync(
             client,
@@ -119,7 +150,7 @@ public sealed class AccountSecurityTests(ApiWebApplicationFactory factory)
             new { displayName = "Audit Renamed" });
         var otherSessionId = await GetOtherSessionIdAsync(
             scenario.UserId,
-            factory.Services);
+            configuredFactory.Services);
         using var revoke = await AccountEndpointTestSupport.SendWithCsrfAsync(
             client,
             HttpMethod.Delete,
@@ -141,7 +172,7 @@ public sealed class AccountSecurityTests(ApiWebApplicationFactory factory)
         Assert.All(
             new[] { profile, revoke, revokeOthers, disconnect, delete },
             response => Assert.Equal(HttpStatusCode.OK, response.StatusCode));
-        var accountEvents = factory.Services
+        var accountEvents = configuredFactory.Services
             .GetRequiredService<CapturedLogProvider>()
             .Logs
             .Where(log =>

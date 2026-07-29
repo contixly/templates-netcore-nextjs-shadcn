@@ -40,7 +40,7 @@ public sealed record DisconnectSnapshot(
     ExternalProvider Provider,
     VerifiedEmail Email,
     bool EmailIsPrimary,
-    int ProductionConnectionCount);
+    int ConfiguredSurvivorCount);
 
 public readonly record struct SessionCursor(DateTimeOffset LastSeenAt, SessionId Id)
 {

@@ -88,13 +88,20 @@ public sealed class AccountService(IAccountStore accounts)
         UserId userId,
         ExternalProvider? currentAuthenticationProvider,
         ExternalProvider provider,
+        IReadOnlyCollection<ExternalProvider> configuredProviders,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(configuredProviders);
+        var configured = configuredProviders
+            .Distinct()
+            .ToArray();
+
         for (var attempt = 0; attempt < MaximumDisconnectAttempts; attempt++)
         {
             var snapshot = await accounts.GetDisconnectSnapshotAsync(
                 userId,
                 provider,
+                configured,
                 cancellationToken);
             if (snapshot is null)
             {
@@ -104,14 +111,17 @@ public sealed class AccountService(IAccountStore accounts)
             if (!ExternalConnectionPolicy.CanDisconnect(
                     currentAuthenticationProvider,
                     provider,
-                    snapshot.ProductionConnectionCount))
+                    snapshot.ConfiguredSurvivorCount))
             {
                 return Failed<AccountDisconnection>(AccountFailure.ConnectionRequired);
             }
 
             try
             {
-                await accounts.DisconnectAsync(snapshot, cancellationToken);
+                await accounts.DisconnectAsync(
+                    snapshot,
+                    configured,
+                    cancellationToken);
                 return Succeeded(new AccountDisconnection(provider));
             }
             catch (AccountConcurrencyException)
@@ -125,6 +135,7 @@ public sealed class AccountService(IAccountStore accounts)
                     userId,
                     currentAuthenticationProvider,
                     provider,
+                    configured,
                     cancellationToken);
             }
         }
@@ -137,11 +148,13 @@ public sealed class AccountService(IAccountStore accounts)
             UserId userId,
             ExternalProvider? currentAuthenticationProvider,
             ExternalProvider provider,
+            IReadOnlyCollection<ExternalProvider> configuredProviders,
             CancellationToken cancellationToken)
     {
         var terminal = await accounts.GetDisconnectSnapshotAsync(
             userId,
             provider,
+            configuredProviders,
             cancellationToken);
         if (terminal is null)
         {
@@ -152,7 +165,7 @@ public sealed class AccountService(IAccountStore accounts)
         return ExternalConnectionPolicy.CanDisconnect(
             currentAuthenticationProvider,
             provider,
-            terminal.ProductionConnectionCount)
+            terminal.ConfiguredSurvivorCount)
             ? Failed<AccountDisconnection>(
                 AccountFailure.ConcurrencyConflict)
             : Failed<AccountDisconnection>(

@@ -191,6 +191,7 @@ internal sealed class AccountEndpointModule : IEndpointModule
     private static async Task<IResult> DisconnectAsync(
         string provider,
         AccountService accounts,
+        IExternalProviderCatalog providers,
         IBrowserSessionGateway browserSessions,
         ILogger<AccountEndpointModule> logger,
         HttpContext http,
@@ -218,6 +219,10 @@ internal sealed class AccountEndpointModule : IEndpointModule
             userId,
             currentProvider,
             externalProvider,
+            providers.Known
+                .Where(candidate => candidate.Configured)
+                .Select(candidate => candidate.Provider)
+                .ToArray(),
             cancellationToken);
         if (result.Failure is not null)
         {
@@ -469,8 +474,6 @@ internal sealed class AccountEndpointModule : IEndpointModule
             out var parsed)
             ? parsed
             : null;
-        var connectedCount = connections.Count(connection =>
-            connection.Email is not null);
         var displayNames = providers.Known.ToDictionary(
             descriptor => descriptor.Provider,
             descriptor => descriptor.DisplayName);
@@ -480,11 +483,15 @@ internal sealed class AccountEndpointModule : IEndpointModule
                 var connected = connection.Email is not null;
                 var isCurrent = connected &&
                     connection.Provider == currentProvider;
+                var configuredSurvivorCount = connections.Count(candidate =>
+                    candidate.Provider != connection.Provider
+                    && candidate.Configured
+                    && candidate.Email is not null);
                 var canDisconnect = connected &&
                     ExternalConnectionPolicy.CanDisconnect(
                         currentProvider,
                         connection.Provider,
-                        connectedCount);
+                        configuredSurvivorCount);
                 return new AccountConnectionResponse(
                     connection.Provider.Value,
                     displayNames.GetValueOrDefault(

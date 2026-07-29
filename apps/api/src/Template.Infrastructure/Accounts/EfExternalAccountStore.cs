@@ -169,12 +169,17 @@ internal sealed class EfExternalAccountStore(
         DateTimeOffset? usedAt,
         CancellationToken ct)
     {
-        var login = await db.UserLogins.SingleAsync(
-            row =>
-                row.UserId == userId.Value
-                && row.LoginProvider == identity.Provider.Value
-                && row.ProviderKey == identity.Subject,
-            ct);
+        var login = await db.UserLogins
+            .FromSqlInterpolated(
+                $"""
+                SELECT *
+                FROM auth.user_logins
+                WHERE user_id = {userId.Value}
+                  AND login_provider = {identity.Provider.Value}
+                  AND provider_key = {identity.Subject}
+                FOR UPDATE
+                """)
+            .SingleAsync(ct);
         var email = await db.UserEmails.SingleAsync(
             row =>
                 row.UserId == userId.Value

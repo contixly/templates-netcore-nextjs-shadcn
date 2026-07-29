@@ -112,8 +112,10 @@ internal sealed class EfAccountStore(
     public async Task<DisconnectSnapshot?> GetDisconnectSnapshotAsync(
         UserId userId,
         ExternalProvider provider,
+        IReadOnlyCollection<ExternalProvider> configuredProviders,
         CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(configuredProviders);
         var login = await (
             from row in db.UserLogins.AsNoTracking()
             join email in db.UserEmails.AsNoTracking()
@@ -131,21 +133,32 @@ internal sealed class EfAccountStore(
             return null;
         }
 
-        var count = await db.UserLogins.CountAsync(
-            row => row.UserId == userId.Value,
-            ct);
+        var configured = configuredProviders
+            .Select(candidate => candidate.Value)
+            .ToHashSet(StringComparer.Ordinal);
+        var connectedProviders = await db.UserLogins.AsNoTracking()
+            .Where(row => row.UserId == userId.Value)
+            .Select(row => row.LoginProvider)
+            .ToArrayAsync(ct);
+        var configuredSurvivorCount = connectedProviders.Count(candidate =>
+            candidate != provider.Value && configured.Contains(candidate));
         return new DisconnectSnapshot(
             userId,
             provider,
             new VerifiedEmail(login.Email, login.NormalizedEmail),
             login.IsPrimary,
-            count);
+            configuredSurvivorCount);
     }
 
     public async Task DisconnectAsync(
         DisconnectSnapshot snapshot,
+        IReadOnlyCollection<ExternalProvider> configuredProviders,
         CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(configuredProviders);
+        var configured = configuredProviders
+            .Select(provider => provider.Value)
+            .ToHashSet(StringComparer.Ordinal);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
         try
         {
@@ -177,7 +190,11 @@ internal sealed class EfAccountStore(
                     """)
                 .AsNoTracking()
                 .SingleAsync(ct);
-            if (lockedLogins.Length != snapshot.ProductionConnectionCount
+            var configuredSurvivorCount = lockedLogins.Count(row =>
+                row.LoginProvider != snapshot.Provider.Value
+                && configured.Contains(row.LoginProvider));
+            if (configuredSurvivorCount < 1
+                || configuredSurvivorCount != snapshot.ConfiguredSurvivorCount
                 || email.UserId != snapshot.UserId.Value
                 || email.IsPrimary != snapshot.EmailIsPrimary
                 || email.Email != snapshot.Email.Value

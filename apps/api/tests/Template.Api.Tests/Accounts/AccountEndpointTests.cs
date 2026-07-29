@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -332,20 +333,170 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ConfiguredCandidateCannotDisconnectWhenOnlyUnconfiguredLoginsWouldSurvive()
+    {
+        var useUnconfiguredProviderMethod = false;
+        await using var configuredFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["ExternalAuthentication:PublicOrigin"] =
+                            "https://localhost",
+                        ["ExternalAuthentication:Providers:GitHub:ClientId"] =
+                            "disconnect-safety-client",
+                        ["ExternalAuthentication:Providers:GitHub:ClientSecret"] =
+                            "disconnect-safety-secret"
+                    }));
+            builder.ConfigureTestServices(services =>
+                services.PostConfigure<CookieAuthenticationOptions>(
+                    BrowserSessionAuthenticationDefaults.PrimaryScheme,
+                    options =>
+                    {
+                        options.Events.OnValidatePrincipal = async context =>
+                        {
+                            if (!useUnconfiguredProviderMethod)
+                            {
+                                return;
+                            }
+
+                            var db = context.HttpContext.RequestServices
+                                .GetRequiredService<AuthDbContext>();
+                            await db.Sessions.ExecuteUpdateAsync(
+                                setters => setters.SetProperty(
+                                    session => session.AuthenticationMethod,
+                                    ExternalProvider.Google.Value),
+                                context.HttpContext.RequestAborted);
+
+                            var identity = Assert.IsType<ClaimsIdentity>(
+                                context.Principal?.Identity);
+                            foreach (var claim in context.Principal!
+                                         .FindAll(BrowserSessionClaimTypes
+                                             .AuthenticationMethod)
+                                         .ToArray())
+                            {
+                                identity.RemoveClaim(claim);
+                            }
+
+                            identity.AddClaim(new Claim(
+                                BrowserSessionClaimTypes.AuthenticationMethod,
+                                ExternalProvider.Google.Value));
+                            context.ReplacePrincipal(context.Principal);
+                            context.ShouldRenew = true;
+                        };
+                    }));
+        });
+        using var client = configuredFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        var scenario = await AccountEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Configured Disconnect Safety",
+            "local-agent+configured-disconnect@local-agent.test");
+        await AccountEndpointTestSupport.SeedExternalLoginAsync(
+            configuredFactory.Services,
+            scenario.UserId,
+            ExternalProvider.GitHub.Value,
+            "github-configured-candidate");
+        await AccountEndpointTestSupport.SeedExternalLoginAsync(
+            configuredFactory.Services,
+            scenario.UserId,
+            ExternalProvider.Google.Value,
+            "google-unconfigured-current");
+        await AccountEndpointTestSupport.SeedExternalLoginAsync(
+            configuredFactory.Services,
+            scenario.UserId,
+            ExternalProvider.Vk.Value,
+            "vk-unconfigured-extra");
+        var csrf = await LocalAuthTestClient.GetCsrfAsync(client);
+        useUnconfiguredProviderMethod = true;
+
+        using var projection = await client.GetAsync(
+            "/api/v1/account/connections",
+            TestContext.Current.CancellationToken);
+        using var projectionDocument = JsonDocument.Parse(
+            await projection.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        var github = Assert.Single(
+            projectionDocument.RootElement
+                .GetProperty("data")
+                .GetProperty("items")
+                .EnumerateArray(),
+            item => item.GetProperty("provider").GetString() == "github");
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Delete,
+            "/api/v1/account/connections/github");
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+        var problem = await AccountEndpointTestSupport.ReadProblemAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, projection.StatusCode);
+        Assert.True(github.GetProperty("configured").GetBoolean());
+        Assert.True(github.GetProperty("connected").GetBoolean());
+        Assert.False(github.GetProperty("isCurrentAuthenticationMethod").GetBoolean());
+        Assert.False(github.GetProperty("canDisconnect").GetBoolean());
+        Assert.Equal(
+            "external_connection_required",
+            github.GetProperty("disabledReason").GetString());
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("external_connection_required", problem.Code);
+
+        await using var scope = configuredFactory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        Assert.Equal(
+            ["github", "google", "vk"],
+            await db.UserLogins.AsNoTracking()
+                .Where(login => login.UserId == scenario.UserId)
+                .OrderBy(login => login.LoginProvider)
+                .Select(login => login.LoginProvider)
+                .ToArrayAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task DisconnectReturnsProviderAndRemovesOnlyTheSelectedConnection()
     {
-        using var client = factory.CreateApiClient();
+        await using var configuredFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["ExternalAuthentication:PublicOrigin"] =
+                            "https://localhost",
+                        ["ExternalAuthentication:Providers:Google:ClientId"] =
+                            "disconnect-success-google-client",
+                        ["ExternalAuthentication:Providers:Google:ClientSecret"] =
+                            "disconnect-success-google-secret",
+                        ["ExternalAuthentication:Providers:GitHub:ClientId"] =
+                            "disconnect-success-github-client",
+                        ["ExternalAuthentication:Providers:GitHub:ClientSecret"] =
+                            "disconnect-success-github-secret"
+                    })));
+        using var client = configuredFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
         var scenario = await AccountEndpointTestSupport.CreateScenarioAsync(
             client,
             "Disconnect Success",
             "local-agent+disconnect-success@local-agent.test");
         await AccountEndpointTestSupport.SeedExternalLoginAsync(
-            factory.Services,
+            configuredFactory.Services,
             scenario.UserId,
             "google",
             "disconnect-google");
         await AccountEndpointTestSupport.SeedExternalLoginAsync(
-            factory.Services,
+            configuredFactory.Services,
             scenario.UserId,
             "github",
             "disconnect-github");
@@ -365,7 +516,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
                 .GetProperty("data")
                 .GetProperty("provider")
                 .GetString());
-        await using var scope = factory.Services.CreateAsyncScope();
+        await using var scope = configuredFactory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
         Assert.False(await db.UserLogins.AnyAsync(
             login =>
@@ -931,6 +1082,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
         public Task<DisconnectSnapshot?> GetDisconnectSnapshotAsync(
             UserId userId,
             ExternalProvider provider,
+            IReadOnlyCollection<ExternalProvider> configuredProviders,
             CancellationToken ct)
         {
             DisconnectSnapshotReads++;
@@ -942,10 +1094,10 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
 
             var connectionCount = DisconnectSnapshotReads switch
             {
-                1 => 3,
-                2 => 2,
-                _ when terminalState == DisconnectTerminalState.Unsafe => 1,
-                _ => 4
+                1 => 2,
+                2 => 1,
+                _ when terminalState == DisconnectTerminalState.Unsafe => 0,
+                _ => 3
             };
             return Task.FromResult<DisconnectSnapshot?>(
                 new DisconnectSnapshot(
@@ -958,6 +1110,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
 
         public Task DisconnectAsync(
             DisconnectSnapshot snapshot,
+            IReadOnlyCollection<ExternalProvider> configuredProviders,
             CancellationToken ct)
         {
             DisconnectAttempts++;

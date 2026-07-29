@@ -17,6 +17,14 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
 {
     private static readonly DateTimeOffset Now =
         new(2026, 7, 29, 9, 30, 0, TimeSpan.Zero);
+    private static readonly ExternalProvider[] ConfiguredProviders =
+    [
+        ExternalProvider.Google,
+        ExternalProvider.GitHub,
+        ExternalProvider.GitLab,
+        ExternalProvider.Vk,
+        ExternalProvider.Yandex
+    ];
 
     private string _databaseName = string.Empty;
     private string _connectionString = string.Empty;
@@ -399,6 +407,153 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task ConcurrentExistingLoginEmailChangesSerializeAndLeaveNoOrphan()
+    {
+        await MigrateAsync();
+        Guid userId;
+        Guid primaryEmailId;
+        Guid sharedEmailId;
+        await using (var seed = CreateContext())
+        {
+            var user = CreateUser("race-primary@example.test");
+            seed.Users.Add(user);
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var primary = AddEmail(
+                seed,
+                user,
+                "race-primary@example.test",
+                primary: true);
+            var old = AddEmail(
+                seed,
+                user,
+                "race-old-a@example.test",
+                primary: false);
+            var shared = AddEmail(
+                seed,
+                user,
+                "race-shared@example.test",
+                primary: false);
+            seed.UserLogins.AddRange(
+                CreateLogin(
+                    user.Id,
+                    old.Id,
+                    ExternalProvider.Google,
+                    "google-racing-email"),
+                CreateLogin(
+                    user.Id,
+                    shared.Id,
+                    ExternalProvider.GitHub,
+                    "github-shared-email"));
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+            userId = user.Id;
+            primaryEmailId = primary.Id;
+            sharedEmailId = shared.Id;
+        }
+
+        await using var firstDb = CreateContext();
+        await using var secondDb = CreateContext();
+        await firstDb.Database.OpenConnectionAsync(
+            TestContext.Current.CancellationToken);
+        await secondDb.Database.OpenConnectionAsync(
+            TestContext.Current.CancellationToken);
+        var firstPid =
+            ((NpgsqlConnection)firstDb.Database.GetDbConnection()).ProcessID;
+        var secondPid =
+            ((NpgsqlConnection)secondDb.Database.GetDbConnection()).ProcessID;
+        Assert.NotEqual(firstPid, secondPid);
+        var firstStore = new EfExternalAccountStore(firstDb, TimeProvider.System);
+        var secondStore = new EfExternalAccountStore(secondDb, TimeProvider.System);
+        var firstIncoming = Identity(
+            ExternalProvider.Google,
+            "google-racing-email",
+            "race-incoming-b@example.test");
+        var secondIncoming = Identity(
+            ExternalProvider.Google,
+            "google-racing-email",
+            "race-incoming-c@example.test");
+
+        await using var firstTransaction =
+            await firstDb.Database.BeginTransactionAsync(
+                TestContext.Current.CancellationToken);
+        await firstStore.EnsureVerifiedEmailAsync(
+            new UserId(userId),
+            firstIncoming.Email,
+            primary: false,
+            TestContext.Current.CancellationToken);
+        await firstStore.UpdateLoginEmailAsync(
+            new UserId(userId),
+            firstIncoming,
+            usedAt: null,
+            TestContext.Current.CancellationToken);
+
+        await using var secondTransaction =
+            await secondDb.Database.BeginTransactionAsync(
+                TestContext.Current.CancellationToken);
+        await secondStore.EnsureVerifiedEmailAsync(
+            new UserId(userId),
+            secondIncoming.Email,
+            primary: false,
+            TestContext.Current.CancellationToken);
+        var competingUpdate = Task.Run(
+            () => secondStore.UpdateLoginEmailAsync(
+                new UserId(userId),
+                secondIncoming,
+                usedAt: null,
+                TestContext.Current.CancellationToken),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(await WaitUntilBlockedAsync(
+            secondPid,
+            firstPid,
+            TimeSpan.FromSeconds(5)));
+        Assert.False(competingUpdate.IsCompleted);
+
+        await firstTransaction.CommitAsync(TestContext.Current.CancellationToken);
+        await competingUpdate;
+        await secondTransaction.CommitAsync(TestContext.Current.CancellationToken);
+
+        await using var verify = CreateContext();
+        var finalEmail = await (
+            from login in verify.UserLogins.AsNoTracking()
+            join email in verify.UserEmails.AsNoTracking()
+                on login.VerifiedEmailId equals email.Id
+            where login.UserId == userId
+                && login.LoginProvider == ExternalProvider.Google.Value
+                && login.ProviderKey == "google-racing-email"
+            select email.NormalizedEmail).SingleAsync(
+                TestContext.Current.CancellationToken);
+        Assert.Contains(
+            finalEmail,
+            new[]
+            {
+                firstIncoming.Email.NormalizedValue,
+                secondIncoming.Email.NormalizedValue
+            });
+        Assert.Equal(1, await verify.UserEmails.CountAsync(
+            row => row.UserId == userId
+                && (row.NormalizedEmail ==
+                    firstIncoming.Email.NormalizedValue
+                    || row.NormalizedEmail ==
+                    secondIncoming.Email.NormalizedValue),
+            TestContext.Current.CancellationToken));
+        Assert.False(await verify.UserEmails.AnyAsync(
+            row => row.UserId == userId
+                && row.NormalizedEmail == "RACE-OLD-A@EXAMPLE.TEST",
+            TestContext.Current.CancellationToken));
+        Assert.True(await verify.UserEmails.AnyAsync(
+            row => row.Id == primaryEmailId && row.IsPrimary,
+            TestContext.Current.CancellationToken));
+        Assert.True(await verify.UserEmails.AnyAsync(
+            row => row.Id == sharedEmailId && !row.IsPrimary,
+            TestContext.Current.CancellationToken));
+        Assert.True(await verify.UserLogins.AnyAsync(
+            row => row.UserId == userId
+                && row.LoginProvider == ExternalProvider.GitHub.Value
+                && row.VerifiedEmailId == sharedEmailId,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task AccountStoreProjectsProfileEmailsConnectionsAndUpdatesName()
     {
         await MigrateAsync();
@@ -487,10 +642,12 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         var snapshot = await store.GetDisconnectSnapshotAsync(
             new UserId(user.Id),
             ExternalProvider.Google,
+            ConfiguredProviders,
             TestContext.Current.CancellationToken);
 
         await store.DisconnectAsync(
             Assert.IsType<DisconnectSnapshot>(snapshot),
+            ConfiguredProviders,
             TestContext.Current.CancellationToken);
 
         Assert.False(await db.UserLogins.AnyAsync(
@@ -499,6 +656,112 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         Assert.True(await db.UserLogins.AnyAsync(
             row => row.LoginProvider == ExternalProvider.GitHub.Value,
             TestContext.Current.CancellationToken));
+        Assert.False(await db.UserEmails.AnyAsync(
+            row => row.Id == secondary.Id,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task DisconnectAtomicallyRejectsWhenOnlyUnconfiguredLoginsWouldSurvive()
+    {
+        await MigrateAsync();
+        await using var db = CreateContext();
+        var (user, primary, secondary) = await SeedConnectedUserAsync(db);
+        db.UserLogins.AddRange(
+            CreateLogin(
+                user.Id,
+                secondary.Id,
+                ExternalProvider.GitHub,
+                "github-configured-candidate"),
+            CreateLogin(
+                user.Id,
+                primary.Id,
+                ExternalProvider.Google,
+                "google-unconfigured-current"),
+            CreateLogin(
+                user.Id,
+                primary.Id,
+                ExternalProvider.Vk,
+                "vk-unconfigured-extra"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var store = new EfAccountStore(db, TimeProvider.System);
+        var configured = new[] { ExternalProvider.GitHub };
+        var snapshot = Assert.IsType<DisconnectSnapshot>(
+            await store.GetDisconnectSnapshotAsync(
+                new UserId(user.Id),
+                ExternalProvider.GitHub,
+                configured,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(0, snapshot.ConfiguredSurvivorCount);
+        await Assert.ThrowsAsync<AccountConcurrencyException>(() =>
+            store.DisconnectAsync(
+                snapshot,
+                configured,
+                TestContext.Current.CancellationToken));
+
+        db.ChangeTracker.Clear();
+        Assert.Equal(
+            ["github", "google", "vk"],
+            await db.UserLogins.AsNoTracking()
+                .Where(row => row.UserId == user.Id)
+                .OrderBy(row => row.LoginProvider)
+                .Select(row => row.LoginProvider)
+                .ToArrayAsync(TestContext.Current.CancellationToken));
+        Assert.True(await db.UserEmails.AnyAsync(
+            row => row.Id == secondary.Id,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task DisconnectAtomicallyAllowsRemovalWhenConfiguredLoginSurvives()
+    {
+        await MigrateAsync();
+        await using var db = CreateContext();
+        var (user, primary, secondary) = await SeedConnectedUserAsync(db);
+        db.UserLogins.AddRange(
+            CreateLogin(
+                user.Id,
+                secondary.Id,
+                ExternalProvider.GitHub,
+                "github-configured-candidate"),
+            CreateLogin(
+                user.Id,
+                primary.Id,
+                ExternalProvider.Google,
+                "google-configured-survivor"),
+            CreateLogin(
+                user.Id,
+                primary.Id,
+                ExternalProvider.Vk,
+                "vk-unconfigured-extra"));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var store = new EfAccountStore(db, TimeProvider.System);
+        var configured = new[]
+        {
+            ExternalProvider.GitHub,
+            ExternalProvider.Google
+        };
+        var snapshot = Assert.IsType<DisconnectSnapshot>(
+            await store.GetDisconnectSnapshotAsync(
+                new UserId(user.Id),
+                ExternalProvider.GitHub,
+                configured,
+                TestContext.Current.CancellationToken));
+
+        Assert.Equal(1, snapshot.ConfiguredSurvivorCount);
+        await store.DisconnectAsync(
+            snapshot,
+            configured,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            ["google", "vk"],
+            await db.UserLogins.AsNoTracking()
+                .Where(row => row.UserId == user.Id)
+                .OrderBy(row => row.LoginProvider)
+                .Select(row => row.LoginProvider)
+                .ToArrayAsync(TestContext.Current.CancellationToken));
         Assert.False(await db.UserEmails.AnyAsync(
             row => row.Id == secondary.Id,
             TestContext.Current.CancellationToken));
@@ -532,17 +795,21 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         var primarySnapshot = await store.GetDisconnectSnapshotAsync(
             new UserId(user.Id),
             ExternalProvider.Google,
+            ConfiguredProviders,
             TestContext.Current.CancellationToken);
         await store.DisconnectAsync(
             Assert.IsType<DisconnectSnapshot>(primarySnapshot),
+            ConfiguredProviders,
             TestContext.Current.CancellationToken);
 
         var sharedSnapshot = await store.GetDisconnectSnapshotAsync(
             new UserId(user.Id),
             ExternalProvider.GitHub,
+            ConfiguredProviders,
             TestContext.Current.CancellationToken);
         await store.DisconnectAsync(
             Assert.IsType<DisconnectSnapshot>(sharedSnapshot),
+            ConfiguredProviders,
             TestContext.Current.CancellationToken);
 
         Assert.True(await db.UserEmails.AnyAsync(
@@ -585,6 +852,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
                 await setupStore.GetDisconnectSnapshotAsync(
                     new UserId(user.Id),
                     ExternalProvider.Google,
+                    ConfiguredProviders,
                     TestContext.Current.CancellationToken));
         }
 
@@ -607,6 +875,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         await Assert.ThrowsAsync<AccountConcurrencyException>(() =>
             store.DisconnectAsync(
                 snapshot,
+                ConfiguredProviders,
                 TestContext.Current.CancellationToken));
 
         Assert.True(await db.UserLogins.AnyAsync(
@@ -657,11 +926,13 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             await store.GetDisconnectSnapshotAsync(
                 new UserId(user.Id),
                 ExternalProvider.Google,
+                ConfiguredProviders,
                 TestContext.Current.CancellationToken));
 
         var exception = await Assert.ThrowsAsync<PostgresException>(() =>
             store.DisconnectAsync(
                 snapshot,
+                ConfiguredProviders,
                 TestContext.Current.CancellationToken));
         Assert.Equal("P0001", exception.SqlState);
         Assert.Equal("test email delete rejected", exception.MessageText);
