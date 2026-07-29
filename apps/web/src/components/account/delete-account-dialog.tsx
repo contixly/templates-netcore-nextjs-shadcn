@@ -35,30 +35,43 @@ export function DeleteAccountDialog({
   const [success, setSuccess] = useState(false);
   const [pending, setPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const activeRequestRef = useRef<number | null>(null);
+  const nextRequestIdRef = useRef(0);
   const matches = confirmation.trim() === primaryEmail;
 
   function changeOpen(nextOpen: boolean) {
+    if (!nextOpen && activeRequestRef.current !== null) {
+      return;
+    }
+
     setOpen(nextOpen);
     if (!nextOpen) {
       setConfirmation("");
       setFailure(null);
       setSuccess(false);
-      setPending(false);
     }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!matches || pending) {
+    if (!matches || activeRequestRef.current !== null) {
       return;
     }
 
+    const requestId = ++nextRequestIdRef.current;
+    activeRequestRef.current = requestId;
     setPending(true);
     setFailure(null);
     setSuccess(false);
     const result = await deleteBrowserAccount(createBrowserApiClient(), {
       confirmationEmail: confirmation.trim(),
     });
+
+    if (activeRequestRef.current !== requestId) {
+      return;
+    }
+
+    activeRequestRef.current = null;
     setPending(false);
 
     if (!result.ok || result.data.deleted !== true) {
@@ -86,6 +99,16 @@ export function DeleteAccountDialog({
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           inputRef.current?.focus();
+        }}
+        onEscapeKeyDown={(event) => {
+          if (activeRequestRef.current !== null) {
+            event.preventDefault();
+          }
+        }}
+        onInteractOutside={(event) => {
+          if (activeRequestRef.current !== null) {
+            event.preventDefault();
+          }
         }}
         showCloseButton={false}
       >

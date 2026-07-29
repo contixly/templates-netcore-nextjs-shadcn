@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { DeleteAccountDialog } from "@/src/components/account/delete-account-dialog";
 import { deleteBrowserAccount } from "@/src/lib/api/account/browser/account-mutations";
@@ -44,6 +44,14 @@ afterEach(() => {
   assignSpy.mockRestore();
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 it("requires the exact primary email before enabling deletion", async () => {
   renderWithMessages(
     <DeleteAccountDialog primaryEmail="Account@Example.test" />,
@@ -82,6 +90,92 @@ it("moves focus into the dialog and closes with Escape", async () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
   expect(screen.getByRole("button", { name: "Delete account" })).toHaveFocus();
+});
+
+it("blocks dismissal and duplicate submission while deletion is in flight", async () => {
+  const request = deferred<Awaited<ReturnType<typeof deleteBrowserAccount>>>();
+  deleteAccount.mockReturnValueOnce(request.promise).mockResolvedValueOnce({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+  renderWithMessages(
+    <DeleteAccountDialog primaryEmail="account@example.test" />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+  const input = await screen.findByRole("textbox", {
+    name: /Type account@example\.test to confirm/,
+  });
+  fireEvent.change(input, { target: { value: "account@example.test" } });
+  const form = input.closest("form");
+  if (!form) {
+    throw new Error("Delete form is unavailable.");
+  }
+
+  act(() => {
+    form.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    form.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+  });
+
+  await waitFor(() => {
+    expect(deleteAccount).toHaveBeenCalledTimes(1);
+  });
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+
+  const overlay = document.querySelector('[data-slot="dialog-overlay"]');
+  if (!(overlay instanceof HTMLElement)) {
+    throw new Error("Delete dialog overlay is unavailable.");
+  }
+
+  fireEvent.keyDown(document, { key: "Escape" });
+  fireEvent.pointerDown(overlay);
+  fireEvent.click(overlay);
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(deleteAccount).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    request.resolve({
+      ok: false,
+      failure: {
+        kind: "problem",
+        code: "validation_failed",
+        status: 400,
+        traceId: "trace-deferred-delete",
+      },
+    });
+  });
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "trace-deferred-delete",
+  );
+  expect(input).toHaveValue("account@example.test");
+  expect(screen.getByRole("button", { name: "Cancel" })).toBeEnabled();
+
+  fireEvent.keyDown(document, { key: "Escape" });
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+  fireEvent.change(
+    await screen.findByRole("textbox", {
+      name: /Type account@example\.test to confirm/,
+    }),
+    { target: { value: "account@example.test" } },
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Permanently delete account" }),
+  );
+
+  await waitFor(() => {
+    expect(deleteAccount).toHaveBeenCalledTimes(2);
+  });
 });
 
 it("deletes through the account adapter then performs a full home reload", async () => {
