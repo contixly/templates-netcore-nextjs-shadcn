@@ -643,8 +643,8 @@ authorization-screen smoke частичный, live callbacks не выполн�
 Детерминированные callback/state/replay/provider-normalization сценарии
 проверены integration tests; обычный full-stack E2E использует synthetic
 provider configuration. Live authorization-screen smoke открыл официальные
-hosts Google и GitHub, не открыл их для GitLab и Yandex в ограниченный timeout,
-а VK был пропущен из-за отсутствующего local secret. Credentials не
+hosts Google, GitHub и GitLab, не открыл его для Yandex в ограниченный timeout,
+а VK был пропущен из-за incomplete local credential pair. Credentials не
 отправлялись, callback не выполнялся, и live callback/login success не
 заявляется.
 
@@ -767,13 +767,13 @@ into per-provider child-process environment in memory. Inherited
 `ExternalAuthentication__*` values were scrubbed; only one complete pair ran at
 a time; values and authorization query URLs were not printed or written.
 
-| Provider | Live authorization-screen result                                                                                                                                     |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Google   | PASS; official authorization host reached; callback not attempted                                                                                                    |
-| GitHub   | PASS; official authorization host reached; callback not attempted                                                                                                    |
-| GitLab   | **FAIL / NOT VERIFIED**; official host was not reached within the sanitized smoke timeout; local value/registration/provider/network cause intentionally not exposed |
-| VK       | SKIPPED; known local client secret missing                                                                                                                           |
-| Yandex   | **FAIL / NOT VERIFIED**; official host was not reached within the sanitized smoke timeout; local value/registration/provider/network cause intentionally not exposed |
+| Provider | Live authorization-screen result                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Google   | PASS; official authorization host reached; callback not attempted                                                                                                  |
+| GitHub   | PASS; official authorization host reached; callback not attempted                                                                                                  |
+| GitLab   | PASS; official authorization host reached; callback not attempted                                                                                                  |
+| VK       | **SKIP_INCOMPLETE**; local credential pair incomplete                                                                                                              |
+| Yandex   | **FAIL_NOT_VERIFIED**; official host was not reached within the sanitized smoke timeout; local value/registration/provider/network cause intentionally not exposed |
 
 ### Intentional differences, known limitations, and next gate
 
@@ -814,8 +814,8 @@ a time; values and authorization query URLs were not printed or written.
 - Direct PostgreSQL evidence remains incomplete for equal-`lastSeenAt`
   `id DESC` tie-breaking and several valid/foreign cursor boundary cases;
   ordering and validation are covered by the existing layers.
-- Live GitLab/Yandex authorization hosts and VK credential completeness remain
-  external acceptance gaps. No successful live callback was attempted.
+- Live Yandex authorization-host reachability and VK credential completeness
+  remain external acceptance gaps. No successful live callback was attempted.
 
 **Следующий product gate:** iteration 5 organizations, membership и onboarding:
 согласовать organization identifiers, role/permission model, active
