@@ -62,6 +62,78 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task SessionAuthenticationMethodMigrationBackfillsExistingSessionAsLocal()
+    {
+        var (databaseName, connectionString) = await postgres.CreateDatabaseAsync(
+            TestContext.Current.CancellationToken);
+        try
+        {
+            await using var db = CreateContext(connectionString);
+            await db.Database.MigrateAsync(
+                "20260728232503_AccountsExternalOAuth",
+                TestContext.Current.CancellationToken);
+            var user = CreateUser("legacy-session@example.test");
+            db.Users.Add(user);
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+            var sessionId = Guid.CreateVersion7();
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO auth.sessions (
+                    id,
+                    user_id,
+                    ticket_key_hash,
+                    protected_ticket,
+                    created_at,
+                    updated_at,
+                    expires_at)
+                VALUES (
+                    {sessionId},
+                    {user.Id},
+                    {Enumerable.Repeat((byte)0x4A, 32).ToArray()},
+                    {new byte[] { 0xCA, 0xFE }},
+                    {Now},
+                    {Now},
+                    {Now.AddDays(7)})
+                """,
+                TestContext.Current.CancellationToken);
+
+            await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
+            db.ChangeTracker.Clear();
+
+            var session = await db.Sessions.AsNoTracking().SingleAsync(
+                row => row.Id == sessionId,
+                TestContext.Current.CancellationToken);
+            Assert.Equal(BrowserAuthenticationMethods.Local, session.AuthenticationMethod);
+        }
+        finally
+        {
+            await postgres.DropDatabaseAsync(
+                databaseName,
+                TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task DatabaseRejectsUnsupportedSessionAuthenticationMethod()
+    {
+        await MigrateAsync();
+        await using var db = CreateContext();
+        var user = CreateUser("invalid-session-method@example.test");
+        db.Users.Add(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var session = CreateSession(user.Id, Now, 0x5A);
+        session.AuthenticationMethod = "saml";
+        db.Sessions.Add(session);
+
+        var exception = await Assert.ThrowsAsync<DbUpdateException>(() =>
+            db.SaveChangesAsync(TestContext.Current.CancellationToken));
+
+        Assert.Equal(
+            PostgresErrorCodes.CheckViolation,
+            Assert.IsType<PostgresException>(exception.InnerException).SqlState);
+    }
+
+    [Fact]
     public async Task MigrationAddsRequiredConstraintsStateTablesAndNoProviderTokens()
     {
         await MigrateAsync();

@@ -496,6 +496,13 @@ account-session listings never decrypt or deserialize protected tickets. The
 additive column defaults existing rows to `local` and has a database check
 constraint for `local` plus the five closed provider ids.
 
+Before initial ticket protection, missing, duplicate or unknown method claims
+are replaced by exactly one canonical `local` claim. Retrieval normalizes the
+protected claim the same way and requires an ordinal match with the relational
+projection. A mismatch is treated as ticket-row integrity failure: the row is
+conditionally deleted only while its protected payload is unchanged, the
+cookie is invalidated, and neither side silently overwrites the other.
+
 No provider token columns are added.
 
 ### OpenIddict state

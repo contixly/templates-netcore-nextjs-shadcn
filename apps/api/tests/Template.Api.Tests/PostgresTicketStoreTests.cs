@@ -183,6 +183,97 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         Assert.Equal(issued.Id.Value, stored.Id);
     }
 
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("duplicate")]
+    [InlineData("unknown")]
+    public async Task InitialStoreProtectsExactlyOneCanonicalMethodClaim(
+        string ticketShape)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+        var store = scope.ServiceProvider.GetRequiredService<PostgresTicketStore>();
+        var ticket = CreateTicket(
+            Guid.CreateVersion7(),
+            _time.GetUtcNow().AddDays(7),
+            AuthenticationMethodsFor(ticketShape));
+
+        await store.StoreAsync(
+            ticket,
+            context,
+            TestContext.Current.CancellationToken);
+
+        var row = await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            .Sessions.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var protectedTicket = UnprotectTicket(
+            scope.ServiceProvider,
+            row.ProtectedTicket);
+        Assert.Equal(BrowserAuthenticationMethods.Local, row.AuthenticationMethod);
+        Assert.Equal(
+            [BrowserAuthenticationMethods.Local],
+            protectedTicket.Principal
+                .FindAll(BrowserSessionClaimTypes.AuthenticationMethod)
+                .Select(claim => claim.Value));
+    }
+
+    [Theory]
+    [InlineData("missing")]
+    [InlineData("duplicate")]
+    [InlineData("unknown")]
+    public async Task RetrieveRejectsLocalProjectedTicketAgainstProviderRow(
+        string ticketShape)
+    {
+        var sessionId = Guid.CreateVersion7();
+        var key = await StoreTicketAsync(CreateTicket(
+            sessionId,
+            _time.GetUtcNow().AddDays(7),
+            BrowserAuthenticationMethods.GitHub));
+        await ReplaceStoredMethodAndTicketAsync(
+            BrowserAuthenticationMethods.GitHub,
+            CreateTicket(
+                sessionId,
+                _time.GetUtcNow().AddDays(7),
+                AuthenticationMethodsFor(ticketShape)));
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+
+        var retrieved = await scope.ServiceProvider
+            .GetRequiredService<PostgresTicketStore>()
+            .RetrieveAsync(
+                key,
+                context,
+                TestContext.Current.CancellationToken);
+
+        Assert.Null(retrieved);
+        Assert.True(BrowserSessionCookieInvalidation.IsRequested(context));
+        await AssertNoSessionsAsync();
+    }
+
+    [Fact]
+    public async Task RetrieveRejectsProviderTicketAgainstLocalRow()
+    {
+        var sessionId = Guid.CreateVersion7();
+        var key = await StoreTicketAsync(CreateTicket(
+            sessionId,
+            _time.GetUtcNow().AddDays(7),
+            BrowserAuthenticationMethods.GitHub));
+        await ReplaceStoredMethodAsync(BrowserAuthenticationMethods.Local);
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+
+        var retrieved = await scope.ServiceProvider
+            .GetRequiredService<PostgresTicketStore>()
+            .RetrieveAsync(
+                key,
+                context,
+                TestContext.Current.CancellationToken);
+
+        Assert.Null(retrieved);
+        Assert.True(BrowserSessionCookieInvalidation.IsRequested(context));
+        await AssertNoSessionsAsync();
+    }
+
     [Fact]
     public async Task RetrieveLazilyDeletesProtectedButIncompatibleTicket()
     {
@@ -507,6 +598,31 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
+    private async Task ReplaceStoredMethodAndTicketAsync(
+        string authenticationMethod,
+        AuthenticationTicket ticket)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var row = await db.Sessions.SingleAsync(
+            TestContext.Current.CancellationToken);
+        row.AuthenticationMethod = authenticationMethod;
+        row.ProtectedTicket = Protect(
+            scope.ServiceProvider,
+            TicketSerializer.Default.Serialize(ticket));
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
+    private async Task ReplaceStoredMethodAsync(string authenticationMethod)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var row = await db.Sessions.SingleAsync(
+            TestContext.Current.CancellationToken);
+        row.AuthenticationMethod = authenticationMethod;
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
     private static byte[] Protect(
         IServiceProvider services,
         byte[] serializedTicket) =>
@@ -515,6 +631,17 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             .CreateProtector(
                 "Template.Infrastructure.Authentication.PostgresTicketStore.v1")
             .Protect(serializedTicket);
+
+    private static AuthenticationTicket UnprotectTicket(
+        IServiceProvider services,
+        byte[] protectedTicket) =>
+        TicketSerializer.Default.Deserialize(
+            services
+                .GetRequiredService<IDataProtectionProvider>()
+                .CreateProtector(
+                    "Template.Infrastructure.Authentication.PostgresTicketStore.v1")
+                .Unprotect(protectedTicket)) ??
+        throw new InvalidOperationException("Stored ticket could not be deserialized.");
 
     private static byte[] CreateV5PayloadThatThrowsArgumentException(
         byte[] serializedTicket)
@@ -567,7 +694,10 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         return context;
     }
 
-    private AuthenticationTicket CreateTicket(Guid sessionId, DateTimeOffset expiresAt)
+    private AuthenticationTicket CreateTicket(
+        Guid sessionId,
+        DateTimeOffset expiresAt,
+        params string[] authenticationMethods)
     {
         var identity = new ClaimsIdentity(
             [
@@ -575,6 +705,13 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
                 new Claim(BrowserSessionClaimTypes.SessionId, sessionId.ToString())
             ],
             ApiAuthenticationDefaults.SchemeName);
+        foreach (var authenticationMethod in authenticationMethods)
+        {
+            identity.AddClaim(new Claim(
+                BrowserSessionClaimTypes.AuthenticationMethod,
+                authenticationMethod));
+        }
+
         return new AuthenticationTicket(
             new ClaimsPrincipal(identity),
             new AuthenticationProperties
@@ -586,6 +723,19 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             },
             ApiAuthenticationDefaults.SchemeName);
     }
+
+    private static string[] AuthenticationMethodsFor(string ticketShape) =>
+        ticketShape switch
+        {
+            "missing" => [],
+            "duplicate" =>
+            [
+                BrowserAuthenticationMethods.GitHub,
+                BrowserAuthenticationMethods.Google
+            ],
+            "unknown" => ["linkedin"],
+            _ => throw new ArgumentOutOfRangeException(nameof(ticketShape))
+        };
 
     private sealed class MutableTimeProvider(DateTimeOffset utcNow)
         : TimeProvider

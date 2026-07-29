@@ -53,7 +53,8 @@ public sealed class PostgresTicketStore(
             ticket.Principal,
             BrowserSessionClaimTypes.SessionId);
         var userId = ParseRequiredGuid(ticket.Principal, ClaimTypes.NameIdentifier);
-        var authenticationMethod = ReadAuthenticationMethod(ticket.Principal);
+        var authenticationMethod = NormalizeAuthenticationMethodClaim(
+            ticket.Principal);
         var userAgent = httpContext.Request.Headers.UserAgent.ToString();
         if (userAgent.Length > 512)
         {
@@ -191,7 +192,18 @@ public sealed class PostgresTicketStore(
             return null;
         }
 
-        NormalizeAuthenticationMethodClaim(ticket.Principal);
+        var authenticationMethod = NormalizeAuthenticationMethodClaim(
+            ticket.Principal);
+        if (!string.Equals(
+                authenticationMethod,
+                row.AuthenticationMethod,
+                StringComparison.Ordinal))
+        {
+            await DeleteIfUnchangedAsync(db, row, cancellationToken);
+            BrowserSessionCookieInvalidation.Request(httpContext);
+            return null;
+        }
+
         return ticket;
     }
 
