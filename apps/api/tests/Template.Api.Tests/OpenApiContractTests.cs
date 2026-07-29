@@ -300,8 +300,9 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task ProductionHostDoesNotPublishRuntimeOpenApi()
     {
+        using var certificate = TestDataProtectionCertificate.CreateRsa();
         await using var productionFactory = factory.WithWebHostBuilder(
-            builder => builder.UseEnvironment("Production"));
+            certificate.ConfigureProductionHost);
         using var client = productionFactory.CreateClient(new()
         {
             BaseAddress = new Uri("https://localhost")

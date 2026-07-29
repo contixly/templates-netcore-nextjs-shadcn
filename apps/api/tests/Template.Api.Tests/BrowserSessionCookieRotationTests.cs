@@ -58,7 +58,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
             options.AddInterceptors(
                 provider.GetRequiredService<SessionCommandBarrier>());
         });
-        services.AddAuthInfrastructure(configuration);
+        services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         services.AddApiAuthentication();
         services.PostConfigure<CookieAuthenticationOptions>(
             ApiAuthenticationDefaults.SchemeName,

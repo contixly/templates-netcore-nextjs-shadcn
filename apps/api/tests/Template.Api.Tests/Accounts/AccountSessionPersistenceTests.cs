@@ -51,7 +51,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
         services.AddSingleton<TimeProvider>(_time);
         services.AddHttpContextAccessor();
         services.AddApiAuthentication();
-        services.AddAuthInfrastructure(configuration);
+        services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();

@@ -33,7 +33,7 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(TimeProvider.System);
         services.AddAuthentication();
-        services.AddAuthInfrastructure(configuration);
+        services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();

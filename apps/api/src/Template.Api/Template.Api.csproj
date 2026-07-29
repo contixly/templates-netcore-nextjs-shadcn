@@ -18,6 +18,15 @@
     <ProjectReference Include="..\Template.Infrastructure\Template.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="appsettings.Local.example.json"
+             CopyToOutputDirectory="Never"
+             CopyToPublishDirectory="Never" />
+    <Content Update="appsettings.Local.json"
+             CopyToOutputDirectory="Never"
+             CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
   <Target Name="NormalizeOpenApiDocumentName"
           AfterTargets="GenerateOpenApiDocuments"
           Condition="'$(OpenApiGenerateDocuments)' == 'true'
