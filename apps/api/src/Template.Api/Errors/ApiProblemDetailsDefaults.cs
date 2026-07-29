@@ -142,6 +142,10 @@ internal static class ApiProblemDetailsDefaults
                     requestedCode,
                     "Current session cannot be revoked",
                     "The current browser session cannot be revoked by this operation."),
+            ApiProblemCodes.ConcurrencyConflict => new ProblemDefinition(
+                requestedCode,
+                "Concurrent update conflict",
+                "The resource changed concurrently; retry the operation."),
             _ => null
         };
         if (custom is not null)

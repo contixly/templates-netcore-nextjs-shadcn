@@ -129,8 +129,26 @@ internal sealed class AccountEndpointModule : IEndpointModule
             cancellationToken);
         if (result.Failure is not null)
         {
-            throw new InvalidOperationException(
-                "The HTTP display-name validator and account service disagreed.");
+            switch (result.Failure.Value)
+            {
+                case AccountFailure.SessionRequired:
+                    AccountSecurityEvents.Write(
+                        logger,
+                        "profile_update",
+                        ApiProblemCodes.Unauthorized,
+                        userId.Value,
+                        sessionId: null,
+                        providerId: null);
+                    throw new ApiProblemException(
+                        StatusCodes.Status401Unauthorized,
+                        ApiProblemCodes.Unauthorized);
+                case AccountFailure.InvalidDisplayName:
+                    throw new InvalidOperationException(
+                        "The HTTP display-name validator and account service disagreed.");
+                default:
+                    throw new InvalidOperationException(
+                        "Unexpected profile-update failure.");
+            }
         }
 
         AccountSecurityEvents.Write(
@@ -582,7 +600,7 @@ internal sealed class AccountEndpointModule : IEndpointModule
                 ApiProblemCodes.ExternalConnectionRequired),
             AccountFailure.ConcurrencyConflict => new ApiProblemException(
                 StatusCodes.Status409Conflict,
-                ApiProblemCodes.ExternalConnectionRequired),
+                ApiProblemCodes.ConcurrencyConflict),
             _ => new InvalidOperationException(
                 "Unexpected provider-disconnection failure.")
         };
@@ -596,7 +614,7 @@ internal sealed class AccountEndpointModule : IEndpointModule
             AccountFailure.ConnectionRequired =>
                 ApiProblemCodes.ExternalConnectionRequired,
             AccountFailure.ConcurrencyConflict =>
-                ApiProblemCodes.ExternalConnectionRequired,
+                ApiProblemCodes.ConcurrencyConflict,
             AccountFailure.SessionNotFound =>
                 ApiProblemCodes.AccountSessionNotFound,
             AccountFailure.CurrentSessionCannotBeRevoked =>

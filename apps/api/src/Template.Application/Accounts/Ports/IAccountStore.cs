@@ -7,7 +7,7 @@ public interface IAccountStore
 {
     Task<AccountSnapshot?> GetAsync(UserId userId, CancellationToken ct);
 
-    Task<AccountSnapshot> UpdateDisplayNameAsync(
+    Task<AccountSnapshot?> UpdateDisplayNameAsync(
         UserId userId,
         string displayName,
         CancellationToken ct);

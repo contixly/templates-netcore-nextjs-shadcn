@@ -440,11 +440,27 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         Assert.Equal(secondary.NormalizedEmail, connection.Email?.NormalizedValue);
         Assert.Equal(Now.AddMinutes(2), connection.ConnectedAt);
         Assert.Equal(Now.AddMinutes(3), connection.LastUsedAt);
+        Assert.NotNull(updated);
         Assert.Equal("Updated Profile", updated.User.Name);
         Assert.Equal(Now.AddHours(1), await db.Users
             .Where(row => row.Id == user.Id)
             .Select(row => row.UpdatedAt)
             .SingleAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ProfileUpdateReturnsMissingWhenConcurrentDeletionWon()
+    {
+        await MigrateAsync();
+        await using var db = CreateContext();
+        var store = new EfAccountStore(db, new FixedTimeProvider(Now));
+
+        var updated = await store.UpdateDisplayNameAsync(
+            new UserId(Guid.CreateVersion7()),
+            "Already Deleted",
+            TestContext.Current.CancellationToken);
+
+        Assert.Null(updated);
     }
 
     [Fact]

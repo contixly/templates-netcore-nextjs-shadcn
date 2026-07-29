@@ -37,4 +37,5 @@ internal static class ApiProblemCodes
         "account_session_not_found";
     internal const string CurrentSessionCannotBeRevoked =
         "current_session_cannot_be_revoked";
+    internal const string ConcurrencyConflict = "concurrency_conflict";
 }

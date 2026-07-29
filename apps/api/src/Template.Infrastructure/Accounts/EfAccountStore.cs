@@ -60,7 +60,7 @@ internal sealed class EfAccountStore(
             user.CreatedAt);
     }
 
-    public async Task<AccountSnapshot> UpdateDisplayNameAsync(
+    public async Task<AccountSnapshot?> UpdateDisplayNameAsync(
         UserId userId,
         string displayName,
         CancellationToken ct)
@@ -74,11 +74,10 @@ internal sealed class EfAccountStore(
                 ct);
         if (updated == 0)
         {
-            throw new InvalidOperationException("The account no longer exists.");
+            return null;
         }
 
-        return await GetAsync(userId, ct)
-            ?? throw new InvalidOperationException("The account no longer exists.");
+        return await GetAsync(userId, ct);
     }
 
     public async Task<IReadOnlyList<AccountConnection>> ListConnectionsAsync(

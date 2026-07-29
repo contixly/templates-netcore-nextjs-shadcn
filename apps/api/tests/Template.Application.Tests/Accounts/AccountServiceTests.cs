@@ -38,6 +38,27 @@ public sealed class AccountServiceTests
         Assert.Equal("Ada Lovelace", Assert.Single(store.UpdatedDisplayNames));
     }
 
+    [Fact]
+    public async Task ProfileUpdateWhoseAccountWasConcurrentlyDeletedRequiresSession()
+    {
+        var store = new FakeAccountStore(Account())
+        {
+            ProfileMissingAfterValidation = true
+        };
+        var service = new AccountService(store);
+
+        var result = await service.UpdateDisplayNameAsync(
+            UserId,
+            "Concurrent Delete",
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.SessionRequired, result.Failure);
+        Assert.Equal(
+            "Concurrent Delete",
+            Assert.Single(store.UpdatedDisplayNames));
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(" ")]
@@ -251,7 +272,7 @@ public sealed class AccountServiceTests
     }
 
     [Fact]
-    public async Task SecondStaleDisconnectConflictReturnsBoundedConcurrencyFailure()
+    public async Task SecondStaleDisconnectConflictThatWasRemovedMapsFinalState()
     {
         var initial = DisconnectSnapshot(
             ExternalProvider.GitHub,
@@ -260,6 +281,63 @@ public sealed class AccountServiceTests
         var store = new FakeAccountStore(Account());
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(fresh);
+        store.DisconnectSnapshotReads.Enqueue(null);
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionNotFound, result.Failure);
+        Assert.Equal(3, store.DisconnectSnapshotRequests.Count);
+        Assert.Equal([initial, fresh], store.DisconnectAttempts);
+    }
+
+    [Fact]
+    public async Task SecondStaleDisconnectConflictThatBecameUnsafeMapsFinalState()
+    {
+        var initial = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 3);
+        var fresh = initial with { ProductionConnectionCount = 2 };
+        var last = initial with { ProductionConnectionCount = 1 };
+        var store = new FakeAccountStore(Account());
+        store.DisconnectSnapshotReads.Enqueue(initial);
+        store.DisconnectSnapshotReads.Enqueue(fresh);
+        store.DisconnectSnapshotReads.Enqueue(last);
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
+        store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
+        var service = new AccountService(store);
+
+        var result = await service.DisconnectAsync(
+            UserId,
+            currentAuthenticationProvider: ExternalProvider.Google,
+            provider: ExternalProvider.GitHub,
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.ConnectionRequired, result.Failure);
+        Assert.Equal(3, store.DisconnectSnapshotRequests.Count);
+        Assert.Equal([initial, fresh], store.DisconnectAttempts);
+    }
+
+    [Fact]
+    public async Task SecondStaleDisconnectConflictStillSafeReturnsAccurateContention()
+    {
+        var initial = DisconnectSnapshot(
+            ExternalProvider.GitHub,
+            productionConnectionCount: 3);
+        var fresh = initial with { ProductionConnectionCount = 2 };
+        var terminal = initial with { ProductionConnectionCount = 4 };
+        var store = new FakeAccountStore(Account());
+        store.DisconnectSnapshotReads.Enqueue(initial);
+        store.DisconnectSnapshotReads.Enqueue(fresh);
+        store.DisconnectSnapshotReads.Enqueue(terminal);
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
         var service = new AccountService(store);
@@ -272,7 +350,7 @@ public sealed class AccountServiceTests
 
         Assert.Null(result.Value);
         Assert.Equal(AccountFailure.ConcurrencyConflict, result.Failure);
-        Assert.Equal(2, store.DisconnectSnapshotRequests.Count);
+        Assert.Equal(3, store.DisconnectSnapshotRequests.Count);
         Assert.Equal([initial, fresh], store.DisconnectAttempts);
     }
 
@@ -353,24 +431,31 @@ public sealed class AccountServiceTests
         public List<string> UpdatedDisplayNames { get; } = [];
         public List<DisconnectSnapshot> DisconnectAttempts { get; } = [];
         public List<(UserId UserId, ExternalProvider Provider)>
-            DisconnectSnapshotRequests { get; } = [];
+            DisconnectSnapshotRequests
+        { get; } = [];
         public Queue<DisconnectSnapshot?> DisconnectSnapshotReads { get; } = [];
         public Queue<AccountConcurrencyException> DisconnectFailures { get; } = [];
         public List<UserId> DeletedUserIds { get; } = [];
         public DisconnectSnapshot? DisconnectSnapshot { get; init; }
+        public bool ProfileMissingAfterValidation { get; init; }
         public bool DeleteCompleted { get; private set; }
 
         public Task<AccountSnapshot?> GetAsync(UserId userId, CancellationToken ct) =>
             Task.FromResult<AccountSnapshot?>(userId == account.User.Id ? account : null);
 
-        public Task<AccountSnapshot> UpdateDisplayNameAsync(
+        public Task<AccountSnapshot?> UpdateDisplayNameAsync(
             UserId userId,
             string displayName,
             CancellationToken ct)
         {
             UpdatedDisplayNames.Add(displayName);
+            if (ProfileMissingAfterValidation)
+            {
+                return Task.FromResult<AccountSnapshot?>(null);
+            }
+
             account = account with { User = account.User with { Name = displayName } };
-            return Task.FromResult(account);
+            return Task.FromResult<AccountSnapshot?>(account);
         }
 
         public Task<IReadOnlyList<AccountConnection>> ListConnectionsAsync(

@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Application.Accounts;
 using Template.Application.Accounts.Ports;
+using Template.Domain.Accounts;
 using Template.Domain.Authentication;
 using Template.Api.Tests.Infrastructure;
 using Template.Infrastructure.Authentication;
@@ -172,6 +173,53 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
                 .GetProperty("data")
                 .GetProperty("displayName")
                 .GetString());
+    }
+
+    [Fact]
+    public async Task ProfileUpdateRaceWithAccountDeletionReturnsUnauthorizedWithoutSuccessAudit()
+    {
+        var store = new RacingAccountStore(profileMissing: true);
+        await using var racingFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IAccountStore>();
+                services.AddSingleton<IAccountStore>(store);
+            }));
+        using var client = racingFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        await AccountEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Profile Race",
+            "local-agent+profile-race@local-agent.test");
+        racingFactory.Services.GetRequiredService<CapturedLogProvider>().Clear();
+
+        using var response = await AccountEndpointTestSupport.SendWithCsrfAsync(
+            client,
+            HttpMethod.Patch,
+            "/api/v1/account/profile",
+            new { displayName = "Deleted Concurrently" });
+        var problem = await AccountEndpointTestSupport.ReadProblemAsync(response);
+        var audit = Assert.Single(
+            racingFactory.Services
+            .GetRequiredService<CapturedLogProvider>()
+            .Logs,
+            log =>
+                log.Category ==
+                "Template.Api.Features.Account.AccountEndpointModule");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("unauthorized", problem.Code);
+        Assert.Equal("profile_update", audit.State["AccountOperation"]);
+        Assert.Equal("unauthorized", audit.State["AccountOutcome"]);
+        Assert.DoesNotContain(
+            "succeeded",
+            audit.Message,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -392,6 +440,64 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
 
         Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         Assert.Equal("external_connection_required", problem.Code);
+    }
+
+    [Theory]
+    [InlineData(
+        DisconnectTerminalState.Removed,
+        HttpStatusCode.NotFound,
+        "external_connection_not_found")]
+    [InlineData(
+        DisconnectTerminalState.Unsafe,
+        HttpStatusCode.Conflict,
+        "external_connection_required")]
+    [InlineData(
+        DisconnectTerminalState.StillSafe,
+        HttpStatusCode.Conflict,
+        "concurrency_conflict")]
+    public async Task ExhaustedDisconnectContentionReclassifiesTheReadOnlyFinalState(
+        DisconnectTerminalState terminalState,
+        HttpStatusCode expectedStatus,
+        string expectedCode)
+    {
+        var store = new RacingAccountStore(terminalState: terminalState);
+        await using var racingFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IAccountStore>();
+                services.AddSingleton<IAccountStore>(store);
+            }));
+        using var client = racingFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        await AccountEndpointTestSupport.CreateScenarioAsync(
+            client,
+            $"Disconnect {terminalState}",
+            $"local-agent+disconnect-{terminalState.ToString().ToLowerInvariant()}@local-agent.test");
+        racingFactory.Services.GetRequiredService<CapturedLogProvider>().Clear();
+
+        using var response = await AccountEndpointTestSupport.SendWithCsrfAsync(
+            client,
+            HttpMethod.Delete,
+            "/api/v1/account/connections/github");
+        var problem = await AccountEndpointTestSupport.ReadProblemAsync(response);
+        var audit = Assert.Single(
+            racingFactory.Services
+            .GetRequiredService<CapturedLogProvider>()
+            .Logs,
+            log =>
+                log.Category ==
+                "Template.Api.Features.Account.AccountEndpointModule");
+
+        Assert.Equal(expectedStatus, response.StatusCode);
+        Assert.Equal(expectedCode, problem.Code);
+        Assert.Equal(3, store.DisconnectSnapshotReads);
+        Assert.Equal(2, store.DisconnectAttempts);
+        Assert.Equal(expectedCode, audit.State["AccountOutcome"]);
     }
 
     [Fact]
@@ -784,6 +890,82 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
             SessionId current,
             CancellationToken ct) =>
             Task.FromResult(0);
+    }
+
+    public enum DisconnectTerminalState
+    {
+        Removed,
+        Unsafe,
+        StillSafe
+    }
+
+    private sealed class RacingAccountStore(
+        bool profileMissing = false,
+        DisconnectTerminalState terminalState =
+            DisconnectTerminalState.StillSafe)
+        : IAccountStore
+    {
+        public int DisconnectSnapshotReads { get; private set; }
+
+        public int DisconnectAttempts { get; private set; }
+
+        public Task<AccountSnapshot?> GetAsync(
+            UserId userId,
+            CancellationToken ct) =>
+            Task.FromResult<AccountSnapshot?>(null);
+
+        public Task<AccountSnapshot?> UpdateDisplayNameAsync(
+            UserId userId,
+            string displayName,
+            CancellationToken ct) =>
+            profileMissing
+                ? Task.FromResult<AccountSnapshot?>(null)
+                : throw new InvalidOperationException(
+                    "This test store only models a missing profile.");
+
+        public Task<IReadOnlyList<AccountConnection>> ListConnectionsAsync(
+            UserId userId,
+            CancellationToken ct) =>
+            Task.FromResult<IReadOnlyList<AccountConnection>>([]);
+
+        public Task<DisconnectSnapshot?> GetDisconnectSnapshotAsync(
+            UserId userId,
+            ExternalProvider provider,
+            CancellationToken ct)
+        {
+            DisconnectSnapshotReads++;
+            if (DisconnectSnapshotReads == 3 &&
+                terminalState == DisconnectTerminalState.Removed)
+            {
+                return Task.FromResult<DisconnectSnapshot?>(null);
+            }
+
+            var connectionCount = DisconnectSnapshotReads switch
+            {
+                1 => 3,
+                2 => 2,
+                _ when terminalState == DisconnectTerminalState.Unsafe => 1,
+                _ => 4
+            };
+            return Task.FromResult<DisconnectSnapshot?>(
+                new DisconnectSnapshot(
+                    userId,
+                    provider,
+                    VerifiedEmail.Create("github@example.test"),
+                    EmailIsPrimary: false,
+                    connectionCount));
+        }
+
+        public Task DisconnectAsync(
+            DisconnectSnapshot snapshot,
+            CancellationToken ct)
+        {
+            DisconnectAttempts++;
+            throw new AccountConcurrencyException();
+        }
+
+        public Task DeleteAsync(UserId userId, CancellationToken ct) =>
+            Task.CompletedTask;
     }
 }
 

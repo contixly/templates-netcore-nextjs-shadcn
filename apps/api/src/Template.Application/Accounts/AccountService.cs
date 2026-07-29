@@ -30,7 +30,9 @@ public sealed class AccountService(IAccountStore accounts)
             userId,
             normalized,
             cancellationToken);
-        return Succeeded(account);
+        return account is null
+            ? Failed<AccountSnapshot>(AccountFailure.SessionRequired)
+            : Succeeded(account);
     }
 
     public async Task<IReadOnlyList<AccountConnection>> ListConnectionsAsync(
@@ -119,12 +121,42 @@ public sealed class AccountService(IAccountStore accounts)
             }
             catch (AccountConcurrencyException)
             {
-                return Failed<AccountDisconnection>(
-                    AccountFailure.ConcurrencyConflict);
+                return await ClassifyDisconnectAfterConflictAsync(
+                    userId,
+                    currentAuthenticationProvider,
+                    provider,
+                    cancellationToken);
             }
         }
 
         return Failed<AccountDisconnection>(AccountFailure.ConcurrencyConflict);
+    }
+
+    private async Task<AccountOperationResult<AccountDisconnection>>
+        ClassifyDisconnectAfterConflictAsync(
+            UserId userId,
+            ExternalProvider? currentAuthenticationProvider,
+            ExternalProvider provider,
+            CancellationToken cancellationToken)
+    {
+        var terminal = await accounts.GetDisconnectSnapshotAsync(
+            userId,
+            provider,
+            cancellationToken);
+        if (terminal is null)
+        {
+            return Failed<AccountDisconnection>(
+                AccountFailure.ConnectionNotFound);
+        }
+
+        return ExternalConnectionPolicy.CanDisconnect(
+            currentAuthenticationProvider,
+            provider,
+            terminal.ProductionConnectionCount)
+            ? Failed<AccountDisconnection>(
+                AccountFailure.ConcurrencyConflict)
+            : Failed<AccountDisconnection>(
+                AccountFailure.ConnectionRequired);
     }
 
     public async Task<AccountOperationResult<AccountDeletion>> DeleteAsync(
