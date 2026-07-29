@@ -51,6 +51,11 @@ production-dependency gate and reports zero findings for this application.
 `src/lib/api/generated` tree. Generated files are never hand-edited or formatted.
 `npm run api:check` regenerates and byte-compares the entire tree.
 
+OAuth protocol callbacks are intentionally absent from this REST contract.
+Next.js starts a flow only through the generated
+`challengeExternalAuth` operation and never parses an authorization code,
+state, provider token, or callback payload.
+
 Application data adapters call generated SDK operations and import generated
 DTOs. They do not call raw `fetch` and do not redefine response or Problem
 Details types. `npm run boundaries:check` enforces these rules across
@@ -80,6 +85,8 @@ created for each isolated credential context. The factory accepts only
 header collection and never forwards `Authorization`. The combined login auth
 loader gives its anonymous capabilities client only the correlation ID; its
 separate session client receives the incoming `Cookie` and correlation ID.
+The account, connection, and paged-session loaders use the same request-bound
+cookie/correlation allow-list and isolated generated clients.
 Callers read request state outside cached scopes and pass only explicitly
 permitted values. The anonymous system-status probe passes no forwarded
 headers.
@@ -107,6 +114,9 @@ a fresh CSRF pair first with `GET /api/v1/auth/csrf`. The request token is sent
 as `X-CSRF-TOKEN`; browser credentials remain `same-origin`. The current local
 button and logout control follow this CSRF-first path. Automation-only
 credential sign-in and cleanup use the same generated contract and CSRF rule.
+External sign-in, provider disconnect, profile update, session revoke,
+revoke-others, and account deletion use the same CSRF-first generated-SDK
+pattern.
 After an authenticated dashboard renders, a minimal Client Component performs
 an unmarked same-origin `getAuthSession` generated-SDK call. That browser-owned
 request can receive the secure HttpOnly sliding-renewal cookie. After a
@@ -125,9 +135,68 @@ The scenario API returns plaintext generated credentials once for automation,
 but the visible UI never renders or retains them and discards the response
 before refreshing and navigating.
 
+The same page renders one external-provider button for each provider advertised
+by the API. A synchronous in-flight guard permits only one challenge at a time.
+Navigation occurs only when the generated API returns an absolute,
+credential-free HTTPS URL; it is a top-level navigation, not an embedded
+callback handler. The browser validates URL shape but does not copy provider
+host metadata from ASP.NET Core.
+
+`/auth/error` maps only the callback's stable allow-listed `code` values to
+localized copy. Unknown, repeated, or arbitrary query fields use generic copy
+and are never echoed. No callback state, authorization code, access/refresh
+token, provider subject, bearer value, or session secret is retained in
+JavaScript memory or browser storage beyond the immediate generated request
+inputs. Authentication remains the secure HttpOnly cookie only.
+
 The iteration-3 `/dashboard` is only a protected session proof. It distinguishes
 anonymous state from API failure, renders the safe user/session projection and
 logout, and is not the product dashboard planned for iteration 9.
+
+## Account settings UI
+
+The protected `/user` shell is request-time server rendered below
+`connection()`/`Suspense`. It forwards only the incoming cookie and correlation
+id to isolated generated clients. Only an explicit anonymous projection
+redirects to `/auth/login?redirect=%2Fuser%2Fprofile`; API, network,
+configuration, or malformed-projection failures render a safe failure state
+instead of being treated as anonymous. `/user` redirects to `/user/profile`.
+
+Iteration 4 owns exactly four navigation destinations:
+
+- `/user/profile`;
+- `/user/connections`;
+- `/user/security`;
+- `/user/danger`.
+
+Invitations, API Keys, organization settings, and the final product shell are
+not implied by this navigation and remain in their planned iterations.
+
+The profile page renders the provider-managed avatar, display name, canonical
+read-only primary email, secondary verified emails, user id, and creation time.
+The client trims and validates the 2–50 character name for feedback, but the API
+is authoritative. The visible projection changes only after the REST mutation
+returns its confirmed account response.
+
+Connections render the server's configured-plus-connected union, including a
+connection whose provider configuration was removed. Connect reuses the
+external challenge adapter with `intent=connect`; disconnect uses the generated
+account mutation and server-provided disabled reason. UI disabled state is
+presentation only: the API again prevents removal of the current provider or
+the final production connection. Disconnect revokes neither provider consent
+nor remote tokens because no token is stored.
+
+Security renders only safe session fields. Browser/OS text is best-effort
+presentation derived from the bounded user-agent projection and is not an
+authorization input. Pagination returns the opaque `nextCursor` verbatim,
+appends and de-duplicates ids, and never decodes or constructs cursors. The
+current session has no single-revoke control; revoke-others keeps the current
+browser.
+
+Danger requires the exact primary email after outer whitespace trimming.
+During the destructive request a synchronous request-identity lock prevents
+duplicate submits and dismissal. Only confirmed API success performs a full
+top-level navigation to `/`; a failure leaves the dialog recoverable.
 
 ## Locale and theme
 

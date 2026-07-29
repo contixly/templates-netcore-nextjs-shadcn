@@ -1,7 +1,7 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 3 — persistence, Identity и базовая аутентификация (завершена 2026-07-24).
+**Текущая итерация:** 4 — accounts и внешний OAuth (завершена 2026-07-29).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -122,7 +122,7 @@ flowchart LR
 
 Порядок ниже определяет зависимости. Каждая итерация — самостоятельная поставка; оценка и детальный технический план уточняются только перед её началом.
 
-### Итерация 0 — Bootstrap репозитория **(сейчас)**
+### Итерация 0 — Bootstrap репозитория
 
 **Цель:** создать безопасную стартовую точку, не мигрируя продуктовый функционал.
 
@@ -168,14 +168,25 @@ flowchart LR
 **Выход:** в opted-in Development/Test одна кнопка создаёт local credential user и persistent browser session; credentials позволяют automation-вход во вторую независимую сессию; logout/cleanup/current-session работают только через REST; Production password auth недоступен.
 **Отложено:** внешний OAuth и account/session management — итерация 4; API keys/`x-api-key` — итерация 7; реальный Bearer требует отдельного issuer/consumer contract.
 
-### Итерация 4 — Accounts и внешний OAuth
+### Итерация 4 — Accounts и внешний OAuth **(завершена; live callback не заявлен)**
 
 **Цель:** восстановить пользовательский lifecycle из `template/src/features/accounts`.
 
-**Состав:** profile update, password/security settings, active sessions and revoke, delete account, external provider connect/disconnect, OAuth provider priority agreed before implementation, account pages and matching E2E scenarios.
+**Состав:** profile update; primary/secondary verified-email ownership;
+active-session list with opaque cursor, revoke one/revoke all others; hard
+account deletion; Google/GitHub/GitLab/VK/Yandex sign-in and
+connect/disconnect; OpenIddict Client state/replay protection; PostgreSQL Data
+Protection key ring with mandatory production RSA PFX; REST/OpenAPI/generated
+SDK; `/auth/login`, `/auth/error` and `/user/{profile,connections,security,danger}`;
+deterministic callback/browser E2E and opt-in authorization-screen smoke.
 
 **Вход:** итерация 3.
-**Выход:** функциональные сценарии `/user/*` воспроизведены через REST без Better Auth; security-sensitive paths имеют authorization и audit/telemetry coverage.
+**Выход:** согласованный lifecycle `/user/*` работает через REST без Better
+Auth; browser auth остаётся secure HttpOnly cookie; mutations защищены CSRF,
+authorization и safe audit telemetry; provider tokens не сохраняются.
+Production password lifecycle намеренно не перенесён. Детерминированные
+callbacks проверены fake-provider integration tests; live успешный callback не
+выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
 ### Итерация 5 — Organizations, membership и onboarding
@@ -275,7 +286,8 @@ flowchart LR
 | 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                       |
 | 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                       |
 | 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты. |
-| 4–12                                               | Не начаты | Следующий dependency gate — внешний OAuth/accounts; API keys и `x-api-key` остаются итерацией 7.                                                                                          |
+| 4 — accounts и внешний OAuth                       | Завершена | Five-provider OAuth/account lifecycle, verified emails, session management, hard delete, persistent/protected Data Protection keys, REST/UI/E2E приняты; live callback не заявлен.        |
+| 5–12                                               | Не начаты | Следующий dependency gate — organizations/membership/onboarding; API keys и `x-api-key` остаются итерацией 7.                                                                             |
 
 ## Acceptance evidence: итерация 1
 
@@ -567,15 +579,15 @@ through an App Router refresh. The refreshed Server Component performs its
 uncached, renewal-suppressed read and projects the timestamps already committed
 by the browser request; failed browser reads do not trigger a route refresh.
 
-| Команда / проверка                                                                  | Наблюдаемый результат                                                                                                  |
-| ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| focused `browser-session-refresh` Jest RED                                           | FAIL as intended; the successful API response was discarded and `router.refresh()` had 0 calls                        |
-| `npm test -- --runInBand test/components/browser-session-refresh.test.tsx`           | PASS; 2/2 success and failure-path component tests                                                                      |
-| `npm ci`                                                                            | PASS; 978 packages added; reproduced the already documented 26 high dev-only findings                                  |
-| `npm run boundaries:check`, `npm run format:check`, `npm run lint`, `npm run typecheck` | PASS; 3/3 boundary tests, formatting, lint and generated-route/type checks clean                                     |
-| `npm test -- --runInBand`                                                           | PASS; 24/24 suites and 99/99 tests                                                                                      |
-| `npm run build`                                                                     | PASS; Next.js 16.2.11 production build completed with `/`, `/auth/login`, and `/dashboard`                              |
-| `npm run e2e`                                                                       | PASS; Playwright 4/4 in 15.4s                                                                                           |
+| Команда / проверка                                                                      | Наблюдаемый результат                                                                          |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| focused `browser-session-refresh` Jest RED                                              | FAIL as intended; the successful API response was discarded and `router.refresh()` had 0 calls |
+| `npm test -- --runInBand test/components/browser-session-refresh.test.tsx`              | PASS; 2/2 success and failure-path component tests                                             |
+| `npm ci`                                                                                | PASS; 978 packages added; reproduced the already documented 26 high dev-only findings          |
+| `npm run boundaries:check`, `npm run format:check`, `npm run lint`, `npm run typecheck` | PASS; 3/3 boundary tests, formatting, lint and generated-route/type checks clean               |
+| `npm test -- --runInBand`                                                               | PASS; 24/24 suites and 99/99 tests                                                             |
+| `npm run build`                                                                         | PASS; Next.js 16.2.11 production build completed with `/`, `/auth/login`, and `/dashboard`     |
+| `npm run e2e`                                                                           | PASS; Playwright 4/4 in 15.4s                                                                  |
 
 `Template.Session.Selector` is the default authenticate scheme: it forwards
 ordinary paths to the primary `Template.Session` handler and the canonical
@@ -587,7 +599,7 @@ same cookie/ticket-store format and Data Protection purpose for safe session
 replacement and key rotation. Only `cookieAuth` is advertised in OpenAPI.
 There is no Bearer or API-key runtime.
 
-**Intentional differences from reference:**
+**Intentional differences from reference на момент acceptance итерации 3:**
 
 - success uses the typed `{ "data": ... }` envelope and failures use RFC
   Problem Details with stable `code`/`traceId`;
@@ -603,16 +615,167 @@ There is no Bearer or API-key runtime.
 - API-key/`x-api-key` remains iteration 7 and no API-key or Bearer scheme is
   registered.
 
-**Следующий gate:** agree external-provider priority, credentials and callback
-URLs; define provider email-verification mapping; design persistent/encrypted
-production Data Protection key storage; and approve the exact iteration-4
-account/session-management scope. Until that gate, production password/social
-login remains unavailable and iteration-4/5/7 product domains are not pulled
-forward.
+**Исторический gate после итерации 3 закрыт:** provider set/callbacks,
+email-verification mapping, persistent/encrypted Data Protection keys и точный
+account/session scope были согласованы и реализованы в итерации 4 ниже.
+Production password login остаётся намеренно недоступен; iteration-5/7 domains
+не подтягивались вперёд.
 
 Both immutable-reference checks were explicitly empty:
 `git diff --exit-code -- template/` and
 `git diff --exit-code origin/main...HEAD -- template/`.
+
+## Acceptance evidence: итерация 4
+
+**Scope:** account Domain/Application policies; additive EF account,
+OpenIddict-state, Data Protection and session-method persistence; OpenIddict
+Client for Google, GitHub, GitLab, VK and Yandex; versioned external-challenge
+and account REST; stable unversioned protocol callbacks; OpenAPI/generated SDK;
+external-login/error and protected account UI; Jest, PostgreSQL integration and
+Playwright coverage; durable API/web/auth/migration documentation.
+`template/` остался immutable. Prisma/Better Auth records, provider tokens и
+secrets не переносились; активный OpenSpec change/spec не создавался.
+
+**Состояние:** функциональный согласованный scope завершён 2026-07-29.
+Детерминированные callback/state/replay/provider-normalization сценарии
+проверены integration tests; обычный full-stack E2E использует synthetic
+provider configuration. Live authorization-screen smoke открыл официальные
+hosts Google и GitHub, не открыл их для GitLab и Yandex в ограниченный timeout,
+а VK был пропущен из-за отсутствующего local secret. Credentials не
+отправлялись, callback не выполнялся, и live callback/login success не
+заявляется.
+
+### Реализованный contract и architecture
+
+| Область            | Реализованное решение                                                                                                                                                                                                                         |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP ownership     | ASP.NET Core остаётся единственным владельцем `/api/**`; Next.js использует generated REST SDK и не содержит Route Handlers, Server Actions, Prisma, Better Auth или direct database access                                                   |
+| Browser auth       | только `__Host-template.session` secure HttpOnly same-origin cookie; no Bearer/browser token storage; все unsafe browser mutations и external challenge требуют fresh CSRF                                                                    |
+| External start     | `POST /api/v1/auth/external/{provider}/challenge`; `signIn` только anonymous, `connect` только current session; unsafe return paths fail closed                                                                                               |
+| Protocol callbacks | Google `/api/auth/callback/google`; GitHub `/api/auth/callback/github`; GitLab `/api/auth/callback/gitlab`; VK `/api/auth/callback/vk`; Yandex `/api/auth/oauth2/callback/yandex`; GET/POST, unversioned, excluded from OpenAPI/generated SDK |
+| Account REST       | `GET /account`, `PATCH /account/profile`, `GET/DELETE /account/connections`, `GET /account/sessions`, revoke one/others и `DELETE /account`, все под `/api/v1` и `Cache-Control: no-store`                                                    |
+| Account UI         | `/user` → `/user/profile`; ровно Profile, Connections, Security, Danger; `/auth/error` отображает только allow-listed stable codes                                                                                                            |
+| Persistence        | global unique verified-email ownership, one primary/user, one provider/user, stable provider-subject ownership, relational session authentication method, OpenIddict client-state rows, PostgreSQL Data Protection keys                       |
+| Layering           | Domain не зависит от HTTP/Infrastructure; Application владеет use cases/ports; Infrastructure реализует Identity/EF/OpenIddict; API валидирует/авторизует на boundary                                                                         |
+
+Provider email mapping:
+
+| Provider | Subject               | Email acceptance                                                        |
+| -------- | --------------------- | ----------------------------------------------------------------------- |
+| Google   | `sub`                 | ровно один `email_verified=true` и email                                |
+| GitHub   | positive numeric `id` | ровно один primary+verified email из bounded `/user/emails` backchannel |
+| GitLab   | `sub`                 | ровно один `email_verified=true` и email                                |
+| VK       | `user_id`             | user-info email считается provider-confirmed по согласованной mapping   |
+| Yandex   | string `id`           | `default_email` считается provider-confirmed по согласованной mapping   |
+
+Anonymous sign-in с новым subject не создаёт duplicate user, если primary или
+secondary normalized verified email уже принадлежит существующему user.
+Explicit connect может переиспользовать email текущего user или создать
+свободный secondary email; чужой owner даёт conflict. Новая connection может
+обновить display name/HTTPS avatar; повторный sign-in обновляет только
+`lastUsedAt`.
+
+Disconnect выполняется локально и атомарно. Он удаляет provider login и удаляет
+его non-primary secondary email только когда ни одна remaining connection
+больше не подтверждает этот row. Primary email сохраняется. Current provider и
+последняя production provider connection не отключаются. Provider-side
+consent/token не отзывается, потому что provider access/refresh tokens нигде не
+сохраняются.
+
+Session list сортируется `(lastSeenAt DESC, id DESC)`, default limit `20`,
+границы `1..100`. Cursor — opaque versioned canonical base64url tuple с
+checksum для format/corruption detection, а не MAC/authorization token.
+Account listing не загружает protected ticket/hash. Single revoke использует
+ownership-qualified delete и запрещает current id; revoke-others одним
+set-based delete сохраняет current session.
+
+External reconciliation использует одну transaction на попытку и один
+bounded retry после classified unique race. Disconnect locks/revalidates
+snapshot и rollback-ит login/email вместе. Hard delete commit-ит Identity user
+transaction, database cascades удаляют verified emails, logins, Identity
+children и все sessions, затем cookie expires. Organization/API-key cleanup
+counts не фабрикуются, поскольку этих domains ещё нет.
+
+Data Protection key ring persist-ится в `auth.data_protection_keys` со stable
+application discriminator `Template`. Production требует mounted RSA PFX path
+и password, encrypts key XML at rest и fail-closed при invalid configuration.
+Development может использовать shared database key ring без certificate.
+Ignored `appsettings.Local.json` загружается последним только в Development,
+имеет mode `0600`, не попадает в build/publish и вручную заполняется без runtime
+чтения `template/.env`.
+
+### Fresh verification 2026-07-29
+
+| Команда / проверка                                                                                                                                                  | Наблюдаемый результат                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                                                                                                                       | PASS; все projects up-to-date                                                                                                                                                                 |
+| `dotnet build Template.sln --no-restore`                                                                                                                            | PASS; 0 warnings, 0 errors                                                                                                                                                                    |
+| `dotnet test Template.sln --no-restore`                                                                                                                             | PASS; Application 98/98, API 299/299, total 397/397, 0 failed/skipped; API suite применила migrations к disposable PostgreSQL и проверила transactions/state/Data Protection/callbacks        |
+| `dotnet ef migrations has-pending-model-changes --project apps/api/src/Template.Infrastructure --startup-project apps/api/src/Template.Api --context AuthDbContext` | PASS; build succeeded, model changes отсутствуют                                                                                                                                              |
+| exact OpenAPI export build, повторный export/hash и `git diff --exit-code -- contracts/openapi/v1.json`                                                             | PASS; 0 warnings/errors; SHA-256 до/после `05831e17145a9dcdb95cc725592ee45c6dff7ad8175997202102767c9de56cbb`; committed contract unchanged                                                    |
+| `cd apps/web && npm run api:check`                                                                                                                                  | PASS; 4 generated files regenerated/byte-compared, SDK deterministic/current                                                                                                                  |
+| clean `npm ci`                                                                                                                                                      | PASS; 978 packages added, 979 audited; reproduced known 26 high dev-only findings                                                                                                             |
+| `npm audit --omit=dev`                                                                                                                                              | PASS; 0 production vulnerabilities                                                                                                                                                            |
+| `npm audit --json`                                                                                                                                                  | expected external tooling blocker; 26 high, 0 other severities, all in documented development-only ESLint/Jest graph                                                                          |
+| `dotnet list Template.sln package --vulnerable --include-transitive`                                                                                                | PASS; no vulnerable direct/transitive NuGet packages in seven projects                                                                                                                        |
+| `npm run boundaries:check`                                                                                                                                          | PASS; 3/3 harness tests and full source/dependency scan                                                                                                                                       |
+| `npm run format:check`, `npm run lint`, `npm run typecheck`                                                                                                         | PASS; Prettier, ESLint, Next route type generation and `tsc --noEmit`                                                                                                                         |
+| `npm test -- --runInBand`                                                                                                                                           | PASS; Jest 34/34 suites, 161/161 tests, 0 snapshots                                                                                                                                           |
+| clean `.next`; `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build`; standalone existence                                      | PASS; Next.js 16.2.11, 11/11 static generation units, all auth/account routes, `.next/standalone/server.js` present                                                                           |
+| `npm run e2e`                                                                                                                                                       | PASS; 14 discovered, 9 deterministic passed, 5 opt-in live cases skipped, 0 failed                                                                                                            |
+| exact local-value collision, private-key marker, runtime `template/.env`, ignored-overlay mode/artifact guards                                                      | PASS; 9 nonempty local OAuth values checked with values suppressed; no non-reference tracked collision/private key/runtime reference; local overlay ignored, `0600`, absent from build output |
+| documentation Prettier, `git diff --check`, exact four-file scope, working-tree `template/` diff and `origin/main...HEAD -- template/`                              | PASS; docs formatted/whitespace-clean; only four durable docs changed before commit; immutable reference diffs empty                                                                          |
+
+Live credentials were read only from the user-authorized ignored local JSON
+into per-provider child-process environment in memory. Inherited
+`ExternalAuthentication__*` values were scrubbed; only one complete pair ran at
+a time; values and authorization query URLs were not printed or written.
+
+| Provider | Live authorization-screen result                                                                                                                                     |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Google   | PASS; official authorization host reached; callback not attempted                                                                                                    |
+| GitHub   | PASS; official authorization host reached; callback not attempted                                                                                                    |
+| GitLab   | **FAIL / NOT VERIFIED**; official host was not reached within the sanitized smoke timeout; local value/registration/provider/network cause intentionally not exposed |
+| VK       | SKIPPED; known local client secret missing                                                                                                                           |
+| Yandex   | **FAIL / NOT VERIFIED**; official host was not reached within the sanitized smoke timeout; local value/registration/provider/network cause intentionally not exposed |
+
+### Intentional differences, known limitations, and next gate
+
+- Reference implicit linking is disabled; the approved target intentionally
+  enables linking by matching provider-confirmed normalized primary/secondary
+  email.
+- Target persists secondary verified emails; reference projects one user email.
+- Production password registration/login/reset/change, 2FA, email delivery and
+  manual verification are not implemented. Existing password flow is local
+  automation only.
+- Problem Details replaces Better Auth/Server Action error shapes. ASP.NET Core
+  owns callbacks even though stable callback paths remain reference-compatible.
+- Provider tokens, remote refresh/API calls and remote consent revocation are
+  out of scope. The target stores only state-token bookkeeping.
+- Invitations, organizations, teams and API keys are absent from account
+  navigation and deletion until iterations 5–7. `/dashboard` remains the
+  iteration-3 proof until iteration 9.
+- KMS/Vault, certificate rotation orchestration, Redis, Aspire, YARP and final
+  one-container topology remain later work.
+- Full npm development audit remains blocked by the known 26-high upstream
+  ESLint/Jest advisory graph; production npm and NuGet vulnerability gates are
+  clean.
+- Current readiness probes `auth.users`, not the exact expected migration or
+  Data Protection key table. Relative production certificate-path resolution
+  is not specified; operators should use an explicit mounted path.
+- The cursor checksum detects format/corruption but is not cryptographic
+  tamper authorization. UI recovery after `invalid_cursor` retries the rejected
+  cursor instead of refreshing page one, and revoke-others visibility is based
+  on loaded rows.
+- Live GitLab/Yandex authorization hosts and VK credential completeness remain
+  external acceptance gaps. No successful live callback was attempted.
+
+**Следующий product gate:** iteration 5 organizations, membership и onboarding:
+согласовать organization identifiers, role/permission model, active
+organization context, transaction/isolation rules и route/API contract. Перед
+production deployment отдельно требуются operator secrets/PFX, exact provider
+console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
+и повторный provider smoke в целевой среде.
 
 ## 9. Правило обновления этого документа
 

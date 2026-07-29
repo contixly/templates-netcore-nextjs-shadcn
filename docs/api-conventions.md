@@ -24,6 +24,14 @@ The initial codes are `invalid_request`, `validation_failed`, `unauthorized`,
 Authentication adds `antiforgery_failed`,
 `local_auth_invalid_credentials`, `local_auth_user_required`,
 `local_auth_disabled`, `local_auth_user_exists`, and `rate_limited`.
+The iteration-4 account and external-auth surface additionally uses
+`invalid_return_url`, `external_provider_not_configured`,
+`already_authenticated`, `external_auth_failed`, `external_email_required`,
+`external_email_unverified`, `external_identity_conflict`,
+`external_email_conflict`, `oauth_flow_context_changed`, `invalid_cursor`,
+`external_connection_required`, `external_connection_not_found`,
+`account_session_not_found`, `current_session_cannot_be_revoked`, and
+`concurrency_conflict`.
 
 The API error contract takes precedence over request content negotiation:
 an incompatible `Accept` header does not suppress or downgrade Problem Details.
@@ -70,15 +78,16 @@ and browser cookie after half-life.
 
 The implemented browser authentication surface is:
 
-| Operation                         | Access and mutation policy                                                                               |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/auth/capabilities`   | anonymous, no-store                                                                                      |
-| `GET /api/v1/auth/session`        | anonymous `200` projection for both authenticated and anonymous state, no-store                          |
-| `GET /api/v1/auth/csrf`           | anonymous, issues the paired antiforgery cookie/request token, no-store                                  |
-| `POST /api/v1/auth/logout`        | `Api.BrowserSession` plus CSRF; revokes only the current session                                         |
-| `POST /api/local-auth/scenario`   | local-only two-part gate, CSRF, 20 requests per IP per minute                                            |
-| `POST /api/local-auth/sign-in`    | local-only two-part gate, CSRF, 10 requests per IP per five minutes                                      |
-| `DELETE /api/local-auth/scenario` | local-only two-part gate, `Api.BrowserSession`, CSRF; atomically removes the local user and all sessions |
+| Operation                                         | Access and mutation policy                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/auth/capabilities`                   | anonymous, no-store                                                                                           |
+| `GET /api/v1/auth/session`                        | anonymous `200` projection for both authenticated and anonymous state, no-store                               |
+| `GET /api/v1/auth/csrf`                           | anonymous, issues the paired antiforgery cookie/request token, no-store                                       |
+| `POST /api/v1/auth/logout`                        | `Api.BrowserSession` plus CSRF; revokes only the current session                                              |
+| `POST /api/v1/auth/external/{provider}/challenge` | conditional auth by intent plus CSRF; returns an API-issued HTTPS authorization URL for a configured provider |
+| `POST /api/local-auth/scenario`                   | local-only two-part gate, CSRF, 20 requests per IP per minute                                                 |
+| `POST /api/local-auth/sign-in`                    | local-only two-part gate, CSRF, 10 requests per IP per five minutes                                           |
+| `DELETE /api/local-auth/scenario`                 | local-only two-part gate, `Api.BrowserSession`, CSRF; atomically removes the local user and all sessions      |
 
 Every auth response uses `Cache-Control: no-store`. Local operations are
 available only when the environment is `Development` or `Test` **and**
@@ -114,6 +123,112 @@ unsafe browser operation first obtains a request token from
 Path `/`, and has no Domain. The deployment is same-origin, so CORS is not
 enabled.
 
+## External OAuth
+
+ASP.NET Core uses OpenIddict Client, not OpenIddict Server, for the five closed
+provider ids `google`, `github`, `gitlab`, `vk`, and `yandex`. A provider is
+advertised and challengeable only when a valid public origin and its complete
+client-id/client-secret pair are configured. Zero providers is valid; an
+unknown or partial provider block fails option validation without logging its
+values.
+
+`POST /api/v1/auth/external/{provider}/challenge` is the only versioned REST
+OAuth operation. Its strict JSON body selects `signIn` or `connect` and may
+provide a safe same-origin return path. It always requires a fresh CSRF pair.
+`signIn` requires an anonymous browser; `connect` requires the current
+`Api.BrowserSession`. Full URLs, network paths, backslashes, controls,
+encoded-separator confusion, `/api/**`, and `/auth/**` return targets fail
+closed. The response contains an absolute HTTPS authorization URL produced by
+the server; the browser validates its structure but does not duplicate provider
+host configuration.
+
+The provider protocol callbacks are stable, unversioned, accept only `GET` and
+`POST`, and are deliberately excluded from OpenAPI and the generated browser
+SDK:
+
+| Provider | Callback                           |
+| -------- | ---------------------------------- |
+| Google   | `/api/auth/callback/google`        |
+| GitHub   | `/api/auth/callback/github`        |
+| GitLab   | `/api/auth/callback/gitlab`        |
+| VK       | `/api/auth/callback/vk`            |
+| Yandex   | `/api/auth/oauth2/callback/yandex` |
+
+Callback state is Data-Protection protected and backed by one-time OpenIddict
+state-token rows in PostgreSQL. A connect state binds both the initiating user
+and persistent session id; the callback revalidates both before changing the
+account. Callback rate limiting runs before authentication/provider exchange.
+Failures redirect only to `/auth/error?code=<allow-listed-code>` and never
+place raw provider errors, state, authorization codes, tokens, subjects, email,
+or stack traces in the browser URL.
+
+Provider identity/email normalization is:
+
+| Provider | Stable subject        | Accepted email evidence                                                                |
+| -------- | --------------------- | -------------------------------------------------------------------------------------- |
+| Google   | `sub`                 | one email plus exactly one `email_verified=true` claim                                 |
+| GitHub   | positive numeric `id` | exactly one primary, verified address from the bounded `/user/emails` backchannel call |
+| GitLab   | `sub`                 | one email plus exactly one `email_verified=true` claim                                 |
+| VK       | `user_id`             | provider user-info email, treated as provider-confirmed by the approved mapping        |
+| Yandex   | string `id`           | `default_email`, treated as provider-confirmed by the approved mapping                 |
+
+Subjects and profile values are bounded; avatars must be credential-free HTTPS
+URLs. GitHub and Yandex backchannel tokens exist only in callback memory.
+Access/refresh tokens are cleared on the normalization path and are not stored
+in Identity, account tables, OpenIddict rows, browser storage, logs, or
+responses. There is no offline-access scope, provider API token vault, remote
+token refresh, or provider-side consent revocation in this iteration.
+
+## Account lifecycle
+
+All account operations use `Api.BrowserSession`, return `Cache-Control:
+no-store`, and expose only typed `{ "data": ... }` projections:
+
+| Operation                                       | Mutation rule                                                                 |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| `GET /api/v1/account`                           | current profile, primary/secondary verified emails, id and creation time      |
+| `PATCH /api/v1/account/profile`                 | CSRF; trimmed display name of 2–50 non-control characters                     |
+| `GET /api/v1/account/connections`               | configured providers plus connections whose runtime configuration was removed |
+| `DELETE /api/v1/account/connections/{provider}` | CSRF; atomic, ownership-checked local disconnect                              |
+| `GET /api/v1/account/sessions?cursor=&limit=`   | unexpired sessions; default 20, accepted limit 1–100                          |
+| `DELETE /api/v1/account/sessions/{sessionId}`   | CSRF; ownership-qualified; current session is rejected                        |
+| `DELETE /api/v1/account/sessions/others`        | CSRF; one set-based delete preserving the current persistent id               |
+| `DELETE /api/v1/account`                        | CSRF; strict primary-email confirmation and hard delete                       |
+
+The normalized verified-email value is globally unique. A new anonymous
+provider subject links to the owner of a matching primary or secondary
+verified email; otherwise it creates a user and primary email. Explicit connect
+may reuse an email already owned by the current user or add a free secondary
+verified email, but an email owned by another user is a conflict. A newly
+connected provider may update display name and HTTPS avatar. Ordinary repeat
+sign-in updates only the provider connection's `lastUsedAt`.
+
+Disconnect is local only: it deletes the selected login and deletes its
+non-primary secondary email only when no remaining provider connection vouches
+for that row. Primary email is never deleted. The current authentication
+provider and the final production provider connection cannot be disconnected,
+even if local automation credentials exist; the server re-evaluates these rules
+inside the write path. Remote provider consent remains active because no remote
+token is retained.
+
+Session results are ordered by `(lastSeenAt DESC, id DESC)`. `nextCursor` is a
+versioned, canonical base64url encoding of that tuple with a checksum for
+format/corruption detection. It is opaque rather than a cryptographic
+authorization token: clients must return it verbatim, and malformed or modified
+values return `400 invalid_cursor`. Listings read only relational safe metadata,
+never the protected ticket or its lookup hash. User agents are bounded and IPs
+are redacted to IPv4 `/24` or IPv6 `/64`.
+
+Profile writes update the Identity user and timestamp atomically. External
+reconciliation executes in one transaction per attempt and retries a classified
+uniqueness race once with fresh reads. Disconnect locks and revalidates the
+user's connection snapshot, deletes the login, and conditionally removes the
+email in one transaction. Account deletion commits the Identity user delete
+first; database cascades remove verified emails, logins, claims/tokens, and all
+persistent sessions, after which the API expires the current cookie. Session
+revokes are ownership-qualified SQL deletes, and missing/foreign ids share the
+same `404`.
+
 ## Health
 
 - `GET /api/health` is the compatibility alias for readiness.
@@ -130,10 +245,10 @@ enabled.
 
 `Template.Api` never applies migrations automatically. Operators restore the
 repository tool manifest and run EF with
-`Template.Infrastructure.csproj` as both `--project` and `--startup-project`;
-the Infrastructure design-time factory owns the private EF Design package while
-`Template.Api` remains the only HTTP host. Full commands and rollback policy
-are in `docs/authentication-persistence-operations.md`.
+`Template.Infrastructure.csproj` as `--project` and `Template.Api.csproj` as
+`--startup-project`; both keep EF Design private, and `Template.Api` remains the
+only HTTP host. Full commands and rollback policy are in
+`docs/authentication-persistence-operations.md`.
 
 ## Correlation and logging
 
@@ -167,6 +282,15 @@ is not a consumer contract; API-key/`x-api-key` remains iteration 7, and no
 Bearer scheme is registered or published. Local operations remain present for
 generated automation clients but are marked with `local-only` and
 `x-local-only: true`.
+
+The external challenge publishes conditional security (`anonymous` for
+`signIn`, `cookieAuth` for `connect`) and its required antiforgery header. The
+eight account operations publish their exact cookie requirement, mutation
+antiforgery headers, strict bodies, closed provider/authentication-method
+values, and typed Problem Details alternatives. Provider protocol callbacks are
+not REST consumer operations and remain excluded from the document and
+generated SDK, as do provider subjects, credentials, tokens, and endpoint
+hosts.
 
 Success-envelope schemas require non-null `data`. Standard and validation
 Problem Details schemas publish the same required invariant fields that runtime
