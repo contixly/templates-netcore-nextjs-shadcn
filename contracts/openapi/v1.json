@@ -251,6 +251,974 @@
         ]
       }
     },
+    "/api/v1/auth/external/{provider}/challenge": {
+      "post": {
+        "tags": [
+          "ExternalAuthEndpointModule"
+        ],
+        "description": "The signIn intent requires an anonymous browser. The connect intent requires the current cookieAuth BrowserSession.",
+        "operationId": "ChallengeExternalAuth",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "google",
+                "github",
+                "gitlab",
+                "vk",
+                "yandex"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Request token returned by GET /api/v1/auth/csrf.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExternalAuthChallengeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfExternalAuthChallengeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          { },
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/account": {
+      "get": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "GetAccount",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "DeleteAccount",
+        "parameters": [
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Request token returned by GET /api/v1/auth/csrf.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountDeletionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/account/profile": {
+      "patch": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "UpdateAccountProfile",
+        "parameters": [
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Request token returned by GET /api/v1/auth/csrf.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/account/connections": {
+      "get": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "GetAccountConnections",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountConnectionsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/account/connections/{provider}": {
+      "delete": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "DisconnectAccountProvider",
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "enum": [
+                "google",
+                "github",
+                "gitlab",
+                "vk",
+                "yandex"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Request token returned by GET /api/v1/auth/csrf.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountDisconnectionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/account/sessions": {
+      "get": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "GetAccountSessions",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountSessionsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ProblemDetails"
+                    },
+                    {
+                      "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/account/sessions/others": {
+      "delete": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "RevokeOtherAccountSessions",
+        "parameters": [
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Request token returned by GET /api/v1/auth/csrf.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountSessionsRevocationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
+    "/api/v1/account/sessions/{sessionId}": {
+      "delete": {
+        "tags": [
+          "AccountEndpointModule"
+        ],
+        "operationId": "RevokeAccountSession",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-TOKEN",
+            "in": "header",
+            "description": "Request token returned by GET /api/v1/auth/csrf.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfAccountSessionRevocationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": [ ]
+          }
+        ]
+      }
+    },
     "/api/v1/system/status": {
       "get": {
         "tags": [
@@ -897,6 +1865,384 @@
   },
   "components": {
     "schemas": {
+      "AccountConnectionResponse": {
+        "required": [
+          "provider",
+          "displayName",
+          "configured",
+          "connected",
+          "email",
+          "connectedAt",
+          "lastUsedAt",
+          "isCurrentAuthenticationMethod",
+          "canConnect",
+          "canDisconnect",
+          "disabledReason"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "enum": [
+              "google",
+              "github",
+              "gitlab",
+              "vk",
+              "yandex"
+            ],
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "connected": {
+            "type": "boolean"
+          },
+          "email": {
+            "maxLength": 254,
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "email"
+          },
+          "connectedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "lastUsedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "isCurrentAuthenticationMethod": {
+            "type": "boolean"
+          },
+          "canConnect": {
+            "type": "boolean"
+          },
+          "canDisconnect": {
+            "type": "boolean"
+          },
+          "disabledReason": {
+            "enum": [
+              "external_connection_required",
+              null
+            ],
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AccountConnectionsResponse": {
+        "required": [
+          "items"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountConnectionResponse"
+            }
+          }
+        }
+      },
+      "AccountDeletionResponse": {
+        "required": [
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AccountDisconnectionResponse": {
+        "required": [
+          "provider"
+        ],
+        "type": "object",
+        "properties": {
+          "provider": {
+            "enum": [
+              "google",
+              "github",
+              "gitlab",
+              "vk",
+              "yandex"
+            ],
+            "type": "string"
+          }
+        }
+      },
+      "AccountEmailResponse": {
+        "required": [
+          "email",
+          "isPrimary",
+          "providers"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "type": "string",
+            "format": "email"
+          },
+          "isPrimary": {
+            "type": "boolean"
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "google",
+                "github",
+                "gitlab",
+                "vk",
+                "yandex"
+              ],
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AccountResponse": {
+        "required": [
+          "id",
+          "displayName",
+          "primaryEmail",
+          "imageUrl",
+          "createdAt",
+          "verifiedEmails"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "maxLength": 50,
+            "minLength": 2,
+            "type": "string"
+          },
+          "primaryEmail": {
+            "maxLength": 254,
+            "type": "string",
+            "format": "email"
+          },
+          "imageUrl": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uri",
+            "x-uri-scheme": "https"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verifiedEmails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountEmailResponse"
+            }
+          }
+        }
+      },
+      "AccountSessionResponse": {
+        "required": [
+          "id",
+          "createdAt",
+          "lastSeenAt",
+          "expiresAt",
+          "isCurrent",
+          "authenticationMethod",
+          "ipAddress",
+          "userAgent"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastSeenAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "isCurrent": {
+            "type": "boolean"
+          },
+          "authenticationMethod": {
+            "enum": [
+              "local",
+              "google",
+              "github",
+              "gitlab",
+              "vk",
+              "yandex"
+            ],
+            "type": "string"
+          },
+          "ipAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "userAgent": {
+            "maxLength": 512,
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AccountSessionRevocationResponse": {
+        "required": [
+          "sessionId"
+        ],
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "AccountSessionsResponse": {
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccountSessionResponse"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AccountSessionsRevocationResponse": {
+        "required": [
+          "revokedCount"
+        ],
+        "type": "object",
+        "properties": {
+          "revokedCount": {
+            "minimum": 0,
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "ApiResponseOfAccountConnectionsResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountConnectionsResponse"
+          }
+        }
+      },
+      "ApiResponseOfAccountDeletionResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountDeletionResponse"
+          }
+        }
+      },
+      "ApiResponseOfAccountDisconnectionResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountDisconnectionResponse"
+          }
+        }
+      },
+      "ApiResponseOfAccountResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountResponse"
+          }
+        }
+      },
+      "ApiResponseOfAccountSessionRevocationResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountSessionRevocationResponse"
+          }
+        }
+      },
+      "ApiResponseOfAccountSessionsResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountSessionsResponse"
+          }
+        }
+      },
+      "ApiResponseOfAccountSessionsRevocationResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AccountSessionsRevocationResponse"
+          }
+        }
+      },
       "ApiResponseOfAuthCapabilitiesResponse": {
         "required": [
           "data"
@@ -938,6 +2284,17 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/AuthSessionResponse"
+          }
+        }
+      },
+      "ApiResponseOfExternalAuthChallengeResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ExternalAuthChallengeResponse"
           }
         }
       },
@@ -1033,6 +2390,13 @@
         "type": "object",
         "properties": {
           "id": {
+            "enum": [
+              "google",
+              "github",
+              "gitlab",
+              "vk",
+              "yandex"
+            ],
             "type": "string"
           },
           "displayName": {
@@ -1164,6 +2528,67 @@
         },
         "additionalProperties": false
       },
+      "DeleteAccountRequest": {
+        "required": [
+          "confirmationEmail"
+        ],
+        "type": "object",
+        "properties": {
+          "confirmationEmail": {
+            "type": "string",
+            "description": "Trimmed before comparison; the value must be a valid email of at most 254 characters and exactly match the current primary email.",
+            "x-trimmed-max-length": 254,
+            "x-trimmed-format": "email"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExternalAuthChallengeRequest": {
+        "required": [
+          "intent"
+        ],
+        "type": "object",
+        "properties": {
+          "intent": {
+            "enum": [
+              "signIn",
+              "connect"
+            ],
+            "type": "string"
+          },
+          "returnUrl": {
+            "maxLength": 4096,
+            "pattern": "^/(?!/)",
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Optional same-origin application path. Absolute, protocol-relative, /api/**, and /auth/** return paths are rejected.",
+            "x-safe-return-path": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ExternalAuthChallengeResponse": {
+        "required": [
+          "authorizationUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "authorizationUrl": {
+            "type": "string",
+            "format": "uri",
+            "x-uri-scheme": "https"
+          }
+        }
+      },
+      "ExternalAuthIntent": {
+        "enum": [
+          "signIn",
+          "connect"
+        ],
+        "type": "string"
+      },
       "HealthResponse": {
         "required": [
           "status",
@@ -1223,6 +2648,36 @@
             }
           },
           "code": {
+            "enum": [
+              "invalid_request",
+              "validation_failed",
+              "unauthorized",
+              "forbidden",
+              "not_found",
+              "method_not_allowed",
+              "internal_error",
+              "antiforgery_failed",
+              "local_auth_invalid_credentials",
+              "local_auth_user_required",
+              "local_auth_disabled",
+              "local_auth_user_exists",
+              "rate_limited",
+              "invalid_return_url",
+              "external_provider_not_configured",
+              "already_authenticated",
+              "external_auth_failed",
+              "external_email_required",
+              "external_email_unverified",
+              "external_identity_conflict",
+              "external_email_conflict",
+              "oauth_flow_context_changed",
+              "invalid_cursor",
+              "external_connection_required",
+              "external_connection_not_found",
+              "account_session_not_found",
+              "current_session_cannot_be_revoked",
+              "concurrency_conflict"
+            ],
             "type": "string"
           },
           "traceId": {
@@ -1320,6 +2775,36 @@
             "type": "string"
           },
           "code": {
+            "enum": [
+              "invalid_request",
+              "validation_failed",
+              "unauthorized",
+              "forbidden",
+              "not_found",
+              "method_not_allowed",
+              "internal_error",
+              "antiforgery_failed",
+              "local_auth_invalid_credentials",
+              "local_auth_user_required",
+              "local_auth_disabled",
+              "local_auth_user_exists",
+              "rate_limited",
+              "invalid_return_url",
+              "external_provider_not_configured",
+              "already_authenticated",
+              "external_auth_failed",
+              "external_email_required",
+              "external_email_unverified",
+              "external_identity_conflict",
+              "external_email_conflict",
+              "oauth_flow_context_changed",
+              "invalid_cursor",
+              "external_connection_required",
+              "external_connection_not_found",
+              "account_session_not_found",
+              "current_session_cannot_be_revoked",
+              "concurrency_conflict"
+            ],
             "type": "string"
           },
           "traceId": {
@@ -1353,6 +2838,21 @@
             ]
           }
         }
+      },
+      "UpdateProfileRequest": {
+        "required": [
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "Trimmed before use; the trimmed display name must contain 2 to 50 characters and must not contain control characters.",
+            "x-trimmed-min-length": 2,
+            "x-trimmed-max-length": 50
+          }
+        },
+        "additionalProperties": false
       }
     },
     "securitySchemes": {
@@ -1367,6 +2867,12 @@
   "tags": [
     {
       "name": "Template.Api"
+    },
+    {
+      "name": "ExternalAuthEndpointModule"
+    },
+    {
+      "name": "AccountEndpointModule"
     },
     {
       "name": "local-only"

@@ -30,10 +30,26 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.NotNull(document["paths"]!["/api/v1/auth/session"]);
         Assert.NotNull(document["paths"]!["/api/v1/auth/csrf"]);
         Assert.NotNull(document["paths"]!["/api/v1/auth/logout"]);
+        Assert.NotNull(
+            document["paths"]!["/api/v1/auth/external/{provider}/challenge"]);
+        Assert.NotNull(document["paths"]!["/api/v1/account"]);
+        Assert.NotNull(document["paths"]!["/api/v1/account/profile"]);
+        Assert.NotNull(document["paths"]!["/api/v1/account/connections"]);
+        Assert.NotNull(
+            document["paths"]!["/api/v1/account/connections/{provider}"]);
+        Assert.NotNull(document["paths"]!["/api/v1/account/sessions"]);
+        Assert.NotNull(
+            document["paths"]!["/api/v1/account/sessions/{sessionId}"]);
         Assert.NotNull(document["paths"]!["/api/local-auth/scenario"]);
         Assert.NotNull(document["paths"]!["/api/local-auth/sign-in"]);
         Assert.NotNull(
             document["paths"]!["/api/local-auth/scenario"]!["delete"]);
+        Assert.DoesNotContain(
+            document["paths"]!.AsObject().Select(path => path.Key),
+            path => path.StartsWith(
+                "/api/auth/callback/",
+                StringComparison.Ordinal));
+        Assert.Null(document["paths"]!["/api/auth/oauth2/callback/yandex"]);
         Assert.Null(document["paths"]!["/api/testing/fault"]);
         Assert.Null(document["paths"]!["/api/testing/forbidden"]);
         Assert.Null(document["paths"]!["/api/testing/nested-validation"]);
@@ -125,6 +141,603 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
 
         var schemes = document["components"]!["securitySchemes"]!.AsObject();
         Assert.Equal(["cookieAuth"], schemes.Select(pair => pair.Key).ToArray());
+    }
+
+    [Fact]
+    public async Task ExternalAndAccountOperationsPublishStableIdsAndCookieBoundaries()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        var expectedOperations = new Dictionary<(string Path, string Method), string>
+        {
+            [("/api/v1/auth/external/{provider}/challenge", "post")] =
+                "ChallengeExternalAuth",
+            [("/api/v1/account", "get")] = "GetAccount",
+            [("/api/v1/account/profile", "patch")] = "UpdateAccountProfile",
+            [("/api/v1/account/connections", "get")] =
+                "GetAccountConnections",
+            [("/api/v1/account/connections/{provider}", "delete")] =
+                "DisconnectAccountProvider",
+            [("/api/v1/account/sessions", "get")] = "GetAccountSessions",
+            [("/api/v1/account/sessions/{sessionId}", "delete")] =
+                "RevokeAccountSession",
+            [("/api/v1/account/sessions/others", "delete")] =
+                "RevokeOtherAccountSessions",
+            [("/api/v1/account", "delete")] = "DeleteAccount"
+        };
+
+        foreach (var ((path, method), operationId) in expectedOperations)
+        {
+            Assert.Equal(
+                operationId,
+                paths[path]![method]!["operationId"]!.GetValue<string>());
+        }
+
+        Assert.Null(
+            paths["/api/v1/auth/capabilities"]!["get"]!["security"]);
+        AssertConditionalCookieSecurity(
+            paths["/api/v1/auth/external/{provider}/challenge"]!
+                ["post"]!);
+
+        foreach (var (path, method) in expectedOperations.Keys.Skip(1))
+        {
+            AssertCookieSecurity(paths[path]![method]!);
+        }
+    }
+
+    [Fact]
+    public async Task ExternalChallengePublishesStrictIntentProviderAndCsrfContract()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var operation = document["paths"]!
+            ["/api/v1/auth/external/{provider}/challenge"]!["post"]!;
+        var request = document["components"]!["schemas"]!
+            ["ExternalAuthChallengeRequest"]!;
+
+        var description = operation["description"]!.GetValue<string>();
+        Assert.Contains("signIn", description, StringComparison.Ordinal);
+        Assert.Contains("anonymous", description, StringComparison.Ordinal);
+        Assert.Contains("connect", description, StringComparison.Ordinal);
+        Assert.Contains("cookieAuth", description, StringComparison.Ordinal);
+        Assert.True(operation["requestBody"]!["required"]!.GetValue<bool>());
+        Assert.Equal(
+            ["application/json"],
+            operation["requestBody"]!["content"]!.AsObject()
+                .Select(content => content.Key)
+                .ToArray());
+        var csrf = Assert.Single(
+            operation["parameters"]!.AsArray(),
+            parameter => parameter!["name"]!.GetValue<string>() ==
+                "X-CSRF-TOKEN");
+        Assert.Equal("header", csrf!["in"]!.GetValue<string>());
+        Assert.True(csrf["required"]!.GetValue<bool>());
+
+        var provider = Assert.Single(
+            operation["parameters"]!.AsArray(),
+            parameter => parameter!["name"]!.GetValue<string>() == "provider");
+        Assert.Equal("path", provider!["in"]!.GetValue<string>());
+        Assert.True(provider["required"]!.GetValue<bool>());
+        AssertStringEnum(
+            provider["schema"]!,
+            "google",
+            "github",
+            "gitlab",
+            "vk",
+            "yandex");
+
+        Assert.False(request["additionalProperties"]!.GetValue<bool>());
+        AssertRequiredNonNullProperties(request, "intent");
+        AssertStringEnum(
+            request["properties"]!["intent"]!,
+            "signIn",
+            "connect");
+        AssertStringEnum(
+            document["components"]!["schemas"]!["ExternalAuthIntent"]!,
+            "signIn",
+            "connect");
+        Assert.DoesNotContain(
+            "returnUrl",
+            request["required"]?.AsArray()
+                .Select(item => item!.GetValue<string>())
+                .ToArray() ?? []);
+        var returnUrl = request["properties"]!["returnUrl"]!;
+        Assert.Contains(
+            "null",
+            EnumerateSchemaTypes(returnUrl));
+        Assert.Equal(4096, returnUrl["maxLength"]!.GetValue<int>());
+        Assert.Equal("^/(?!/)", returnUrl["pattern"]!.GetValue<string>());
+        Assert.True(returnUrl["x-safe-return-path"]!.GetValue<bool>());
+
+        var authorizationUrl = document["components"]!["schemas"]!
+            ["ExternalAuthChallengeResponse"]!["properties"]!
+            ["authorizationUrl"]!;
+        Assert.Equal("uri", authorizationUrl["format"]!.GetValue<string>());
+        Assert.Equal(
+            "https",
+            authorizationUrl["x-uri-scheme"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task AccountMutationsPublishStrictRequestAndCsrfContracts()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+        var schemas = document["components"]!["schemas"]!;
+
+        var profile = schemas["UpdateProfileRequest"]!;
+        Assert.False(profile["additionalProperties"]!.GetValue<bool>());
+        AssertRequiredNonNullProperties(profile, "displayName");
+        var displayName = profile["properties"]!["displayName"]!;
+        Assert.Null(displayName["minLength"]);
+        Assert.Null(displayName["maxLength"]);
+        Assert.Equal(
+            2,
+            displayName["x-trimmed-min-length"]!.GetValue<int>());
+        Assert.Equal(
+            50,
+            displayName["x-trimmed-max-length"]!.GetValue<int>());
+        Assert.Contains(
+            "control",
+            displayName["description"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+
+        var deletion = schemas["DeleteAccountRequest"]!;
+        Assert.False(deletion["additionalProperties"]!.GetValue<bool>());
+        AssertRequiredNonNullProperties(deletion, "confirmationEmail");
+        var confirmationEmail = deletion["properties"]!["confirmationEmail"]!;
+        Assert.Null(confirmationEmail["maxLength"]);
+        Assert.Null(confirmationEmail["format"]);
+        Assert.Equal(
+            254,
+            confirmationEmail["x-trimmed-max-length"]!.GetValue<int>());
+        Assert.Equal(
+            "email",
+            confirmationEmail["x-trimmed-format"]!.GetValue<string>());
+
+        foreach (var (path, method) in new[]
+                 {
+                     ("/api/v1/account/profile", "patch"),
+                     ("/api/v1/account/connections/{provider}", "delete"),
+                     ("/api/v1/account/sessions/{sessionId}", "delete"),
+                     ("/api/v1/account/sessions/others", "delete"),
+                     ("/api/v1/account", "delete")
+                 })
+        {
+            var csrf = Assert.Single(
+                paths[path]![method]!["parameters"]!.AsArray(),
+                parameter => parameter!["name"]!.GetValue<string>() ==
+                    "X-CSRF-TOKEN");
+            Assert.Equal("header", csrf!["in"]!.GetValue<string>());
+            Assert.True(csrf["required"]!.GetValue<bool>());
+        }
+
+        Assert.True(
+            paths["/api/v1/account/profile"]!["patch"]!
+                ["requestBody"]!["required"]!.GetValue<bool>());
+        Assert.True(
+            paths["/api/v1/account"]!["delete"]!
+                ["requestBody"]!["required"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task AccountPathAndPaginationParametersPublishClosedLimits()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        var disconnectProvider = Assert.Single(
+            paths["/api/v1/account/connections/{provider}"]!
+                ["delete"]!["parameters"]!.AsArray(),
+            parameter => parameter!["name"]!.GetValue<string>() == "provider");
+        AssertStringEnum(
+            disconnectProvider!["schema"]!,
+            "google",
+            "github",
+            "gitlab",
+            "vk",
+            "yandex");
+
+        var parameters = paths["/api/v1/account/sessions"]!
+            ["get"]!["parameters"]!.AsArray();
+        var limit = Assert.Single(
+            parameters,
+            parameter => parameter!["name"]!.GetValue<string>() == "limit");
+        Assert.Equal(1, limit!["schema"]!["minimum"]!.GetValue<int>());
+        Assert.Equal(100, limit["schema"]!["maximum"]!.GetValue<int>());
+        Assert.Equal(20, limit["schema"]!["default"]!.GetValue<int>());
+
+        var cursor = Assert.Single(
+            parameters,
+            parameter => parameter!["name"]!.GetValue<string>() == "cursor");
+        Assert.NotEqual(true, cursor!["required"]?.GetValue<bool>());
+
+        var sessionId = Assert.Single(
+            paths["/api/v1/account/sessions/{sessionId}"]!
+                ["delete"]!["parameters"]!.AsArray(),
+            parameter => parameter!["name"]!.GetValue<string>() == "sessionId");
+        Assert.Equal(
+            "uuid",
+            sessionId!["schema"]!["format"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task AccountSuccessModelsPublishRequiredFieldsAndClosedEnums()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+
+        AssertRequiredNonNullProperties(
+            schemas["AuthProviderResponse"]!,
+            "id",
+            "displayName");
+        Assert.Equal(
+            ["id", "displayName"],
+            schemas["AuthProviderResponse"]!["properties"]!.AsObject()
+                .Select(property => property.Key)
+                .ToArray());
+        AssertStringEnum(
+            schemas["AuthProviderResponse"]!["properties"]!["id"]!,
+            "google",
+            "github",
+            "gitlab",
+            "vk",
+            "yandex");
+        AssertRequiredNonNullProperties(
+            schemas["ExternalAuthChallengeResponse"]!,
+            "authorizationUrl");
+        AssertRequiredNonNullProperties(
+            schemas["AccountEmailResponse"]!,
+            "email",
+            "isPrimary",
+            "providers");
+        AssertStringEnum(
+            schemas["AccountEmailResponse"]!["properties"]!
+                ["providers"]!["items"]!,
+            "google",
+            "github",
+            "gitlab",
+            "vk",
+            "yandex");
+        AssertRequiredProperties(
+            schemas["AccountResponse"]!,
+            "id",
+            "displayName",
+            "primaryEmail",
+            "imageUrl",
+            "createdAt",
+            "verifiedEmails");
+        AssertRequiredNonNullProperties(
+            schemas["AccountResponse"]!,
+            "id",
+            "displayName",
+            "primaryEmail",
+            "createdAt",
+            "verifiedEmails");
+        Assert.Contains(
+            "null",
+            EnumerateSchemaTypes(
+                schemas["AccountResponse"]!["properties"]!["imageUrl"]!));
+        var imageUrl = schemas["AccountResponse"]!["properties"]!["imageUrl"]!;
+        Assert.Equal("uri", imageUrl["format"]!.GetValue<string>());
+        Assert.Equal("https", imageUrl["x-uri-scheme"]!.GetValue<string>());
+        AssertRequiredProperties(
+            schemas["AccountConnectionResponse"]!,
+            "provider",
+            "displayName",
+            "configured",
+            "connected",
+            "email",
+            "connectedAt",
+            "lastUsedAt",
+            "isCurrentAuthenticationMethod",
+            "canConnect",
+            "canDisconnect",
+            "disabledReason");
+        AssertRequiredNonNullProperties(
+            schemas["AccountConnectionResponse"]!,
+            "provider",
+            "displayName",
+            "configured",
+            "connected",
+            "isCurrentAuthenticationMethod",
+            "canConnect",
+            "canDisconnect");
+        AssertStringEnum(
+            schemas["AccountConnectionResponse"]!["properties"]!["provider"]!,
+            "google",
+            "github",
+            "gitlab",
+            "vk",
+            "yandex");
+        var disabledReason = schemas["AccountConnectionResponse"]!
+            ["properties"]!["disabledReason"]!;
+        Assert.Contains("null", EnumerateSchemaTypes(disabledReason));
+        var disabledReasons = disabledReason["enum"]!.AsArray();
+        Assert.Equal("external_connection_required", disabledReasons[0]!.GetValue<string>());
+        Assert.Null(disabledReasons[1]);
+        AssertRequiredProperties(
+            schemas["AccountSessionsResponse"]!,
+            "items",
+            "nextCursor");
+        AssertRequiredNonNullProperties(
+            schemas["AccountSessionsResponse"]!,
+            "items");
+        Assert.Contains(
+            "null",
+            EnumerateSchemaTypes(
+                schemas["AccountSessionsResponse"]!["properties"]!
+                    ["nextCursor"]!));
+        AssertRequiredProperties(
+            schemas["AccountSessionResponse"]!,
+            "id",
+            "createdAt",
+            "lastSeenAt",
+            "expiresAt",
+            "isCurrent",
+            "authenticationMethod",
+            "ipAddress",
+            "userAgent");
+        AssertRequiredNonNullProperties(
+            schemas["AccountSessionResponse"]!,
+            "id",
+            "createdAt",
+            "lastSeenAt",
+            "expiresAt",
+            "isCurrent",
+            "authenticationMethod");
+        AssertStringEnum(
+            schemas["AccountSessionResponse"]!["properties"]!
+                ["authenticationMethod"]!,
+            "local",
+            "google",
+            "github",
+            "gitlab",
+            "vk",
+            "yandex");
+        Assert.Equal(
+            512,
+            schemas["AccountSessionResponse"]!["properties"]!
+                ["userAgent"]!["maxLength"]!.GetValue<int>());
+        AssertRequiredNonNullProperties(
+            schemas["AccountDisconnectionResponse"]!,
+            "provider");
+        AssertRequiredNonNullProperties(
+            schemas["AccountSessionRevocationResponse"]!,
+            "sessionId");
+        AssertRequiredNonNullProperties(
+            schemas["AccountSessionsRevocationResponse"]!,
+            "revokedCount");
+        var revokedCount = schemas["AccountSessionsRevocationResponse"]!
+            ["properties"]!["revokedCount"]!;
+        Assert.Equal("integer", revokedCount["type"]!.GetValue<string>());
+        Assert.Equal("int32", revokedCount["format"]!.GetValue<string>());
+        Assert.Equal(0, revokedCount["minimum"]!.GetValue<int>());
+        AssertRequiredNonNullProperties(
+            schemas["AccountDeletionResponse"]!,
+            "deleted");
+    }
+
+    [Fact]
+    public async Task ExternalAndAccountOperationsPublishSuccessEnvelopesAndProblemResponses()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        var operations = new[]
+        {
+            new
+            {
+                Path = "/api/v1/auth/external/{provider}/challenge",
+                Method = "post",
+                Envelope = "ApiResponseOfExternalAuthChallengeResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "429", "500" },
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/account",
+                Method = "get",
+                Envelope = "ApiResponseOfAccountResponse",
+                ProblemStatuses = new[] { "401", "403", "404", "405", "500" },
+                BadRequestIsUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/account/profile",
+                Method = "patch",
+                Envelope = "ApiResponseOfAccountResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "500" },
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/account/connections",
+                Method = "get",
+                Envelope = "ApiResponseOfAccountConnectionsResponse",
+                ProblemStatuses = new[] { "401", "403", "404", "405", "500" },
+                BadRequestIsUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/account/connections/{provider}",
+                Method = "delete",
+                Envelope = "ApiResponseOfAccountDisconnectionResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                BadRequestIsUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/account/sessions",
+                Method = "get",
+                Envelope = "ApiResponseOfAccountSessionsResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "500" },
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/account/sessions/{sessionId}",
+                Method = "delete",
+                Envelope = "ApiResponseOfAccountSessionRevocationResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                BadRequestIsUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/account/sessions/others",
+                Method = "delete",
+                Envelope = "ApiResponseOfAccountSessionsRevocationResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "500" },
+                BadRequestIsUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/account",
+                Method = "delete",
+                Envelope = "ApiResponseOfAccountDeletionResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "500" },
+                BadRequestIsUnion = true
+            }
+        };
+
+        foreach (var expected in operations)
+        {
+            var responses = paths[expected.Path]![expected.Method]!["responses"]!;
+            Assert.Equal(
+                $"#/components/schemas/{expected.Envelope}",
+                responses["200"]!["content"]!["application/json"]!
+                    ["schema"]!["$ref"]!.GetValue<string>());
+
+            foreach (var status in expected.ProblemStatuses)
+            {
+                Assert.NotNull(responses[status]);
+                if (status == "400" && expected.BadRequestIsUnion)
+                {
+                    AssertSchemaUnion(
+                        responses[status]!,
+                        "ProblemDetails",
+                        "HttpValidationProblemDetails");
+                }
+                else
+                {
+                    AssertSchemaReference(
+                        responses[status]!,
+                        "ProblemDetails");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ProblemDetailsPublishesEveryStablePublicCode()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var code = document["components"]!["schemas"]!["ProblemDetails"]!
+            ["properties"]!["code"]!;
+
+        AssertStringEnum(
+            code,
+            "invalid_request",
+            "validation_failed",
+            "unauthorized",
+            "forbidden",
+            "not_found",
+            "method_not_allowed",
+            "internal_error",
+            "antiforgery_failed",
+            "local_auth_invalid_credentials",
+            "local_auth_user_required",
+            "local_auth_disabled",
+            "local_auth_user_exists",
+            "rate_limited",
+            "invalid_return_url",
+            "external_provider_not_configured",
+            "already_authenticated",
+            "external_auth_failed",
+            "external_email_required",
+            "external_email_unverified",
+            "external_identity_conflict",
+            "external_email_conflict",
+            "oauth_flow_context_changed",
+            "invalid_cursor",
+            "external_connection_required",
+            "external_connection_not_found",
+            "account_session_not_found",
+            "current_session_cannot_be_revoked",
+            "concurrency_conflict");
+    }
+
+    [Fact]
+    public async Task PublishedProductContractContainsNoProviderSecretsOrProtocolCallbacks()
+    {
+        using var client = factory.CreateApiClient();
+        var json = await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(
+            "/api/auth/callback/",
+            json,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "/api/auth/oauth2/callback/",
+            json,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "clientSecret",
+            json,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "clientId",
+            json,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "accessToken",
+            json,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "refreshToken",
+            json,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "providerSubject",
+            json,
+            StringComparison.OrdinalIgnoreCase);
+        foreach (var providerEndpoint in new[]
+                 {
+                     "accounts.google.com",
+                     "github.com/login/oauth",
+                     "gitlab.com/oauth",
+                     "id.vk.com",
+                     "oauth.yandex"
+                 })
+        {
+            Assert.DoesNotContain(
+                providerEndpoint,
+                json,
+                StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
@@ -351,6 +964,20 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         JsonNode schema,
         params string[] propertyNames)
     {
+        AssertRequiredProperties(schema, propertyNames);
+
+        foreach (var propertyName in propertyNames)
+        {
+            var property = schema["properties"]![propertyName];
+            Assert.NotNull(property);
+            Assert.DoesNotContain("null", EnumerateSchemaTypes(property));
+        }
+    }
+
+    private static void AssertRequiredProperties(
+        JsonNode schema,
+        params string[] propertyNames)
+    {
         var requiredNode = schema["required"];
         Assert.NotNull(requiredNode);
         var required = requiredNode.AsArray()
@@ -360,9 +987,6 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         foreach (var propertyName in propertyNames)
         {
             Assert.Contains(propertyName, required);
-            var property = schema["properties"]![propertyName];
-            Assert.NotNull(property);
-            Assert.DoesNotContain("null", EnumerateSchemaTypes(property));
         }
     }
 
@@ -389,6 +1013,36 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Equal(
             schemaNames.Select(name => $"#/components/schemas/{name}"),
             references);
+    }
+
+    private static void AssertCookieSecurity(JsonNode operation)
+    {
+        var security = Assert.Single(operation["security"]!.AsArray());
+        var requirement = security!.AsObject();
+        var scheme = Assert.Single(requirement);
+        Assert.Equal("cookieAuth", scheme.Key);
+        Assert.Empty(scheme.Value!.AsArray());
+    }
+
+    private static void AssertConditionalCookieSecurity(JsonNode operation)
+    {
+        var requirements = operation["security"]!.AsArray();
+        Assert.Equal(2, requirements.Count);
+        Assert.Empty(requirements[0]!.AsObject());
+        var cookie = Assert.Single(requirements[1]!.AsObject());
+        Assert.Equal("cookieAuth", cookie.Key);
+        Assert.Empty(cookie.Value!.AsArray());
+    }
+
+    private static void AssertStringEnum(
+        JsonNode schema,
+        params string[] expected)
+    {
+        Assert.Equal("string", schema["type"]!.GetValue<string>());
+        Assert.Equal(
+            expected,
+            schema["enum"]!.AsArray()
+                .Select(value => value!.GetValue<string>()));
     }
 
     private static IEnumerable<string> EnumerateSchemaTypes(JsonNode schema)

@@ -4,6 +4,99 @@ export type ClientOptions = {
     baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type AccountConnectionResponse = {
+    provider: 'google' | 'github' | 'gitlab' | 'vk' | 'yandex';
+    displayName: string;
+    configured: boolean;
+    connected: boolean;
+    email: null | string;
+    connectedAt: null | string;
+    lastUsedAt: null | string;
+    isCurrentAuthenticationMethod: boolean;
+    canConnect: boolean;
+    canDisconnect: boolean;
+    disabledReason: 'external_connection_required' | null;
+};
+
+export type AccountConnectionsResponse = {
+    items: Array<AccountConnectionResponse>;
+};
+
+export type AccountDeletionResponse = {
+    deleted: boolean;
+};
+
+export type AccountDisconnectionResponse = {
+    provider: 'google' | 'github' | 'gitlab' | 'vk' | 'yandex';
+};
+
+export type AccountEmailResponse = {
+    email: string;
+    isPrimary: boolean;
+    providers: Array<'google' | 'github' | 'gitlab' | 'vk' | 'yandex'>;
+};
+
+export type AccountResponse = {
+    id: string;
+    displayName: string;
+    primaryEmail: string;
+    imageUrl: null | string;
+    createdAt: string;
+    verifiedEmails: Array<AccountEmailResponse>;
+};
+
+export type AccountSessionResponse = {
+    id: string;
+    createdAt: string;
+    lastSeenAt: string;
+    expiresAt: string;
+    isCurrent: boolean;
+    authenticationMethod: 'local' | 'google' | 'github' | 'gitlab' | 'vk' | 'yandex';
+    ipAddress: null | string;
+    userAgent: null | string;
+};
+
+export type AccountSessionRevocationResponse = {
+    sessionId: string;
+};
+
+export type AccountSessionsResponse = {
+    items: Array<AccountSessionResponse>;
+    nextCursor: null | string;
+};
+
+export type AccountSessionsRevocationResponse = {
+    revokedCount: number;
+};
+
+export type ApiResponseOfAccountConnectionsResponse = {
+    data: AccountConnectionsResponse;
+};
+
+export type ApiResponseOfAccountDeletionResponse = {
+    data: AccountDeletionResponse;
+};
+
+export type ApiResponseOfAccountDisconnectionResponse = {
+    data: AccountDisconnectionResponse;
+};
+
+export type ApiResponseOfAccountResponse = {
+    data: AccountResponse;
+};
+
+export type ApiResponseOfAccountSessionRevocationResponse = {
+    data: AccountSessionRevocationResponse;
+};
+
+export type ApiResponseOfAccountSessionsResponse = {
+    data: AccountSessionsResponse;
+};
+
+export type ApiResponseOfAccountSessionsRevocationResponse = {
+    data: AccountSessionsRevocationResponse;
+};
+
 export type ApiResponseOfAuthCapabilitiesResponse = {
     data: AuthCapabilitiesResponse;
 };
@@ -18,6 +111,10 @@ export type ApiResponseOfAuthenticatedResponse = {
 
 export type ApiResponseOfAuthSessionResponse = {
     data: AuthSessionResponse;
+};
+
+export type ApiResponseOfExternalAuthChallengeResponse = {
+    data: ExternalAuthChallengeResponse;
 };
 
 export type ApiResponseOfHealthResponse = {
@@ -50,7 +147,7 @@ export type AuthenticatedResponse = {
 };
 
 export type AuthProviderResponse = {
-    id: string;
+    id: 'google' | 'github' | 'gitlab' | 'vk' | 'yandex';
     displayName: string;
 };
 
@@ -87,6 +184,27 @@ export type CreateLocalAutomationScenarioRequest = {
     password?: null | string;
 };
 
+export type DeleteAccountRequest = {
+    /**
+     * Trimmed before comparison; the value must be a valid email of at most 254 characters and exactly match the current primary email.
+     */
+    confirmationEmail: string;
+};
+
+export type ExternalAuthChallengeRequest = {
+    intent: 'signIn' | 'connect';
+    /**
+     * Optional same-origin application path. Absolute, protocol-relative, /api**, and /auth** return paths are rejected.
+     */
+    returnUrl?: null | string;
+};
+
+export type ExternalAuthChallengeResponse = {
+    authorizationUrl: string;
+};
+
+export type ExternalAuthIntent = 'signIn' | 'connect';
+
 export type HealthResponse = {
     status: string;
     timestamp: string;
@@ -101,7 +219,7 @@ export type HttpValidationProblemDetails = {
     errors: {
         [key: string]: Array<string>;
     };
-    code: string;
+    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict';
     traceId: string;
 };
 
@@ -127,7 +245,7 @@ export type ProblemDetails = {
     status: number | string;
     detail: string;
     instance: string;
-    code: string;
+    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict';
     traceId: string;
 };
 
@@ -136,6 +254,13 @@ export type SystemStatusResponse = {
     apiVersion: string;
     timestamp: string;
     echo: null | string;
+};
+
+export type UpdateProfileRequest = {
+    /**
+     * Trimmed before use; the trimmed display name must contain 2 to 50 characters and must not contain control characters.
+     */
+    displayName: string;
 };
 
 export type GetAuthCapabilitiesData = {
@@ -287,6 +412,464 @@ export type LogoutResponses = {
 };
 
 export type LogoutResponse = LogoutResponses[keyof LogoutResponses];
+
+export type ChallengeExternalAuthData = {
+    body: ExternalAuthChallengeRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        provider: 'google' | 'github' | 'gitlab' | 'vk' | 'yandex';
+    };
+    query?: never;
+    url: '/api/v1/auth/external/{provider}/challenge';
+};
+
+export type ChallengeExternalAuthErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type ChallengeExternalAuthError = ChallengeExternalAuthErrors[keyof ChallengeExternalAuthErrors];
+
+export type ChallengeExternalAuthResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfExternalAuthChallengeResponse;
+};
+
+export type ChallengeExternalAuthResponse = ChallengeExternalAuthResponses[keyof ChallengeExternalAuthResponses];
+
+export type DeleteAccountData = {
+    body: DeleteAccountRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/account';
+};
+
+export type DeleteAccountErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type DeleteAccountError = DeleteAccountErrors[keyof DeleteAccountErrors];
+
+export type DeleteAccountResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountDeletionResponse;
+};
+
+export type DeleteAccountResponse = DeleteAccountResponses[keyof DeleteAccountResponses];
+
+export type GetAccountData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account';
+};
+
+export type GetAccountErrors = {
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAccountError = GetAccountErrors[keyof GetAccountErrors];
+
+export type GetAccountResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountResponse;
+};
+
+export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
+
+export type UpdateAccountProfileData = {
+    body: UpdateProfileRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/profile';
+};
+
+export type UpdateAccountProfileErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateAccountProfileError = UpdateAccountProfileErrors[keyof UpdateAccountProfileErrors];
+
+export type UpdateAccountProfileResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountResponse;
+};
+
+export type UpdateAccountProfileResponse = UpdateAccountProfileResponses[keyof UpdateAccountProfileResponses];
+
+export type GetAccountConnectionsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/connections';
+};
+
+export type GetAccountConnectionsErrors = {
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAccountConnectionsError = GetAccountConnectionsErrors[keyof GetAccountConnectionsErrors];
+
+export type GetAccountConnectionsResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountConnectionsResponse;
+};
+
+export type GetAccountConnectionsResponse = GetAccountConnectionsResponses[keyof GetAccountConnectionsResponses];
+
+export type DisconnectAccountProviderData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        provider: 'google' | 'github' | 'gitlab' | 'vk' | 'yandex';
+    };
+    query?: never;
+    url: '/api/v1/account/connections/{provider}';
+};
+
+export type DisconnectAccountProviderErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type DisconnectAccountProviderError = DisconnectAccountProviderErrors[keyof DisconnectAccountProviderErrors];
+
+export type DisconnectAccountProviderResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountDisconnectionResponse;
+};
+
+export type DisconnectAccountProviderResponse = DisconnectAccountProviderResponses[keyof DisconnectAccountProviderResponses];
+
+export type GetAccountSessionsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/account/sessions';
+};
+
+export type GetAccountSessionsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetAccountSessionsError = GetAccountSessionsErrors[keyof GetAccountSessionsErrors];
+
+export type GetAccountSessionsResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountSessionsResponse;
+};
+
+export type GetAccountSessionsResponse = GetAccountSessionsResponses[keyof GetAccountSessionsResponses];
+
+export type RevokeOtherAccountSessionsData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/sessions/others';
+};
+
+export type RevokeOtherAccountSessionsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeOtherAccountSessionsError = RevokeOtherAccountSessionsErrors[keyof RevokeOtherAccountSessionsErrors];
+
+export type RevokeOtherAccountSessionsResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountSessionsRevocationResponse;
+};
+
+export type RevokeOtherAccountSessionsResponse = RevokeOtherAccountSessionsResponses[keyof RevokeOtherAccountSessionsResponses];
+
+export type RevokeAccountSessionData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        sessionId: string;
+    };
+    query?: never;
+    url: '/api/v1/account/sessions/{sessionId}';
+};
+
+export type RevokeAccountSessionErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeAccountSessionError = RevokeAccountSessionErrors[keyof RevokeAccountSessionErrors];
+
+export type RevokeAccountSessionResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfAccountSessionRevocationResponse;
+};
+
+export type RevokeAccountSessionResponse = RevokeAccountSessionResponses[keyof RevokeAccountSessionResponses];
 
 export type GetSystemStatusData = {
     body?: never;
