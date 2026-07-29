@@ -2,6 +2,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore;
+using Microsoft.AspNetCore.Http;
+using OpenIddict.Client;
+using OpenIddict.Client.AspNetCore;
 using OpenIddict.Client.WebIntegration;
 using Template.Infrastructure.Persistence;
 using static OpenIddict.Abstractions.OpenIddictConstants;
@@ -65,9 +69,42 @@ public static class OpenIddictClientServiceCollectionExtensions
             options.AddEphemeralEncryptionKey()
                 .AddEphemeralSigningKey();
             options.UseDataProtection();
+            options.AddEventHandler<
+                OpenIddictClientEvents.ApplyRedirectionResponseContext>(
+                builder =>
+                builder
+                    .UseInlineHandler(context =>
+                    {
+                        var request = context.Transaction.GetHttpRequest();
+                        if (request is not null
+                            && !string.IsNullOrEmpty(context.Response.Error)
+                            && ExternalProviderMetadata.All.Any(provider =>
+                                string.Equals(
+                                    request.Path,
+                                    ExternalProviderMetadata.GetCallbackPath(
+                                        provider),
+                                    StringComparison.Ordinal)))
+                        {
+                            // OpenIddict attaches a 400 status before passing
+                            // redirection errors through to the application.
+                            // Reset only that status so the callback endpoint
+                            // can replace it with the stable browser redirect.
+                            request.HttpContext.Response.StatusCode =
+                                StatusCodes.Status200OK;
+                        }
+
+                        return default;
+                    })
+                    .SetOrder(
+                        OpenIddictClientAspNetCoreHandlers
+                            .AttachHttpResponseCode<
+                                OpenIddictClientEvents
+                                    .ApplyRedirectionResponseContext>
+                            .Descriptor.Order + 500));
 
             var aspNetCore = options.UseAspNetCore()
-                .EnableRedirectionEndpointPassthrough();
+                .EnableRedirectionEndpointPassthrough()
+                .EnableErrorPassthrough();
             if (configured.TryGetPublicOrigin(out var publicOrigin)
                 && publicOrigin!.Scheme == Uri.UriSchemeHttp)
             {

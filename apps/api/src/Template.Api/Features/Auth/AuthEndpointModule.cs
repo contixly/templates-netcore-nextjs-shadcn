@@ -9,25 +9,31 @@ using Template.Api.Endpoints;
 using Template.Api.Errors;
 using Template.Api.OpenApi;
 using Template.Application.Authentication;
+using Template.Infrastructure.Authentication;
 
 namespace Template.Api.Features.Auth;
 
 internal sealed class AuthEndpointModule : IEndpointModule
 {
-    private static readonly IReadOnlyList<AuthProviderResponse> NoProviders =
-        Array.Empty<AuthProviderResponse>();
-
     public void MapEndpoints(EndpointRouteContext context)
     {
         context.VersionedApi.MapGet(
                 "/auth/capabilities",
-                (ILocalAutomationAuthAvailability availability, HttpContext http) =>
+                (
+                    ILocalAutomationAuthAvailability availability,
+                    IExternalProviderCatalog providers,
+                    HttpContext http) =>
                 {
                     NoStore(http);
                     return Results.Ok(new ApiResponse<AuthCapabilitiesResponse>(
                         new AuthCapabilitiesResponse(
                             availability.IsEnabled,
-                            NoProviders)));
+                            providers.Known
+                                .Where(provider => provider.Configured)
+                                .Select(provider => new AuthProviderResponse(
+                                    provider.Provider.Value,
+                                    provider.DisplayName))
+                                .ToArray())));
                 })
             .AllowAnonymous()
             .WithName("GetAuthCapabilities")

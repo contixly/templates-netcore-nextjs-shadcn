@@ -82,6 +82,43 @@ internal static class ApiProblemDetailsDefaults
                 requestedCode,
                 "Too many requests",
                 "The authentication request rate limit was exceeded."),
+            ApiProblemCodes.InvalidReturnUrl => new ProblemDefinition(
+                requestedCode,
+                "Invalid return path",
+                "The return path is not allowed."),
+            ApiProblemCodes.ExternalProviderNotConfigured =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "External provider unavailable",
+                    "The requested external authentication provider is not configured."),
+            ApiProblemCodes.AlreadyAuthenticated => new ProblemDefinition(
+                requestedCode,
+                "Already authenticated",
+                "External sign-in must be started by an anonymous browser."),
+            ApiProblemCodes.ExternalAuthFailed => new ProblemDefinition(
+                requestedCode,
+                "External authentication failed",
+                "External authentication could not be completed."),
+            ApiProblemCodes.ExternalEmailRequired => new ProblemDefinition(
+                requestedCode,
+                "External email required",
+                "The external provider did not return a usable email."),
+            ApiProblemCodes.ExternalEmailUnverified => new ProblemDefinition(
+                requestedCode,
+                "Verified external email required",
+                "The external provider email did not satisfy verification policy."),
+            ApiProblemCodes.ExternalIdentityConflict => new ProblemDefinition(
+                requestedCode,
+                "External identity conflict",
+                "The external identity cannot be safely assigned."),
+            ApiProblemCodes.ExternalEmailConflict => new ProblemDefinition(
+                requestedCode,
+                "External email conflict",
+                "The verified external email belongs to another account."),
+            ApiProblemCodes.OAuthFlowContextChanged => new ProblemDefinition(
+                requestedCode,
+                "OAuth flow context changed",
+                "The browser session no longer matches the OAuth flow."),
             _ => null
         };
         if (custom is not null)

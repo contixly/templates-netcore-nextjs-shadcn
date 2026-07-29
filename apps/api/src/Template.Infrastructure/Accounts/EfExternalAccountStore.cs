@@ -82,6 +82,8 @@ internal sealed class EfExternalAccountStore(
             DisplayName = displayName,
             ImageUrl = identity.ImageUrl?.AbsoluteUri,
             IsLocalAutomation = false,
+            SecurityStamp = Guid.NewGuid().ToString(),
+            ConcurrencyStamp = Guid.NewGuid().ToString(),
             LockoutEnabled = true,
             CreatedAt = now,
             UpdatedAt = now

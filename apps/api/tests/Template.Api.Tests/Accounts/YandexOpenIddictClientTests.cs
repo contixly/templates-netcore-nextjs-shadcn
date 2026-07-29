@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -220,7 +221,7 @@ public sealed class YandexOpenIddictClientTests(
         catch (JsonException exception)
         {
             throw new InvalidOperationException(
-                $"Callback returned {(int) response.StatusCode}: {body}",
+                $"Callback returned {(int)response.StatusCode}: {body}",
                 exception);
         }
     }
@@ -324,6 +325,7 @@ public sealed class YandexOpenIddictClientTests(
                         SynchronizeStateRedemption.Descriptor);
                     options.Handlers.Add(ObserveStateRedemption.Descriptor);
                 });
+                services.RemoveAll<IEndpointModule>();
                 services.AddSingleton<IEndpointModule>(
                     new YandexTestEndpointModule());
             });
@@ -373,7 +375,8 @@ public sealed class YandexOpenIddictClientTests(
         {
             var result = await context.AuthenticateAsync(
                 OpenIddictClientAspNetCoreDefaults.AuthenticationScheme);
-            var error = FindProtocolException(result.Failure)?.Error;
+            var error = context.GetOpenIddictClientResponse()?.Error
+                ?? FindProtocolException(result.Failure)?.Error;
             context.Response.StatusCode = result.Succeeded
                 ? StatusCodes.Status200OK
                 : StatusCodes.Status400BadRequest;

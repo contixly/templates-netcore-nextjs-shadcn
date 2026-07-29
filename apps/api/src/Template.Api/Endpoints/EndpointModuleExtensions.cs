@@ -11,6 +11,8 @@ internal static class EndpointModuleExtensions
     {
         services.AddSingleton<IEndpointModule, AuthEndpointModule>();
         services.AddScoped<ApiJsonRequestReader>();
+        services.AddScoped<ExternalOAuthChallengeService>();
+        services.AddSingleton<IEndpointModule, ExternalAuthEndpointModule>();
         services.AddSingleton<IEndpointModule, HealthEndpointModule>();
         services.AddSingleton<IEndpointModule, SystemEndpointModule>();
         return services;

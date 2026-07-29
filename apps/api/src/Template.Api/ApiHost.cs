@@ -3,6 +3,7 @@ using Template.Api.Endpoints;
 using Template.Api.Errors;
 using Template.Api.Observability;
 using Template.Api.OpenApi;
+using Template.Application.Accounts;
 using Template.Application.Authentication;
 using Template.Infrastructure.Health;
 using Template.Infrastructure.Persistence;
@@ -30,6 +31,7 @@ public static class ApiHost
             builder.Environment);
         builder.Services.AddScoped<LocalAutomationAuthService>();
         builder.Services.AddScoped<BrowserAuthenticationService>();
+        builder.Services.AddScoped<ExternalIdentityService>();
         builder.Services
             .AddHealthChecks()
             .AddCheck<AuthDatabaseHealthCheck>(
@@ -67,10 +69,10 @@ public static class ApiHost
                 api.UseMiddleware<LocalAutomationAvailabilityMiddleware>();
             });
 
+        app.UseRateLimiter();
         app.UseAuthentication();
         app.UseMiddleware<InvalidBrowserSessionCookieMiddleware>();
         app.UseAuthorization();
-        app.UseRateLimiter();
         app.MapEndpointModules();
 
         if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Test"))
