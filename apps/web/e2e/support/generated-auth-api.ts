@@ -2,6 +2,7 @@ import type { APIRequestContext } from "@playwright/test";
 
 import {
   deleteLocalAutomationScenario,
+  getAccountSessions,
   getAuthCsrf,
   getAuthSession,
   signInLocalAutomation,
@@ -126,6 +127,19 @@ export async function getGeneratedAuthSession(request: APIRequestContext) {
   if (!result.data) {
     throw new Error(
       `Session lookup failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data;
+}
+
+export async function getGeneratedAccountSessions(request: APIRequestContext) {
+  const result = await getAccountSessions({
+    client: clientFor(request),
+    cache: "no-store",
+  });
+  if (!result.data) {
+    throw new Error(
+      `Account session lookup failed with ${result.response?.status ?? 0}.`,
     );
   }
   return result.data.data;
