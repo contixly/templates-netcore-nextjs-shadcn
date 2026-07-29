@@ -99,10 +99,24 @@ public sealed class ExternalProviderConfigurationTests
             OpenIddictClientWebIntegrationConstants.ProviderTypes.VkId,
             options.Registrations.Single(value => value.ProviderName == "vk")
                 .ProviderType);
+        var yandex = options.Registrations.Single(
+            value => value.ProviderName == "yandex");
+        Assert.Null(yandex.ProviderType);
         Assert.Equal(
-            OpenIddictClientWebIntegrationConstants.ProviderTypes.Yandex,
-            options.Registrations.Single(value => value.ProviderName == "yandex")
-                .ProviderType);
+            "https://oauth.yandex.ru/authorize",
+            yandex.Configuration!.AuthorizationEndpoint!.AbsoluteUri);
+        Assert.Equal(
+            "https://oauth.yandex.ru/token",
+            yandex.Configuration.TokenEndpoint!.AbsoluteUri);
+        Assert.Equal(
+            "https://login.yandex.ru/info",
+            yandex.Configuration.UserInfoEndpoint!.AbsoluteUri);
+        Assert.Equal(
+            [CodeChallengeMethods.Sha256],
+            yandex.CodeChallengeMethods);
+        Assert.Contains(
+            CodeChallengeMethods.Sha256,
+            yandex.Configuration.CodeChallengeMethodsSupported);
 
         var dataProtection = services
             .GetRequiredService<IOptions<OpenIddictClientDataProtectionOptions>>()

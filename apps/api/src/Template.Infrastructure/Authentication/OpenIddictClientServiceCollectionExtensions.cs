@@ -89,7 +89,7 @@ public static class OpenIddictClientServiceCollectionExtensions
             AddGitHub(providers, configured, publicOrigin);
             AddGitLab(providers, configured, publicOrigin);
             AddVk(providers, configured, publicOrigin);
-            AddYandex(providers, configured, publicOrigin);
+            AddYandex(options, configured, publicOrigin);
         });
 
         services.TryAddSingleton<OpenIddictStateCleanupService>();
@@ -199,7 +199,7 @@ public static class OpenIddictClientServiceCollectionExtensions
     }
 
     private static void AddYandex(
-        OpenIddictClientWebIntegrationBuilder providers,
+        OpenIddictClientBuilder client,
         ExternalAuthenticationOptions options,
         Uri publicOrigin)
     {
@@ -210,17 +210,13 @@ public static class OpenIddictClientServiceCollectionExtensions
             return;
         }
 
-        providers.AddYandex(registration =>
-            registration
-                .SetRegistrationId("yandex")
-                .SetProviderName("yandex")
-                .SetProviderDisplayName("Yandex")
-                .SetClientId(credentials!.ClientId!)
-                .SetClientSecret(credentials.ClientSecret!)
-                .SetRedirectUri(CallbackUri(
-                    publicOrigin,
-                    Template.Domain.Accounts.ExternalProvider.Yandex))
-                .AddScopes("login:email", "login:info", "login:avatar"));
+        YandexOpenIddictClientIntegration.Add(
+            client,
+            credentials!.ClientId!,
+            credentials.ClientSecret!,
+            CallbackUri(
+                publicOrigin,
+                Template.Domain.Accounts.ExternalProvider.Yandex));
     }
 
     private static Uri CallbackUri(

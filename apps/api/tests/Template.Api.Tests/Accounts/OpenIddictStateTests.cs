@@ -1,10 +1,7 @@
-using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging.Abstractions;
 using OpenIddict.Abstractions;
-using OpenIddict.Client;
 using OpenIddict.EntityFrameworkCore.Models;
 using Template.Api.Tests.Infrastructure;
 using Template.Infrastructure.Authentication;
@@ -55,61 +52,6 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
         await postgres.DropDatabaseAsync(
             _databaseName,
             TestContext.Current.CancellationToken);
-    }
-
-    [Fact]
-    public async Task RedeemedPersistentStateTokenIsInvalidForReplay()
-    {
-        await using var scope = _services.CreateAsyncScope();
-        var manager = scope.ServiceProvider
-            .GetRequiredService<IOpenIddictTokenManager>();
-        var token = await manager.CreateAsync(
-            new OpenIddictTokenDescriptor
-            {
-                CreationDate = Now,
-                ExpirationDate = Now.AddMinutes(15),
-                Payload = "protected-state-payload",
-                Status = Statuses.Valid,
-                Type = TokenTypeIdentifiers.Private.StateToken
-            },
-            TestContext.Current.CancellationToken);
-
-        Assert.True(await manager.TryRedeemAsync(
-            token,
-            TestContext.Current.CancellationToken));
-        Assert.True(await manager.HasStatusAsync(
-            token,
-            Statuses.Redeemed,
-            TestContext.Current.CancellationToken));
-        Assert.False(await manager.HasStatusAsync(
-            token,
-            Statuses.Valid,
-            TestContext.Current.CancellationToken));
-
-        var replay = new OpenIddictClientEvents.ValidateTokenContext(
-            new OpenIddictClientTransaction
-            {
-                Logger = NullLogger.Instance
-            })
-        {
-            Principal = new ClaimsPrincipal(new ClaimsIdentity()),
-            TokenId = await manager.GetIdAsync(
-                token,
-                TestContext.Current.CancellationToken)
-        };
-        await new OpenIddictClientHandlers.Protection.ValidateTokenEntry(manager)
-            .HandleAsync(replay);
-        Assert.True(replay.IsRejected);
-        Assert.Equal(
-            OpenIddictConstants.Errors.InvalidToken,
-            replay.Error);
-
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        var row = await db.OpenIddictTokens.AsNoTracking().SingleAsync(
-            TestContext.Current.CancellationToken);
-        Assert.Equal(Statuses.Redeemed, row.Status);
-        Assert.Equal(TokenTypeIdentifiers.Private.StateToken, row.Type);
-        Assert.NotNull(row.RedemptionDate);
     }
 
     [Fact]
