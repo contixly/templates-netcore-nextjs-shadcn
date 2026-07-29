@@ -10,6 +10,62 @@
       "description": "Try again later."
     }
   },
+  "externalProviders": {
+    "title": "External providers",
+    "description": "Continue with a configured provider.",
+    "button": "Continue with {provider}",
+    "pending": "Opening {provider}",
+    "failure": "Could not start external sign-in.",
+    "unavailable": "The authentication API is unavailable.",
+    "invalidAuthorizationUrl": "The sign-in destination was rejected."
+  },
+  "error": {
+    "eyebrow": "Authentication",
+    "codes": {
+      "generic": {
+        "title": "Sign-in could not be completed",
+        "description": "Return to sign in and start a new authentication attempt."
+      },
+      "invalidReturnUrl": {
+        "title": "The return destination was rejected",
+        "description": "Start sign-in again from a trusted application page."
+      },
+      "externalProviderNotConfigured": {
+        "title": "This sign-in method is unavailable",
+        "description": "Choose another configured sign-in method."
+      },
+      "alreadyAuthenticated": {
+        "title": "You are already signed in",
+        "description": "Return home or start again after signing out."
+      },
+      "externalAuthFailed": {
+        "title": "External sign-in failed",
+        "description": "Return to sign in and start a new authentication attempt."
+      },
+      "externalEmailRequired": {
+        "title": "An email address is required",
+        "description": "The provider did not return an email address that can be used for sign-in."
+      },
+      "externalEmailUnverified": {
+        "title": "Email could not be verified",
+        "description": "The provider did not confirm a verified email for this account."
+      },
+      "externalIdentityConflict": {
+        "title": "This external identity cannot be used",
+        "description": "Choose another sign-in method or return home."
+      },
+      "externalEmailConflict": {
+        "title": "This email is already in use",
+        "description": "Choose another sign-in method or return home."
+      },
+      "oauthFlowContextChanged": {
+        "title": "The sign-in context changed",
+        "description": "Return to sign in and start a new authentication attempt."
+      }
+    },
+    "retry": "Try sign-in again",
+    "home": "Return home"
+  },
   "localAutomation": {
     "title": "Local automation",
     "description": "Create a local credential user for development and browser automation.",

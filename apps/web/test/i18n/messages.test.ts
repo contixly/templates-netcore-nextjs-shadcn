@@ -38,6 +38,38 @@ describe("fixed deployment locale", () => {
     expect(russian.system.page.title).not.toBe(english.system.page.title);
   });
 
+  it("provides complete localized external-auth and safe error copy", async () => {
+    const [english, russian] = await Promise.all([
+      loadMessages("en"),
+      loadMessages("ru"),
+    ]);
+    const expectedErrorCodes = [
+      "alreadyAuthenticated",
+      "externalAuthFailed",
+      "externalEmailConflict",
+      "externalEmailRequired",
+      "externalEmailUnverified",
+      "externalIdentityConflict",
+      "externalProviderNotConfigured",
+      "generic",
+      "invalidReturnUrl",
+      "oauthFlowContextChanged",
+    ];
+
+    expect(Object.keys(english.auth.error.codes).sort()).toEqual(
+      expectedErrorCodes,
+    );
+    expect(Object.keys(russian.auth.error.codes).sort()).toEqual(
+      expectedErrorCodes,
+    );
+    expect(russian.auth.externalProviders.button).not.toBe(
+      english.auth.externalProviders.button,
+    );
+    expect(russian.auth.error.codes.generic.title).not.toBe(
+      english.auth.error.codes.generic.title,
+    );
+  });
+
   it("loads the Russian deployment bundle and fixed UTC time zone", async () => {
     const originalLocale = process.env.PUBLIC_DEFAULT_LOCALE;
 

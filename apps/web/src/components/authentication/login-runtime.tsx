@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
 import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
+import { ExternalProviderButtons } from "@/src/components/authentication/external-provider-buttons";
 import { LocalAutomationLoginPanel } from "@/src/components/authentication/local-automation-login-panel";
 import { sanitizeAuthRedirect } from "@/src/features/authentication/sanitize-auth-redirect";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
@@ -33,11 +34,17 @@ export async function LoginRuntime({
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-sm text-muted-foreground">{t("description")}</p>
       </div>
+      {result.data.capabilities.providers.length > 0 ? (
+        <ExternalProviderButtons
+          providers={result.data.capabilities.providers}
+          returnUrl={redirectPath}
+        />
+      ) : null}
       {result.data.capabilities.localAutomationEnabled ? (
         <LocalAutomationLoginPanel redirectPath={redirectPath} />
-      ) : (
+      ) : result.data.capabilities.providers.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("unavailable")}</p>
-      )}
+      ) : null}
     </section>
   );
 }
