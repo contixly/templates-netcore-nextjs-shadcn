@@ -1,4 +1,3 @@
-using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
@@ -44,8 +43,11 @@ public static class InfrastructureServiceCollectionExtensions
             .AddOptions<AuthenticationDataProtectionOptions>()
             .Bind(dataProtectionSection)
             .Validate(
-                options => !string.IsNullOrWhiteSpace(options.ApplicationName),
-                "DataProtection:ApplicationName is required.")
+                options => string.Equals(
+                    options.ApplicationName,
+                    AuthenticationDataProtectionOptions.RequiredApplicationName,
+                    StringComparison.Ordinal),
+                "DataProtection:ApplicationName must be exactly 'Template'.")
             .Validate(
                 options =>
                     !environment.IsProduction() ||
@@ -56,13 +58,27 @@ public static class InfrastructureServiceCollectionExtensions
 
         var dataProtection = services
             .AddDataProtection()
-            .SetApplicationName(dataProtectionOptions.ApplicationName)
+            .SetApplicationName(
+                AuthenticationDataProtectionOptions.RequiredApplicationName)
             .PersistKeysToDbContext<AuthDbContext>();
         if (environment.IsProduction())
         {
-            var certificate = LoadProductionCertificate(dataProtectionOptions);
-            services.AddSingleton(certificate);
-            dataProtection.ProtectKeysWithCertificate(certificate);
+            var certificate =
+                ProductionDataProtectionCertificate.Load(dataProtectionOptions);
+            try
+            {
+                services.AddSingleton(_ => certificate);
+                services
+                    .AddHostedService<DataProtectionCertificateStartupService>();
+                dataProtection
+                    .ProtectKeysWithCertificate(certificate.Certificate)
+                    .UnprotectKeysWithAnyCertificate(certificate.Certificate);
+            }
+            catch
+            {
+                certificate.Dispose();
+                throw;
+            }
         }
 
         services
@@ -96,57 +112,4 @@ public static class InfrastructureServiceCollectionExtensions
             CryptographicLocalAutomationCredentialGenerator>();
         return services;
     }
-
-    private static X509Certificate2 LoadProductionCertificate(
-        AuthenticationDataProtectionOptions options)
-    {
-        if (string.IsNullOrWhiteSpace(options.CertificatePath) ||
-            string.IsNullOrWhiteSpace(options.CertificatePassword))
-        {
-            throw InvalidDataProtectionOptions(
-                "DataProtection production certificate path and password are required.");
-        }
-
-        try
-        {
-            var certificate = X509CertificateLoader.LoadPkcs12FromFile(
-                options.CertificatePath,
-                options.CertificatePassword);
-            var now = DateTime.UtcNow;
-            using var publicKey = certificate.GetRSAPublicKey();
-            using var privateKey = certificate.GetRSAPrivateKey();
-            if (!certificate.HasPrivateKey ||
-                publicKey is null ||
-                privateKey is null ||
-                certificate.NotBefore.ToUniversalTime() > now ||
-                certificate.NotAfter.ToUniversalTime() < now)
-            {
-                certificate.Dispose();
-                throw InvalidDataProtectionOptions(
-                    "DataProtection production certificate must be current and include its private key.");
-            }
-
-            return certificate;
-        }
-        catch (OptionsValidationException)
-        {
-            throw;
-        }
-        catch (Exception exception) when (
-            exception is IOException or
-            UnauthorizedAccessException or
-            System.Security.Cryptography.CryptographicException or
-            ArgumentException)
-        {
-            throw InvalidDataProtectionOptions(
-                "DataProtection production certificate could not be loaded.");
-        }
-    }
-
-    private static OptionsValidationException InvalidDataProtectionOptions(
-        string failure) =>
-        new(
-            AuthenticationDataProtectionOptions.SectionName,
-            typeof(AuthenticationDataProtectionOptions),
-            [failure]);
 }
