@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authentication;
@@ -91,7 +92,7 @@ public sealed class YandexOpenIddictClientTests(
     }
 
     [Fact]
-    public async Task ConcurrentCallbacksRedeemStateOnceAndSendDocumentedUserInfoRequest()
+    public async Task ConcurrentCallbacksRedeemStateOnceAndWinnerSendsDocumentedRequests()
     {
         using var client = _factory.CreateOAuthClient();
         using var challenge = await client.GetAsync(
@@ -127,13 +128,50 @@ public sealed class YandexOpenIddictClientTests(
         Assert.Equal(OpenIddictConstants.Errors.InvalidToken, rejected.Error);
         Assert.Equal(1, _factory.StateReplayProbe.RedeemedPasses);
 
+        Assert.Equal(2, _factory.RemoteRequests.Requests.Count);
+        var token = Assert.Single(
+            _factory.RemoteRequests.Requests,
+            request =>
+                request.Uri == new Uri("https://oauth.yandex.ru/token"));
+        Assert.Equal(HttpMethod.Post, token.Method);
+        Assert.Equal(
+            "application/x-www-form-urlencoded",
+            token.ContentType);
+        Assert.Null(token.AuthorizationScheme);
+        Assert.False(token.HasAuthorizationParameter);
+        Assert.True(token.HasClientSecretParameter);
+        Assert.True(token.HasNonEmptyClientSecretParameter);
+        Assert.Equal(
+            ["client_id", "code", "code_verifier", "grant_type", "redirect_uri"],
+            token.FormParameters.Keys.Order(StringComparer.Ordinal));
+        Assert.False(string.IsNullOrWhiteSpace(
+            token.FormParameters["client_id"]));
+        Assert.Equal(
+            GrantTypes.AuthorizationCode,
+            token.FormParameters["grant_type"]);
+        Assert.Equal("test-code", token.FormParameters["code"]);
+        Assert.Equal(
+            $"https://accounts.example.test{YandexTestEndpointModule.CallbackPath}",
+            token.FormParameters["redirect_uri"]);
+
+        var verifier = token.FormParameters["code_verifier"];
+        Assert.False(string.IsNullOrWhiteSpace(verifier));
+        var actualChallenge = WebEncoders.Base64UrlEncode(
+            SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
+        var expectedChallenge =
+            QueryHelpers.ParseQuery(authorizationUri.Query)["code_challenge"]
+                .ToString();
+        Assert.Equal(expectedChallenge, actualChallenge);
+
         var userInfo = Assert.Single(
             _factory.RemoteRequests.Requests,
             request =>
                 request.Uri == new Uri("https://login.yandex.ru/info"));
         Assert.Equal(HttpMethod.Get, userInfo.Method);
         Assert.Equal("OAuth", userInfo.AuthorizationScheme);
-        Assert.Equal("ephemeral-yandex-token", userInfo.AuthorizationParameter);
+        Assert.True(userInfo.HasAuthorizationParameter);
+        Assert.Empty(userInfo.FormParameters);
+        Assert.False(userInfo.HasClientSecretParameter);
         Assert.DoesNotContain(
             "oauth_token",
             userInfo.Uri.Query,
@@ -475,17 +513,35 @@ public sealed class YandexOpenIddictClientTests(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
+            var body = request.Content is null
+                ? string.Empty
+                : await request.Content.ReadAsStringAsync(cancellationToken);
+            var form = QueryHelpers.ParseQuery(body);
+            var hasClientSecret = form.TryGetValue(
+                Parameters.ClientSecret,
+                out var clientSecret);
             _requests.Enqueue(new CapturedRemoteRequest(
                 request.Method,
                 request.RequestUri
                     ?? throw new InvalidOperationException(
                         "The outbound request URI is missing."),
                 request.Headers.Authorization?.Scheme,
-                request.Headers.Authorization?.Parameter,
-                request.Content is null
-                    ? null
-                    : await request.Content.ReadAsStringAsync(
-                        cancellationToken)));
+                !string.IsNullOrWhiteSpace(
+                    request.Headers.Authorization?.Parameter),
+                request.Content?.Headers.ContentType?.MediaType,
+                form
+                    .Where(parameter =>
+                        !string.Equals(
+                            parameter.Key,
+                            Parameters.ClientSecret,
+                            StringComparison.Ordinal))
+                    .ToDictionary(
+                        parameter => parameter.Key,
+                        parameter => parameter.Value.ToString(),
+                        StringComparer.Ordinal),
+                hasClientSecret,
+                hasClientSecret
+                    && !string.IsNullOrWhiteSpace(clientSecret.ToString())));
 
             var response = request.RequestUri switch
             {
@@ -529,6 +585,9 @@ public sealed class YandexOpenIddictClientTests(
         HttpMethod Method,
         Uri Uri,
         string? AuthorizationScheme,
-        string? AuthorizationParameter,
-        string? Body);
+        bool HasAuthorizationParameter,
+        string? ContentType,
+        IReadOnlyDictionary<string, string> FormParameters,
+        bool HasClientSecretParameter,
+        bool HasNonEmptyClientSecretParameter);
 }
