@@ -54,14 +54,23 @@ internal static class SafeReturnUrl
             return false;
         }
 
-        normalized = resolved.GetComponents(
+        var canonical = resolved.GetComponents(
             UriComponents.PathAndQuery | UriComponents.Fragment,
             UriFormat.UriEscaped);
-        if (!normalized.StartsWith("/", StringComparison.Ordinal))
+        if (!canonical.StartsWith("/", StringComparison.Ordinal))
         {
-            normalized = $"/{normalized}";
+            canonical = $"/{canonical}";
         }
 
+        if (canonical.StartsWith("//", StringComparison.Ordinal)
+            || canonical.Contains('\\')
+            || canonical.Any(char.IsControl)
+            || HasDangerousEncoding(canonical))
+        {
+            return false;
+        }
+
+        normalized = canonical;
         return true;
     }
 

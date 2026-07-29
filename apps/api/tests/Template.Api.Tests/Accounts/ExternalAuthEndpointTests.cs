@@ -127,6 +127,8 @@ public sealed class ExternalAuthEndpointTests(
     [InlineData("/%255c%255cevil.example/steal")]
     [InlineData("/safe%0apath")]
     [InlineData("/safe/../api/v1/auth/session")]
+    [InlineData("/safe/..//evil.example")]
+    [InlineData("/%2e%2e//evil.example")]
     [InlineData("/safe/%2e%2e/auth/login")]
     [InlineData("/%61pi/v1/auth/session")]
     [InlineData("/%61uth/login")]
