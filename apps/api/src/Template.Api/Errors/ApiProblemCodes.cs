@@ -28,4 +28,13 @@ internal static class ApiProblemCodes
     internal const string ExternalEmailConflict = "external_email_conflict";
     internal const string OAuthFlowContextChanged =
         "oauth_flow_context_changed";
+    internal const string InvalidCursor = "invalid_cursor";
+    internal const string ExternalConnectionRequired =
+        "external_connection_required";
+    internal const string ExternalConnectionNotFound =
+        "external_connection_not_found";
+    internal const string AccountSessionNotFound =
+        "account_session_not_found";
+    internal const string CurrentSessionCannotBeRevoked =
+        "current_session_cannot_be_revoked";
 }

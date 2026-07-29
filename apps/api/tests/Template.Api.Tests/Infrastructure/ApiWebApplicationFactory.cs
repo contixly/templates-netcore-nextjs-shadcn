@@ -38,6 +38,9 @@ public sealed class ApiWebApplicationFactory(
     {
         await using var scope = Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        await db.OpenIddictTokens.ExecuteDeleteAsync(cancellationToken);
+        await db.UserLogins.ExecuteDeleteAsync(cancellationToken);
+        await db.UserEmails.ExecuteDeleteAsync(cancellationToken);
         await db.Sessions.ExecuteDeleteAsync(cancellationToken);
         await db.Users.ExecuteDeleteAsync(cancellationToken);
     }

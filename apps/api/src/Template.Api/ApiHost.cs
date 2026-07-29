@@ -32,6 +32,8 @@ public static class ApiHost
         builder.Services.AddScoped<LocalAutomationAuthService>();
         builder.Services.AddScoped<BrowserAuthenticationService>();
         builder.Services.AddScoped<ExternalIdentityService>();
+        builder.Services.AddScoped<AccountService>();
+        builder.Services.AddScoped<AccountSessionService>();
         builder.Services
             .AddHealthChecks()
             .AddCheck<AuthDatabaseHealthCheck>(
