@@ -679,19 +679,26 @@ Explicit connect может переиспользовать email текуще�
 
 Для известного `(provider, subject)` changed email другого user даёт conflict
 без перемещения login. Email того же user переиспользуется, а свободный
-создаётся как secondary; login затем reassociate-ится с принятым row. Прежний
-non-primary email удаляется только когда на него больше не ссылается ни один
-login; primary никогда не удаляется. Повторный sign-in с неизменным email
-обновляет только `lastUsedAt` и не применяет profile data повторно. Connect,
-включая reassociation email, сохраняет прежний `lastUsedAt`.
+создаётся как secondary; actual login row блокируется и перечитывается через
+`FOR UPDATE`, после чего reassociate-ится с принятым row. Поэтому concurrent
+reassociation сериализуется, а реально заменённый non-primary email удаляется
+только когда на него больше не ссылается ни один login; primary/shared rows
+сохраняются. Повторный sign-in с неизменным email обновляет только `lastUsedAt`
+и не применяет profile data повторно. Connect, включая reassociation email,
+сохраняет прежний `lastUsedAt`.
 
 Disconnect выполняется локально и атомарно. Он удаляет provider login и удаляет
 его non-primary secondary email только когда ни одна remaining connection
-больше не подтверждает этот row. Primary email сохраняется. Current provider и
-последняя production provider connection не отключаются. Provider-side
-consent/token не отзывается, потому что provider access/refresh tokens нигде не
-сохраняются. Production callback владеет mutable ephemeral token bag и очищает
-его в `finally`; normalization дополнительно делает best-effort clear, если
+больше не подтверждает этот row. Primary email сохраняется. Current provider не
+отключается; после любого удаления должен остаться хотя бы один connected
+provider с complete startup runtime configuration. Stored login
+runtime-unconfigured provider остаётся видимым, но не считается usable
+survivor. Один и тот же startup-stable configured set передаётся через
+Application use-case/persistence port и проверяется под login locks без
+Application → Infrastructure dependency. Provider-side consent/token не
+отзывается, потому что provider access/refresh tokens нигде не сохраняются.
+Production callback владеет mutable ephemeral token bag и очищает его в
+`finally`; normalization дополнительно делает best-effort clear, если
 `IReadOnlyDictionary` фактически mutable. Для immutable/read-only caller
 остаётся владельцем cleanup.
 
@@ -732,13 +739,13 @@ Ignored `appsettings.Local.json` загружается последним то�
 имеет mode `0600`, не попадает в build/publish и вручную заполняется без runtime
 чтения `template/.env`.
 
-### Fresh verification 2026-07-29
+### Fresh verification 2026-07-30
 
 | Команда / проверка                                                                                                                                                  | Наблюдаемый результат                                                                                                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dotnet restore Template.sln`                                                                                                                                       | PASS; все projects up-to-date                                                                                                                                                                 |
 | `dotnet build Template.sln --no-restore`                                                                                                                            | PASS; 0 warnings, 0 errors                                                                                                                                                                    |
-| `dotnet test Template.sln --no-restore`                                                                                                                             | PASS; Application 98/98, API 299/299, total 397/397, 0 failed/skipped; API suite применила migrations к disposable PostgreSQL и проверила transactions/state/Data Protection/callbacks        |
+| `dotnet test Template.sln --no-restore`                                                                                                                             | PASS; Application 100/100, API 303/303, total 403/403, 0 failed/skipped; API suite применила migrations к disposable PostgreSQL и проверила transactions/state/Data Protection/callbacks      |
 | `dotnet ef migrations has-pending-model-changes --project apps/api/src/Template.Infrastructure --startup-project apps/api/src/Template.Api --context AuthDbContext` | PASS; build succeeded, model changes отсутствуют                                                                                                                                              |
 | exact OpenAPI export build, повторный export/hash и `git diff --exit-code -- contracts/openapi/v1.json`                                                             | PASS; 0 warnings/errors; SHA-256 до/после `05831e17145a9dcdb95cc725592ee45c6dff7ad8175997202102767c9de56cbb`; committed contract unchanged                                                    |
 | `cd apps/web && npm run api:check`                                                                                                                                  | PASS; 4 generated files regenerated/byte-compared, SDK deterministic/current                                                                                                                  |
@@ -748,7 +755,7 @@ Ignored `appsettings.Local.json` загружается последним то�
 | `dotnet list Template.sln package --vulnerable --include-transitive`                                                                                                | PASS; no vulnerable direct/transitive NuGet packages in seven projects                                                                                                                        |
 | `npm run boundaries:check`                                                                                                                                          | PASS; 3/3 harness tests and full source/dependency scan                                                                                                                                       |
 | `npm run format:check`, `npm run lint`, `npm run typecheck`                                                                                                         | PASS; Prettier, ESLint, Next route type generation and `tsc --noEmit`                                                                                                                         |
-| `npm test -- --runInBand`                                                                                                                                           | PASS; Jest 34/34 suites, 161/161 tests, 0 snapshots                                                                                                                                           |
+| `npm test -- --runInBand`                                                                                                                                           | PASS; Jest 34/34 suites, 162/162 tests, 0 snapshots                                                                                                                                           |
 | clean `.next`; `env -u API_INTERNAL_BASE_URL -u API_PROXY_TARGET PUBLIC_DEFAULT_LOCALE=en npm run build`; standalone existence                                      | PASS; Next.js 16.2.11, 11/11 static generation units, all auth/account routes, `.next/standalone/server.js` present                                                                           |
 | `npm run e2e`                                                                                                                                                       | PASS; 14 discovered, 9 deterministic passed, 5 opt-in live cases skipped, 0 failed                                                                                                            |
 | exact local-value collision, private-key marker, runtime `template/.env`, ignored-overlay mode/artifact guards                                                      | PASS; 9 nonempty local OAuth values checked with values suppressed; no non-reference tracked collision/private key/runtime reference; local overlay ignored, `0600`, absent from build output |

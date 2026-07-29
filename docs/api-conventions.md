@@ -212,18 +212,23 @@ For an existing `(provider, subject)`, a changed incoming email is reconciled
 inside the same transaction. If another user owns it, the operation fails
 without moving the login. If the current user already owns it, the login is
 reassociated with that verified-email row. If it is free, a secondary verified
-email is created and the login is reassociated. The previous non-primary email
-is then deleted only when no login still references it; a primary email is
-never removed. Connect preserves `lastUsedAt`, while sign-in records the new use
-time.
+email is created and the login is reassociated. The login row is locked and
+reloaded before its previous email is selected, so concurrent reassociations
+serialize and cleanup applies to the email actually replaced. That previous
+non-primary email is then deleted only when no login still references it; a
+primary email is never removed. Connect preserves `lastUsedAt`, while sign-in
+records the new use time.
 
 Disconnect is local only: it deletes the selected login and deletes its
 non-primary secondary email only when no remaining provider connection vouches
 for that row. Primary email is never deleted. The current authentication
-provider and the final production provider connection cannot be disconnected,
-even if local automation credentials exist; the server re-evaluates these rules
-inside the write path. Remote provider consent remains active because no remote
-token is retained.
+provider cannot be disconnected, and every removal must leave at least one
+connected provider that is configured in the startup-stable runtime catalogue.
+Stored logins whose runtime provider configuration was removed remain visible,
+but they do not count as usable survivors. The server passes the configured set
+through the Application use-case and persistence port and re-evaluates the same
+set inside the locked write path. Local automation credentials do not count.
+Remote provider consent remains active because no remote token is retained.
 
 Session results are ordered by `(lastSeenAt DESC, id DESC)`. `nextCursor` is a
 versioned, canonical base64url encoding of that tuple with a checksum for

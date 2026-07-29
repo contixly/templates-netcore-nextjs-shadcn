@@ -232,23 +232,29 @@ email but cannot claim another user's email.
 When a known `(provider, subject)` returns a changed email, reconciliation first
 checks normalized ownership. Another user's email produces a conflict without
 moving the login. An email already owned by the same user is reused; a free
-email is created as secondary. The login then moves to the accepted row, and
-its previous non-primary email is deleted only when no remaining login
-references it. Primary email is never removed. An unchanged-email repeat
-sign-in updates only `LastUsedAt`; connect, including email reassociation,
-preserves the previous `LastUsedAt`.
+email is created as secondary. Before moving the login, persistence locks and
+reloads the actual `(user, provider, subject)` row with `FOR UPDATE`. Concurrent
+email reassociations therefore serialize, and each operation deletes the
+non-primary email it actually replaced only when no remaining login references
+it. Primary and still-shared emails are never removed. An unchanged-email
+repeat sign-in updates only `LastUsedAt`; connect, including email
+reassociation, preserves the previous `LastUsedAt`.
 
 The reconciliation unit of work commits before the HTTP callback issues a new
 provider-authenticated browser session for sign-in or rotates the existing
 session principal for connect. Session issuance/rotation is deliberately not
 part of the account transaction.
 
-Disconnect takes and locks a fresh connection/email snapshot, revalidates the
-provider count and ownership, deletes the selected login, and deletes its
-non-primary email only when no remaining login references that row. Any failure
-rolls both changes back. The current provider or final production provider
-connection cannot be disconnected. This rule intentionally does not count
-Development/Test local-automation credentials as a production method.
+Disconnect takes and locks a fresh connection/email snapshot, revalidates
+ownership and the startup-stable configured-provider set, deletes the selected
+login, and deletes its non-primary email only when no remaining login references
+that row. Any failure rolls both changes back. The current provider cannot be
+disconnected, and every removal must leave at least one connected provider
+whose runtime configuration is complete. Stored logins for providers whose
+configuration was removed remain visible but do not count as usable survivors.
+The configured set crosses the Application use-case and persistence port;
+Application does not depend on Infrastructure. Development/Test local-automation
+credentials do not count as a production method.
 
 Account deletion validates the confirmation against the normalized primary
 email, deletes the Identity user in a transaction, and relies on tested

@@ -183,8 +183,10 @@ connection whose provider configuration was removed. Connect reuses the
 external challenge adapter with `intent=connect`; disconnect uses the generated
 account mutation and server-provided disabled reason. UI disabled state is
 presentation only: the API again prevents removal of the current provider or
-the final production connection. Disconnect revokes neither provider consent
-nor remote tokens because no token is stored.
+any removal that would leave no connected provider with complete runtime
+configuration. Connected providers whose configuration was removed stay
+visible but do not count as usable survivors. Disconnect revokes neither
+provider consent nor remote tokens because no token is stored.
 
 Security renders only safe session fields. Browser/OS text is best-effort
 presentation derived from the bounded user-agent projection and is not an
