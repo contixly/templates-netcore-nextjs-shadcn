@@ -1,5 +1,7 @@
 using Template.Application.Accounts;
 using Template.Application.Accounts.Ports;
+using Template.Application.Common.Ports;
+using Template.Application.Organizations.Ports;
 using Template.Application.Authentication;
 using Template.Domain.Accounts;
 using Template.Domain.Authentication;
@@ -26,7 +28,7 @@ public sealed class AccountServiceTests
     {
         var account = Account();
         var store = new FakeAccountStore(account);
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.GetAsync(UserId, Ct);
 
@@ -37,7 +39,7 @@ public sealed class AccountServiceTests
     public async Task DisplayNameIsTrimmedBeforeUpdate()
     {
         var store = new FakeAccountStore(Account());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.UpdateDisplayNameAsync(UserId, "  Ada Lovelace  ", Ct);
 
@@ -53,7 +55,7 @@ public sealed class AccountServiceTests
         {
             ProfileMissingAfterValidation = true
         };
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.UpdateDisplayNameAsync(
             UserId,
@@ -77,7 +79,7 @@ public sealed class AccountServiceTests
     public async Task DisplayNameOutsideTheExactPolicyIsRejected(string displayName)
     {
         var store = new FakeAccountStore(Account());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.UpdateDisplayNameAsync(UserId, displayName, Ct);
 
@@ -92,7 +94,7 @@ public sealed class AccountServiceTests
     public async Task DisplayNameAcceptsInclusiveLengthBounds(int length)
     {
         var store = new FakeAccountStore(Account());
-        var service = new AccountService(store);
+        var service = CreateService(store);
         var displayName = new string('x', length);
 
         var result = await service.UpdateDisplayNameAsync(UserId, displayName, Ct);
@@ -107,7 +109,7 @@ public sealed class AccountServiceTests
         var store = new FakeAccountStore(Account());
         store.Connections.Add(Connection(ExternalProvider.GitHub));
         store.Connections.Add(Connection(ExternalProvider.Vk));
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.ListConnectionsAsync(
             UserId,
@@ -140,7 +142,7 @@ public sealed class AccountServiceTests
     public async Task DuplicateConfiguredProvidersDoNotDuplicateProjection()
     {
         var store = new FakeAccountStore(Account());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.ListConnectionsAsync(
             UserId,
@@ -154,7 +156,7 @@ public sealed class AccountServiceTests
     public async Task MissingConnectionUsesConnectionNotFoundFailure()
     {
         var store = new FakeAccountStore(Account());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -175,7 +177,7 @@ public sealed class AccountServiceTests
             ExternalProvider.Google,
             configuredSurvivorCount: 2);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -196,7 +198,7 @@ public sealed class AccountServiceTests
             ExternalProvider.GitHub,
             configuredSurvivorCount: 0);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -217,7 +219,7 @@ public sealed class AccountServiceTests
             ExternalProvider.GitHub,
             configuredSurvivorCount: 0);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -238,7 +240,7 @@ public sealed class AccountServiceTests
             ExternalProvider.GitHub,
             configuredSurvivorCount: 1);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -264,7 +266,7 @@ public sealed class AccountServiceTests
             configuredSurvivorCount: 2,
             emailIsPrimary: false);
         var store = new FakeAccountStore(Account()) { DisconnectSnapshot = snapshot };
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -288,7 +290,7 @@ public sealed class AccountServiceTests
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(null);
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -316,7 +318,7 @@ public sealed class AccountServiceTests
         store.DisconnectSnapshotReads.Enqueue(initial);
         store.DisconnectSnapshotReads.Enqueue(last);
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -344,7 +346,7 @@ public sealed class AccountServiceTests
         store.DisconnectSnapshotReads.Enqueue(null);
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -373,7 +375,7 @@ public sealed class AccountServiceTests
         store.DisconnectSnapshotReads.Enqueue(last);
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -402,7 +404,7 @@ public sealed class AccountServiceTests
         store.DisconnectSnapshotReads.Enqueue(terminal);
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
         store.DisconnectFailures.Enqueue(new AccountConcurrencyException());
-        var service = new AccountService(store);
+        var service = CreateService(store);
 
         var result = await service.DisconnectAsync(
             UserId,
@@ -425,7 +427,9 @@ public sealed class AccountServiceTests
         string confirmation)
     {
         var store = new FakeAccountStore(Account());
-        var service = new AccountService(store);
+        var lifecycle = new FakeOrganizationUserLifecycleStore();
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(store, lifecycle, transactions);
 
         var result = await service.DeleteAsync(UserId, confirmation, Ct);
 
@@ -433,6 +437,8 @@ public sealed class AccountServiceTests
         Assert.Equal(UserId, result.Value!.UserId);
         Assert.Equal(UserId, Assert.Single(store.DeletedUserIds));
         Assert.True(store.DeleteCompleted);
+        Assert.Equal(UserId, Assert.Single(lifecycle.PreparedUserIds));
+        Assert.Equal(1, transactions.Executions);
     }
 
     [Theory]
@@ -442,14 +448,54 @@ public sealed class AccountServiceTests
     public async Task DeleteConfirmationMismatchDoesNotDelete(string confirmation)
     {
         var store = new FakeAccountStore(Account());
-        var service = new AccountService(store);
+        var lifecycle = new FakeOrganizationUserLifecycleStore();
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(store, lifecycle, transactions);
 
         var result = await service.DeleteAsync(UserId, confirmation, Ct);
 
         Assert.Null(result.Value);
         Assert.Equal(AccountFailure.ConfirmationMismatch, result.Failure);
         Assert.Empty(store.DeletedUserIds);
+        Assert.Empty(lifecycle.PreparedUserIds);
+        Assert.Equal(0, transactions.Executions);
     }
+
+    [Fact]
+    public async Task OwnershipTransferRequirementDoesNotDeleteAccount()
+    {
+        var store = new FakeAccountStore(Account());
+        var lifecycle = new FakeOrganizationUserLifecycleStore
+        {
+            Preparation = new(
+                DeletedOrganizations: 0,
+                OwnershipTransferRequired: true)
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(store, lifecycle, transactions);
+
+        var result = await service.DeleteAsync(
+            UserId,
+            "owner@example.test",
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(
+            AccountFailure.OrganizationOwnershipTransferRequired,
+            result.Failure);
+        Assert.Equal(UserId, Assert.Single(lifecycle.PreparedUserIds));
+        Assert.Empty(store.DeletedUserIds);
+        Assert.Equal(1, transactions.Executions);
+    }
+
+    private static AccountService CreateService(
+        FakeAccountStore store,
+        FakeOrganizationUserLifecycleStore? lifecycle = null,
+        CountingUnitOfWork? transactions = null) =>
+        new(
+            store,
+            lifecycle ?? new FakeOrganizationUserLifecycleStore(),
+            transactions ?? new CountingUnitOfWork());
 
     private static AccountSnapshot Account() =>
         new(
@@ -560,6 +606,35 @@ public sealed class AccountServiceTests
             DeletedUserIds.Add(userId);
             await Task.Yield();
             DeleteCompleted = true;
+        }
+    }
+
+    private sealed class FakeOrganizationUserLifecycleStore
+        : IOrganizationUserLifecycleStore
+    {
+        public OrganizationUserDeletionPreparation Preparation { get; init; } =
+            new(DeletedOrganizations: 0, OwnershipTransferRequired: false);
+        public List<UserId> PreparedUserIds { get; } = [];
+
+        public Task<OrganizationUserDeletionPreparation> PrepareDeletionAsync(
+            UserId userId,
+            CancellationToken cancellationToken)
+        {
+            PreparedUserIds.Add(userId);
+            return Task.FromResult(Preparation);
+        }
+    }
+
+    private sealed class CountingUnitOfWork : IApplicationUnitOfWork
+    {
+        public int Executions { get; private set; }
+
+        public async Task<T> ExecuteAsync<T>(
+            Func<CancellationToken, Task<T>> action,
+            CancellationToken cancellationToken)
+        {
+            Executions++;
+            return await action(cancellationToken);
         }
     }
 }

@@ -169,12 +169,16 @@ public enum AccountFailure
     SessionNotFound,
     CurrentSessionCannotBeRevoked,
     ConfirmationMismatch,
+    OrganizationOwnershipTransferRequired,
     ConcurrencyConflict,
     InvalidDisplayName,
     InvalidCursor
 }
 
 public sealed record AccountOperationResult<T>(T? Value, AccountFailure? Failure)
-    where T : class;
+    where T : class
+{
+    public bool Succeeded => Failure is null;
+}
 
 public sealed class AccountConcurrencyException : Exception;

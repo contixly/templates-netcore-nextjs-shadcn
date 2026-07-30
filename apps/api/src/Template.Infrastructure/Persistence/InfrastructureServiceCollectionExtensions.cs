@@ -107,6 +107,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAccountStore, EfAccountStore>();
         services.AddScoped<IAccountSessionStore, EfAccountSessionStore>();
         services.AddScoped<IOrganizationStore, EfOrganizationStore>();
+        services.AddScoped<
+            IOrganizationUserLifecycleStore,
+            EfOrganizationUserLifecycleStore>();
         services.AddSingleton<
             ILocalAutomationCredentialGenerator,
             CryptographicLocalAutomationCredentialGenerator>();

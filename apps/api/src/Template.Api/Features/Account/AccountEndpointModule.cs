@@ -421,6 +421,15 @@ internal sealed class AccountEndpointModule : IEndpointModule
                 throw ConfirmationValidationException();
             }
 
+            if (result.Failure ==
+                AccountFailure.OrganizationOwnershipTransferRequired)
+            {
+                throw new ApiProblemException(
+                    StatusCodes.Status409Conflict,
+                    ApiProblemCodes
+                        .OrganizationOwnershipTransferRequired);
+            }
+
             throw new ApiProblemException(
                 StatusCodes.Status401Unauthorized,
                 ApiProblemCodes.Unauthorized);
@@ -630,6 +639,8 @@ internal sealed class AccountEndpointModule : IEndpointModule
                 ApiProblemCodes.ValidationFailed,
             AccountFailure.SessionRequired =>
                 ApiProblemCodes.Unauthorized,
+            AccountFailure.OrganizationOwnershipTransferRequired =>
+                ApiProblemCodes.OrganizationOwnershipTransferRequired,
             _ => failure.ToString()
         };
 

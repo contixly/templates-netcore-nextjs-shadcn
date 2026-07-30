@@ -269,6 +269,11 @@ internal sealed class AuthEndpointModule : IEndpointModule
                 AuthFailure.LocalUserRequired => new ApiProblemException(
                     StatusCodes.Status403Forbidden,
                     ApiProblemCodes.LocalAuthUserRequired),
+                AuthFailure.OrganizationOwnershipTransferRequired =>
+                    new ApiProblemException(
+                        StatusCodes.Status409Conflict,
+                        ApiProblemCodes
+                            .OrganizationOwnershipTransferRequired),
                 _ => new InvalidOperationException(
                     "Unexpected cleanup failure.")
             };

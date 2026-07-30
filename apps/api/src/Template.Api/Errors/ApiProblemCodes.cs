@@ -38,4 +38,6 @@ internal static class ApiProblemCodes
     internal const string CurrentSessionCannotBeRevoked =
         "current_session_cannot_be_revoked";
     internal const string ConcurrencyConflict = "concurrency_conflict";
+    internal const string OrganizationOwnershipTransferRequired =
+        "organization_ownership_transfer_required";
 }

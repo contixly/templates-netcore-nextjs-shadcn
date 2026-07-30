@@ -1,5 +1,6 @@
 using Template.Application.Authentication.Ports;
 using Template.Application.Common.Ports;
+using Template.Application.Organizations.Ports;
 
 namespace Template.Application.Authentication;
 
@@ -7,7 +8,8 @@ public sealed class LocalAutomationAuthService(
     ILocalIdentityGateway identities,
     IBrowserSessionGateway sessions,
     ILocalAutomationCredentialGenerator credentialGenerator,
-    IApplicationUnitOfWork transactions)
+    IApplicationUnitOfWork transactions,
+    IOrganizationUserLifecycleStore organizationLifecycle)
 {
     public async Task<AuthOperationResult<LocalAutomationScenario>> CreateScenarioAsync(
         CreateLocalScenarioInput input,
@@ -125,12 +127,26 @@ public sealed class LocalAutomationAuthService(
         return await transactions.ExecuteAsync(
             async transactionCancellationToken =>
             {
+                var lifecycle = await organizationLifecycle
+                    .PrepareDeletionAsync(
+                        current.User.Id,
+                        transactionCancellationToken);
+                if (lifecycle.OwnershipTransferRequired)
+                {
+                    return AuthOperationResult<
+                        LocalAutomationCleanup>.Failed(
+                        AuthFailure
+                            .OrganizationOwnershipTransferRequired);
+                }
+
                 await identities.DeleteAsync(
                     current.User.Id,
                     transactionCancellationToken);
                 await sessions.SignOutAsync(transactionCancellationToken);
                 return AuthOperationResult<LocalAutomationCleanup>.Success(
-                    new LocalAutomationCleanup(DeletedOrganizations: 0));
+                    new LocalAutomationCleanup(
+                        DeletedOrganizations:
+                            lifecycle.DeletedOrganizations));
             },
             cancellationToken);
     }
