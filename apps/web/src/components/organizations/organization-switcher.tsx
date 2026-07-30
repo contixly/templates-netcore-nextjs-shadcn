@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { IconCheck, IconSelector } from "@tabler/icons-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -19,9 +20,15 @@ import {
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { resolveOrganizationSwitchHref } from "@/src/features/organizations/organization-switch-navigation";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
-import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";
 import { setActiveBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { ApiFailure } from "@/src/lib/api/result";
+import { cn } from "@/src/lib/utils";
+
+export type OrganizationSwitcherItem = Readonly<{
+  canonicalKey: string;
+  id: string;
+  name: string;
+}>;
 
 function routeKey(pathname: string): string | undefined {
   const value = /^\/w\/([^/]+)(?:\/|$)/.exec(pathname)?.[1];
@@ -37,12 +44,14 @@ function routeKey(pathname: string): string | undefined {
 
 export function OrganizationSwitcher({
   activeOrganizationId,
+  currentOrganization,
   nextCursor,
   organizations,
 }: Readonly<{
   activeOrganizationId?: string | null;
+  currentOrganization?: OrganizationSwitcherItem | null;
   nextCursor?: string | null;
-  organizations: readonly OrganizationSummaryResponse[];
+  organizations: readonly OrganizationSwitcherItem[];
 }>) {
   const t = useTranslations("organizations.switcher");
   const pathname = usePathname();
@@ -52,22 +61,28 @@ export function OrganizationSwitcher({
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const key = routeKey(pathname);
+  const options =
+    currentOrganization &&
+    !organizations.some(
+      (organization) => organization.id === currentOrganization.id,
+    )
+      ? [currentOrganization, ...organizations]
+      : organizations;
 
-  if (!key || organizations.length === 0) {
+  if (!key || options.length === 0) {
     return null;
   }
 
   const current =
-    organizations.find(
+    options.find(
       (organization) =>
         organization.canonicalKey === key || organization.id === key,
     ) ??
-    organizations.find(
-      (organization) => organization.id === activeOrganizationId,
-    ) ??
-    organizations[0];
+    currentOrganization ??
+    options.find((organization) => organization.id === activeOrganizationId) ??
+    options[0];
 
-  async function selectOrganization(organization: OrganizationSummaryResponse) {
+  async function selectOrganization(organization: OrganizationSwitcherItem) {
     if (requestInFlight.current || organization.id === current.id) {
       setOpen(false);
       return;
@@ -112,9 +127,9 @@ export function OrganizationSwitcher({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" variant="outline">
+        <Button className="max-w-full min-w-0" type="button" variant="outline">
           <IconSelector data-icon="inline-start" />
-          <span className="max-w-40 truncate">
+          <span className="max-w-40 min-w-0 truncate">
             {t("current", { name: current.name })}
           </span>
         </Button>
@@ -139,36 +154,44 @@ export function OrganizationSwitcher({
           className="flex max-h-72 flex-col gap-1 overflow-y-auto"
           role="list"
         >
-          {organizations.map((organization) => (
+          {options.map((organization) => (
             <div key={organization.id} role="listitem">
               <Button
+                aria-current={
+                  organization.id === current.id ? "true" : undefined
+                }
                 aria-label={t("switchTo", { name: organization.name })}
-                className="w-full justify-start"
+                className="w-full min-w-0 justify-start"
                 disabled={pending}
                 onClick={() => selectOrganization(organization)}
                 type="button"
                 variant="ghost"
               >
                 <IconCheck
-                  className={
-                    organization.id === current.id ? "opacity-100" : "opacity-0"
-                  }
+                  className={cn(
+                    "shrink-0",
+                    organization.id === current.id
+                      ? "opacity-100"
+                      : "opacity-0",
+                  )}
                   data-icon="inline-start"
                 />
-                <span className="truncate">{organization.name}</span>
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {organization.name}
+                </span>
               </Button>
             </div>
           ))}
         </div>
         {failure ? (
-          <div className="flex flex-col gap-1" role="alert">
-            <p>{t("failure")}</p>
+          <Alert>
+            <AlertTitle>{t("failure")}</AlertTitle>
             {failure.kind === "problem" && failure.traceId ? (
-              <p className="font-mono text-xs text-muted-foreground">
+              <AlertDescription className="font-mono text-xs">
                 {failure.traceId}
-              </p>
+              </AlertDescription>
             ) : null}
-          </div>
+          </Alert>
         ) : null}
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button asChild className="sm:flex-1" variant="outline">

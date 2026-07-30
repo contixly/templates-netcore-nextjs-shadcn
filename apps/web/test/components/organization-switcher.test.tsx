@@ -50,6 +50,12 @@ const organizations = [
   },
 ] satisfies OrganizationSummaryResponse[];
 
+const offPageCurrent = {
+  id: "off-page-id",
+  name: "Workspace Fifty One",
+  canonicalKey: "workspace-fifty-one",
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
   pathname.mockReturnValue("/w/old/settings/users");
@@ -62,6 +68,49 @@ it("does not render outside authenticated organization-aware paths", () => {
   expect(
     screen.queryByRole("button", { name: /current workspace/i }),
   ).not.toBeInTheDocument();
+});
+
+it("uses the explicit current context when it is not in the first page", async () => {
+  pathname.mockReturnValue("/w/workspace-fifty-one/dashboard");
+  renderWithMessages(
+    <OrganizationSwitcher
+      currentOrganization={offPageCurrent}
+      organizations={organizations}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Current workspace: Workspace Fifty One",
+    }),
+  );
+
+  expect(
+    await screen.findByRole("button", {
+      name: "Switch to Workspace Fifty One",
+    }),
+  ).toHaveAttribute("aria-current", "true");
+});
+
+it("preserves the full accessible name while constraining long labels", () => {
+  const longName = "A".repeat(50);
+  pathname.mockReturnValue("/w/long/dashboard");
+  renderWithMessages(
+    <OrganizationSwitcher
+      currentOrganization={{
+        id: "long-id",
+        name: longName,
+        canonicalKey: "long",
+      }}
+      organizations={[{ id: "long-id", name: longName, canonicalKey: "long" }]}
+    />,
+  );
+
+  expect(
+    screen.getByRole("button", {
+      name: `Current workspace: ${longName}`,
+    }),
+  ).toHaveClass("max-w-full");
 });
 
 it("sets active context before preserving a registered route and refreshing", async () => {

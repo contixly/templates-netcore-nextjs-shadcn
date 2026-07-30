@@ -23,6 +23,9 @@ const apiProxyTarget = readApiProxyTarget();
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  experimental: {
+    authInterrupts: true,
+  },
   output: "standalone",
   poweredByHeader: false,
   typedRoutes: true,

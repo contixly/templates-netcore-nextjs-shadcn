@@ -1,7 +1,9 @@
 import { forbidden } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
+import { Suspense } from "react";
 
+import { OrganizationSwitcherRuntime } from "@/src/components/application/site-header";
 import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
@@ -11,6 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
+import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
 
@@ -23,30 +27,57 @@ export default async function OrganizationDashboardPage({
 }: OrganizationDashboardPageProps) {
   await connection();
   const { organizationKey } = await params;
-  const [organization, organizations, t] = await Promise.all([
-    loadOrganization(organizationKey),
-    loadOrganizations(),
-    getTranslations("organizations.pages.dashboard"),
-  ]);
+  const route = organizationRoutes.dashboard(organizationKey);
+  const sessionPromise = loadProtectedSession(route);
+  const organizationPromise = loadOrganization(organizationKey);
+  const organizationsPromise = loadOrganizations();
+  const translationsPromise = getTranslations("organizations.pages.dashboard");
+  const session = await sessionPromise;
 
-  if (!organizations.ok) {
-    return <OrganizationFailure failure={organizations.failure} />;
+  if (!session.ok) {
+    return <OrganizationFailure failure={session.failure} />;
   }
-  if (organizations.data.items.length === 0) {
-    return <OrganizationOnboarding />;
+  if (
+    session.data.authenticated !== true ||
+    !session.data.session ||
+    !session.data.user
+  ) {
+    return (
+      <OrganizationFailure
+        failure={{ kind: "network", code: "api_unavailable" }}
+      />
+    );
   }
+  const organization = await organizationPromise;
   if (!organization.ok) {
     if (
       organization.failure.kind === "problem" &&
       organization.failure.status === 404
     ) {
+      const organizations = await organizationsPromise;
+      if (!organizations.ok) {
+        return <OrganizationFailure failure={organizations.failure} />;
+      }
+      if (organizations.data.items.length === 0) {
+        return <OrganizationOnboarding />;
+      }
       forbidden();
     }
     return <OrganizationFailure failure={organization.failure} />;
   }
+  const t = await translationsPromise;
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
+      <Suspense fallback={null}>
+        <OrganizationSwitcherRuntime
+          currentOrganization={{
+            canonicalKey: organization.data.canonicalKey,
+            id: organization.data.id,
+            name: organization.data.name,
+          }}
+        />
+      </Suspense>
       <BrowserSessionRefresh />
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import { getOrganizations } from "@/src/lib/api/generated/sdk.gen";
 import type {
@@ -14,7 +16,7 @@ export type LoadOrganizationsQuery = Readonly<
   NonNullable<GetOrganizationsData["query"]>
 >;
 
-export async function loadOrganizations(
+async function loadOrganizationsUncached(
   query: LoadOrganizationsQuery = {},
 ): Promise<ApiResult<OrganizationPageResponse>> {
   const client = createServerApiClient(await readForwardedApiHeaders());
@@ -41,3 +43,5 @@ export async function loadOrganizations(
     return { ok: false, failure: normalizeApiFailure(error) };
   }
 }
+
+export const loadOrganizations = cache(loadOrganizationsUncached);

@@ -2,7 +2,15 @@ import { useTranslations } from "next-intl";
 
 import { OrganizationCard } from "@/src/components/organizations/organization-card";
 import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/src/components/ui/empty";
 import type { OrganizationPageResponse } from "@/src/lib/api/generated/types.gen";
 import type { ApiFailure } from "@/src/lib/api/result";
 
@@ -12,22 +20,26 @@ export function OrganizationFailure({
   const t = useTranslations("organizations.failure");
 
   return (
-    <section className="flex flex-col gap-2" role="alert">
-      <h2 className="text-lg font-semibold">{t("title")}</h2>
-      <p className="text-muted-foreground">{t("description")}</p>
-      {failure.kind === "problem" && failure.traceId ? (
-        <p className="font-mono text-xs text-muted-foreground">
-          {failure.traceId}
-        </p>
-      ) : null}
-    </section>
+    <Alert>
+      <AlertTitle>
+        <h2>{t("title")}</h2>
+      </AlertTitle>
+      <AlertDescription>
+        <p>{t("description")}</p>
+        {failure.kind === "problem" && failure.traceId ? (
+          <p className="font-mono text-xs">{failure.traceId}</p>
+        ) : null}
+      </AlertDescription>
+    </Alert>
   );
 }
 
 export function OrganizationList({
+  continuationFailure,
   loadedCursors = [],
   pages,
 }: Readonly<{
+  continuationFailure?: ApiFailure;
   loadedCursors?: readonly string[];
   pages: readonly OrganizationPageResponse[];
 }>) {
@@ -46,13 +58,17 @@ export function OrganizationList({
 
   if (organizations.length === 0) {
     return (
-      <section className="flex min-h-72 flex-col items-center justify-center gap-4 border border-dashed p-6 text-center">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-lg font-semibold">{t("emptyTitle")}</h2>
-          <p className="text-muted-foreground">{t("emptyDescription")}</p>
-        </div>
-        <OrganizationCreateDialog />
-      </section>
+      <Empty className="min-h-72 border">
+        <EmptyHeader>
+          <EmptyTitle>
+            <h2>{t("emptyTitle")}</h2>
+          </EmptyTitle>
+          <EmptyDescription>{t("emptyDescription")}</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <OrganizationCreateDialog />
+        </EmptyContent>
+      </Empty>
     );
   }
 
@@ -63,7 +79,19 @@ export function OrganizationList({
           <OrganizationCard key={organization.id} organization={organization} />
         ))}
       </div>
-      {nextCursor ? (
+      {continuationFailure ? (
+        <Alert>
+          <AlertTitle>{t("partialFailureTitle")}</AlertTitle>
+          <AlertDescription>
+            <p>{t("partialFailureDescription")}</p>
+            {continuationFailure.kind === "problem" &&
+            continuationFailure.traceId ? (
+              <p className="font-mono text-xs">{continuationFailure.traceId}</p>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {nextCursor && !continuationFailure ? (
         <form className="flex justify-center" method="get">
           {loadedCursors.map((cursor, index) => (
             <input

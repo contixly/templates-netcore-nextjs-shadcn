@@ -488,6 +488,27 @@ A minimal workspace switcher explicitly updates session preference, then
 preserves known single-key routes such as settings users/workspace/roles.
 Unknown/complex workspace paths fall back to the selected organization dashboard.
 
+Protected organization pages redirect only an explicit anonymous session to a
+route-specific login URL. Transport, configuration and malformed-projection
+failures remain safe availability states. Workspace detail success is
+authoritative over the independent organization-list read; the list is awaited
+only when a missing detail must be distinguished between zero-organization
+onboarding and forbidden access. Next.js `forbidden()` is backed by the
+version-required `experimental.authInterrupts` configuration.
+
+The site header owns a client context slot, but only a rendered `/w/**` subtree
+registers organization data into it. This avoids session/list reads and
+serialization on non-workspace pages. The registration projects only
+`id`/`name`/`canonicalKey`, includes the resolved current detail even when it is
+beyond the first 50 list items, and shares request-time session/list/detail
+reads through React request memoization.
+
+`/workspaces` treats repeated cursor query values as untrusted input:
+continuations are de-duplicated and capped at ten per request. A failed
+continuation does not discard successful pages; confirmed items remain visible
+beside stable localized failure copy, and further continuation is suppressed
+until a clean request.
+
 Mutation response DTOs are authoritative. If a follow-up refresh fails after a
 successful write, the UI does not report the mutation as failed and never repeats
 it. It retains a conservative confirmed projection and offers a separate

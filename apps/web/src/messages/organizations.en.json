@@ -17,6 +17,7 @@
       "tooLong": "Use 50 characters or fewer.",
       "invalidCharacters": "Use letters, numbers, spaces, hyphens, or underscores."
     },
+    "apiValidation": "Check the workspace name and try again.",
     "cancel": "Cancel",
     "submit": "Create",
     "pending": "Creating",
@@ -26,7 +27,14 @@
   "list": {
     "emptyTitle": "No workspaces yet",
     "emptyDescription": "Create your first workspace to get started.",
-    "loadMore": "Load more workspaces"
+    "loadMore": "Load more workspaces",
+    "partialFailureTitle": "Some workspaces could not be loaded.",
+    "partialFailureDescription": "The workspaces already shown are still available. Try loading more again later."
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Administrator",
+    "member": "Member"
   },
   "card": {
     "accessibleName": "{name} workspace",

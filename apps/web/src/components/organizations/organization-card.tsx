@@ -19,6 +19,7 @@ export function OrganizationCard({
   organization,
 }: Readonly<{ organization: OrganizationSummaryResponse }>) {
   const t = useTranslations("organizations.card");
+  const roles = useTranslations("organizations.roles");
 
   return (
     <Card
@@ -26,11 +27,11 @@ export function OrganizationCard({
       className="h-full"
       role="article"
     >
-      <CardHeader>
-        <CardTitle>{organization.name}</CardTitle>
+      <CardHeader className="min-w-0">
+        <CardTitle className="min-w-0 truncate">{organization.name}</CardTitle>
         <CardAction>
           <Badge variant="outline">
-            {t("roleLabel", { role: organization.currentRole })}
+            {t("roleLabel", { role: roles(organization.currentRole) })}
           </Badge>
         </CardAction>
       </CardHeader>

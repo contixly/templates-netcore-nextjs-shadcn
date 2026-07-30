@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRef, useState, type FormEvent } from "react";
 import { IconPlus } from "@tabler/icons-react";
 
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -28,7 +29,7 @@ import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import { createBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { ApiFailure } from "@/src/lib/api/result";
 
-const supportedOrganizationName = /^[\p{L}\p{N} _-]+$/u;
+const supportedOrganizationName = /^[\p{L}\p{Nd} _-]+$/u;
 
 function traceId(failure: ApiFailure | null): string | undefined {
   return failure?.kind === "problem" ? failure.traceId : undefined;
@@ -103,6 +104,10 @@ export function OrganizationCreateDialog({
     failure?.kind === "problem" && failure.code === "organization_name_conflict"
       ? t("nameConflict")
       : t("failure");
+  const apiValidation =
+    failure?.kind === "problem" && failure.code === "validation_failed";
+  const fieldValidation =
+    validation ?? (apiValidation ? t("apiValidation") : null);
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
@@ -134,13 +139,16 @@ export function OrganizationCreateDialog({
         </DialogHeader>
         <form noValidate onSubmit={submit}>
           <FieldGroup>
-            <Field data-invalid={validation ? true : undefined}>
+            <Field
+              data-disabled={pending ? true : undefined}
+              data-invalid={fieldValidation ? true : undefined}
+            >
               <FieldLabel htmlFor="organization-name">
                 {t("nameLabel")}
               </FieldLabel>
               <Input
                 aria-describedby="organization-name-description organization-name-error"
-                aria-invalid={validation ? true : undefined}
+                aria-invalid={fieldValidation ? true : undefined}
                 autoComplete="organization"
                 autoFocus
                 disabled={pending}
@@ -157,17 +165,26 @@ export function OrganizationCreateDialog({
               <FieldDescription id="organization-name-description">
                 {t("nameHint")}
               </FieldDescription>
-              <FieldError id="organization-name-error">{validation}</FieldError>
+              {fieldValidation ? (
+                <FieldError id="organization-name-error">
+                  {fieldValidation}
+                  {apiValidation && traceId(failure) ? (
+                    <span className="mt-1 block font-mono text-xs text-muted-foreground">
+                      {traceId(failure)}
+                    </span>
+                  ) : null}
+                </FieldError>
+              ) : null}
             </Field>
-            {failure ? (
-              <div className="flex flex-col gap-1" role="alert">
-                <p>{failureMessage}</p>
+            {failure && !apiValidation ? (
+              <Alert>
+                <AlertTitle>{failureMessage}</AlertTitle>
                 {traceId(failure) ? (
-                  <p className="font-mono text-xs text-muted-foreground">
+                  <AlertDescription className="font-mono text-xs">
                     {traceId(failure)}
-                  </p>
+                  </AlertDescription>
                 ) : null}
-              </div>
+              </Alert>
             ) : null}
             <DialogFooter>
               <Button

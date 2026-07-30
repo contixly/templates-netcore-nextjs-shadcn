@@ -58,6 +58,31 @@ it("validates the trimmed UTF-16 name and supported characters before mutation",
     "Use 50 characters or fewer.",
   );
   expect(createOrganization).not.toHaveBeenCalled();
+
+  for (const unsupportedNumber of ["Ⅻ", "²"]) {
+    fireEvent.change(input, { target: { value: unsupportedNumber } });
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Use letters, numbers, spaces, hyphens, or underscores.",
+    );
+  }
+  expect(createOrganization).not.toHaveBeenCalled();
+});
+
+it("keeps the Field disabled marker in sync while creation is pending", async () => {
+  createOrganization.mockReturnValue(new Promise(() => undefined));
+  renderWithMessages(<OrganizationOnboarding />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
+  const input = await screen.findByRole("textbox", { name: "Workspace name" });
+  fireEvent.change(input, { target: { value: "Acme" } });
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+  expect(input).toBeDisabled();
+  expect(input.closest('[data-slot="field"]')).toHaveAttribute(
+    "data-disabled",
+    "true",
+  );
 });
 
 it("uses the returned canonical key and refreshes after successful creation", async () => {
@@ -118,12 +143,37 @@ it("shows stable API failure copy and trace without raw problem codes", async ()
   );
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Choose a different workspace name.",
-  );
+  await screen.findByText("Choose a different workspace name.");
   expect(screen.getByRole("alert")).toHaveTextContent("trace-create");
   expect(
     screen.queryByText("organization_name_conflict"),
   ).not.toBeInTheDocument();
   expect(push).not.toHaveBeenCalled();
+});
+
+it("presents API validation_failed as authoritative field validation", async () => {
+  createOrganization.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "validation_failed",
+      status: 400,
+      traceId: "trace-validation",
+    },
+  });
+  renderWithMessages(<OrganizationOnboarding />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
+  const input = await screen.findByRole("textbox", { name: "Workspace name" });
+  fireEvent.change(input, { target: { value: "Acme" } });
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+  expect(
+    await screen.findByText("Check the workspace name and try again."),
+  ).toBeVisible();
+  expect(input).toHaveAttribute("aria-invalid", "true");
+  expect(
+    screen.queryByText("The workspace could not be created."),
+  ).not.toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("trace-validation");
 });

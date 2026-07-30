@@ -1,4 +1,5 @@
 import { screen, within } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 
 import { OrganizationList } from "@/src/components/organizations/organization-list";
 import type {
@@ -6,6 +7,8 @@ import type {
   OrganizationSummaryResponse,
 } from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages } from "@/test/support/render";
+import { render } from "@testing-library/react";
+import organizationsRu from "@/src/messages/organizations.ru.json";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
@@ -55,6 +58,23 @@ it("renders canonical dashboard/settings links without delete controls", () => {
   expect(
     within(card).queryByRole("button", { name: /delete/i }),
   ).not.toBeInTheDocument();
+});
+
+it("localizes fixed organization roles instead of exposing API values", () => {
+  render(
+    <NextIntlClientProvider
+      locale="ru"
+      messages={{ organizations: organizationsRu }}
+      timeZone="UTC"
+    >
+      <OrganizationList pages={[{ items: [acme, beta], nextCursor: null }]} />
+    </NextIntlClientProvider>,
+  );
+
+  expect(screen.getByText("Роль: Владелец")).toBeVisible();
+  expect(screen.getByText("Роль: Участник")).toBeVisible();
+  expect(screen.queryByText("Роль: owner")).not.toBeInTheDocument();
+  expect(screen.queryByText("Роль: member")).not.toBeInTheDocument();
 });
 
 it("appends pages and de-duplicates organizations by id", () => {
@@ -109,4 +129,32 @@ it("renders the zero-state creation surface", () => {
   expect(
     screen.getByRole("button", { name: "Create New Workspace" }),
   ).toBeVisible();
+  expect(document.querySelector('[data-slot="empty"]')).toBeInTheDocument();
+});
+
+it("preserves successful continuation pages beside a stable partial failure", () => {
+  renderWithMessages(
+    <OrganizationList
+      continuationFailure={{
+        kind: "problem",
+        code: "internal_error",
+        status: 500,
+        traceId: "trace-more",
+      }}
+      pages={[
+        { items: [acme], nextCursor: "opaque-first" },
+        { items: [beta], nextCursor: "opaque-next" },
+      ]}
+    />,
+  );
+
+  expect(screen.getAllByRole("article")).toHaveLength(2);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Some workspaces could not be loaded.",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("trace-more");
+  expect(
+    screen.queryByRole("button", { name: "Load more workspaces" }),
+  ).not.toBeInTheDocument();
+  expect(document.querySelector('[data-slot="alert"]')).toBeInTheDocument();
 });

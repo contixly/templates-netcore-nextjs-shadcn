@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import GlobalDashboardPage from "@/src/app/(site)/dashboard/page";
 import OrganizationDashboardError from "@/src/app/(site)/w/[organizationKey]/dashboard/error";
@@ -60,6 +60,9 @@ jest.mock("@/src/lib/api/organizations/server/load-organizations", () => ({
 jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
+jest.mock("@/src/components/application/site-header", () => ({
+  OrganizationSwitcherRuntime: () => null,
+}));
 
 const redirect = jest.mocked(jest.requireMock("next/navigation").redirect);
 const forbidden = jest.mocked(jest.requireMock("next/navigation").forbidden);
@@ -111,6 +114,13 @@ function authenticated(activeOrganizationId: string | null) {
   });
 }
 
+function anonymous() {
+  loadSession.mockResolvedValue({
+    ok: true,
+    data: { authenticated: false, user: null, session: null },
+  });
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   authenticated(null);
@@ -125,6 +135,42 @@ it("redirects existing-organization welcome through the dashboard", async () => 
   await expect(WelcomePage()).rejects.toThrow("NEXT_REDIRECT:/dashboard");
   expect(redirect).toHaveBeenCalledWith("/dashboard");
 });
+
+it.each([
+  {
+    label: "welcome",
+    expected: "NEXT_REDIRECT:/auth/login?redirect=%2Fwelcome",
+    renderPage: () => WelcomePage(),
+  },
+  {
+    label: "workspaces",
+    expected: "NEXT_REDIRECT:/auth/login?redirect=%2Fworkspaces",
+    renderPage: () => WorkspacesPage({ searchParams: Promise.resolve({}) }),
+  },
+  {
+    label: "workspace root",
+    expected: "NEXT_REDIRECT:/auth/login?redirect=%2Fw%2Facme",
+    renderPage: () =>
+      WorkspaceRootPage({
+        params: Promise.resolve({ organizationKey: "acme" }),
+      }),
+  },
+  {
+    label: "workspace dashboard",
+    expected: "NEXT_REDIRECT:/auth/login?redirect=%2Fw%2Facme%2Fdashboard",
+    renderPage: () =>
+      OrganizationDashboardPage({
+        params: Promise.resolve({ organizationKey: "acme" }),
+      }),
+  },
+])(
+  "redirects anonymous $label access to login",
+  async ({ expected, renderPage }) => {
+    anonymous();
+
+    await expect(renderPage()).rejects.toThrow(expected);
+  },
+);
 
 it("renders zero-organization onboarding on welcome", async () => {
   loadList.mockResolvedValue({
@@ -162,6 +208,36 @@ it("prefers an accessible active organization for dashboard routing", async () =
   expect(redirect).toHaveBeenCalledWith("/w/active/dashboard");
 });
 
+it("starts active detail before the independent list settles and lets detail success win", async () => {
+  authenticated("active-id");
+  let settleList:
+    | ((value: Awaited<ReturnType<typeof loadOrganizations>>) => void)
+    | undefined;
+  loadList.mockReturnValue(
+    new Promise((resolve) => {
+      settleList = resolve;
+    }),
+  );
+  loadDetail.mockResolvedValue({
+    ok: true,
+    data: { ...acmeDetail, id: "active-id", canonicalKey: "active" },
+  });
+
+  const navigation = GlobalDashboardPage().catch((error: unknown) => error);
+  await waitFor(() => {
+    expect(loadDetail).toHaveBeenCalledWith("active-id");
+  });
+  await expect(navigation).resolves.toEqual(
+    expect.objectContaining({
+      message: "NEXT_REDIRECT:/w/active/dashboard",
+    }),
+  );
+  settleList?.({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+});
+
 it("falls back to the first list item when the active organization is inaccessible", async () => {
   authenticated("stale-id");
   loadDetail.mockResolvedValue({
@@ -187,6 +263,36 @@ it("canonicalizes a UUID workspace root without mutating active context", async 
   ).rejects.toThrow("NEXT_REDIRECT:/w/acme/dashboard");
   expect(loadDetail).toHaveBeenCalledWith(key);
   expect(redirect).toHaveBeenCalledWith("/w/acme/dashboard");
+});
+
+it("lets workspace detail success win over an independent list failure", async () => {
+  loadList.mockResolvedValue({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+
+  await expect(
+    WorkspaceRootPage({
+      params: Promise.resolve({ organizationKey: "acme" }),
+    }),
+  ).rejects.toThrow("NEXT_REDIRECT:/w/acme/dashboard");
+});
+
+it("renders an accessible workspace dashboard despite list failure", async () => {
+  loadList.mockResolvedValue({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+
+  render(
+    await OrganizationDashboardPage({
+      params: Promise.resolve({ organizationKey: "acme" }),
+    }),
+  );
+
+  expect(
+    screen.getByRole("heading", { name: "Workspace dashboard" }),
+  ).toBeVisible();
 });
 
 it("calls forbidden for an unresolved key when organizations remain accessible", async () => {
@@ -275,6 +381,64 @@ it("loads requested cursor pages verbatim and de-duplicates list results", async
   expect(screen.getAllByRole("article")).toHaveLength(2);
   expect(screen.queryByText("Duplicate")).not.toBeInTheDocument();
   expect(screen.getByRole("article", { name: "Beta workspace" })).toBeVisible();
+});
+
+it("deduplicates and caps untrusted continuation cursors", async () => {
+  const cursors = [
+    "duplicate",
+    "duplicate",
+    ...Array.from({ length: 20 }, (_, index) => `cursor-${index}`),
+  ];
+  loadList.mockResolvedValue({
+    ok: true,
+    data: { items: [acme], nextCursor: null },
+  });
+
+  await WorkspacesPage({
+    searchParams: Promise.resolve({ cursor: cursors }),
+  });
+
+  expect(loadList).toHaveBeenCalledTimes(11);
+  expect(loadList).toHaveBeenNthCalledWith(2, { cursor: "duplicate" });
+  expect(loadList).toHaveBeenNthCalledWith(11, { cursor: "cursor-8" });
+});
+
+it("preserves successful pages when one continuation fails", async () => {
+  loadList
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [acme], nextCursor: "cursor-one" },
+    })
+    .mockResolvedValueOnce({
+      ok: false,
+      failure: {
+        kind: "problem",
+        code: "internal_error",
+        status: 500,
+        traceId: "trace-continuation",
+      },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: {
+        items: [{ ...acme, id: "beta-id", name: "Beta", canonicalKey: "beta" }],
+        nextCursor: null,
+      },
+    });
+
+  renderWithMessages(
+    await WorkspacesPage({
+      searchParams: Promise.resolve({
+        cursor: ["cursor-one", "cursor-two"],
+      }),
+    }),
+  );
+
+  expect(screen.getAllByRole("article")).toHaveLength(2);
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Some workspaces could not be loaded.",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("trace-continuation");
 });
 
 it("renders safe list failures with trace only", async () => {
