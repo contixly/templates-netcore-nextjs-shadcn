@@ -166,6 +166,7 @@ it("renders protected children only after server-confirmed authentication", asyn
         createdAt: "2026-07-29T00:00:00Z",
         updatedAt: "2026-07-29T00:00:00Z",
         expiresAt: "2026-08-05T00:00:00Z",
+        activeOrganizationId: null,
       },
     },
   });

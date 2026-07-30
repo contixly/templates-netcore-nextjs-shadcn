@@ -69,6 +69,16 @@ export type AccountSessionsRevocationResponse = {
     revokedCount: number;
 };
 
+export type ActiveOrganizationResponse = {
+    organizationId: string;
+};
+
+export type AddOrganizationMemberRequest = {
+    userId: string;
+    role: 'member' | 'admin' | 'owner';
+    acknowledgeDomainRestriction?: null | boolean;
+};
+
 export type ApiResponseOfAccountConnectionsResponse = {
     data: AccountConnectionsResponse;
 };
@@ -95,6 +105,10 @@ export type ApiResponseOfAccountSessionsResponse = {
 
 export type ApiResponseOfAccountSessionsRevocationResponse = {
     data: AccountSessionsRevocationResponse;
+};
+
+export type ApiResponseOfActiveOrganizationResponse = {
+    data: ActiveOrganizationResponse;
 };
 
 export type ApiResponseOfAuthCapabilitiesResponse = {
@@ -129,6 +143,26 @@ export type ApiResponseOfLocalAutomationScenarioResponse = {
     data: LocalAutomationScenarioResponse;
 };
 
+export type ApiResponseOfOrganizationDeletionResponse = {
+    data: OrganizationDeletionResponse;
+};
+
+export type ApiResponseOfOrganizationDetailResponse = {
+    data: OrganizationDetailResponse;
+};
+
+export type ApiResponseOfOrganizationMemberPageResponse = {
+    data: OrganizationMemberPageResponse;
+};
+
+export type ApiResponseOfOrganizationMemberResponse = {
+    data: OrganizationMemberResponse;
+};
+
+export type ApiResponseOfOrganizationPageResponse = {
+    data: OrganizationPageResponse;
+};
+
 export type ApiResponseOfSystemStatusResponse = {
     data: SystemStatusResponse;
 };
@@ -156,6 +190,7 @@ export type AuthSessionMetadataResponse = {
     createdAt: string;
     updatedAt: string;
     expiresAt: string;
+    activeOrganizationId: null | string;
 };
 
 export type AuthSessionResponse = {
@@ -184,11 +219,25 @@ export type CreateLocalAutomationScenarioRequest = {
     password?: null | string;
 };
 
+export type CreateOrganizationRequest = {
+    /**
+     * Trimmed before use; the trimmed name must contain 1 to 50 Unicode letters, digits, ordinary spaces, hyphens, or underscores.
+     */
+    name: string;
+};
+
 export type DeleteAccountRequest = {
     /**
      * Trimmed before comparison; the value must be a valid email of at most 254 characters and exactly match the current primary email.
      */
     confirmationEmail: string;
+};
+
+export type DeleteOrganizationRequest = {
+    /**
+     * Case-sensitive organization name confirmation.
+     */
+    confirmationName: string;
 };
 
 export type ExternalAuthChallengeRequest = {
@@ -219,8 +268,20 @@ export type HttpValidationProblemDetails = {
     errors: {
         [key: string]: Array<string>;
     };
-    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict';
+    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict' | 'organization_ownership_transfer_required' | 'organization_not_found' | 'organization_permission_denied' | 'organization_name_conflict' | 'organization_slug_conflict' | 'last_organization_required' | 'organization_confirmation_mismatch' | 'member_not_found' | 'target_user_not_found' | 'member_already_exists' | 'member_role_unchanged' | 'role_assignment_forbidden' | 'member_domain_acknowledgement_required';
     traceId: string;
+    /**
+     * Target email for member_domain_acknowledgement_required.
+     */
+    email?: null | string;
+    /**
+     * Normalized target domain for member_domain_acknowledgement_required.
+     */
+    emailDomain?: null | string;
+    /**
+     * Ordered allowed domains for member_domain_acknowledgement_required.
+     */
+    allowedEmailDomains?: null | Array<string>;
 };
 
 export type LocalAutomationCleanupResponse = {
@@ -239,14 +300,86 @@ export type LocalAutomationSignInRequest = {
     password: string;
 };
 
+export type OrganizationCapabilitiesResponse = {
+    canUpdateOrganization: boolean;
+    canDeleteOrganization: boolean;
+    canAddMembers: boolean;
+    canUpdateMemberRoles: boolean;
+};
+
+export type OrganizationDeletionResponse = {
+    organizationId: string;
+};
+
+export type OrganizationDetailResponse = {
+    id: string;
+    name: string;
+    slug: string;
+    canonicalKey: string;
+    createdAt: string;
+    updatedAt: string;
+    currentRole: 'member' | 'admin' | 'owner';
+    capabilities: OrganizationCapabilitiesResponse;
+    allowedEmailDomains: Array<string>;
+};
+
+export type OrganizationMemberPageResponse = {
+    items: Array<OrganizationMemberResponse>;
+    nextCursor: null | string;
+};
+
+export type OrganizationMemberResponse = {
+    id: string;
+    userId: string;
+    name: string;
+    email: string;
+    imageUrl: null | string;
+    role: 'member' | 'admin' | 'owner';
+    joinedAt: string;
+    emailDomain: null | string;
+    isOutsideAllowedEmailDomains: boolean;
+};
+
+export type OrganizationPageResponse = {
+    items: Array<OrganizationSummaryResponse>;
+    nextCursor: null | string;
+};
+
+export type OrganizationSummaryResponse = {
+    id: string;
+    name: string;
+    slug: string;
+    canonicalKey: string;
+    createdAt: string;
+    updatedAt: string;
+    currentRole: 'member' | 'admin' | 'owner';
+    capabilities: OrganizationCapabilitiesResponse;
+};
+
 export type ProblemDetails = {
     type: string;
     title: string;
     status: number | string;
     detail: string;
     instance: string;
-    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict';
+    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict' | 'organization_ownership_transfer_required' | 'organization_not_found' | 'organization_permission_denied' | 'organization_name_conflict' | 'organization_slug_conflict' | 'last_organization_required' | 'organization_confirmation_mismatch' | 'member_not_found' | 'target_user_not_found' | 'member_already_exists' | 'member_role_unchanged' | 'role_assignment_forbidden' | 'member_domain_acknowledgement_required';
     traceId: string;
+    /**
+     * Target email for member_domain_acknowledgement_required.
+     */
+    email?: null | string;
+    /**
+     * Normalized target domain for member_domain_acknowledgement_required.
+     */
+    emailDomain?: null | string;
+    /**
+     * Ordered allowed domains for member_domain_acknowledgement_required.
+     */
+    allowedEmailDomains?: null | Array<string>;
+};
+
+export type SetActiveOrganizationRequest = {
+    organizationId: string;
 };
 
 export type SystemStatusResponse = {
@@ -254,6 +387,28 @@ export type SystemStatusResponse = {
     apiVersion: string;
     timestamp: string;
     echo: null | string;
+};
+
+export type UpdateOrganizationMemberRoleRequest = {
+    role: 'member' | 'admin' | 'owner';
+};
+
+export type UpdateOrganizationRequest = ({
+    name: string;
+} | {
+    slug: string;
+} | {
+    allowedEmailDomains: Array<string>;
+}) & {
+    /**
+     * Trimmed before use; the trimmed name must contain 1 to 50 Unicode letters, digits, ordinary spaces, hyphens, or underscores.
+     */
+    name?: null | string;
+    /**
+     * Trimmed and lowercased before use; the normalized slug must contain 1 to 64 lowercase ASCII letters or digits separated by single hyphens.
+     */
+    slug?: null | string;
+    allowedEmailDomains?: null | Array<string>;
 };
 
 export type UpdateProfileRequest = {
@@ -870,6 +1025,495 @@ export type RevokeAccountSessionResponses = {
 };
 
 export type RevokeAccountSessionResponse = RevokeAccountSessionResponses[keyof RevokeAccountSessionResponses];
+
+export type GetOrganizationsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Opaque versioned cursor returned by the preceding page.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/organizations';
+};
+
+export type GetOrganizationsErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetOrganizationsError = GetOrganizationsErrors[keyof GetOrganizationsErrors];
+
+export type GetOrganizationsResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfOrganizationPageResponse;
+};
+
+export type GetOrganizationsResponse = GetOrganizationsResponses[keyof GetOrganizationsResponses];
+
+export type CreateOrganizationData = {
+    body: CreateOrganizationRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations';
+};
+
+export type CreateOrganizationErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateOrganizationError = CreateOrganizationErrors[keyof CreateOrganizationErrors];
+
+export type CreateOrganizationResponses = {
+    /**
+     * Created
+     */
+    201: ApiResponseOfOrganizationDetailResponse;
+};
+
+export type CreateOrganizationResponse = CreateOrganizationResponses[keyof CreateOrganizationResponses];
+
+export type GetOrganizationByKeyData = {
+    body?: never;
+    path: {
+        /**
+         * Canonical organization UUID or lowercase slug. The response canonicalKey is always the preferred slug.
+         */
+        organizationKey: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/by-key/{organizationKey}';
+};
+
+export type GetOrganizationByKeyErrors = {
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetOrganizationByKeyError = GetOrganizationByKeyErrors[keyof GetOrganizationByKeyErrors];
+
+export type GetOrganizationByKeyResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfOrganizationDetailResponse;
+};
+
+export type GetOrganizationByKeyResponse = GetOrganizationByKeyResponses[keyof GetOrganizationByKeyResponses];
+
+export type DeleteOrganizationData = {
+    body: DeleteOrganizationRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}';
+};
+
+export type DeleteOrganizationErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type DeleteOrganizationError = DeleteOrganizationErrors[keyof DeleteOrganizationErrors];
+
+export type DeleteOrganizationResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfOrganizationDeletionResponse;
+};
+
+export type DeleteOrganizationResponse = DeleteOrganizationResponses[keyof DeleteOrganizationResponses];
+
+export type UpdateOrganizationData = {
+    body: UpdateOrganizationRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}';
+};
+
+export type UpdateOrganizationErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateOrganizationError = UpdateOrganizationErrors[keyof UpdateOrganizationErrors];
+
+export type UpdateOrganizationResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfOrganizationDetailResponse;
+};
+
+export type UpdateOrganizationResponse = UpdateOrganizationResponses[keyof UpdateOrganizationResponses];
+
+export type SetActiveOrganizationData = {
+    body: SetActiveOrganizationRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/auth/session/active-organization';
+};
+
+export type SetActiveOrganizationErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type SetActiveOrganizationError = SetActiveOrganizationErrors[keyof SetActiveOrganizationErrors];
+
+export type SetActiveOrganizationResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfActiveOrganizationResponse;
+};
+
+export type SetActiveOrganizationResponse = SetActiveOrganizationResponses[keyof SetActiveOrganizationResponses];
+
+export type GetOrganizationMembersData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: {
+        /**
+         * Opaque versioned cursor returned by the preceding page.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/organizations/{organizationId}/members';
+};
+
+export type GetOrganizationMembersErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetOrganizationMembersError = GetOrganizationMembersErrors[keyof GetOrganizationMembersErrors];
+
+export type GetOrganizationMembersResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfOrganizationMemberPageResponse;
+};
+
+export type GetOrganizationMembersResponse = GetOrganizationMembersResponses[keyof GetOrganizationMembersResponses];
+
+export type AddOrganizationMemberData = {
+    body: AddOrganizationMemberRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}/members';
+};
+
+export type AddOrganizationMemberErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type AddOrganizationMemberError = AddOrganizationMemberErrors[keyof AddOrganizationMemberErrors];
+
+export type AddOrganizationMemberResponses = {
+    /**
+     * Created
+     */
+    201: ApiResponseOfOrganizationMemberResponse;
+};
+
+export type AddOrganizationMemberResponse = AddOrganizationMemberResponses[keyof AddOrganizationMemberResponses];
+
+export type UpdateOrganizationMemberRoleData = {
+    body: UpdateOrganizationMemberRoleRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        organizationId: string;
+        memberId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}/members/{memberId}';
+};
+
+export type UpdateOrganizationMemberRoleErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateOrganizationMemberRoleError = UpdateOrganizationMemberRoleErrors[keyof UpdateOrganizationMemberRoleErrors];
+
+export type UpdateOrganizationMemberRoleResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfOrganizationMemberResponse;
+};
+
+export type UpdateOrganizationMemberRoleResponse = UpdateOrganizationMemberRoleResponses[keyof UpdateOrganizationMemberRoleResponses];
 
 export type GetSystemStatusData = {
     body?: never;

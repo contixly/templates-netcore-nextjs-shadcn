@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ChallengeExternalAuthData, ChallengeExternalAuthErrors, ChallengeExternalAuthResponses, CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, DisconnectAccountProviderData, DisconnectAccountProviderErrors, DisconnectAccountProviderResponses, GetAccountConnectionsData, GetAccountConnectionsErrors, GetAccountConnectionsResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAccountSessionsData, GetAccountSessionsErrors, GetAccountSessionsResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, LogoutData, LogoutErrors, LogoutResponses, RevokeAccountSessionData, RevokeAccountSessionErrors, RevokeAccountSessionResponses, RevokeOtherAccountSessionsData, RevokeOtherAccountSessionsErrors, RevokeOtherAccountSessionsResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses, UpdateAccountProfileData, UpdateAccountProfileErrors, UpdateAccountProfileResponses } from './types.gen';
+import type { AddOrganizationMemberData, AddOrganizationMemberErrors, AddOrganizationMemberResponses, ChallengeExternalAuthData, ChallengeExternalAuthErrors, ChallengeExternalAuthResponses, CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, DeleteOrganizationData, DeleteOrganizationErrors, DeleteOrganizationResponses, DisconnectAccountProviderData, DisconnectAccountProviderErrors, DisconnectAccountProviderResponses, GetAccountConnectionsData, GetAccountConnectionsErrors, GetAccountConnectionsResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAccountSessionsData, GetAccountSessionsErrors, GetAccountSessionsResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetOrganizationByKeyData, GetOrganizationByKeyErrors, GetOrganizationByKeyResponses, GetOrganizationMembersData, GetOrganizationMembersErrors, GetOrganizationMembersResponses, GetOrganizationsData, GetOrganizationsErrors, GetOrganizationsResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, LogoutData, LogoutErrors, LogoutResponses, RevokeAccountSessionData, RevokeAccountSessionErrors, RevokeAccountSessionResponses, RevokeOtherAccountSessionsData, RevokeOtherAccountSessionsErrors, RevokeOtherAccountSessionsResponses, SetActiveOrganizationData, SetActiveOrganizationErrors, SetActiveOrganizationResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses, UpdateAccountProfileData, UpdateAccountProfileErrors, UpdateAccountProfileResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationMemberRoleData, UpdateOrganizationMemberRoleErrors, UpdateOrganizationMemberRoleResponses, UpdateOrganizationResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -137,6 +137,120 @@ export const revokeAccountSession = <ThrowOnError extends boolean = false>(optio
         }],
     url: '/api/v1/account/sessions/{sessionId}',
     ...options
+});
+
+export const getOrganizations = <ThrowOnError extends boolean = false>(options?: Options<GetOrganizationsData, ThrowOnError>): RequestResult<GetOrganizationsResponses, GetOrganizationsErrors, ThrowOnError> => (options?.client ?? client).get<GetOrganizationsResponses, GetOrganizationsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations',
+    ...options
+});
+
+export const createOrganization = <ThrowOnError extends boolean = false>(options: Options<CreateOrganizationData, ThrowOnError>): RequestResult<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError> => (options.client ?? client).post<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getOrganizationByKey = <ThrowOnError extends boolean = false>(options: Options<GetOrganizationByKeyData, ThrowOnError>): RequestResult<GetOrganizationByKeyResponses, GetOrganizationByKeyErrors, ThrowOnError> => (options.client ?? client).get<GetOrganizationByKeyResponses, GetOrganizationByKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/by-key/{organizationKey}',
+    ...options
+});
+
+export const deleteOrganization = <ThrowOnError extends boolean = false>(options: Options<DeleteOrganizationData, ThrowOnError>): RequestResult<DeleteOrganizationResponses, DeleteOrganizationErrors, ThrowOnError> => (options.client ?? client).delete<DeleteOrganizationResponses, DeleteOrganizationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const updateOrganization = <ThrowOnError extends boolean = false>(options: Options<UpdateOrganizationData, ThrowOnError>): RequestResult<UpdateOrganizationResponses, UpdateOrganizationErrors, ThrowOnError> => (options.client ?? client).patch<UpdateOrganizationResponses, UpdateOrganizationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const setActiveOrganization = <ThrowOnError extends boolean = false>(options: Options<SetActiveOrganizationData, ThrowOnError>): RequestResult<SetActiveOrganizationResponses, SetActiveOrganizationErrors, ThrowOnError> => (options.client ?? client).put<SetActiveOrganizationResponses, SetActiveOrganizationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/auth/session/active-organization',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getOrganizationMembers = <ThrowOnError extends boolean = false>(options: Options<GetOrganizationMembersData, ThrowOnError>): RequestResult<GetOrganizationMembersResponses, GetOrganizationMembersErrors, ThrowOnError> => (options.client ?? client).get<GetOrganizationMembersResponses, GetOrganizationMembersErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/members',
+    ...options
+});
+
+export const addOrganizationMember = <ThrowOnError extends boolean = false>(options: Options<AddOrganizationMemberData, ThrowOnError>): RequestResult<AddOrganizationMemberResponses, AddOrganizationMemberErrors, ThrowOnError> => (options.client ?? client).post<AddOrganizationMemberResponses, AddOrganizationMemberErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/members',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const updateOrganizationMemberRole = <ThrowOnError extends boolean = false>(options: Options<UpdateOrganizationMemberRoleData, ThrowOnError>): RequestResult<UpdateOrganizationMemberRoleResponses, UpdateOrganizationMemberRoleErrors, ThrowOnError> => (options.client ?? client).patch<UpdateOrganizationMemberRoleResponses, UpdateOrganizationMemberRoleErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/members/{memberId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 /**

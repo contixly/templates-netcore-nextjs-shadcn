@@ -4,9 +4,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  addOrganizationMember,
   challengeExternalAuth,
+  createOrganization,
   createLocalAutomationScenario,
   deleteAccount,
+  deleteOrganization,
   deleteLocalAutomationScenario,
   disconnectAccountProvider,
   getAccount,
@@ -15,12 +18,18 @@ import {
   getAuthCapabilities,
   getAuthCsrf,
   getAuthSession,
+  getOrganizationByKey,
+  getOrganizationMembers,
+  getOrganizations,
   getSystemStatus,
   logout,
   revokeAccountSession,
   revokeOtherAccountSessions,
+  setActiveOrganization,
   signInLocalAutomation,
   updateAccountProfile,
+  updateOrganization,
+  updateOrganizationMemberRole,
 } from "@/src/lib/api/generated";
 
 describe("generated system status SDK", () => {
@@ -66,6 +75,18 @@ describe("generated system status SDK", () => {
     expect(revokeAccountSession).toEqual(expect.any(Function));
     expect(revokeOtherAccountSessions).toEqual(expect.any(Function));
     expect(deleteAccount).toEqual(expect.any(Function));
+  });
+
+  it("tracks all nine organization and membership operations", () => {
+    expect(getOrganizations).toEqual(expect.any(Function));
+    expect(createOrganization).toEqual(expect.any(Function));
+    expect(getOrganizationByKey).toEqual(expect.any(Function));
+    expect(updateOrganization).toEqual(expect.any(Function));
+    expect(deleteOrganization).toEqual(expect.any(Function));
+    expect(setActiveOrganization).toEqual(expect.any(Function));
+    expect(getOrganizationMembers).toEqual(expect.any(Function));
+    expect(addOrganizationMember).toEqual(expect.any(Function));
+    expect(updateOrganizationMemberRole).toEqual(expect.any(Function));
   });
 
   it("keeps protocol callbacks and provider secrets outside the UI contract", () => {

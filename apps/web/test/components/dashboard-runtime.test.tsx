@@ -110,6 +110,7 @@ it("renders only safe user and session fields", async () => {
         createdAt: "2026-07-24T00:00:00Z",
         updatedAt: "2026-07-24T00:00:00Z",
         expiresAt: "2026-07-31T00:00:00Z",
+        activeOrganizationId: null,
       },
     },
   });
