@@ -1,0 +1,66 @@
+{
+  "onboarding": {
+    "title": "Create your first workspace",
+    "description": "You do not have access to any workspaces yet. Create one to open the application.",
+    "createAction": "Create Workspace",
+    "accountAction": "Account settings"
+  },
+  "createDialog": {
+    "title": "Create New Workspace",
+    "description": "Create a workspace for a separate product context.",
+    "trigger": "Create New Workspace",
+    "nameLabel": "Workspace name",
+    "namePlaceholder": "e.g., Work, Personal, Projects",
+    "nameHint": "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
+    "validation": {
+      "required": "Enter a workspace name.",
+      "tooLong": "Use 50 characters or fewer.",
+      "invalidCharacters": "Use letters, numbers, spaces, hyphens, or underscores."
+    },
+    "cancel": "Cancel",
+    "submit": "Create",
+    "pending": "Creating",
+    "failure": "The workspace could not be created.",
+    "nameConflict": "Choose a different workspace name."
+  },
+  "list": {
+    "emptyTitle": "No workspaces yet",
+    "emptyDescription": "Create your first workspace to get started.",
+    "loadMore": "Load more workspaces"
+  },
+  "card": {
+    "accessibleName": "{name} workspace",
+    "slugLabel": "Slug",
+    "roleLabel": "Role: {role}",
+    "settings": "Settings",
+    "open": "Open workspace"
+  },
+  "switcher": {
+    "current": "Current workspace: {name}",
+    "title": "Switch workspace",
+    "description": "Choose an accessible workspace.",
+    "switchTo": "Switch to {name}",
+    "pending": "Switching",
+    "manage": "Manage workspaces",
+    "loadMore": "Load more workspaces",
+    "failure": "Unable to switch workspaces right now."
+  },
+  "pages": {
+    "workspaces": {
+      "title": "Workspaces",
+      "description": "Create and open your accessible workspaces.",
+      "loading": "Loading workspaces"
+    },
+    "dashboard": {
+      "title": "Workspace dashboard",
+      "description": "Current workspace context.",
+      "name": "Workspace",
+      "slug": "Slug",
+      "loading": "Loading workspace dashboard"
+    }
+  },
+  "failure": {
+    "title": "Workspaces are unavailable",
+    "description": "Try again later."
+  }
+}

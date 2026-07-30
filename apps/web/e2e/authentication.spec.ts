@@ -4,6 +4,7 @@ import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api
 import {
   cleanupLocalAutomationUser,
   getGeneratedAuthSession,
+  logoutGeneratedSession,
   signInLocalAutomationUser,
 } from "./support/generated-auth-api";
 
@@ -32,14 +33,20 @@ test("local credentials create persistent independent sessions and cleanup all a
     await scenarioResponse
   ).json()) as ApiResponseOfLocalAutomationScenarioResponse;
 
-  await expect(page).toHaveURL(/\/dashboard$/);
-  const firstSessionId = await page.getByTestId("session-id").textContent();
+  await expect(page).toHaveURL(/\/welcome$/);
+  await expect(
+    page.getByRole("heading", { name: "Create your first workspace" }),
+  ).toBeVisible();
+  const firstSessionId = (await getGeneratedAuthSession(page.context().request))
+    .session?.id;
   expect(firstSessionId).toBeTruthy();
   await expect(page.locator("body")).not.toContainText(scenario.data.password);
 
   await page.reload();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByTestId("session-id")).toHaveText(firstSessionId!);
+  await expect(page).toHaveURL(/\/welcome$/);
+  expect(
+    (await getGeneratedAuthSession(page.context().request)).session?.id,
+  ).toBe(firstSessionId);
 
   const secondContext = await browser.newContext();
   const secondPage = await secondContext.newPage();
@@ -49,19 +56,20 @@ test("local credentials create persistent independent sessions and cleanup all a
     scenario.data.password,
   );
   await secondPage.goto("/dashboard");
-  const secondSessionId = await secondPage
-    .getByTestId("session-id")
-    .textContent();
+  await expect(secondPage).toHaveURL(/\/welcome$/);
+  const secondSessionId = (await getGeneratedAuthSession(secondContext.request))
+    .session?.id;
   expect(secondSessionId).toBeTruthy();
   expect(secondSessionId).not.toBe(firstSessionId);
 
-  await page.getByRole("button", { name: "Log out" }).click();
-  await expect(page).toHaveURL(/\/auth\/login$/);
+  await logoutGeneratedSession(page.context().request);
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/auth\/login\?redirect=%2Fdashboard$/);
   await secondPage.reload();
-  await expect(secondPage).toHaveURL(/\/dashboard$/);
-  await expect(secondPage.getByTestId("session-id")).toHaveText(
-    secondSessionId!,
-  );
+  await expect(secondPage).toHaveURL(/\/welcome$/);
+  expect(
+    (await getGeneratedAuthSession(secondContext.request)).session?.id,
+  ).toBe(secondSessionId);
 
   await cleanupLocalAutomationUser(secondContext.request);
   expect(
