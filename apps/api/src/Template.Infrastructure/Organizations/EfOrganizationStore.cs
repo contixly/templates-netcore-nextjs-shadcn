@@ -526,9 +526,10 @@ internal sealed class EfOrganizationStore(
     }
 
     public async Task<
-        OrganizationStorePage<
-            OrganizationMember,
-            OrganizationMemberCursorPosition>>
+        OrganizationOperationResult<
+            OrganizationStorePage<
+                OrganizationMember,
+                OrganizationMemberCursorPosition>>>
         ListMembersAsync(
             UserId actorUserId,
             OrganizationId organizationId,
@@ -536,73 +537,98 @@ internal sealed class EfOrganizationStore(
             int limit,
             CancellationToken cancellationToken)
     {
-        var actorHasAccess = await db.OrganizationMembers.AsNoTracking()
-            .AnyAsync(
-                membership =>
-                    membership.OrganizationId == organizationId.Value &&
-                    membership.UserId == actorUserId.Value,
+        try
+        {
+            return await unitOfWork.ExecuteAsync(
+                async transactionCancellationToken =>
+                {
+                    if (await LockOrganizationAsync(
+                            organizationId.Value,
+                            transactionCancellationToken) is null
+                        || await LockMembershipAsync(
+                            organizationId.Value,
+                            actorUserId.Value,
+                            transactionCancellationToken) is null)
+                    {
+                        return OrganizationOperationResult<
+                            OrganizationStorePage<
+                                OrganizationMember,
+                                OrganizationMemberCursorPosition>>.Failed(
+                                    OrganizationFailure.NotFound);
+                    }
+
+                    var domains = await ReadAllowedDomainsAsync(
+                        organizationId.Value,
+                        transactionCancellationToken);
+                    var query =
+                        from membership in db.OrganizationMembers.AsNoTracking()
+                        join user in db.Users.AsNoTracking()
+                            on membership.UserId equals user.Id
+                        where membership.OrganizationId ==
+                            organizationId.Value
+                        select new
+                        {
+                            membership.Id,
+                            membership.UserId,
+                            Name = user.DisplayName,
+                            Email = user.Email ?? string.Empty,
+                            user.ImageUrl,
+                            membership.Role,
+                            membership.JoinedAt
+                        };
+
+                    if (after is not null)
+                    {
+                        query = query.Where(row =>
+                            row.JoinedAt > after.JoinedAt ||
+                            (row.JoinedAt == after.JoinedAt &&
+                             row.Id.CompareTo(after.Id.Value) > 0));
+                    }
+
+                    var rows = await query
+                        .OrderBy(row => row.JoinedAt)
+                        .ThenBy(row => row.Id)
+                        .Take(limit + 1)
+                        .ToListAsync(transactionCancellationToken);
+                    var hasMore = rows.Count > limit;
+                    var pageRows = hasMore ? rows[..limit] : rows;
+                    var items = pageRows
+                        .Select(row => MapMember(
+                            new MemberReadRow(
+                                row.Id,
+                                row.UserId,
+                                row.Name,
+                                row.Email,
+                                row.ImageUrl,
+                                row.Role,
+                                row.JoinedAt),
+                            domains))
+                        .ToArray();
+                    var next = hasMore
+                        ? new OrganizationMemberCursorPosition(
+                            pageRows[^1].JoinedAt,
+                            new OrganizationMemberId(pageRows[^1].Id))
+                        : null;
+                    return OrganizationOperationResult<
+                        OrganizationStorePage<
+                            OrganizationMember,
+                            OrganizationMemberCursorPosition>>.Success(
+                                new OrganizationStorePage<
+                                    OrganizationMember,
+                                    OrganizationMemberCursorPosition>(
+                                        items,
+                                        next));
+                },
                 cancellationToken);
-        if (!actorHasAccess)
-        {
-            return new OrganizationStorePage<
-                OrganizationMember,
-                OrganizationMemberCursorPosition>([], null);
         }
-
-        var domains = await ReadAllowedDomainsAsync(
-            organizationId.Value,
-            cancellationToken);
-        var query =
-            from membership in db.OrganizationMembers.AsNoTracking()
-            join user in db.Users.AsNoTracking()
-                on membership.UserId equals user.Id
-            where membership.OrganizationId == organizationId.Value
-            select new
-            {
-                membership.Id,
-                membership.UserId,
-                Name = user.DisplayName,
-                Email = user.Email ?? string.Empty,
-                user.ImageUrl,
-                membership.Role,
-                membership.JoinedAt
-            };
-
-        if (after is not null)
+        catch (Exception exception) when (IsConcurrencyFailure(exception))
         {
-            query = query.Where(row =>
-                row.JoinedAt > after.JoinedAt ||
-                (row.JoinedAt == after.JoinedAt &&
-                 row.Id.CompareTo(after.Id.Value) > 0));
+            return OrganizationOperationResult<
+                OrganizationStorePage<
+                    OrganizationMember,
+                    OrganizationMemberCursorPosition>>.Failed(
+                        OrganizationFailure.ConcurrencyConflict);
         }
-
-        var rows = await query
-            .OrderBy(row => row.JoinedAt)
-            .ThenBy(row => row.Id)
-            .Take(limit + 1)
-            .ToListAsync(cancellationToken);
-        var hasMore = rows.Count > limit;
-        var pageRows = hasMore ? rows[..limit] : rows;
-        var items = pageRows
-            .Select(row => MapMember(
-                new MemberReadRow(
-                    row.Id,
-                    row.UserId,
-                    row.Name,
-                    row.Email,
-                    row.ImageUrl,
-                    row.Role,
-                    row.JoinedAt),
-                domains))
-            .ToArray();
-        var next = hasMore
-            ? new OrganizationMemberCursorPosition(
-                pageRows[^1].JoinedAt,
-                new OrganizationMemberId(pageRows[^1].Id))
-            : null;
-        return new OrganizationStorePage<
-            OrganizationMember,
-            OrganizationMemberCursorPosition>(items, next);
     }
 
     public async Task<OrganizationOperationResult<OrganizationMember>>

@@ -50,6 +50,13 @@ public sealed class OrganizationDomainTests
         Assert.False(OrganizationSlug.TryCreate(value, out _));
 
     [Fact]
+    public void Slug_try_create_enforces_the_64_character_storage_limit()
+    {
+        Assert.True(OrganizationSlug.TryCreate(new string('a', 64), out _));
+        Assert.False(OrganizationSlug.TryCreate(new string('a', 65), out _));
+    }
+
+    [Fact]
     public void Organization_identifiers_round_trip_as_UUIDs()
     {
         var organizationId = OrganizationId.New();

@@ -2,9 +2,16 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Api.Tests.Infrastructure;
+using Template.Application.Organizations;
+using Template.Application.Organizations.Ports;
+using Template.Domain.Authentication;
+using Template.Domain.Organizations;
 using Template.Infrastructure.Persistence;
 
 namespace Template.Api.Tests.Organizations;
@@ -224,6 +231,180 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             "admin");
 
         OrganizationEndpointTestSupport.AssertNoStore(add, list, roleUpdate);
+    }
+
+    [Fact]
+    public async Task MemberListDoesNotProjectCredentialsFromAnHttpsAvatarUrl()
+    {
+        using var client = factory.CreateApiClient();
+        var owner = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Credential Avatar Owner",
+            "local-agent+credential-avatar-owner@local-agent.test");
+        using var created =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Credential Avatar Workspace");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(created))
+            .GetProperty("id")
+            .GetGuid();
+        const string credentialedAvatar =
+            "https://user:secret@cdn.example.test/avatar.png";
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var changed = await scope.ServiceProvider
+                .GetRequiredService<TemplateDbContext>()
+                .Users
+                .Where(user => user.Id == owner.UserId)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        user => user.ImageUrl,
+                        credentialedAvatar),
+                    TestContext.Current.CancellationToken);
+            Assert.Equal(1, changed);
+        }
+
+        using var response = await client.GetAsync(
+            $"/api/v1/organizations/{organizationId:D}/members",
+            TestContext.Current.CancellationToken);
+        var data = await OrganizationEndpointTestSupport.ReadDataAsync(response);
+        var member = Assert.Single(
+            data.GetProperty("items")
+                .EnumerateArray(),
+            item => item.GetProperty("userId").GetGuid() == owner.UserId);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(
+            JsonValueKind.Null,
+            member.GetProperty("imageUrl").ValueKind);
+        Assert.DoesNotContain(
+            credentialedAvatar,
+            data.GetRawText(),
+            StringComparison.Ordinal);
+        OrganizationEndpointTestSupport.AssertNoStore(response);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MemberListUsesExactIdInsteadOfAnAccessibleUuidShapedSlug(
+        bool idBelongsToForeignOrganization)
+    {
+        var suffix = idBelongsToForeignOrganization ? "foreign" : "missing";
+        using var ownerClient = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            ownerClient,
+            "Exact ID Owner",
+            $"local-agent+exact-id-owner-{suffix}@local-agent.test");
+        using var created =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                ownerClient,
+                "Exact ID Accessible");
+        var accessibleId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(created))
+            .GetProperty("id")
+            .GetGuid();
+
+        var requestedId = Guid.NewGuid();
+        if (idBelongsToForeignOrganization)
+        {
+            using var foreignClient = factory.CreateApiClient();
+            await OrganizationEndpointTestSupport.CreateScenarioAsync(
+                foreignClient,
+                "Exact ID Foreign",
+                "local-agent+exact-id-foreign@local-agent.test");
+            using var foreign =
+                await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                    foreignClient,
+                    "Exact ID Foreign Workspace");
+            requestedId =
+                (await OrganizationEndpointTestSupport.ReadDataAsync(foreign))
+                .GetProperty("id")
+                .GetGuid();
+        }
+
+        using var slug = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            ownerClient,
+            HttpMethod.Patch,
+            $"/api/v1/organizations/{accessibleId:D}",
+            new { slug = requestedId.ToString("D") });
+        Assert.Equal(HttpStatusCode.OK, slug.StatusCode);
+
+        using var response = await ownerClient.GetAsync(
+            $"/api/v1/organizations/{requestedId:D}/members",
+            TestContext.Current.CancellationToken);
+
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            response,
+            HttpStatusCode.NotFound,
+            "organization_not_found");
+        OrganizationEndpointTestSupport.AssertNoStore(response);
+    }
+
+    [Fact]
+    public async Task MemberListMapsAtomicStoreNotFoundWithoutASeparateKeyPrecheck()
+    {
+        var store = new DisappearingMemberListStore();
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IOrganizationStore>();
+                services.AddSingleton<IOrganizationStore>(store);
+            }));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Disappearing List Owner",
+            "local-agent+disappearing-list-owner@local-agent.test");
+
+        using var response = await client.GetAsync(
+            $"/api/v1/organizations/{Guid.NewGuid():D}/members",
+            TestContext.Current.CancellationToken);
+
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            response,
+            HttpStatusCode.NotFound,
+            "organization_not_found");
+        Assert.Equal(0, store.GetByKeyCalls);
+        Assert.Equal(1, store.ListMembersCalls);
+        OrganizationEndpointTestSupport.AssertNoStore(response);
+    }
+
+    [Fact]
+    public async Task OrganizationPatchRejectsASlugOver64CharactersAtTheHttpBoundary()
+    {
+        using var client = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Long Slug Owner",
+            "local-agent+long-slug-owner@local-agent.test");
+        using var created =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Long Slug Workspace");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(created))
+            .GetProperty("id")
+            .GetGuid();
+
+        using var response =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                client,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}",
+                new { slug = new string('a', 65) });
+
+        await OrganizationEndpointTestSupport.AssertValidationProblemAsync(
+            response,
+            "slug");
+        OrganizationEndpointTestSupport.AssertNoStore(response);
     }
 
     [Fact]
@@ -462,6 +643,100 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
         Assert.Equal("local-agent.test", data.GetProperty("emailDomain").GetString());
         Assert.False(
             data.GetProperty("isOutsideAllowedEmailDomains").GetBoolean());
+    }
+
+    private sealed class DisappearingMemberListStore : IOrganizationStore
+    {
+        public int GetByKeyCalls { get; private set; }
+
+        public int ListMembersCalls { get; private set; }
+
+        public Task<OrganizationStorePage<
+            OrganizationSummary,
+            OrganizationCursorPosition>> ListAsync(
+            UserId actorUserId,
+            OrganizationCursorPosition? after,
+            int limit,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new OrganizationStorePage<
+                OrganizationSummary,
+                OrganizationCursorPosition>([], null));
+
+        public Task<OrganizationOperationResult<OrganizationDetail>>
+            GetByKeyAsync(
+                UserId actorUserId,
+                string organizationKey,
+                CancellationToken cancellationToken)
+        {
+            GetByKeyCalls++;
+            Assert.True(OrganizationSlug.TryCreate(
+                "stale-precheck",
+                out var slug));
+            var now = DateTimeOffset.UtcNow;
+            return Task.FromResult(
+                OrganizationOperationResult<OrganizationDetail>.Success(
+                    new OrganizationDetail(
+                        OrganizationId.New(),
+                        "Stale Precheck",
+                        slug,
+                        now,
+                        now,
+                        OrganizationRole.Owner,
+                        OrganizationPermissionPolicy.GetCapabilities(
+                            OrganizationRole.Owner),
+                        [])));
+        }
+
+        public Task<OrganizationOperationResult<OrganizationDetail>> CreateAsync(
+            CreateOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<OrganizationDetail>> UpdateAsync(
+            UpdateOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<OrganizationDeletion>> DeleteAsync(
+            DeleteOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<ActiveOrganization>> SetActiveAsync(
+            SetActiveOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<
+            OrganizationStorePage<
+                OrganizationMember,
+                OrganizationMemberCursorPosition>>> ListMembersAsync(
+            UserId actorUserId,
+            OrganizationId organizationId,
+            OrganizationMemberCursorPosition? after,
+            int limit,
+            CancellationToken cancellationToken)
+        {
+            ListMembersCalls++;
+            return Task.FromResult(
+                OrganizationOperationResult<
+                    OrganizationStorePage<
+                        OrganizationMember,
+                        OrganizationMemberCursorPosition>>.Failed(
+                            OrganizationFailure.NotFound));
+        }
+
+        public Task<OrganizationOperationResult<OrganizationMember>>
+            AddMemberAsync(
+                AddOrganizationMemberCommand command,
+                CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<OrganizationMember>>
+            UpdateMemberRoleAsync(
+                UpdateOrganizationMemberRoleCommand command,
+                CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }
 

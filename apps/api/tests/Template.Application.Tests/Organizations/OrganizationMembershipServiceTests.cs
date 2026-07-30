@@ -68,6 +68,26 @@ public sealed class OrganizationMembershipServiceTests
         Assert.Equal(next, decoded);
     }
 
+    [Fact]
+    public async Task List_surfaces_the_atomic_store_not_found_result()
+    {
+        var store = new RecordingOrganizationStore
+        {
+            ListMembersFailure = OrganizationFailure.NotFound
+        };
+        var service = new OrganizationMembershipService(store);
+
+        var result = await service.ListAsync(
+            Actor,
+            Organization,
+            cursor: null,
+            limit: 50,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OrganizationFailure.NotFound, result.Failure);
+        Assert.Null(result.Value);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(101)]

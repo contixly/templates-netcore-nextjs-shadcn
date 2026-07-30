@@ -449,7 +449,6 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         string organizationId,
         string? cursor,
         int? limit,
-        OrganizationService organizations,
         OrganizationMembershipService memberships,
         IBrowserSessionGateway browserSessions,
         ILogger<OrganizationEndpointModule> logger,
@@ -463,17 +462,6 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             cancellationToken);
         var id = ValidateOrganizationId(organizationId);
         var pageLimit = ValidateLimit(limit);
-        var access = await organizations.GetByKeyAsync(
-            actor.UserId,
-            id.Value.ToString("D"),
-            cancellationToken);
-        RequireSuccess(
-            access,
-            "organization_members_list",
-            actor,
-            logger,
-            id.Value,
-            memberId: null);
         var result = await memberships.ListAsync(
             actor.UserId,
             id,
@@ -873,6 +861,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         Uri.TryCreate(value, UriKind.Absolute, out var image)
         && image.Scheme == Uri.UriSchemeHttps
         && !string.IsNullOrEmpty(image.Host)
+        && string.IsNullOrEmpty(image.UserInfo)
             ? image.AbsoluteUri
             : null;
 

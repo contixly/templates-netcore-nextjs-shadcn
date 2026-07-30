@@ -33,7 +33,10 @@ public interface IOrganizationStore
         SetActiveOrganizationCommand command,
         CancellationToken cancellationToken);
 
-    Task<OrganizationStorePage<OrganizationMember, OrganizationMemberCursorPosition>>
+    Task<OrganizationOperationResult<
+        OrganizationStorePage<
+            OrganizationMember,
+            OrganizationMemberCursorPosition>>>
         ListMembersAsync(
             UserId actorUserId,
             OrganizationId organizationId,

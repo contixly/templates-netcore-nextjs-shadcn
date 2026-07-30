@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Template.Api.Tests.Infrastructure;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
@@ -496,20 +497,29 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
         var second = await fixture.Store.ListMembersAsync(
             owner.UserId,
             organizationId,
-            Assert.IsType<OrganizationMemberCursorPosition>(first.Next),
+            Assert.IsType<OrganizationMemberCursorPosition>(
+                Assert.IsType<OrganizationStorePage<
+                    OrganizationMember,
+                    OrganizationMemberCursorPosition>>(first.Value).Next),
             limit: 2,
             TestContext.Current.CancellationToken);
+        var firstPage = Assert.IsType<OrganizationStorePage<
+            OrganizationMember,
+            OrganizationMemberCursorPosition>>(first.Value);
+        var secondPage = Assert.IsType<OrganizationStorePage<
+            OrganizationMember,
+            OrganizationMemberCursorPosition>>(second.Value);
 
         Assert.Equal(
             [
                 Guid.Parse("00000000-0000-0000-0000-000000000021"),
                 Guid.Parse("00000000-0000-0000-0000-000000000022")
             ],
-            first.Items.Select(item => item.Id.Value));
+            firstPage.Items.Select(item => item.Id.Value));
         Assert.Equal(
             Guid.Parse("00000000-0000-0000-0000-000000000023"),
-            Assert.Single(second.Items).Id.Value);
-        Assert.Null(second.Next);
+            Assert.Single(secondPage.Items).Id.Value);
+        Assert.Null(secondPage.Next);
 
         var foreign = await fixture.CreateUserAndSessionAsync(
             "members-foreign@local-agent.test");
@@ -519,7 +529,126 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             after: null,
             limit: 50,
             TestContext.Current.CancellationToken);
-        Assert.Empty(hidden.Items);
+        Assert.Equal(OrganizationFailure.NotFound, hidden.Failure);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Member_list_uses_exact_id_when_accessible_slug_looks_like_uuid(
+        bool idBelongsToForeignOrganization)
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "exact-member-list@local-agent.test");
+        var requestedId = OrganizationId.New();
+        await fixture.SeedOrganizationForAsync(
+            actor,
+            "Accessible UUID Slug",
+            requestedId.Value.ToString("D"),
+            OrganizationRole.Owner);
+        if (idBelongsToForeignOrganization)
+        {
+            var foreign = await fixture.CreateUserAndSessionAsync(
+                "exact-member-list-foreign@local-agent.test");
+            await fixture.SeedOrganizationForAsync(
+                foreign,
+                "Foreign UUID Target",
+                "foreign-uuid-target",
+                OrganizationRole.Owner,
+                requestedId);
+        }
+
+        var result = await fixture.Store.ListMembersAsync(
+            actor.UserId,
+            requestedId,
+            after: null,
+            limit: 50,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OrganizationFailure.NotFound, result.Failure);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Member_list_returns_not_found_when_target_or_access_disappears(
+        bool deleteOrganization)
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "disappearing-member-list@local-agent.test");
+        var organizationId = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Disappearing Member List",
+            "disappearing-member-list",
+            OrganizationRole.Owner);
+        await using var connection = new NpgsqlConnection(
+            fixture.ConnectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(
+            TestContext.Current.CancellationToken);
+        await using (var lockCommand = connection.CreateCommand())
+        {
+            lockCommand.Transaction = transaction;
+            lockCommand.CommandText = deleteOrganization
+                ? """
+                  SELECT id
+                  FROM organizations.organizations
+                  WHERE id = $1
+                  FOR UPDATE
+                  """
+                : """
+                  SELECT id
+                  FROM organizations.members
+                  WHERE organization_id = $1 AND user_id = $2
+                  FOR UPDATE
+                  """;
+            lockCommand.Parameters.AddWithValue(organizationId.Value);
+            if (!deleteOrganization)
+            {
+                lockCommand.Parameters.AddWithValue(actor.UserId.Value);
+            }
+
+            Assert.NotNull(await lockCommand.ExecuteScalarAsync(
+                TestContext.Current.CancellationToken));
+        }
+
+        var listing = fixture.Store.ListMembersAsync(
+            actor.UserId,
+            organizationId,
+            after: null,
+            limit: 50,
+            TestContext.Current.CancellationToken);
+        await Task.Delay(
+            TimeSpan.FromMilliseconds(100),
+            TestContext.Current.CancellationToken);
+        Assert.False(listing.IsCompleted);
+        await using (var deleteCommand = connection.CreateCommand())
+        {
+            deleteCommand.Transaction = transaction;
+            deleteCommand.CommandText = deleteOrganization
+                ? "DELETE FROM organizations.organizations WHERE id = $1"
+                : """
+                  DELETE FROM organizations.members
+                  WHERE organization_id = $1 AND user_id = $2
+                  """;
+            deleteCommand.Parameters.AddWithValue(organizationId.Value);
+            if (!deleteOrganization)
+            {
+                deleteCommand.Parameters.AddWithValue(actor.UserId.Value);
+            }
+
+            Assert.Equal(
+                1,
+                await deleteCommand.ExecuteNonQueryAsync(
+                    TestContext.Current.CancellationToken));
+        }
+
+        await transaction.CommitAsync(TestContext.Current.CancellationToken);
+        var result = await listing;
+
+        Assert.Equal(OrganizationFailure.NotFound, result.Failure);
     }
 
     [Fact]
@@ -760,6 +889,8 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
 
     internal IOrganizationStore Store =>
         _storeScope.ServiceProvider.GetRequiredService<IOrganizationStore>();
+
+    internal string ConnectionString => _connectionString;
 
     internal static async Task<OrganizationStoreFixture> CreateAsync(
         PostgreSqlContainerFixture postgres)

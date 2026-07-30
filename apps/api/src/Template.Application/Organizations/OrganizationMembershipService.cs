@@ -29,12 +29,24 @@ public sealed class OrganizationMembershipService(IOrganizationStore organizatio
             after = decoded;
         }
 
-        var page = await organizations.ListMembersAsync(
+        var pageResult = await organizations.ListMembersAsync(
             actorUserId,
             organizationId,
             after,
             limit,
             cancellationToken);
+        if (!pageResult.Succeeded)
+        {
+            return OrganizationOperationResult<OrganizationMemberPage>.Failed(
+                pageResult.Failure
+                    ?? throw new InvalidOperationException(
+                        "A failed member-list result requires a failure."),
+                pageResult.Acknowledgement);
+        }
+
+        var page = pageResult.Value
+            ?? throw new InvalidOperationException(
+                "A successful member-list result requires a page.");
         return OrganizationOperationResult<OrganizationMemberPage>.Success(
             new OrganizationMemberPage(
                 page.Items,

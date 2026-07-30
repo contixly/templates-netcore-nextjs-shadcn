@@ -5,6 +5,7 @@ namespace Template.Domain.Organizations;
 public readonly record struct OrganizationSlug
 {
     private const int MaximumGeneratedBaseLength = 48;
+    private const int MaximumLength = 64;
 
     private OrganizationSlug(string value) => Value = value;
 
@@ -71,7 +72,9 @@ public readonly record struct OrganizationSlug
 
     private static bool IsCanonical(string value)
     {
-        if (value.Length == 0 || value[0] == '-' || value[^1] == '-')
+        if (value.Length is 0 or > MaximumLength
+            || value[0] == '-'
+            || value[^1] == '-')
         {
             return false;
         }

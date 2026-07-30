@@ -253,6 +253,8 @@ internal sealed class RecordingOrganizationStore : IOrganizationStore
         ListMembersResult
     { get; set; } = new([], null);
 
+    public OrganizationFailure? ListMembersFailure { get; set; }
+
     public OrganizationOperationResult<OrganizationMember> AddMemberResult { get; set; } =
         OrganizationOperationResult<OrganizationMember>.Failed(OrganizationFailure.NotFound);
 
@@ -342,7 +344,10 @@ internal sealed class RecordingOrganizationStore : IOrganizationStore
                 OrganizationFailure.NotFound));
     }
 
-    public Task<OrganizationStorePage<OrganizationMember, OrganizationMemberCursorPosition>>
+    public Task<OrganizationOperationResult<
+        OrganizationStorePage<
+            OrganizationMember,
+            OrganizationMemberCursorPosition>>>
         ListMembersAsync(
             UserId actorUserId,
             OrganizationId organizationId,
@@ -355,7 +360,17 @@ internal sealed class RecordingOrganizationStore : IOrganizationStore
         LastMemberListOrganizationId = organizationId;
         LastMemberListAfter = after;
         LastMemberListLimit = limit;
-        return Task.FromResult(ListMembersResult);
+        var result = ListMembersFailure is { } failure
+            ? OrganizationOperationResult<
+                OrganizationStorePage<
+                    OrganizationMember,
+                    OrganizationMemberCursorPosition>>.Failed(failure)
+            : OrganizationOperationResult<
+                OrganizationStorePage<
+                    OrganizationMember,
+                    OrganizationMemberCursorPosition>>.Success(
+                        ListMembersResult);
+        return Task.FromResult(result);
     }
 
     public Task<OrganizationOperationResult<OrganizationMember>> AddMemberAsync(
