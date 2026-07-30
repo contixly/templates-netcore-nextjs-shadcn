@@ -1,9 +1,7 @@
 import { forbidden } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
-import { Suspense } from "react";
 
-import { OrganizationSwitcherRuntime } from "@/src/components/application/site-header";
 import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
@@ -69,15 +67,6 @@ export default async function OrganizationDashboardPage({
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
-      <Suspense fallback={null}>
-        <OrganizationSwitcherRuntime
-          currentOrganization={{
-            canonicalKey: organization.data.canonicalKey,
-            id: organization.data.id,
-            name: organization.data.name,
-          }}
-        />
-      </Suspense>
       <BrowserSessionRefresh />
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>

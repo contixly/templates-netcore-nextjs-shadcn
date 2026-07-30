@@ -1,15 +1,18 @@
 import type { ReactNode } from "react";
 
 import { SiteHeader } from "@/src/components/application/site-header";
-import { OrganizationSwitcherProvider } from "@/src/components/organizations/organization-switcher-context";
 
 export default function SiteLayout({
   children,
-}: Readonly<{ children: ReactNode }>) {
+  organizationSwitcher,
+}: Readonly<{
+  children: ReactNode;
+  organizationSwitcher: ReactNode;
+}>) {
   return (
-    <OrganizationSwitcherProvider>
-      <SiteHeader />
+    <>
+      <SiteHeader organizationSwitcher={organizationSwitcher} />
       {children}
-    </OrganizationSwitcherProvider>
+    </>
   );
 }

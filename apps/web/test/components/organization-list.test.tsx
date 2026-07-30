@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 
 import { OrganizationList } from "@/src/components/organizations/organization-list";
@@ -6,7 +6,7 @@ import type {
   OrganizationPageResponse,
   OrganizationSummaryResponse,
 } from "@/src/lib/api/generated/types.gen";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
 import { render } from "@testing-library/react";
 import organizationsRu from "@/src/messages/organizations.ru.json";
 
@@ -86,9 +86,7 @@ it("appends pages and de-duplicates organizations by id", () => {
     },
   ];
 
-  renderWithMessages(
-    <OrganizationList loadedCursors={["opaque-first"]} pages={pages} />,
-  );
+  renderWithMessages(<OrganizationList pages={pages} />);
 
   expect(screen.getAllByRole("article")).toHaveLength(2);
   expect(screen.getByRole("article", { name: "Acme workspace" })).toBeVisible();
@@ -98,24 +96,66 @@ it("appends pages and de-duplicates organizations by id", () => {
   ).not.toBeInTheDocument();
 });
 
-it("exposes the next opaque cursor through explicit load-more navigation", () => {
+it("exposes only the next opaque cursor through explicit load-more navigation", () => {
   renderWithMessages(
     <OrganizationList
-      loadedCursors={["opaque prior + / ="]}
       pages={[{ items: [acme], nextCursor: "opaque next + / =" }]}
     />,
   );
 
   expect(
-    screen.getByRole("button", { name: "Load more workspaces" }),
-  ).toBeVisible();
-  const cursorInputs = screen
-    .getByRole("button", { name: "Load more workspaces" })
-    .closest("form")
-    ?.querySelectorAll('input[name="cursor"]');
+    screen.getByRole("link", { name: "Load more workspaces" }),
+  ).toHaveAttribute(
+    "href",
+    "/workspaces?cursor=opaque%20next%20%2B%20%2F%20%3D",
+  );
+});
+
+it("keeps appending and advancing through more than ten soft navigations", async () => {
+  const view = renderWithMessages(
+    <OrganizationList pages={[{ items: [acme], nextCursor: "cursor-1" }]} />,
+  );
+
+  for (let page = 1; page <= 11; page += 1) {
+    const loadMore = screen.getByRole("link", {
+      name: "Load more workspaces",
+    });
+    expect(loadMore).toHaveAttribute(
+      "href",
+      `/workspaces?cursor=cursor-${page}`,
+    );
+    fireEvent.click(loadMore);
+    const organization = {
+      ...acme,
+      id: `page-${page}-id`,
+      name: `Page ${page}`,
+      slug: `page-${page}`,
+      canonicalKey: `page-${page}`,
+    };
+    view.rerender(
+      withMessages(
+        <OrganizationList
+          pages={[
+            { items: [acme], nextCursor: "cursor-1" },
+            {
+              items: [organization],
+              nextCursor: page === 11 ? null : `cursor-${page + 1}`,
+            },
+          ]}
+        />,
+      ),
+    );
+  }
+
+  await waitFor(() => {
+    expect(screen.getAllByRole("article")).toHaveLength(12);
+  });
   expect(
-    Array.from(cursorInputs ?? []).map((input) => input.getAttribute("value")),
-  ).toEqual(["opaque prior + / =", "opaque next + / ="]);
+    screen.getByRole("article", { name: "Page 11 workspace" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "Load more workspaces" }),
+  ).not.toBeInTheDocument();
 });
 
 it("renders the zero-state creation surface", () => {

@@ -383,7 +383,7 @@ it("loads requested cursor pages verbatim and de-duplicates list results", async
   expect(screen.getByRole("article", { name: "Beta workspace" })).toBeVisible();
 });
 
-it("deduplicates and caps untrusted continuation cursors", async () => {
+it("deduplicates untrusted cursor values and loads at most one continuation", async () => {
   const cursors = [
     "duplicate",
     "duplicate",
@@ -398,9 +398,8 @@ it("deduplicates and caps untrusted continuation cursors", async () => {
     searchParams: Promise.resolve({ cursor: cursors }),
   });
 
-  expect(loadList).toHaveBeenCalledTimes(11);
+  expect(loadList).toHaveBeenCalledTimes(2);
   expect(loadList).toHaveBeenNthCalledWith(2, { cursor: "duplicate" });
-  expect(loadList).toHaveBeenNthCalledWith(11, { cursor: "cursor-8" });
 });
 
 it("preserves successful pages when one continuation fails", async () => {
@@ -417,15 +416,7 @@ it("preserves successful pages when one continuation fails", async () => {
         status: 500,
         traceId: "trace-continuation",
       },
-    })
-    .mockResolvedValueOnce({
-      ok: true,
-      data: {
-        items: [{ ...acme, id: "beta-id", name: "Beta", canonicalKey: "beta" }],
-        nextCursor: null,
-      },
     });
-
   renderWithMessages(
     await WorkspacesPage({
       searchParams: Promise.resolve({
@@ -434,7 +425,7 @@ it("preserves successful pages when one continuation fails", async () => {
     }),
   );
 
-  expect(screen.getAllByRole("article")).toHaveLength(2);
+  expect(screen.getAllByRole("article")).toHaveLength(1);
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Some workspaces could not be loaded.",
   );

@@ -1,4 +1,9 @@
+"use client";
+
+import Link from "next/link";
+import type { Route } from "next";
 import { useTranslations } from "next-intl";
+import { useMemo, useReducer } from "react";
 
 import { OrganizationCard } from "@/src/components/organizations/organization-card";
 import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
@@ -11,8 +16,25 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/src/components/ui/empty";
-import type { OrganizationPageResponse } from "@/src/lib/api/generated/types.gen";
+import { organizationRoutes } from "@/src/features/organizations/organization-routes";
+import type {
+  OrganizationPageResponse,
+  OrganizationSummaryResponse,
+} from "@/src/lib/api/generated/types.gen";
 import type { ApiFailure } from "@/src/lib/api/result";
+
+function uniqueOrganizations(
+  organizations: readonly OrganizationSummaryResponse[],
+): OrganizationSummaryResponse[] {
+  const seen = new Set<string>();
+  return organizations.filter((organization) => {
+    if (seen.has(organization.id)) {
+      return false;
+    }
+    seen.add(organization.id);
+    return true;
+  });
+}
 
 export function OrganizationFailure({
   failure,
@@ -36,24 +58,27 @@ export function OrganizationFailure({
 
 export function OrganizationList({
   continuationFailure,
-  loadedCursors = [],
   pages,
 }: Readonly<{
   continuationFailure?: ApiFailure;
-  loadedCursors?: readonly string[];
   pages: readonly OrganizationPageResponse[];
 }>) {
   const t = useTranslations("organizations.list");
-  const seen = new Set<string>();
-  const organizations = pages.flatMap((page) =>
-    page.items.filter((organization) => {
-      if (seen.has(organization.id)) {
-        return false;
-      }
-      seen.add(organization.id);
-      return true;
-    }),
+  const incomingOrganizations = useMemo(
+    () => uniqueOrganizations(pages.flatMap((page) => page.items)),
+    [pages],
   );
+  const [accumulatedOrganizations, appendIncomingOrganizations] = useReducer(
+    (
+      current: readonly OrganizationSummaryResponse[],
+      incoming: readonly OrganizationSummaryResponse[],
+    ) => uniqueOrganizations([...current, ...incoming]),
+    incomingOrganizations,
+  );
+  const organizations = uniqueOrganizations([
+    ...accumulatedOrganizations,
+    ...incomingOrganizations,
+  ]);
   const nextCursor = pages.at(-1)?.nextCursor ?? null;
 
   if (organizations.length === 0) {
@@ -92,20 +117,19 @@ export function OrganizationList({
         </Alert>
       ) : null}
       {nextCursor && !continuationFailure ? (
-        <form className="flex justify-center" method="get">
-          {loadedCursors.map((cursor, index) => (
-            <input
-              key={`${index}:${cursor}`}
-              name="cursor"
-              type="hidden"
-              value={cursor}
-            />
-          ))}
-          <input name="cursor" type="hidden" value={nextCursor} />
-          <Button type="submit" variant="outline">
-            {t("loadMore")}
+        <div className="flex justify-center">
+          <Button asChild variant="outline">
+            <Link
+              href={
+                `${organizationRoutes.workspaces}?cursor=${encodeURIComponent(nextCursor)}` as Route
+              }
+              onClick={() => appendIncomingOrganizations(incomingOrganizations)}
+              prefetch={false}
+            >
+              {t("loadMore")}
+            </Link>
           </Button>
-        </form>
+        </div>
       ) : null}
     </div>
   );

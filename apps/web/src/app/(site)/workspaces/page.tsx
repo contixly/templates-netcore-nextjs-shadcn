@@ -9,8 +9,6 @@ import { loadProtectedSession } from "@/src/features/authentication/load-protect
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
 
-const maximumContinuationCursors = 10;
-
 type WorkspacesPageProps = Readonly<{
   searchParams: Promise<{ cursor?: string | string[] }>;
 }>;
@@ -20,16 +18,17 @@ export default async function WorkspacesPage({
 }: WorkspacesPageProps) {
   await connection();
   const { cursor } = await searchParams;
-  const loadedCursors = [
-    ...new Set(
-      cursor === undefined ? [] : Array.isArray(cursor) ? cursor : [cursor],
-    ),
-  ].slice(0, maximumContinuationCursors);
-  const [session, t, ...results] = await Promise.all([
+  const continuationCursor =
+    cursor === undefined
+      ? undefined
+      : [...new Set(Array.isArray(cursor) ? cursor : [cursor])][0];
+  const [session, t, firstPage, continuation] = await Promise.all([
     loadProtectedSession(organizationRoutes.workspaces),
     getTranslations("organizations.pages.workspaces"),
     loadOrganizations(),
-    ...loadedCursors.map((value) => loadOrganizations({ cursor: value })),
+    continuationCursor
+      ? loadOrganizations({ cursor: continuationCursor })
+      : Promise.resolve(undefined),
   ]);
 
   if (!session.ok) {
@@ -53,9 +52,6 @@ export default async function WorkspacesPage({
     );
   }
 
-  const [firstPage, ...continuations] = results;
-  const continuationFailure = continuations.find((result) => !result.ok);
-
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
       <div className="flex flex-col gap-2">
@@ -74,12 +70,12 @@ export default async function WorkspacesPage({
       ) : (
         <OrganizationList
           continuationFailure={
-            continuationFailure && !continuationFailure.ok
-              ? continuationFailure.failure
-              : undefined
+            continuation && !continuation.ok ? continuation.failure : undefined
           }
-          loadedCursors={loadedCursors}
-          pages={results.flatMap((result) => (result.ok ? [result.data] : []))}
+          pages={[
+            firstPage.data,
+            ...(continuation?.ok ? [continuation.data] : []),
+          ]}
         />
       )}
     </main>
