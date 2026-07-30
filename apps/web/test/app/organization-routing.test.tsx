@@ -363,7 +363,9 @@ it("renders only minimal accessible organization dashboard context", async () =>
   ).toBeVisible();
   expect(screen.getAllByText("Acme")).toHaveLength(2);
   expect(screen.getByText("acme")).toBeVisible();
-  expect(screen.getByTestId("browser-session-refresh")).toBeInTheDocument();
+  expect(
+    screen.queryByTestId("browser-session-refresh"),
+  ).not.toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
   expect(redirect).not.toHaveBeenCalled();
 });

@@ -86,52 +86,71 @@ internal sealed class EfOrganizationStore(
             string organizationKey,
             CancellationToken cancellationToken)
     {
-        var query =
-            from organization in db.Organizations.AsNoTracking()
-            join membership in db.OrganizationMembers.AsNoTracking()
-                on organization.Id equals membership.OrganizationId
-            where membership.UserId == actorUserId.Value
-            select new
-            {
-                organization.Id,
-                organization.Name,
-                NormalizedName = organization.Name.ToLower(),
-                organization.Slug,
-                organization.CreatedAt,
-                organization.UpdatedAt,
-                membership.Role
-            };
+        try
+        {
+            return await ExecuteSnapshotReadAsync(
+                async transactionCancellationToken =>
+                {
+                    var query =
+                        from organization in db.Organizations.AsNoTracking()
+                        join membership in
+                            db.OrganizationMembers.AsNoTracking()
+                            on organization.Id equals membership.OrganizationId
+                        where membership.UserId == actorUserId.Value
+                        select new
+                        {
+                            organization.Id,
+                            organization.Name,
+                            NormalizedName = organization.Name.ToLower(),
+                            organization.Slug,
+                            organization.CreatedAt,
+                            organization.UpdatedAt,
+                            membership.Role
+                        };
 
-        var parsedId = Guid.Empty;
-        var isId = Guid.TryParseExact(organizationKey, "D", out parsedId);
-        var row = isId
-            ? await query.SingleOrDefaultAsync(
-                value => value.Id == parsedId,
-                cancellationToken)
-            : await query.SingleOrDefaultAsync(
-                value => value.Slug == organizationKey,
+                    var parsedId = Guid.Empty;
+                    var isId = Guid.TryParseExact(
+                        organizationKey,
+                        "D",
+                        out parsedId);
+                    var row = isId
+                        ? await query.SingleOrDefaultAsync(
+                            value => value.Id == parsedId,
+                            transactionCancellationToken)
+                        : await query.SingleOrDefaultAsync(
+                            value => value.Slug == organizationKey,
+                            transactionCancellationToken);
+
+                    if (row is null)
+                    {
+                        return OrganizationOperationResult<
+                            OrganizationDetail>.Failed(
+                            OrganizationFailure.NotFound);
+                    }
+
+                    var domains = await ReadAllowedDomainsAsync(
+                        row.Id,
+                        transactionCancellationToken);
+                    return OrganizationOperationResult<
+                        OrganizationDetail>.Success(
+                        MapDetail(
+                            new OrganizationReadRow(
+                                row.Id,
+                                row.Name,
+                                row.NormalizedName,
+                                row.Slug,
+                                row.CreatedAt,
+                                row.UpdatedAt,
+                                row.Role),
+                            domains));
+                },
                 cancellationToken);
-
-        if (row is null)
+        }
+        catch (Exception exception) when (IsConcurrencyFailure(exception))
         {
             return OrganizationOperationResult<OrganizationDetail>.Failed(
-                OrganizationFailure.NotFound);
+                OrganizationFailure.ConcurrencyConflict);
         }
-
-        var domains = await ReadAllowedDomainsAsync(
-            row.Id,
-            cancellationToken);
-        return OrganizationOperationResult<OrganizationDetail>.Success(
-            MapDetail(
-                new OrganizationReadRow(
-                    row.Id,
-                    row.Name,
-                    row.NormalizedName,
-                    row.Slug,
-                    row.CreatedAt,
-                    row.UpdatedAt,
-                    row.Role),
-                domains));
     }
 
     public async Task<OrganizationOperationResult<OrganizationDetail>>
@@ -489,15 +508,6 @@ internal sealed class EfOrganizationStore(
             return await unitOfWork.ExecuteAsync(
                 async transactionCancellationToken =>
                 {
-                    if (await LockOrganizationAsync(
-                            command.OrganizationId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return OrganizationOperationResult<
-                            ActiveOrganization>.Failed(
-                            OrganizationFailure.NotFound);
-                    }
-
                     var now = timeProvider.GetUtcNow();
                     var changed = await db.Sessions
                         .Where(session =>
@@ -523,6 +533,13 @@ internal sealed class EfOrganizationStore(
                             OrganizationFailure.NotFound);
                 },
                 cancellationToken);
+        }
+        catch (Exception exception) when (IsForeignKeyViolation(
+            exception,
+            "fk_sessions_organizations_active_organization_id"))
+        {
+            return OrganizationOperationResult<ActiveOrganization>.Failed(
+                OrganizationFailure.NotFound);
         }
         catch (Exception exception) when (IsConcurrencyFailure(exception))
         {
@@ -1131,6 +1148,18 @@ internal sealed class EfOrganizationStore(
     {
         var postgres = FindPostgresException(exception);
         return postgres?.SqlState == PostgresErrorCodes.UniqueViolation &&
+            string.Equals(
+                postgres.ConstraintName,
+                constraintName,
+                StringComparison.Ordinal);
+    }
+
+    private static bool IsForeignKeyViolation(
+        Exception exception,
+        string constraintName)
+    {
+        var postgres = FindPostgresException(exception);
+        return postgres?.SqlState == PostgresErrorCodes.ForeignKeyViolation &&
             string.Equals(
                 postgres.ConstraintName,
                 constraintName,

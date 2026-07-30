@@ -198,14 +198,17 @@ The combined Next.js SSR auth read uses a correlation-only client for anonymous
 capabilities and a separate cookie-bearing client for the session projection.
 SSR session reads send `X-Template-Session-Renewal: suppress`, preventing an
 invisible persisted-ticket renewal whose `Set-Cookie` cannot reach the browser;
-the capabilities hop cannot authenticate or renew at all. The authenticated
-dashboard follows with an unmarked same-origin generated-SDK session read, so
-normal half-life sliding renewal updates both PostgreSQL and the browser's
-secure HttpOnly cookie before the endpoint projects `updatedAt` and `expiresAt`.
-The response therefore describes the renewed server-side session rather than
-the pre-renewal row. Cookie-bearing account Server Component reads send the same
-suppression marker; unmarked browser `GET` requests keep normal sliding
-expiration.
+the capabilities hop cannot authenticate or renew at all. After the shared site
+header confirms a complete authenticated session/user projection, exactly one
+client boundary follows with an unmarked same-origin generated-SDK session read.
+This covers protected organization and account surfaces without per-page
+duplicates, so normal half-life sliding renewal updates both PostgreSQL and the
+browser's secure HttpOnly cookie before the endpoint projects `updatedAt` and
+`expiresAt`. The response therefore describes the renewed server-side session
+rather than the pre-renewal row. Anonymous, failed, and malformed header
+projections mount no renewal. Cookie-bearing account Server Component reads
+send the same suppression marker; unmarked browser `GET` requests keep normal
+sliding expiration.
 
 When a valid opaque cookie references a missing, expired, corrupt, or mismatched
 server-side ticket, authentication remains anonymous and the same response

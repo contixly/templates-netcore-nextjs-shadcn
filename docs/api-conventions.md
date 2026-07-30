@@ -428,7 +428,12 @@ resolves only by slug. Returned `canonicalKey` is always the slug. Organization
 pages sort by `(normalizedName ASC, id ASC)` and member pages by
 `(joinedAt ASC, id ASC)`; both use opaque versioned base64url checksum cursors,
 default `50`, range `1..100`. Clients return `nextCursor` verbatim and never
-construct it.
+construct it. A checksum-valid organization cursor is accepted only when its
+decoded normalized-name position satisfies the same 1–50 UTF-16-code-unit,
+Unicode-letter/decimal-digit plus ordinary space/hyphen/underscore policy as a
+runtime organization name and has no outer whitespace. Empty, control,
+unsupported-symbol, and overlength positions return `400 invalid_cursor`
+before any PostgreSQL query.
 
 Missing and foreign organizations intentionally share `404
 organization_not_found`; foreign/missing members likewise do not disclose
@@ -452,11 +457,21 @@ accessible set, requires another accessible organization, and relies on the FK
 state. Unique indexes are authoritative for slug/member races and classified
 results are retried only where the persistence operation specifies it.
 
-Member-list reads do not acquire `FOR UPDATE` locks. They authorize and project
-from one PostgreSQL repeatable-read snapshot, so concurrent reads progress
-together while organization deletion or access removal yields either the
-authorized snapshot or the same non-disclosing not-found result. Mutation lock
-and recheck behavior is unchanged.
+Set-active performs one membership-qualified update and does not take an
+exclusive organization `FOR UPDATE` lock, so concurrent selections and
+nonmember attempts do not serialize through an organization row. The exact
+PostgreSQL `23503` race for
+`fk_sessions_organizations_active_organization_id` maps to the same
+non-disclosing not-found result when deletion wins; unrelated FK violations
+remain unhandled programming/data errors, while serialization/deadlock outcomes
+retain `concurrency_conflict`.
+
+Organization-detail and member-list reads do not acquire `FOR UPDATE` locks.
+Each authorizes and projects its organization row/role and allowed domains from
+one PostgreSQL repeatable-read snapshot, so concurrent reads progress together
+while organization deletion, access removal, or a settings update yields a
+wholly pre-change or post-change projection rather than a torn response.
+Mutation lock and recheck behavior is unchanged.
 
 The `organizations` schema contains `organizations`, `members`, and
 `allowed_email_domains`; `auth.sessions.active_organization_id` is nullable,

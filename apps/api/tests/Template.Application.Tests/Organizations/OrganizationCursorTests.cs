@@ -27,6 +27,34 @@ public sealed class OrganizationCursorTests
         Assert.Equal(expected, decoded);
     }
 
+    [Theory]
+    [InlineData("\0")]
+    [InlineData("\n")]
+    [InlineData("\t")]
+    [InlineData("ACME!")]
+    [InlineData(" ACME")]
+    [InlineData("ACME ")]
+    [InlineData(" ")]
+    public void Organization_cursor_rejects_checksum_valid_invalid_names(
+        string normalizedName)
+    {
+        var encoded = RewriteOrganizationNameAndSign(normalizedName);
+
+        Assert.False(OrganizationCursor.TryDecode(
+            encoded,
+            out OrganizationCursorPosition _));
+    }
+
+    [Fact]
+    public void Organization_cursor_rejects_checksum_valid_overlength_name()
+    {
+        var encoded = RewriteOrganizationNameAndSign(new string('A', 51));
+
+        Assert.False(OrganizationCursor.TryDecode(
+            encoded,
+            out OrganizationCursorPosition _));
+    }
+
     [Fact]
     public void Member_cursor_round_trips_utc_ticks_and_uuid()
     {
@@ -172,6 +200,26 @@ public sealed class OrganizationCursorTests
         payload.CopyTo(result, 0);
         SHA256.HashData(payload)[..4].CopyTo(result, payload.Length);
         return Encode(result);
+    }
+
+    private static string RewriteOrganizationNameAndSign(string name)
+    {
+        var nameBytes = Encoding.UTF8.GetBytes(name);
+        var payload = new byte[4 + nameBytes.Length + 16];
+        payload[0] = 1;
+        payload[1] = 1;
+        BinaryPrimitives.WriteUInt16BigEndian(
+            payload.AsSpan(2, sizeof(ushort)),
+            checked((ushort)nameBytes.Length));
+        nameBytes.CopyTo(payload, 4);
+        OrganizationId.Value.TryWriteBytes(
+            payload.AsSpan(4 + nameBytes.Length, 16),
+            bigEndian: true,
+            out _);
+        var signed = new byte[payload.Length + 4];
+        payload.CopyTo(signed, 0);
+        SHA256.HashData(payload)[..4].CopyTo(signed, payload.Length);
+        return Encode(signed);
     }
 
     private static string ReplaceUnusedBase64Bits(string encoded)

@@ -22,10 +22,10 @@ public static class OrganizationCursor
     {
         ArgumentNullException.ThrowIfNull(position);
 
-        if (string.IsNullOrEmpty(position.NormalizedName))
+        if (!IsLegitimateNormalizedName(position.NormalizedName))
         {
             throw new ArgumentException(
-                "The normalized organization name cannot be empty.",
+                "The normalized organization name is invalid.",
                 nameof(position));
         }
 
@@ -108,7 +108,7 @@ public static class OrganizationCursor
             return false;
         }
 
-        if (normalizedName.Length == 0)
+        if (!IsLegitimateNormalizedName(normalizedName))
         {
             return false;
         }
@@ -234,4 +234,8 @@ public static class OrganizationCursor
             .TrimEnd('=')
             .Replace('+', '-')
             .Replace('/', '_');
+
+    private static bool IsLegitimateNormalizedName(string value) =>
+        OrganizationNamePolicy.TryNormalize(value, out var normalized) &&
+        string.Equals(value, normalized, StringComparison.Ordinal);
 }

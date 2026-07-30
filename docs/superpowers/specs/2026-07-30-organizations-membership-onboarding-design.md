@@ -115,15 +115,15 @@ preference и atomic cleanup. Потребовал бы ручной shared-tran
 
 ## 5. Reference correspondence
 
-| Reference | Новый API | Новый UI | Проверка |
-| --- | --- | --- | --- |
-| organization repository + load/create actions | `GET/POST /api/v1/organizations` | `/workspaces` | list, empty, create, slug collision |
-| active organization helpers/action | session active-organization REST | `/dashboard`, switcher | active/fallback/zero-org routing |
-| `OrganizationRouteGuard` | resolve accessible organization by key | `/w/[organizationKey]/**` | slug/UUID, canonical redirect, isolation |
-| update/delete workspace actions | organization PATCH/DELETE | settings workspace | authorization, domains, confirmation |
-| member repository + direct add | members GET/POST | settings users | directory and domain acknowledgement |
-| role policy + update action | member PATCH | role selector | assignment matrix and owner invariant |
-| onboarding guard | organization/session projections | `/welcome` | first-workspace journey |
+| Reference                                     | Новый API                              | Новый UI                  | Проверка                                 |
+| --------------------------------------------- | -------------------------------------- | ------------------------- | ---------------------------------------- |
+| organization repository + load/create actions | `GET/POST /api/v1/organizations`       | `/workspaces`             | list, empty, create, slug collision      |
+| active organization helpers/action            | session active-organization REST       | `/dashboard`, switcher    | active/fallback/zero-org routing         |
+| `OrganizationRouteGuard`                      | resolve accessible organization by key | `/w/[organizationKey]/**` | slug/UUID, canonical redirect, isolation |
+| update/delete workspace actions               | organization PATCH/DELETE              | settings workspace        | authorization, domains, confirmation     |
+| member repository + direct add                | members GET/POST                       | settings users            | directory and domain acknowledgement     |
+| role policy + update action                   | member PATCH                           | role selector             | assignment matrix and owner invariant    |
+| onboarding guard                              | organization/session projections       | `/welcome`                | first-workspace journey                  |
 
 Reference `/api/v1/organizations/**` route handlers use `x-api-key` and belong to
 iteration 7. Their read DTO meaning informs this contract, but their authentication
@@ -273,14 +273,14 @@ members.
 
 ## 9. Roles and permissions
 
-| Capability | member | admin | owner |
-| --- | --- | --- | --- |
-| Read safe organization/member context | yes | yes | yes |
-| Update organization/settings | no | yes | yes |
-| Direct-add member | no | yes | yes |
-| Assign `member` or `admin` | no | yes | yes |
-| Assign or mutate `owner` | no | no | yes |
-| Delete organization | no | no | yes |
+| Capability                            | member | admin | owner |
+| ------------------------------------- | ------ | ----- | ----- |
+| Read safe organization/member context | yes    | yes   | yes   |
+| Update organization/settings          | no     | yes   | yes   |
+| Direct-add member                     | no     | yes   | yes   |
+| Assign `member` or `admin`            | no     | yes   | yes   |
+| Assign or mutate `owner`              | no     | no    | yes   |
+| Delete organization                   | no     | no    | yes   |
 
 Additional invariants:
 
@@ -299,25 +299,25 @@ route requires `X-CSRF-TOKEN`. Responses are `Cache-Control: no-store`.
 
 ### Organization endpoints
 
-| Method | Route | Request | Success |
-| --- | --- | --- | --- |
-| GET | `/api/v1/organizations?cursor=&limit=` | query | `200 OrganizationPage` |
-| POST | `/api/v1/organizations` | `{ name }` | `201 OrganizationDetail` |
-| GET | `/api/v1/organizations/by-key/{organizationKey}` | path | `200 OrganizationDetail` |
-| PATCH | `/api/v1/organizations/{organizationId}` | strict non-empty partial body | `200 OrganizationDetail` |
-| DELETE | `/api/v1/organizations/{organizationId}` | `{ confirmationName }` | `200 OrganizationDeletion` |
-| PUT | `/api/v1/auth/session/active-organization` | `{ organizationId }` | `200 ActiveOrganization` |
+| Method | Route                                            | Request                       | Success                    |
+| ------ | ------------------------------------------------ | ----------------------------- | -------------------------- |
+| GET    | `/api/v1/organizations?cursor=&limit=`           | query                         | `200 OrganizationPage`     |
+| POST   | `/api/v1/organizations`                          | `{ name }`                    | `201 OrganizationDetail`   |
+| GET    | `/api/v1/organizations/by-key/{organizationKey}` | path                          | `200 OrganizationDetail`   |
+| PATCH  | `/api/v1/organizations/{organizationId}`         | strict non-empty partial body | `200 OrganizationDetail`   |
+| DELETE | `/api/v1/organizations/{organizationId}`         | `{ confirmationName }`        | `200 OrganizationDeletion` |
+| PUT    | `/api/v1/auth/session/active-organization`       | `{ organizationId }`          | `200 ActiveOrganization`   |
 
 `GET /api/v1/auth/session` adds nullable `activeOrganizationId` only in the
 authenticated session projection.
 
 ### Membership endpoints
 
-| Method | Route | Request | Success |
-| --- | --- | --- | --- |
-| GET | `/api/v1/organizations/{organizationId}/members?cursor=&limit=` | query | `200 OrganizationMemberPage` |
-| POST | `/api/v1/organizations/{organizationId}/members` | `{ userId, role, acknowledgeDomainRestriction? }` | `201 OrganizationMember` |
-| PATCH | `/api/v1/organizations/{organizationId}/members/{memberId}` | `{ role }` | `200 OrganizationMember` |
+| Method | Route                                                           | Request                                           | Success                      |
+| ------ | --------------------------------------------------------------- | ------------------------------------------------- | ---------------------------- |
+| GET    | `/api/v1/organizations/{organizationId}/members?cursor=&limit=` | query                                             | `200 OrganizationMemberPage` |
+| POST   | `/api/v1/organizations/{organizationId}/members`                | `{ userId, role, acknowledgeDomainRestriction? }` | `201 OrganizationMember`     |
+| PATCH  | `/api/v1/organizations/{organizationId}/members/{memberId}`     | `{ role }`                                        | `200 OrganizationMember`     |
 
 There is no member DELETE endpoint.
 
@@ -341,6 +341,11 @@ verbatim and never decode or synthesize them.
 - default limit 50;
 - accepted range 1–100;
 - canonical cursor corruption returns `400 invalid_cursor`;
+- after checksum/UTF-8 verification, an organization cursor's decoded
+  `normalizedName` must itself satisfy the shared runtime 1–50 UTF-16
+  organization-name Rune policy and contain no outer whitespace; NUL/control,
+  unsupported-symbol, empty, and overlength positions are `invalid_cursor`
+  before persistence;
 - no free-text search, role filter or global candidate listing in iteration 5.
 
 The UI renders the first page and explicit continuation/load-more behavior.
@@ -392,7 +397,21 @@ active organization. Failure rolls everything back.
 ### Set active
 
 One membership-qualified update changes only the current unexpired session.
+It does not take an exclusive organization `FOR UPDATE` lock, so independent
+selectors and nonmembers do not serialize through organization mutations.
 Foreign/non-member organization produces the non-disclosing not-found result.
+If organization deletion wins after the statement snapshot, only PostgreSQL
+`23503` for `fk_sessions_organizations_active_organization_id` (including an EF
+wrapper) maps to that same not-found result; other FK defects are not swallowed
+and serialization/deadlock mapping is unchanged.
+
+### Organization detail
+
+Accessible organization row/role and ordered allowed domains are read without
+exclusive locks from one repeatable-read snapshot. Concurrent detail reads
+progress together, and a concurrent update yields a wholly pre-update or
+post-update projection rather than mixed identity/domain state. Existing
+transaction nesting is reused rather than opening a nested transaction.
 
 ### List members
 
@@ -512,6 +531,16 @@ Unknown/complex workspace paths fall back to the selected organization dashboard
 Selecting the already-routed workspace skips that mutation only when its id also
 matches the persistent session preference. Thus an explicit selection after a
 deep link persists the routed workspace for a later `/dashboard`.
+
+The shared authenticated site-header/account-navigation guard mounts exactly one
+browser `getAuthSession` refresh after a complete authenticated projection.
+This unmarked call owns sliding renewal for `/welcome`, `/workspaces`, `/w/**`,
+and `/user/**`, then refreshes the server projection once; page-local dashboard
+refresh mounts are prohibited. The transient `/dashboard` resolver defers to
+its final protected destination. A document-scoped guard prevents
+redirect/remount duplicates and refresh loops, while
+duplicate reads, while anonymous, malformed, and API-failure projections mount
+no renewal.
 
 Protected organization pages redirect only an explicit anonymous session to a
 route-specific login URL. Transport, configuration and malformed-projection

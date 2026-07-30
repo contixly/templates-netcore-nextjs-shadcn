@@ -3,7 +3,6 @@ import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
 import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
-import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
 import { LogoutButton } from "@/src/components/authentication/logout-button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
@@ -33,7 +32,6 @@ export async function DashboardRuntime() {
 
   return (
     <section className="mx-auto w-full max-w-3xl space-y-6 px-4 py-12">
-      <BrowserSessionRefresh />
       <div className="space-y-2">
         <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
           {t("eyebrow")}

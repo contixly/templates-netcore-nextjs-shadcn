@@ -117,13 +117,21 @@ credential sign-in and cleanup use the same generated contract and CSRF rule.
 External sign-in, provider disconnect, profile update, session revoke,
 revoke-others, and account deletion use the same CSRF-first generated-SDK
 pattern.
-After an authenticated dashboard renders, a minimal Client Component performs
-an unmarked same-origin `getAuthSession` generated-SDK call. That browser-owned
-request can receive the secure HttpOnly sliding-renewal cookie. After a
-successful read, it refreshes the current App Router route so the uncached
-Server Component projects the now-current session timestamps; failed reads
-leave the existing server-rendered state in place. JavaScript never reads or
-copies the cookie.
+After the shared site-header server guard confirms one well-formed authenticated
+projection, it mounts exactly one minimal Client Component beside the account
+navigation. That component performs one unmarked same-origin `getAuthSession`
+generated-SDK call for protected `/welcome`, `/workspaces`, `/w/**`, and
+`/user/**` surfaces. The browser-owned request can receive the secure HttpOnly
+sliding-renewal cookie; a successful read refreshes the current App Router route
+so uncached Server Components project the now-current session, while a failed
+read leaves the existing projection in place. A document-scoped guard prevents
+a rerender, redirect/remount, or the refresh response from issuing a second
+request. The transient `/dashboard` resolver defers renewal to its final
+`/welcome` or `/w/**` destination, avoiding two document-level reads for one
+navigation. Anonymous,
+failed, and malformed server projections mount neither account navigation nor
+renewal. Individual dashboard/settings pages must not add duplicate refresh
+components. JavaScript never reads or copies the cookie.
 
 Redirect targets are normalized to safe same-origin application paths. Full
 URLs, protocol-relative `//` values, malformed escapes, repeated encoded
@@ -162,8 +170,9 @@ The site header streams its account entry below a request-time
 `connection()`/`Suspense` boundary and shows it only for a confirmed
 authenticated projection; anonymous, failed, or malformed projections fail
 closed. This visible entry is the supported path from workspace UI into the
-protected account shell and its logout control, and its cached SSR session read
-suppresses sliding renewal.
+protected account shell and its logout control. Its cached SSR session read
+suppresses sliding renewal, and the same confirmed header guard owns the single
+browser renewal described above.
 
 The protected `/user` shell is request-time server rendered below
 `connection()`/`Suspense`. It forwards only the incoming cookie and correlation

@@ -116,12 +116,25 @@ test.describe.serial("organization full-stack workflows", () => {
       onboardingOwner,
       "onboarding owner",
     );
+    let browserSessionReads = 0;
+    page.on("request", (request) => {
+      if (
+        request.method() === "GET" &&
+        new URL(request.url()).pathname === "/api/v1/auth/session"
+      ) {
+        expect(request.headers()["x-template-session-renewal"]).toBeUndefined();
+        browserSessionReads += 1;
+      }
+    });
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL("/welcome");
     await expect(
       page.getByRole("heading", { name: "Create your first workspace" }),
     ).toBeVisible();
+    await expect.poll(() => browserSessionReads).toBe(1);
+    await page.waitForTimeout(250);
+    expect(browserSessionReads).toBe(1);
     await page.goto("/workspaces");
     await expect(
       page.getByRole("heading", { name: "Workspaces", exact: true }),
@@ -129,6 +142,9 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "No workspaces yet" }),
     ).toBeVisible();
+    await expect.poll(() => browserSessionReads).toBe(2);
+    await page.waitForTimeout(250);
+    expect(browserSessionReads).toBe(2);
     await waitForOrganizationControlInteraction(
       page.getByRole("button", { name: "Create New Workspace" }),
     );
@@ -142,6 +158,9 @@ test.describe.serial("organization full-stack workflows", () => {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
     }
+    await expect.poll(() => browserSessionReads).toBe(6);
+    await page.waitForTimeout(250);
+    expect(browserSessionReads).toBe(6);
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL("/welcome");
@@ -198,6 +217,9 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("navigation", { name: "Workspace settings" }),
     ).toBeVisible();
+    await expect.poll(() => browserSessionReads).toBe(12);
+    await page.waitForTimeout(250);
+    expect(browserSessionReads).toBe(12);
     await expectNoFutureOrganizationLinks(page);
   });
 

@@ -45,7 +45,6 @@ jest.mock("@/src/components/authentication/logout-button", () => ({
 jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
-
 const loadSession = jest.mocked(loadServerAuthSession);
 const redirect = jest.mocked(jest.requireMock("next/navigation").redirect);
 
@@ -127,6 +126,8 @@ it("renders only safe user and session fields", async () => {
   expect(
     screen.getByText("01900000-0000-7000-8000-000000000002"),
   ).toBeInTheDocument();
-  expect(screen.getByTestId("browser-session-refresh")).toBeInTheDocument();
+  expect(
+    screen.queryByTestId("browser-session-refresh"),
+  ).not.toBeInTheDocument();
   expect(document.body.textContent).not.toMatch(/password|ticket_key|cookie/i);
 });

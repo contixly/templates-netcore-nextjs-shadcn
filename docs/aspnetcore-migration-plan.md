@@ -1050,6 +1050,34 @@ pushes this commit and receives the next automatic review state.
 | clean production build and standalone guard                           | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                                                           |
 | default full 5-worker E2E                                             | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                                     |
 
+### PR #6 auto-review round 3 verification 2026-07-31
+
+All four confirmed consistency findings were repaired test-first without
+expanding iteration 5. Set-active no longer takes an exclusive organization
+lock and maps only its exact deletion FK race to non-disclosing not-found.
+Organization detail reads use one non-locking repeatable-read snapshot. Decoded
+organization cursor names share the runtime Application name policy. One
+fail-closed renewal component now belongs to the shared authenticated site
+header guard; page-local dashboard copies are removed and the transient
+`/dashboard` resolver defers to its protected destination. Task 14's final
+clean-review step remains pending until the controller pushes this commit and
+receives the next automatic review state.
+
+| Command / gate                                                       | Observed result                                                                                                                                                                                       |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| four focused RED cycles                                              | Expected failures reproduced exclusive set-active blocking/exact-FK classification gaps, invalid decoded names reaching PostgreSQL, torn organization detail, and missing/duplicate protected renewal |
+| focused organization Application/API/web                             | PASS; organization Application 71/71, API/integration 85/85, selected web suites 67/67; final browser-renewal regression 3/3                                                                          |
+| focused organization Playwright                                      | PASS; 5/5 using one worker, including one unmarked session read per protected hard navigation and no redirect/refresh loop                                                                            |
+| `dotnet restore/build/test/format`                                   | PASS; build 0 warnings/errors; Application 179/179, API 417/417, total 596/596; format clean                                                                                                          |
+| EF pending-model check and idempotent script                         | PASS; no pending model changes; `/tmp/template-pr-review-round-3.sql` 22,767 bytes                                                                                                                    |
+| `dotnet list Template.sln package --vulnerable --include-transitive` | PASS; no vulnerable direct/transitive package in all 7 projects                                                                                                                                       |
+| two OpenAPI exports, reviewed-contract diff, and generated SDK check | PASS; deterministic unchanged SHA-256 `dc2a10e2da80545c30e4e8db16bff86c3a285fc90da4abf1cb0c93fe4becc524`; generated SDK 4 files current                                                               |
+| clean `npm ci`, production and full audits                           | PASS install; 0 production vulnerabilities; known full development audit remains 26 high and 0 info/low/moderate/critical                                                                             |
+| boundaries, Prettier, ESLint, and typecheck                          | PASS; boundary harness 3/3 and all format/lint/type gates clean                                                                                                                                       |
+| `npm test -- --runInBand`                                            | PASS; 51/51 suites, 331/331 tests, 0 snapshots                                                                                                                                                        |
+| clean production build and standalone guard                          | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                                             |
+| default full 5-worker E2E                                            | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                       |
+
 **Next product gate:** iteration 6 may start only as its own planned vertical
 slice for Teams and invitations: define invitation security/expiry,
 accept/reject lifecycle, team membership, notifications/email boundary, and

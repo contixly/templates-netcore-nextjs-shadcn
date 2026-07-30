@@ -2,7 +2,6 @@ import { forbidden, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
-import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
 import {
@@ -70,7 +69,6 @@ export default async function OrganizationDashboardPage({
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
-      <BrowserSessionRefresh />
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-muted-foreground">{t("description")}</p>

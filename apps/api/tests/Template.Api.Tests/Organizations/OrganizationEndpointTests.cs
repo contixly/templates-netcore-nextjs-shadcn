@@ -1,5 +1,7 @@
+using System.Buffers.Binary;
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -510,6 +512,16 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             invalidCursor,
             HttpStatusCode.BadRequest,
             "invalid_cursor");
+        var nulCursor = CreateChecksumValidOrganizationCursor(
+            "\0",
+            organizationId);
+        using var invalidDatabaseCursor = await client.GetAsync(
+            $"/api/v1/organizations?cursor={nulCursor}",
+            TestContext.Current.CancellationToken);
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            invalidDatabaseCursor,
+            HttpStatusCode.BadRequest,
+            "invalid_cursor");
         using var invalidMemberLimit = await client.GetAsync(
             $"/api/v1/organizations/{organizationId:D}/members?limit=0",
             TestContext.Current.CancellationToken);
@@ -739,6 +751,31 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
                 UpdateOrganizationMemberRoleCommand command,
                 CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private static string CreateChecksumValidOrganizationCursor(
+        string normalizedName,
+        Guid organizationId)
+    {
+        var name = Encoding.UTF8.GetBytes(normalizedName);
+        var payload = new byte[4 + name.Length + 16];
+        payload[0] = 1;
+        payload[1] = 1;
+        BinaryPrimitives.WriteUInt16BigEndian(
+            payload.AsSpan(2, sizeof(ushort)),
+            checked((ushort)name.Length));
+        name.CopyTo(payload, 4);
+        organizationId.TryWriteBytes(
+            payload.AsSpan(4 + name.Length, 16),
+            bigEndian: true,
+            out _);
+        var signed = new byte[payload.Length + 4];
+        payload.CopyTo(signed, 0);
+        SHA256.HashData(payload)[..4].CopyTo(signed, payload.Length);
+        return Convert.ToBase64String(signed)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
     }
 }
 

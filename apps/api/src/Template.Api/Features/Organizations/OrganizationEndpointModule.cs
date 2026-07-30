@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Template.Api.Authentication;
 using Template.Api.Contracts;
@@ -755,26 +754,22 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
     private static string ValidateName(string? value)
     {
-        var name = value?.Trim() ?? string.Empty;
-        if (name.Length is < 1 or > 50)
+        if (OrganizationNamePolicy.TryNormalize(value, out var name))
+        {
+            return name;
+        }
+
+        var candidate = value?.Trim() ?? string.Empty;
+        if (candidate.Length is < 1 or > OrganizationNamePolicy.MaximumLength)
         {
             throw Validation(
                 "name",
                 "An organization name of at most 50 characters is required.");
         }
 
-        foreach (var rune in name.EnumerateRunes())
-        {
-            if (!Rune.IsLetterOrDigit(rune)
-                && rune.Value is not ' ' and not '-' and not '_')
-            {
-                throw Validation(
-                    "name",
-                    "The organization name contains an unsupported character.");
-            }
-        }
-
-        return name;
+        throw Validation(
+            "name",
+            "The organization name contains an unsupported character.");
     }
 
     private static OrganizationRole ValidateRole(string? value)

@@ -147,6 +147,82 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task Concurrent_organization_details_progress_together()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "concurrent-detail-owner@local-agent.test");
+        var organizationId = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Concurrent Detail",
+            "concurrent-detail",
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentDetailReads();
+
+        var results = await Task.WhenAll(
+            fixture.GetOrganizationAsync(owner.UserId, "concurrent-detail"),
+            fixture.GetOrganizationAsync(
+                owner.UserId,
+                organizationId.Value.ToString("D")));
+
+        Assert.All(results, result =>
+        {
+            Assert.True(result.Succeeded);
+            Assert.Equal(
+                organizationId,
+                Assert.IsType<OrganizationDetail>(result.Value).Id);
+        });
+    }
+
+    [Fact]
+    public async Task Organization_detail_uses_one_snapshot_for_row_and_domains()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "snapshot-detail-owner@local-agent.test");
+        var organizationId = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Before Detail",
+            "snapshot-detail",
+            OrganizationRole.Owner);
+        await fixture.SeedAllowedDomainsAsync(
+            organizationId,
+            "before.example");
+        fixture.PauseNextDetailBeforeDomains();
+
+        var reading = fixture.GetOrganizationAsync(
+            owner.UserId,
+            "snapshot-detail");
+        await fixture.WaitForPausedDetailAsync();
+        var update = fixture.UpdateOrganizationProjectionAsync(
+            owner,
+            organizationId,
+            "After Detail",
+            ["after.example"]);
+        OrganizationOperationResult<OrganizationDetail> updated;
+        try
+        {
+            updated = await update.WaitAsync(
+                TimeSpan.FromSeconds(2),
+                TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            fixture.ReleasePausedDetail();
+        }
+
+        Assert.True(updated.Succeeded);
+        var detail = Assert.IsType<OrganizationDetail>((await reading).Value);
+        var isBefore =
+            detail.Name == "Before Detail" &&
+            detail.AllowedEmailDomains.SequenceEqual(["before.example"]);
+        var isAfter =
+            detail.Name == "After Detail" &&
+            detail.AllowedEmailDomains.SequenceEqual(["after.example"]);
+        Assert.True(isBefore || isAfter);
+    }
+
+    [Fact]
     public async Task Uuid_keys_resolve_only_by_id_even_if_invalid_legacy_slug_rows_collide()
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
@@ -848,7 +924,34 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
         Assert.Null(await db.Sessions
             .Where(row => row.Id == foreign.SessionId.Value)
             .Select(row => row.ActiveOrganizationId)
-            .SingleAsync(TestContext.Current.CancellationToken));
+                .SingleAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Set_active_maps_only_the_active_organization_fk_to_not_found()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "active-fk-owner@local-agent.test");
+        var organizationId = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Active FK",
+            "active-fk",
+            OrganizationRole.Owner);
+        fixture.FailNextSetActive(
+            WrappedForeignKeyViolation(
+                "fk_sessions_organizations_active_organization_id"));
+
+        var deletedRace = await fixture.SetActiveOrganizationAsync(
+            actor,
+            organizationId);
+
+        Assert.Equal(OrganizationFailure.NotFound, deletedRace.Failure);
+
+        fixture.FailNextSetActive(
+            WrappedForeignKeyViolation("fk_unrelated_programming_error"));
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            fixture.SetActiveOrganizationAsync(actor, organizationId));
     }
 
     [Fact]
@@ -877,6 +980,17 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
         Assert.True(OrganizationSlug.TryCreate(value, out var slug));
         return slug;
     }
+
+    private static DbUpdateException WrappedForeignKeyViolation(
+        string constraintName) =>
+        new(
+            "The set-active statement failed.",
+            new PostgresException(
+                "The insert or update violates a foreign key.",
+                "ERROR",
+                "ERROR",
+                PostgresErrorCodes.ForeignKeyViolation,
+                constraintName: constraintName));
 }
 
 internal sealed class OrganizationStoreFixture : IAsyncDisposable
@@ -926,10 +1040,13 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         services.AddSingleton<TimeProvider>(new FixedOrganizationTimeProvider(Now));
         services.AddSingleton<OrganizationNameConflictBarrier>();
         services.AddSingleton<OrganizationMemberListBarrier>();
+        services.AddSingleton<OrganizationSetActiveFailureInterceptor>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
             options.AddInterceptors(
                 provider.GetRequiredService<OrganizationNameConflictBarrier>(),
-                provider.GetRequiredService<OrganizationMemberListBarrier>()));
+                provider.GetRequiredService<OrganizationMemberListBarrier>(),
+                provider.GetRequiredService<
+                    OrganizationSetActiveFailureInterceptor>()));
         services.AddAuthInfrastructure(
             configuration,
             new TestHostEnvironment());
@@ -983,6 +1100,9 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
             .GetRequiredService<OrganizationMemberListBarrier>()
             .CoordinateNextPair();
 
+    internal void CoordinateConcurrentDetailReads() =>
+        CoordinateConcurrentMemberLists();
+
     internal void PauseNextMemberListAfterAuthorization() =>
         _services
             .GetRequiredService<OrganizationMemberListBarrier>()
@@ -997,6 +1117,18 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         _services
             .GetRequiredService<OrganizationMemberListBarrier>()
             .ReleasePaused();
+
+    internal void PauseNextDetailBeforeDomains() =>
+        PauseNextMemberListAfterAuthorization();
+
+    internal Task WaitForPausedDetailAsync() => WaitForPausedMemberListAsync();
+
+    internal void ReleasePausedDetail() => ReleasePausedMemberList();
+
+    internal void FailNextSetActive(Exception exception) =>
+        _services
+            .GetRequiredService<OrganizationSetActiveFailureInterceptor>()
+            .FailNext(exception);
 
     internal TemplateDbContext CreateDbContext()
     {
@@ -1158,11 +1290,56 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         }
     }
 
+    internal Task<OrganizationRowLock> LockOrganizationForUpdateAsync(
+        OrganizationId organizationId) =>
+        LockOrganizationAsync(organizationId, "FOR UPDATE");
+
+    internal Task<OrganizationRowLock> LockOrganizationForKeyShareAsync(
+        OrganizationId organizationId) =>
+        LockOrganizationAsync(organizationId, "FOR KEY SHARE");
+
+    private async Task<OrganizationRowLock> LockOrganizationAsync(
+        OrganizationId organizationId,
+        string lockClause)
+    {
+        var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        var transaction = await connection.BeginTransactionAsync(
+            TestContext.Current.CancellationToken);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                $"""
+                 SELECT id
+                 FROM organizations.organizations
+                 WHERE id = @organization_id
+                 {lockClause}
+                 """;
+            command.Parameters.AddWithValue(
+                "organization_id",
+                organizationId.Value);
+            var locked = await command.ExecuteScalarAsync(
+                TestContext.Current.CancellationToken);
+            if (locked is not Guid)
+            {
+                throw new InvalidOperationException(
+                    "The test organization row could not be locked.");
+            }
+
+            return new OrganizationRowLock(connection, transaction);
+        }
+        catch
+        {
+            await transaction.DisposeAsync();
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
     internal Task WaitForSessionUpdateLockAsync() =>
         WaitForBlockedCommandAsync("UPDATE auth.sessions");
-
-    internal Task WaitForOrganizationLockAsync() =>
-        WaitForBlockedCommandAsync("FROM organizations.organizations");
 
     private async Task WaitForBlockedCommandAsync(string commandFragment)
     {
@@ -1288,6 +1465,18 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
     }
 
     internal async Task<OrganizationOperationResult<OrganizationDetail>>
+        GetOrganizationAsync(UserId actorUserId, string organizationKey)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .GetByKeyAsync(
+                actorUserId,
+                organizationKey,
+                TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<OrganizationOperationResult<OrganizationDetail>>
         UpdateOrganizationAsync(
             OrganizationActor actor,
             OrganizationId organizationId,
@@ -1303,6 +1492,26 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                     name,
                     Slug: null,
                     AllowedEmailDomains: null),
+                TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<OrganizationOperationResult<OrganizationDetail>>
+        UpdateOrganizationProjectionAsync(
+            OrganizationActor actor,
+            OrganizationId organizationId,
+            string name,
+            IReadOnlyList<string> allowedEmailDomains)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .UpdateAsync(
+                new UpdateOrganizationCommand(
+                    actor.UserId,
+                    organizationId,
+                    name,
+                    Slug: null,
+                    AllowedEmailDomains: allowedEmailDomains),
                 TestContext.Current.CancellationToken);
     }
 
@@ -1413,6 +1622,28 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
 internal sealed record OrganizationActor(UserId UserId, SessionId SessionId);
 
 internal sealed class SessionRowLock(
+    NpgsqlConnection connection,
+    NpgsqlTransaction transaction)
+    : IAsyncDisposable
+{
+    private int _released;
+
+    internal async ValueTask ReleaseAsync()
+    {
+        if (Interlocked.Exchange(ref _released, 1) != 0)
+        {
+            return;
+        }
+
+        await transaction.CommitAsync(TestContext.Current.CancellationToken);
+        await transaction.DisposeAsync();
+        await connection.DisposeAsync();
+    }
+
+    public ValueTask DisposeAsync() => ReleaseAsync();
+}
+
+internal sealed class OrganizationRowLock(
     NpgsqlConnection connection,
     NpgsqlTransaction transaction)
     : IAsyncDisposable
@@ -1575,4 +1806,30 @@ internal sealed class OrganizationMemberListBarrier : DbCommandInterceptor
 
     private static TaskCompletionSource NewSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+internal sealed class OrganizationSetActiveFailureInterceptor
+    : DbCommandInterceptor
+{
+    private Exception? _nextFailure;
+
+    internal void FailNext(Exception exception) =>
+        Interlocked.Exchange(ref _nextFailure, exception);
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        if (command.CommandText.Contains(
+                "UPDATE auth.sessions",
+                StringComparison.OrdinalIgnoreCase) &&
+            Interlocked.Exchange(ref _nextFailure, null) is { } failure)
+        {
+            throw failure;
+        }
+
+        return ValueTask.FromResult(result);
+    }
 }

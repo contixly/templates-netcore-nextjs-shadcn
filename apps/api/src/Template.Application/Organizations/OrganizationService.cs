@@ -1,4 +1,3 @@
-using System.Text;
 using Template.Application.Organizations.Ports;
 using Template.Domain.Authentication;
 using Template.Domain.Organizations;
@@ -55,7 +54,7 @@ public sealed class OrganizationService(IOrganizationStore organizations)
         string? name,
         CancellationToken cancellationToken)
     {
-        if (!TryNormalizeName(name, out var normalizedName))
+        if (!OrganizationNamePolicy.TryNormalize(name, out var normalizedName))
         {
             return Task.FromResult(
                 OrganizationOperationResult<OrganizationDetail>.Failed(
@@ -79,7 +78,8 @@ public sealed class OrganizationService(IOrganizationStore organizations)
         CancellationToken cancellationToken)
     {
         string? normalizedName = null;
-        if (name is not null && !TryNormalizeName(name, out normalizedName))
+        if (name is not null &&
+            !OrganizationNamePolicy.TryNormalize(name, out normalizedName))
         {
             return Task.FromResult(
                 OrganizationOperationResult<OrganizationDetail>.Failed(
@@ -147,26 +147,6 @@ public sealed class OrganizationService(IOrganizationStore organizations)
                 sessionId,
                 organizationId),
             cancellationToken);
-
-    private static bool TryNormalizeName(string? name, out string normalizedName)
-    {
-        normalizedName = name?.Trim() ?? string.Empty;
-        if (normalizedName.Length is < 1 or > 50)
-        {
-            return false;
-        }
-
-        foreach (var rune in normalizedName.EnumerateRunes())
-        {
-            if (!Rune.IsLetterOrDigit(rune)
-                && rune.Value is not ' ' and not '-' and not '_')
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
 
     private static void ValidateLimit(int limit)
     {

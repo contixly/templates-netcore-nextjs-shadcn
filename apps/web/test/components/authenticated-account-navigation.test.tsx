@@ -1,14 +1,18 @@
+import { screen } from "@testing-library/react";
 import { connection } from "next/server";
 
-import { AccountHeaderNavigation } from "@/src/components/account/account-header-navigation";
 import { AuthenticatedAccountNavigation } from "@/src/components/account/authenticated-account-navigation";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
+import { renderWithMessages } from "@/test/support/render";
 
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock("@/src/lib/api/auth/server/load-server-auth-session", () => ({
   loadServerAuthSession: jest.fn(),
+}));
+jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
+  BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
 
 const loadSession = jest.mocked(loadServerAuthSession);
@@ -17,7 +21,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-it("renders the account navigation only for a confirmed authenticated session", async () => {
+it("mounts one shared browser renewal with authenticated account navigation", async () => {
   loadSession.mockResolvedValue({
     ok: true,
     data: {
@@ -43,7 +47,11 @@ it("renders the account navigation only for a confirmed authenticated session", 
 
   expect(connection).toHaveBeenCalledTimes(1);
   expect(loadSession).toHaveBeenCalledTimes(1);
-  expect(navigation).toEqual(<AccountHeaderNavigation />);
+  renderWithMessages(navigation);
+  expect(screen.getByTestId("browser-session-refresh")).toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "Account settings" }),
+  ).toBeInTheDocument();
 });
 
 it.each([
@@ -62,8 +70,16 @@ it.each([
       code: "api_unavailable" as const,
     },
   },
+  {
+    ok: true as const,
+    data: {
+      authenticated: true as const,
+      user: null,
+      session: null,
+    },
+  },
 ])(
-  "hides account navigation when authentication is not confirmed",
+  "hides account navigation and renewal when authentication is not confirmed",
   async (result) => {
     loadSession.mockResolvedValue(result);
 

@@ -4,9 +4,14 @@ import { BrowserSessionRefresh } from "@/src/components/authentication/browser-s
 import { refreshBrowserAuthSession } from "@/src/lib/api/auth/browser/refresh-browser-auth-session";
 
 const refreshRoute = jest.fn();
+let pathname = "/workspaces";
+const refreshStartedMarker = Symbol.for(
+  "template.browser-session-refresh.started",
+);
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: refreshRoute }),
+  usePathname: () => pathname,
 }));
 jest.mock("@/src/lib/api/auth/browser/refresh-browser-auth-session", () => ({
   refreshBrowserAuthSession: jest.fn(),
@@ -16,6 +21,10 @@ const refreshSession = jest.mocked(refreshBrowserAuthSession);
 
 beforeEach(() => {
   jest.clearAllMocks();
+  pathname = "/workspaces";
+  delete (window as unknown as Window & Record<symbol, boolean | undefined>)[
+    refreshStartedMarker
+  ];
   refreshSession.mockResolvedValue({
     ok: true,
     data: {
@@ -38,14 +47,35 @@ beforeEach(() => {
   });
 });
 
-it("refreshes the authenticated browser session after hydration", async () => {
-  const { container } = render(<BrowserSessionRefresh />);
+it("waits for the dashboard resolver to reach its protected destination", async () => {
+  pathname = "/dashboard";
+
+  render(<BrowserSessionRefresh />);
+
+  await Promise.resolve();
+  expect(refreshSession).not.toHaveBeenCalled();
+  expect(refreshRoute).not.toHaveBeenCalled();
+});
+
+it("refreshes the authenticated browser session once per document", async () => {
+  const { container, rerender, unmount } = render(<BrowserSessionRefresh />);
 
   expect(container).toBeEmptyDOMElement();
   await waitFor(() => {
     expect(refreshSession).toHaveBeenCalledTimes(1);
     expect(refreshRoute).toHaveBeenCalledTimes(1);
   });
+
+  rerender(<BrowserSessionRefresh />);
+  await Promise.resolve();
+  expect(refreshSession).toHaveBeenCalledTimes(1);
+  expect(refreshRoute).toHaveBeenCalledTimes(1);
+
+  unmount();
+  render(<BrowserSessionRefresh />);
+  await Promise.resolve();
+  expect(refreshSession).toHaveBeenCalledTimes(1);
+  expect(refreshRoute).toHaveBeenCalledTimes(1);
 });
 
 it("does not refresh the dashboard when the browser session read fails", async () => {

@@ -181,7 +181,77 @@ public sealed class OrganizationConcurrencyTests(
     }
 
     [Fact]
-    public async Task Set_active_and_delete_race_serializes_without_database_failure()
+    public async Task Concurrent_selections_do_not_take_an_exclusive_organization_lock()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var first = await fixture.CreateUserAndSessionAsync(
+            "set-active-parallel-first@local-agent.test");
+        var second = await fixture.CreateUserAndSessionAsync(
+            "set-active-parallel-second@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            first,
+            "Parallel Selection",
+            "parallel-selection",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            target,
+            second,
+            OrganizationRole.Member);
+        await using var organizationLock =
+            await fixture.LockOrganizationForKeyShareAsync(target);
+
+        var selections = Task.WhenAll(
+            fixture.SetActiveOrganizationAsync(first, target),
+            fixture.SetActiveOrganizationAsync(second, target));
+        var completedWhileKeyShareHeld = ReferenceEquals(
+            selections,
+            await Task.WhenAny(
+                selections,
+                Task.Delay(
+                    TimeSpan.FromSeconds(1),
+                    TestContext.Current.CancellationToken)));
+        await organizationLock.ReleaseAsync();
+        var results = await selections;
+
+        Assert.True(completedWhileKeyShareHeld);
+        Assert.All(results, result => Assert.True(result.Succeeded));
+    }
+
+    [Fact]
+    public async Task Nonmember_selection_does_not_wait_on_an_organization_row_lock()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "set-active-nonmember@local-agent.test");
+        var foreign = await fixture.CreateUserAndSessionAsync(
+            "set-active-nonmember-foreign@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            foreign,
+            "Locked Foreign",
+            "locked-foreign",
+            OrganizationRole.Owner);
+        await using var organizationLock =
+            await fixture.LockOrganizationForUpdateAsync(target);
+
+        var selection = fixture.SetActiveOrganizationAsync(actor, target);
+        var completedWhileLocked = ReferenceEquals(
+            selection,
+            await Task.WhenAny(
+                selection,
+                Task.Delay(
+                    TimeSpan.FromSeconds(1),
+                    TestContext.Current.CancellationToken)));
+        await organizationLock.ReleaseAsync();
+        var result = await selection;
+
+        Assert.True(completedWhileLocked);
+        Assert.Equal(OrganizationFailure.NotFound, result.Failure);
+    }
+
+    [Fact]
+    public async Task Set_active_and_delete_interleaving_returns_not_found_instead_of_an_fk_failure()
     {
         await using var fixture =
             await OrganizationStoreFixture.CreateAsync(postgres);
@@ -206,14 +276,21 @@ public sealed class OrganizationConcurrencyTests(
             owner,
             target,
             "Delete Target");
-        await fixture.WaitForOrganizationLockAsync();
+        var deletionCompletedBeforeSessionRelease = ReferenceEquals(
+            deletion,
+            await Task.WhenAny(
+                deletion,
+                Task.Delay(
+                    TimeSpan.FromSeconds(1),
+                    TestContext.Current.CancellationToken)));
         await sessionLock.ReleaseAsync();
 
         var deleted = await deletion;
         var selected = await selection;
 
+        Assert.True(deletionCompletedBeforeSessionRelease);
         Assert.True(deleted.Succeeded);
-        Assert.True(selected.Succeeded);
+        Assert.Equal(OrganizationFailure.NotFound, selected.Failure);
     }
 
     [Fact]
