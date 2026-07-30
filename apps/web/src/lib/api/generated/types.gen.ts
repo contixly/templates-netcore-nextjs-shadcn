@@ -1092,10 +1092,6 @@ export type CreateOrganizationErrors = {
      */
     401: ProblemDetails;
     /**
-     * Forbidden
-     */
-    403: ProblemDetails;
-    /**
      * Method Not Allowed
      */
     405: ProblemDetails;
@@ -1124,7 +1120,7 @@ export type GetOrganizationByKeyData = {
     body?: never;
     path: {
         /**
-         * Canonical organization UUID or lowercase slug. UUID-shaped values are resolved as IDs; the response canonicalKey is always the preferred slug.
+         * Canonical organization UUID or lowercase slug. An accessible organization ID takes precedence; otherwise an accessible UUID-shaped slug is used as a fallback. The response canonicalKey is always the preferred slug.
          */
         organizationKey: string | string;
     };

@@ -18,7 +18,7 @@ internal sealed class OrganizationContractOperationTransformer
         new Dictionary<string, int[]>(StringComparer.Ordinal)
         {
             ["GetOrganizations"] = [400, 401, 405, 500],
-            ["CreateOrganization"] = [400, 401, 403, 405, 409, 500],
+            ["CreateOrganization"] = [400, 401, 405, 409, 500],
             ["GetOrganizationByKey"] = [401, 404, 405, 500],
             ["UpdateOrganization"] = [400, 401, 403, 404, 405, 409, 500],
             ["DeleteOrganization"] = [400, 401, 403, 404, 405, 409, 500],
@@ -215,8 +215,10 @@ internal sealed class OrganizationContractOperationTransformer
             }
         ];
         schema.Description =
-            "Canonical organization UUID or lowercase slug. UUID-shaped values are " +
-            "resolved as IDs; the response canonicalKey is always the preferred slug.";
+            "Canonical organization UUID or lowercase slug. An accessible " +
+            "organization ID takes precedence; otherwise an accessible UUID-shaped " +
+            "slug is used as a fallback. The response canonicalKey is always the " +
+            "preferred slug.";
     }
 
     private static void ApplyPaginationContract(OpenApiOperation operation)

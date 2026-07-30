@@ -1395,16 +1395,6 @@
               }
             }
           },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
           "405": {
             "description": "Method Not Allowed",
             "content": {
@@ -1462,7 +1452,7 @@
                   }
                 }
               ],
-              "description": "Canonical organization UUID or lowercase slug. UUID-shaped values are resolved as IDs; the response canonicalKey is always the preferred slug."
+              "description": "Canonical organization UUID or lowercase slug. An accessible organization ID takes precedence; otherwise an accessible UUID-shaped slug is used as a fallback. The response canonicalKey is always the preferred slug."
             }
           }
         ],

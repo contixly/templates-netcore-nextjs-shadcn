@@ -674,7 +674,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "CreateOrganization",
                 SuccessStatus = "201",
                 Envelope = "ApiResponseOfOrganizationDetailResponse",
-                ProblemStatuses = new[] { "400", "401", "403", "405", "409", "500" },
+                ProblemStatuses = new[] { "400", "401", "405", "409", "500" },
                 Mutation = true,
                 BadRequestIsUnion = true
             },
@@ -880,6 +880,12 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         var uuid = alternatives[0]!;
         Assert.Equal("string", uuid["type"]!.GetValue<string>());
         Assert.Equal("uuid", uuid["format"]!.GetValue<string>());
+        const string canonicalUuidPattern =
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
+            "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+        Assert.Equal(
+            canonicalUuidPattern,
+            uuid["pattern"]!.GetValue<string>());
 
         var slug = alternatives[1]!;
         Assert.Equal("string", slug["type"]!.GetValue<string>());
@@ -888,6 +894,26 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Equal(
             "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             slug["pattern"]!.GetValue<string>());
+        Assert.Equal(
+            "string",
+            slug["not"]!["type"]!.GetValue<string>());
+        Assert.Equal(
+            canonicalUuidPattern,
+            slug["not"]!["pattern"]!.GetValue<string>());
+        const string uuidShapedKey = "01900000-0000-7000-8000-000000000001";
+        Assert.Matches(canonicalUuidPattern, uuidShapedKey);
+        Assert.Matches(
+            slug["pattern"]!.GetValue<string>(),
+            uuidShapedKey);
+        Assert.Matches(
+            slug["not"]!["pattern"]!.GetValue<string>(),
+            uuidShapedKey);
+        Assert.Equal(
+            "Canonical organization UUID or lowercase slug. An accessible " +
+            "organization ID takes precedence; otherwise an accessible " +
+            "UUID-shaped slug is used as a fallback. The response canonicalKey " +
+            "is always the preferred slug.",
+            parameter["schema"]!["description"]!.GetValue<string>());
     }
 
     [Fact]
