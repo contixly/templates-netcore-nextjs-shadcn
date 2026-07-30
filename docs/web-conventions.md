@@ -263,3 +263,38 @@ test -f .next/standalone/server.js
 
 E2E starts ASP.NET Core on `127.0.0.1:5297` and Next.js on
 `127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.
+
+## Organization-aware UI (iteration 5)
+
+Organization loaders and member loaders are generated-SDK-only SSR adapters.
+Like other cookie-bearing projections, they forward only the allow-listed
+cookie/correlation context and add `X-Template-Session-Renewal: suppress`; the
+browser's normal unmarked session read remains responsible for any sliding
+renewal. Browser organization mutations first obtain CSRF and use the generated
+SDK; raw organization `fetch` calls and hand-written DTOs are prohibited.
+
+`/dashboard` resolves the active accessible organization, otherwise the first
+organization in server ordering, otherwise redirects to `/welcome`. `/welcome`
+renders first-workspace onboarding only for zero accessible organizations;
+otherwise it redirects through `/dashboard`. `/workspaces` is the paged,
+explicit-load-more list. `/w/{organizationKey}` accepts a UUID or slug but
+redirects to `/w/{canonicalSlug}/dashboard`; a deep-link read never changes
+active context. A missing key sends a zero-organization user to onboarding and
+a user with another accessible organization to `forbidden()`, so the API's
+non-disclosure result keeps the intended protected UI distinction.
+
+Workspace settings are `/w/{key}/settings/{workspace,users,roles}`. They show
+only the fixed organization roles and omit Teams, Invitations, and API Keys.
+The header's route-owned parallel switcher slot calls set-active before routing;
+it preserves known one-key settings routes and otherwise goes to the selected
+dashboard. A slug update replaces the browser URL with the returned canonical
+key.
+
+Lists return opaque server cursors unchanged, explicitly load more, and
+de-duplicate ids. Mutation responses are immediately authoritative. A successful
+write followed by a failed refresh remains a confirmed partial success: the UI
+keeps a conservative projection and offers a GET-only refresh retry, never
+repeats the mutation. Direct member add exposes an outside-domain confirmation
+only for the typed 409 acknowledgement problem; the initial request has no
+write. Directory state also keeps the current actor separate and never renders
+member removal controls.

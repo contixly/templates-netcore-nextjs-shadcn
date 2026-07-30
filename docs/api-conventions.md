@@ -384,3 +384,66 @@ git diff --exit-code -- contracts/openapi/v1.json
 Commit `contracts/openapi/v1.json` with every intentional contract change.
 Breaking field removal, semantic change, or incompatible status/auth change
 requires a documented `/api/v2` and deprecation decision.
+
+## Organizations and membership (iteration 5)
+
+All organization operations are authenticated `Api.BrowserSession` projections
+with `Cache-Control: no-store`; every unsafe operation also requires the normal
+`X-CSRF-TOKEN` antiforgery pair. Success uses the standard `{ "data": ... }`
+envelope. The strict request bodies reject unknown JSON members.
+
+| Method             | Route                                                           | Result                                                                     |
+| ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `GET`              | `/api/v1/organizations?cursor=&limit=`                          | accessible organization page                                               |
+| `POST`             | `/api/v1/organizations`                                         | create organization, owner membership, and current session context (`201`) |
+| `GET`              | `/api/v1/organizations/by-key/{organizationKey}`                | accessible detail by slug or UUID key                                      |
+| `PATCH` / `DELETE` | `/api/v1/organizations/{organizationId}`                        | update; or exact-case name-confirmed deletion                              |
+| `PUT`              | `/api/v1/auth/session/active-organization`                      | set the current persistent session's active organization                   |
+| `GET` / `POST`     | `/api/v1/organizations/{organizationId}/members?cursor=&limit=` | list; or direct-add a user (`201`)                                         |
+| `PATCH`            | `/api/v1/organizations/{organizationId}/members/{memberId}`     | change the member's role                                                   |
+
+There is deliberately no member-delete operation in this slice. `GET
+/api/v1/auth/session` adds nullable `activeOrganizationId` only to the
+authenticated session projection.
+
+`owner`, `admin`, and `member` are closed organization roles—not Identity roles
+or session claims. Owners can update/delete and add/change roles, including
+owner assignment; admins can update and add/change only `member` or `admin`
+roles; members have no mutation capability. A caller cannot change their own
+role; admins cannot mutate an owner; redundant changes conflict; role changes
+preserve at least one owner. Server-computed capabilities are presentation aids,
+not authorization substitutes.
+
+Organizations use a UUID id and a canonical lower-case slug. A key lookup
+accepts either, but returned `canonicalKey` is the slug. Organization pages sort
+by `(normalizedName ASC, id ASC)` and member pages by `(joinedAt ASC, id ASC)`;
+both use opaque versioned base64url checksum cursors, default `50`, range
+`1..100`. Clients return `nextCursor` verbatim and never construct it.
+
+Missing and foreign organizations intentionally share `404
+organization_not_found`; foreign/missing members likewise do not disclose
+resources. Permission failures use `organization_permission_denied` or
+`role_assignment_forbidden`. Other stable outcomes include
+`organization_name_conflict`, `organization_slug_conflict`,
+`last_organization_required`, `organization_confirmation_mismatch`,
+`target_user_not_found`, `member_not_found`, `member_already_exists`,
+`member_role_unchanged`, `member_domain_acknowledgement_required`,
+`organization_ownership_transfer_required`, `invalid_cursor`, and
+`concurrency_conflict`. The domain-acknowledgement metadata is returned only to
+authorized add-member callers and the initial warning request performs no write.
+
+A single `TemplateDbContext` PostgreSQL transaction is the organization boundary:
+create serializes through the actor user, creates the organization/owner and
+sets that session's active organization atomically; update locks and rechecks
+permission while replacing domains; set-active is membership-qualified for the
+current unexpired session; delete locks the organization, actor membership and
+accessible set, requires another accessible organization, and relies on the FK
+`SET NULL`; add/change-role lock and re-evaluate all relevant membership/owner
+state. Unique indexes are authoritative for slug/member races and classified
+results are retried only where the persistence operation specifies it.
+
+The `organizations` schema contains `organizations`, `members`, and
+`allowed_email_domains`; `auth.sessions.active_organization_id` is nullable,
+indexed, and an FK to `organizations.organizations` with `SET NULL`. The active
+preference is persistent session state, outside the protected ticket, and is
+preserved across ticket renewal.

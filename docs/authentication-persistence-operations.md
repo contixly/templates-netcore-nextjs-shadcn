@@ -2,7 +2,7 @@
 
 ## Scope
 
-Iterations 3 and 4 own the clean PostgreSQL `auth` schema, Identity Core users,
+Iterations 3–5 own the clean PostgreSQL `auth` schema, Identity Core users,
 verified-email and external-login records, PostgreSQL-backed browser tickets
 and OpenIddict state, the persistent Data Protection key ring, the secure
 session cookie, antiforgery, local automation auth, account lifecycle, and
@@ -71,17 +71,17 @@ dotnet tool restore
 dotnet ef database update \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --startup-project apps/api/src/Template.Api/Template.Api.csproj \
-  --context AuthDbContext
+  --context TemplateDbContext
 
 dotnet ef migrations has-pending-model-changes \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --startup-project apps/api/src/Template.Api/Template.Api.csproj \
-  --context AuthDbContext
+  --context TemplateDbContext
 
 dotnet ef migrations script --idempotent \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --startup-project apps/api/src/Template.Api/Template.Api.csproj \
-  --context AuthDbContext
+  --context TemplateDbContext
 ```
 
 `Template.Infrastructure` is the migration target. `Template.Api` is the
@@ -97,7 +97,7 @@ project as a child process. Its explicit
 environment so the loopback HTTP listener can model the production HTTPS
 boundary required by secure antiforgery cookies.
 
-The iteration-4 migrations are additive:
+The iteration-4 and iteration-5 migrations are additive:
 
 - `20260728232503_AccountsExternalOAuth` creates `auth.user_emails`, adds
   verified-email/timestamp metadata to Identity logins, creates the Data
@@ -105,7 +105,12 @@ The iteration-4 migrations are additive:
   for each existing iteration-3 user;
 - `20260728235449_AccountSessionAuthenticationMethod` adds the bounded
   `authentication_method` session projection and backfills existing rows to
-  `local`.
+  `local`;
+- `20260730091827_OrganizationsMembershipOnboarding` creates the
+  `organizations` schema (`organizations`, `members`,
+  `allowed_email_domains`), adds the closed role/name/slug constraints and
+  indexes, and adds nullable indexed `auth.sessions.active_organization_id`
+  with an FK to `organizations.organizations` using `SET NULL`.
 
 `auth.user_emails.normalized_email` is globally unique, and a partial unique
 index permits at most one primary row per user. Identity
@@ -265,11 +270,16 @@ Application does not depend on Infrastructure. Development/Test local-automation
 credentials do not count as a production method.
 
 Account deletion validates the confirmation against the normalized primary
-email, deletes the Identity user in a transaction, and relies on tested
-cascades for verified emails, external logins, Identity children, and every
-persistent session. Only after commit does the API expire the browser cookie.
-Organizations and API keys do not yet exist, so no cleanup counts for those
-domains are fabricated.
+email and is organization-aware in the same transaction. It locks affected
+organization rows in ascending UUID order before the user and ordered
+memberships, rechecks discovery after locking, and retries bounded membership
+set drift. A sole-member organization is deleted; a membership is removed when
+another owner remains; a sole owner of a multi-member organization receives
+`organization_ownership_transfer_required` with no partial deletion. Affected
+active-organization session preferences are cleared before cascades. Local
+automation cleanup follows the same path and returns the actual
+`deletedOrganizations` count. Only after commit does the API expire the browser
+cookie. API keys remain iteration 7 and have no cleanup behavior here.
 
 Session list cursors are opaque versioned base64url values for
 `(lastSeenAt, id)` ordering with a checksum for format/corruption detection.

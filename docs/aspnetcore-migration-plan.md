@@ -1,9 +1,7 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 4 — accounts и внешний OAuth (функциональный scope
-завершён 2026-07-29; live authorization-screen smoke частичный; live callbacks
-не выполнялись).
+**Текущая итерация:** 5 — organizations, membership и onboarding (функциональный scope завершён 2026-07-30; deterministic acceptance пройдена).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -191,7 +189,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding
+### Итерация 5 — Organizations, membership и onboarding **(функциональный scope завершён 2026-07-30)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -282,14 +280,15 @@ callbacks проверены fake-provider integration tests; live успешн�
 
 ## 8. Журнал выполнения
 
-| Итерация                                           | Состояние | Примечание                                                                                                                                                                                               |
-| -------------------------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                            |
-| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                      |
-| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                      |
-| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                |
-| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись. |
-| 5–12                                               | Не начаты | Следующий dependency gate — organizations/membership/onboarding; API keys и `x-api-key` остаются итерацией 7.                                                                                            |
+| Итерация                                           | Состояние | Примечание                                                                                                                                                                                                               |
+| -------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                            |
+| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                      |
+| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                      |
+| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                |
+| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                 |
+| 5 — organizations, membership и onboarding         | Завершена | REST/OpenAPI/SDK, EF schema, persistent active context, role-aware workspace UI и deterministic multi-user acceptance приняты; Teams/Invitations — iteration 6, API keys — iteration 7, product dashboard — iteration 9. |
+| 6–12                                               | Не начаты | Следующий dependency gate — Teams и invitations; API keys и `x-api-key` остаются итерацией 7.                                                                                                                            |
 
 ## Acceptance evidence: итерация 1
 
@@ -899,6 +898,80 @@ organization context, transaction/isolation rules и route/API contract. Пер�
 production deployment отдельно требуются operator secrets/PFX, exact provider
 console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
 и повторный provider smoke в целевой среде.
+
+## Acceptance evidence: итерация 5
+
+**Состояние:** functional scope завершён только после всех нижеследующих gates
+2026-07-30. Новый код и документация находятся вне `template/`; обе проверки
+immutable reference прошли.
+
+### Reference → API → UI → test mapping
+
+| Reference                                                             | Новый API                                                                     | Новый UI                                                               | Test/evidence                                                                             |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `template/src/features/organizations`, workspace repositories/actions | `/api/v1/organizations`, detail-by-key, update/delete, active-session context | `/welcome`, `/workspaces`, `/dashboard`, `/w/[organizationKey]/**`     | organization Application/API tests; `organization-routing`; Playwright onboarding/routing |
+| reference organization access guard and active-organization helper    | `GET .../by-key/{key}`, `PUT /api/v1/auth/session/active-organization`        | canonical UUID→slug guard and explicit header switcher                 | API isolation/context tests; route/switcher Jest; organization E2E                        |
+| workspace update/delete actions                                       | `PATCH`/`DELETE /api/v1/organizations/{id}`                                   | workspace settings and exact-name delete dialog                        | persistence/concurrency/API tests; settings Jest; E2E last-workspace guard                |
+| membership role/update actions                                        | member list, direct-add and role `PATCH` endpoints                            | Users/roles settings, domain acknowledgement and read-only member view | membership/security tests; member Jest; multi-user E2E                                    |
+| onboarding guard                                                      | paged accessible organization projection                                      | zero-org `/welcome` and first-workspace create                         | route/component Jest and zero-org Playwright scenario                                     |
+
+### Delivered contract, boundaries, and intentional differences
+
+Organizations have UUID IDs and canonical slugs; slug or UUID routes resolve to
+canonical slug UI routes. The active organization is a nullable FK-backed
+preference on the persistent `auth.sessions` row, not a ticket claim, and only
+an explicit set-active mutation changes it. Owner/admin/member is a closed role
+matrix: owner has all organization/membership mutations, admin may update and
+assign member/admin roles, and member is read-only; self edits, admin-to-owner
+mutation and loss of the last owner are blocked. Missing and foreign resources
+share non-disclosing results. Organization and member lists use opaque
+checksummed cursor continuation (`50`, range `1..100`), not unbounded lists.
+
+The target intentionally strengthens the reference: checked single roles replace
+CSV-compatible parsing, the active context has a real FK and transactional
+create/update, collections are paged, locks/transactions prevent orphan owners,
+and RFC Problem Details plus generated REST SDK replace Server Actions/Better
+Auth shapes. The reference onboarding invitation CTA is intentionally omitted;
+Teams and Invitations remain iteration 6. API Keys remain iteration 7. The
+minimal organization context page is not the product dashboard, which remains
+iteration 9.
+
+Transactions serialize create through the actor, atomically create owner/context,
+lock/recheck update/delete/member changes, use unique indexes for races, and
+clear active FK references by `SET NULL`. Account deletion/local cleanup uses
+the same transaction and lock order: delete sole-member organizations, remove
+safe memberships, reject a sole owner of a multi-member organization, and return
+the true cleanup count. SSR organization projections suppress session renewal;
+browser reads keep ordinary renewal. Client mutation recovery keeps confirmed
+responses through a failed refresh and retries only the later GET.
+
+### Final verification 2026-07-30
+
+| Command / gate                                                       | Observed result                                                                                                                               |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                        | PASS; all projects up to date.                                                                                                                |
+| `dotnet build Template.sln --no-restore`                             | PASS; 0 warnings, 0 errors.                                                                                                                   |
+| `dotnet test Template.sln --no-restore`                              | PASS; `Template.Application.Tests` 168/168, `Template.Api.Tests` 409/409; total 577/577, 0 failed/skipped.                                    |
+| `dotnet format Template.sln --no-restore --verify-no-changes`        | PASS.                                                                                                                                         |
+| EF pending-model command (`TemplateDbContext`)                       | PASS; “No changes have been made to the model since the last migration.”                                                                      |
+| idempotent EF script + nonempty guard                                | PASS; `/tmp/template-iteration5-final.sql` is 22,799 bytes.                                                                                   |
+| `dotnet list Template.sln package --vulnerable --include-transitive` | PASS; no vulnerable direct/transitive package in all 7 projects.                                                                              |
+| two OpenAPI export builds + hash diff                                | PASS; 0 warnings/errors in both builds; deterministic SHA-256 `27c67ab3bb657e7a8fc40460fc0a87c241b9e052ddc9dad4920dafda5667eedf`.             |
+| `cd apps/web && npm run api:check`                                   | PASS; generated SDK reports 4 files and is deterministic/current.                                                                             |
+| clean `npm ci`                                                       | PASS; 978 packages added, 979 audited; install reports the documented 26 high development-only findings.                                      |
+| `npm audit --omit=dev`                                               | PASS; 0 production vulnerabilities.                                                                                                           |
+| full `npm audit --json`                                              | Not clean by design: 26 high, 0 info/low/moderate/critical; development-only ESLint/Jest `minimatch`/`glob`/`brace-expansion` advisory graph. |
+| boundaries, Prettier, ESLint, typecheck                              | PASS; boundary harness 3/3, formatting/lint/types clean.                                                                                      |
+| `npm test -- --runInBand`                                            | PASS; 50/50 suites, 313/313 tests, 0 snapshots.                                                                                               |
+| clean production build + standalone guard                            | PASS; Next.js 16.2.11; 19/19 static-generation units; `.next/standalone/server.js` exists.                                                    |
+| `npm run e2e`                                                        | PASS; 12 passed, 5 opt-in live-provider tests skipped, 0 failed (17 discovered).                                                              |
+| whitespace and reference guards                                      | PASS; `git diff --check`, working-tree `template/`, `origin/main...HEAD -- template/`, and `git status --short -- template/` were empty.      |
+
+**Next product gate:** iteration 6 may start only as its own planned vertical
+slice for Teams and invitations: define invitation security/expiry,
+accept/reject lifecycle, team membership, notifications/email boundary, and
+E2E coverage. It must not add Teams/Invitations/API Keys/dashboard work under
+iteration 5.
 
 ## 9. Правило обновления этого документа
 
