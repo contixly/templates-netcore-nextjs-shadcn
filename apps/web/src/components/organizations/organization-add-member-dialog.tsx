@@ -5,6 +5,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { IconUserPlus } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -72,6 +73,7 @@ export function OrganizationAddMemberDialog({
 }>) {
   const t = useTranslations("organizations.settings.addMemberDialog");
   const roles = useTranslations("organizations.roles");
+  const interactionReady = useOrganizationControlInteractionReady();
   const inputRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
@@ -207,7 +209,15 @@ export function OrganizationAddMemberDialog({
   return (
     <Dialog onOpenChange={changeOpen} open={open}>
       <DialogTrigger asChild>
-        <Button size="sm" type="button" variant="outline">
+        <Button
+          data-organization-control-interaction-ready={
+            interactionReady ? "true" : undefined
+          }
+          disabled={!interactionReady}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
           <IconUserPlus data-icon="inline-start" />
           {t("trigger")}
         </Button>

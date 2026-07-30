@@ -1,8 +1,12 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
 import { createBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
+
+const organizationControlReadyAttribute =
+  "data-organization-control-interaction-ready";
 
 const push = jest.fn();
 const refresh = jest.fn();
@@ -21,6 +25,32 @@ const createOrganization = jest.mocked(createBrowserOrganization);
 
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+it("keeps the create trigger unavailable in server HTML until its client handler is attached", async () => {
+  const serverMarkup = renderToString(withMessages(<OrganizationOnboarding />));
+  const serverDocument = new DOMParser().parseFromString(
+    serverMarkup,
+    "text/html",
+  );
+  const serverTrigger = Array.from(
+    serverDocument.querySelectorAll("button"),
+  ).find((button) => button.textContent?.includes("Create Workspace"));
+
+  expect(serverTrigger?.hasAttribute("disabled")).toBe(true);
+  expect(serverTrigger?.getAttribute(organizationControlReadyAttribute)).toBe(
+    null,
+  );
+
+  renderWithMessages(<OrganizationOnboarding />);
+  const trigger = screen.getByRole("button", { name: "Create Workspace" });
+  await waitFor(() => {
+    expect(trigger).toHaveAttribute(organizationControlReadyAttribute, "true");
+  });
+  expect(trigger).toBeEnabled();
+
+  fireEvent.click(trigger);
+  expect(await screen.findByRole("dialog")).toBeVisible();
 });
 
 it("offers first-workspace creation and account settings without invitations", () => {

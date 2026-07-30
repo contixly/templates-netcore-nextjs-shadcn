@@ -8,6 +8,7 @@ import { useRef, useState } from "react";
 import { IconCheck, IconSelector } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -56,6 +57,7 @@ export function OrganizationSwitcher({
   const t = useTranslations("organizations.switcher");
   const pathname = usePathname();
   const router = useRouter();
+  const interactionReady = useOrganizationControlInteractionReady();
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -127,7 +129,15 @@ export function OrganizationSwitcher({
       }}
     >
       <DialogTrigger asChild>
-        <Button className="max-w-full min-w-0" type="button" variant="outline">
+        <Button
+          className="max-w-full min-w-0"
+          data-organization-control-interaction-ready={
+            interactionReady ? "true" : undefined
+          }
+          disabled={!interactionReady}
+          type="button"
+          variant="outline"
+        >
           <IconSelector data-icon="inline-start" />
           <span className="max-w-40 min-w-0 truncate">
             {t("current", { name: current.name })}

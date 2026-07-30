@@ -1,10 +1,14 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 
 import { OrganizationAddMemberDialog } from "@/src/components/organizations/organization-add-member-dialog";
 import { addBrowserOrganizationMember } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { OrganizationMemberResponse } from "@/src/lib/api/generated/types.gen";
 import type { ApiResult } from "@/src/lib/api/result";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
+
+const organizationControlReadyAttribute =
+  "data-organization-control-interaction-ready";
 
 jest.mock("@/src/lib/api/browser/client", () => ({
   createBrowserApiClient: () => ({ id: "browser-client" }),
@@ -46,6 +50,39 @@ async function openAndFill() {
     target: { value: userId },
   });
 }
+
+it("keeps the add-member trigger unavailable in server HTML until its client handler is attached", async () => {
+  const dialog = (
+    <OrganizationAddMemberDialog
+      assignableRoles={["member", "admin"]}
+      organizationId={organizationId}
+      onMemberConfirmed={jest.fn()}
+    />
+  );
+  const serverMarkup = renderToString(withMessages(dialog));
+  const serverDocument = new DOMParser().parseFromString(
+    serverMarkup,
+    "text/html",
+  );
+  const serverTrigger = Array.from(
+    serverDocument.querySelectorAll("button"),
+  ).find((button) => button.textContent?.includes("Add member"));
+
+  expect(serverTrigger?.hasAttribute("disabled")).toBe(true);
+  expect(serverTrigger?.getAttribute(organizationControlReadyAttribute)).toBe(
+    null,
+  );
+
+  renderWithMessages(dialog);
+  const trigger = screen.getByRole("button", { name: "Add member" });
+  await waitFor(() => {
+    expect(trigger).toHaveAttribute(organizationControlReadyAttribute, "true");
+  });
+  expect(trigger).toBeEnabled();
+
+  fireEvent.click(trigger);
+  expect(await screen.findByRole("dialog")).toBeVisible();
+});
 
 it("accepts an exact UUID user id and prevents invalid ids from reaching the adapter", async () => {
   renderWithMessages(

@@ -6,6 +6,7 @@ import { useRef, useState, type FormEvent } from "react";
 import { IconPlus } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -41,6 +42,7 @@ export function OrganizationCreateDialog({
   const t = useTranslations("organizations.createDialog");
   const onboarding = useTranslations("organizations.onboarding");
   const router = useRouter();
+  const interactionReady = useOrganizationControlInteractionReady();
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -113,12 +115,27 @@ export function OrganizationCreateDialog({
     <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         {presentation === "onboarding" ? (
-          <Button size="lg" type="button">
+          <Button
+            data-organization-control-interaction-ready={
+              interactionReady ? "true" : undefined
+            }
+            disabled={!interactionReady}
+            size="lg"
+            type="button"
+          >
             <IconPlus data-icon="inline-start" />
             {onboarding("createAction")}
           </Button>
         ) : (
-          <Button type="button">{t("trigger")}</Button>
+          <Button
+            data-organization-control-interaction-ready={
+              interactionReady ? "true" : undefined
+            }
+            disabled={!interactionReady}
+            type="button"
+          >
+            {t("trigger")}
+          </Button>
         )}
       </DialogTrigger>
       <DialogContent

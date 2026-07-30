@@ -1,6 +1,9 @@
 import type { Page } from "@playwright/test";
 
-import { waitForAppHydration } from "./support/app-readiness";
+import {
+  waitForAppHydration,
+  waitForOrganizationControlInteraction,
+} from "./support/app-readiness";
 import {
   getGeneratedOrganizations,
   setGeneratedOrganizationAllowedEmailDomains,
@@ -66,7 +69,11 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Create your first workspace" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Create Workspace" }).click();
+    const createWorkspace = page.getByRole("button", {
+      name: "Create Workspace",
+    });
+    await waitForOrganizationControlInteraction(createWorkspace);
+    await createWorkspace.click();
     await page.getByLabel("Workspace Name").fill("E2E Organization");
 
     const persistedOrganization = page.waitForResponse((response) => {
@@ -139,7 +146,9 @@ test.describe.serial("organization full-stack workflows", () => {
 
     await page.goto(`/w/${organization.canonicalKey}/settings/users`);
     await waitForAppHydration(page);
-    await page.getByRole("button", { name: "Add member" }).click();
+    const addMember = page.getByRole("button", { name: "Add member" });
+    await waitForOrganizationControlInteraction(addMember);
+    await addMember.click();
     await page.getByLabel("User ID").fill(member.user.id);
     await page.getByRole("button", { name: "Add", exact: true }).click();
     await expect(
@@ -226,9 +235,11 @@ test.describe.serial("organization full-stack workflows", () => {
 
     await page.goto("/w/e2e-slug/settings/users");
     await waitForAppHydration(page);
-    await page
-      .getByRole("button", { name: "Current workspace: E2E Slug" })
-      .click();
+    const workspaceSwitcher = page.getByRole("button", {
+      name: "Current workspace: E2E Slug",
+    });
+    await waitForOrganizationControlInteraction(workspaceSwitcher);
+    await workspaceSwitcher.click();
     await page.getByRole("button", { name: "Switch to E2E-Slug" }).click();
     await expect(page).toHaveURL("/w/e2e-slug-2/settings/users");
 

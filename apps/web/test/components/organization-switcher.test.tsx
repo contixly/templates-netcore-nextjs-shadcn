@@ -1,9 +1,13 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 
 import { OrganizationSwitcher } from "@/src/components/organizations/organization-switcher";
 import { setActiveBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
+
+const organizationControlReadyAttribute =
+  "data-organization-control-interaction-ready";
 
 const push = jest.fn();
 const refresh = jest.fn();
@@ -59,6 +63,37 @@ const offPageCurrent = {
 beforeEach(() => {
   jest.clearAllMocks();
   pathname.mockReturnValue("/w/old/settings/users");
+});
+
+it("keeps the switcher trigger unavailable in server HTML until its client handler is attached", async () => {
+  const switcher = <OrganizationSwitcher organizations={organizations} />;
+  const serverMarkup = renderToString(withMessages(switcher));
+  const serverDocument = new DOMParser().parseFromString(
+    serverMarkup,
+    "text/html",
+  );
+  const serverTrigger = Array.from(
+    serverDocument.querySelectorAll("button"),
+  ).find((button) => button.textContent?.includes("Current workspace: Old"));
+
+  expect(serverTrigger?.hasAttribute("disabled")).toBe(true);
+  expect(serverTrigger?.getAttribute(organizationControlReadyAttribute)).toBe(
+    null,
+  );
+
+  renderWithMessages(switcher);
+  const trigger = screen.getByRole("button", {
+    name: "Current workspace: Old",
+  });
+  await waitFor(() => {
+    expect(trigger).toHaveAttribute(organizationControlReadyAttribute, "true");
+  });
+  expect(trigger).toBeEnabled();
+
+  fireEvent.click(trigger);
+  expect(
+    await screen.findByRole("button", { name: "Switch to New" }),
+  ).toBeVisible();
 });
 
 it("does not render outside authenticated organization-aware paths", () => {
