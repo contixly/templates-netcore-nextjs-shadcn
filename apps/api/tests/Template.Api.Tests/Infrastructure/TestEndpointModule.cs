@@ -107,6 +107,7 @@ internal sealed class TestEndpointModule : IEndpointModule
                             row.EmailConfirmed,
                             row.ImageUrl,
                             row.IsLocalAutomation),
+                        BrowserAuthenticationMethods.Local,
                         cancellationToken);
                     return Results.Ok();
                 })

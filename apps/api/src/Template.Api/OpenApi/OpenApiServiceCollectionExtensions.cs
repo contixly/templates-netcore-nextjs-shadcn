@@ -31,6 +31,11 @@ internal static class OpenApiServiceCollectionExtensions
                         Name = ApiAuthenticationDefaults.CookieName,
                         Description = "Secure HttpOnly same-origin session cookie."
                     };
+                document.Components.Schemas ??=
+                    new Dictionary<string, IOpenApiSchema>(
+                        StringComparer.Ordinal);
+                document.Components.Schemas["ExternalAuthIntent"] =
+                    CreateExternalAuthIntentSchema();
                 return Task.CompletedTask;
             });
             options.AddOperationTransformer((operation, context, _) =>
@@ -94,6 +99,10 @@ internal static class OpenApiServiceCollectionExtensions
                     };
                 }
 
+                ApplyAccountAndExternalAuthContract(
+                    operation,
+                    context.Document!);
+
                 if (metadata.OfType<IAllowAnonymous>().Any() ||
                     !metadata.OfType<IAuthorizeData>().Any())
                 {
@@ -101,17 +110,196 @@ internal static class OpenApiServiceCollectionExtensions
                 }
 
                 operation.Security ??= [];
-                operation.Security.Add(new OpenApiSecurityRequirement
-                {
-                    [new OpenApiSecuritySchemeReference(
-                        OpenApiDefaults.CookieSecurityScheme,
-                        context.Document,
-                        null)] = []
-                });
+                operation.Security.Add(CookieSecurityRequirement(
+                    context.Document!));
                 return Task.CompletedTask;
             });
         });
 
         return services;
     }
+
+    private static void ApplyAccountAndExternalAuthContract(
+        OpenApiOperation operation,
+        OpenApiDocument document)
+    {
+        switch (operation.OperationId)
+        {
+            case "ChallengeExternalAuth":
+                operation.Description =
+                    "The signIn intent requires an anonymous browser. The connect " +
+                    "intent requires the current cookieAuth BrowserSession.";
+                operation.Security =
+                [
+                    new OpenApiSecurityRequirement(),
+                    CookieSecurityRequirement(document)
+                ];
+                SetParameterStringEnum(
+                    operation,
+                    "provider",
+                    "google",
+                    "github",
+                    "gitlab",
+                    "vk",
+                    "yandex");
+                AddProblemResponse(
+                    operation,
+                    document,
+                    StatusCodes.Status409Conflict,
+                    "Conflict");
+                AddProblemResponse(
+                    operation,
+                    document,
+                    StatusCodes.Status429TooManyRequests,
+                    "Too Many Requests");
+                break;
+            case "DisconnectAccountProvider":
+                SetParameterStringEnum(
+                    operation,
+                    "provider",
+                    "google",
+                    "github",
+                    "gitlab",
+                    "vk",
+                    "yandex");
+                AddProblemResponse(
+                    operation,
+                    document,
+                    StatusCodes.Status409Conflict,
+                    "Conflict");
+                break;
+            case "GetAccountSessions":
+                ApplySessionPaginationContract(operation);
+                ApplyBadRequestVariants(operation, document);
+                break;
+            case "RevokeAccountSession":
+                AddProblemResponse(
+                    operation,
+                    document,
+                    StatusCodes.Status409Conflict,
+                    "Conflict");
+                break;
+        }
+    }
+
+    private static OpenApiSecurityRequirement CookieSecurityRequirement(
+        OpenApiDocument document) =>
+        new()
+        {
+            [new OpenApiSecuritySchemeReference(
+                OpenApiDefaults.CookieSecurityScheme,
+                document,
+                null)] = []
+        };
+
+    private static OpenApiSchema CreateExternalAuthIntentSchema() =>
+        new()
+        {
+            Type = JsonSchemaType.String,
+            Enum =
+            [
+                JsonValue.Create("signIn")!,
+                JsonValue.Create("connect")!
+            ]
+        };
+
+    private static void ApplySessionPaginationContract(
+        OpenApiOperation operation)
+    {
+        var limit = operation.Parameters?.SingleOrDefault(
+            parameter => string.Equals(
+                parameter.Name,
+                "limit",
+                StringComparison.Ordinal));
+        if (limit?.Schema is not OpenApiSchema schema)
+        {
+            return;
+        }
+
+        schema.Type = JsonSchemaType.Integer;
+        schema.Format = "int32";
+        schema.Pattern = null;
+        schema.Minimum = "1";
+        schema.Maximum = "100";
+        schema.Default = JsonValue.Create(20);
+    }
+
+    private static void SetParameterStringEnum(
+        OpenApiOperation operation,
+        string parameterName,
+        params string[] values)
+    {
+        var parameter = operation.Parameters?.SingleOrDefault(
+            value => string.Equals(
+                value.Name,
+                parameterName,
+                StringComparison.Ordinal));
+        if (parameter?.Schema is not OpenApiSchema schema)
+        {
+            return;
+        }
+
+        schema.Type = JsonSchemaType.String;
+        schema.Enum =
+        [
+            .. values.Select(value => JsonValue.Create(value)!)
+        ];
+    }
+
+    private static void ApplyBadRequestVariants(
+        OpenApiOperation operation,
+        OpenApiDocument document)
+    {
+        if (operation.Responses?.TryGetValue(
+                StatusCodes.Status400BadRequest.ToString(),
+                out var response) != true ||
+            response is not OpenApiResponse badRequest ||
+            badRequest.Content?.TryGetValue(
+                OpenApiDefaults.ProblemContentType,
+                out var content) != true ||
+            content is not OpenApiMediaType mediaType)
+        {
+            return;
+        }
+
+        mediaType.Schema = ProblemSchemaUnion(document);
+    }
+
+    private static void AddProblemResponse(
+        OpenApiOperation operation,
+        OpenApiDocument document,
+        int statusCode,
+        string description)
+    {
+        operation.Responses ??= new OpenApiResponses();
+        operation.Responses[statusCode.ToString()] = new OpenApiResponse
+        {
+            Description = description,
+            Content = new Dictionary<string, OpenApiMediaType>(
+                StringComparer.Ordinal)
+            {
+                [OpenApiDefaults.ProblemContentType] = new()
+                {
+                    Schema = new OpenApiSchemaReference(
+                        nameof(ProblemDetails),
+                        document)
+                }
+            }
+        };
+    }
+
+    private static OpenApiSchema ProblemSchemaUnion(
+        OpenApiDocument document) =>
+        new()
+        {
+            OneOf =
+            [
+                new OpenApiSchemaReference(
+                    nameof(ProblemDetails),
+                    document),
+                new OpenApiSchemaReference(
+                    nameof(HttpValidationProblemDetails),
+                    document)
+            ]
+        };
 }

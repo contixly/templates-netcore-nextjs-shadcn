@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Template.Application.Accounts.Ports;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
 using Template.Api.Tests.Infrastructure;
+using Template.Domain.Authentication;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Persistence;
 
@@ -31,7 +33,7 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(TimeProvider.System);
         services.AddAuthentication();
-        services.AddAuthInfrastructure(configuration);
+        services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();
@@ -54,6 +56,44 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
         Assert.Equal(64, passwordHex.Length);
         Assert.Equal(32, Convert.FromHexString(passwordHex).Length);
         Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public async Task CreatePersistsPrimaryEmailForAccountAndOwnershipProjection()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var gateway = scope.ServiceProvider.GetRequiredService<ILocalIdentityGateway>();
+        var accounts = scope.ServiceProvider.GetRequiredService<IAccountStore>();
+        var externalAccounts = scope.ServiceProvider
+            .GetRequiredService<IExternalAccountStore>();
+        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var credentials = new LocalAutomationCredentials(
+            "Local Account",
+            "local-agent+account@local-agent.test",
+            "local-account-password");
+
+        var created = await gateway.CreateLocalAsync(
+            credentials,
+            TestContext.Current.CancellationToken);
+
+        var user = await db.Users.AsNoTracking().SingleAsync(
+            row => row.Id == created.Id.Value,
+            TestContext.Current.CancellationToken);
+        var primary = await db.UserEmails.AsNoTracking().SingleAsync(
+            row => row.UserId == created.Id.Value,
+            TestContext.Current.CancellationToken);
+        var account = await accounts.GetAsync(
+            new UserId(created.Id.Value),
+            TestContext.Current.CancellationToken);
+        var owner = await externalAccounts.FindUserByEmailAsync(
+            credentials.Email.ToUpperInvariant(),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(primary.IsPrimary);
+        Assert.Equal(user.Email, primary.Email);
+        Assert.Equal(user.NormalizedEmail, primary.NormalizedEmail);
+        Assert.Equal(primary.NormalizedEmail, account?.PrimaryEmail.NormalizedValue);
+        Assert.Equal(created.Id, owner?.Id);
     }
 
     [Fact]

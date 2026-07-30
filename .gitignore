@@ -16,6 +16,7 @@ coverage/
 .env
 .env.*
 !.env.example
+apps/api/src/Template.Api/appsettings.Local.json
 
 # Local Aspire state
 .aspire/

@@ -4,14 +4,23 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  challengeExternalAuth,
   createLocalAutomationScenario,
+  deleteAccount,
   deleteLocalAutomationScenario,
+  disconnectAccountProvider,
+  getAccount,
+  getAccountConnections,
+  getAccountSessions,
   getAuthCapabilities,
   getAuthCsrf,
   getAuthSession,
   getSystemStatus,
   logout,
+  revokeAccountSession,
+  revokeOtherAccountSessions,
   signInLocalAutomation,
+  updateAccountProfile,
 } from "@/src/lib/api/generated";
 
 describe("generated system status SDK", () => {
@@ -45,6 +54,51 @@ describe("generated system status SDK", () => {
     expect(createLocalAutomationScenario).toEqual(expect.any(Function));
     expect(signInLocalAutomation).toEqual(expect.any(Function));
     expect(deleteLocalAutomationScenario).toEqual(expect.any(Function));
+  });
+
+  it("tracks the external challenge and all eight account operations", () => {
+    expect(challengeExternalAuth).toEqual(expect.any(Function));
+    expect(getAccount).toEqual(expect.any(Function));
+    expect(updateAccountProfile).toEqual(expect.any(Function));
+    expect(getAccountConnections).toEqual(expect.any(Function));
+    expect(disconnectAccountProvider).toEqual(expect.any(Function));
+    expect(getAccountSessions).toEqual(expect.any(Function));
+    expect(revokeAccountSession).toEqual(expect.any(Function));
+    expect(revokeOtherAccountSessions).toEqual(expect.any(Function));
+    expect(deleteAccount).toEqual(expect.any(Function));
+  });
+
+  it("keeps protocol callbacks and provider secrets outside the UI contract", () => {
+    const contractText = readFileSync(
+      resolve(process.cwd(), "../../contracts/openapi/v1.json"),
+      "utf8",
+    );
+    const generatedText = ["sdk.gen.ts", "types.gen.ts"]
+      .map((file) =>
+        readFileSync(
+          resolve(process.cwd(), "src/lib/api/generated", file),
+          "utf8",
+        ),
+      )
+      .join("\n");
+
+    for (const forbidden of [
+      "/api/auth/callback/",
+      "/api/auth/oauth2/callback/",
+      "clientId",
+      "clientSecret",
+      "accessToken",
+      "refreshToken",
+      "providerSubject",
+      "accounts.google.com",
+      "github.com/login/oauth",
+      "gitlab.com/oauth",
+      "id.vk.com",
+      "oauth.yandex",
+    ]) {
+      expect(contractText).not.toContain(forbidden);
+      expect(generatedText).not.toContain(forbidden);
+    }
   });
 
   it("locks auth request-body parity and unsafe 400 response variants", () => {

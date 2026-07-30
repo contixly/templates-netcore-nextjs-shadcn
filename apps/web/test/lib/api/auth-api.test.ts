@@ -2,6 +2,7 @@
 
 import type { Client } from "@/src/lib/api/generated/client";
 import {
+  challengeExternalAuth,
   createLocalAutomationScenario,
   getAuthCapabilities,
   getAuthCsrf,
@@ -10,19 +11,25 @@ import {
 } from "@/src/lib/api/generated";
 import { createLocalAutomationBrowserSession } from "@/src/lib/api/auth/browser/create-local-automation-browser-session";
 import { logoutBrowserSession } from "@/src/lib/api/auth/browser/logout-browser-session";
+import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import { loadAuthCapabilities } from "@/src/lib/api/auth/load-auth-capabilities";
 import { loadAuthSession } from "@/src/lib/api/auth/load-auth-session";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
+import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import { createServerApiClient } from "@/src/lib/api/server/client";
 import { readForwardedApiHeaders } from "@/src/lib/api/server/request-headers";
 
 jest.mock("@/src/lib/api/generated", () => ({
+  challengeExternalAuth: jest.fn(),
   createLocalAutomationScenario: jest.fn(),
   getAuthCapabilities: jest.fn(),
   getAuthCsrf: jest.fn(),
   getAuthSession: jest.fn(),
   logout: jest.fn(),
+}));
+jest.mock("@/src/lib/api/browser/client", () => ({
+  createBrowserApiClient: jest.fn(),
 }));
 jest.mock("@/src/lib/api/server/client", () => ({
   createServerApiClient: jest.fn(),
@@ -35,15 +42,18 @@ const client = {} as Client;
 const capabilitiesClient = { role: "capabilities" } as unknown as Client;
 const sessionClient = { role: "session" } as unknown as Client;
 const mockedCapabilities = jest.mocked(getAuthCapabilities);
+const mockedChallenge = jest.mocked(challengeExternalAuth);
 const mockedSession = jest.mocked(getAuthSession);
 const mockedCsrf = jest.mocked(getAuthCsrf);
 const mockedCreate = jest.mocked(createLocalAutomationScenario);
 const mockedLogout = jest.mocked(logout);
+const mockedCreateBrowserClient = jest.mocked(createBrowserApiClient);
 const mockedCreateServerClient = jest.mocked(createServerApiClient);
 const mockedReadForwardedApiHeaders = jest.mocked(readForwardedApiHeaders);
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockedCreateBrowserClient.mockReturnValue(client);
   mockedCreateServerClient.mockReset();
 });
 
@@ -218,5 +228,87 @@ it("gets CSRF before logout", async () => {
   expect(mockedLogout).toHaveBeenCalledWith({
     client,
     headers: { "X-CSRF-TOKEN": "csrf-logout" },
+  });
+});
+
+it("gets CSRF before starting an external provider challenge", async () => {
+  mockedCsrf.mockResolvedValue({
+    data: { data: { requestToken: "csrf-external" } },
+    error: undefined,
+    request: new Request("https://example.test"),
+    response: new Response(),
+  });
+  mockedChallenge.mockResolvedValue({
+    data: {
+      data: {
+        authorizationUrl:
+          "https://accounts.google.com/o/oauth2/v2/auth?state=safe",
+      },
+    },
+    error: undefined,
+    request: new Request("https://example.test"),
+    response: new Response(),
+  });
+
+  await expect(
+    startExternalAuth({
+      provider: "google",
+      intent: "signIn",
+      returnUrl: "/dashboard",
+    }),
+  ).resolves.toEqual({
+    ok: true,
+    data: {
+      authorizationUrl:
+        "https://accounts.google.com/o/oauth2/v2/auth?state=safe",
+    },
+  });
+  expect(mockedChallenge).toHaveBeenCalledWith({
+    client,
+    body: { intent: "signIn", returnUrl: "/dashboard" },
+    headers: { "X-CSRF-TOKEN": "csrf-external" },
+    path: { provider: "google" },
+  });
+  expect(mockedCsrf.mock.invocationCallOrder[0]).toBeLessThan(
+    mockedChallenge.mock.invocationCallOrder[0],
+  );
+});
+
+it("normalizes an external challenge Problem Details failure", async () => {
+  mockedCsrf.mockResolvedValue({
+    data: { data: { requestToken: "csrf-external" } },
+    error: undefined,
+    request: new Request("https://example.test"),
+    response: new Response(),
+  });
+  mockedChallenge.mockResolvedValue({
+    data: undefined,
+    error: {
+      type: "urn:template:problem:external_provider_not_configured",
+      title: "Provider not configured",
+      status: 404,
+      detail: "Backend detail must remain private.",
+      instance: "/api/v1/auth/external/google/challenge",
+      code: "external_provider_not_configured",
+      traceId: "trace-external",
+    },
+    request: new Request("https://example.test"),
+    response: new Response(null, { status: 404 }),
+  });
+
+  await expect(
+    startExternalAuth({
+      provider: "google",
+      intent: "signIn",
+      returnUrl: "/dashboard",
+    }),
+  ).resolves.toEqual({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "external_provider_not_configured",
+      status: 404,
+      traceId: "trace-external",
+    },
   });
 });

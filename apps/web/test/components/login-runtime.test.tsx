@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 
 import { LoginRuntime } from "@/src/components/authentication/login-runtime";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
+import { renderWithMessages } from "@/test/support/render";
 
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),
@@ -45,22 +46,28 @@ jest.mock(
 
 const loadState = jest.mocked(loadServerAuthState);
 
-it("shows one local panel only when local automation is enabled", async () => {
+it("shows configured providers alongside gated local automation", async () => {
   loadState.mockResolvedValue({
     ok: true,
     data: {
-      capabilities: { localAutomationEnabled: true, providers: [] },
+      capabilities: {
+        localAutomationEnabled: true,
+        providers: [{ id: "google", displayName: "Google" }],
+      },
       session: { authenticated: false, user: null, session: null },
     },
   });
 
-  render(
+  renderWithMessages(
     await LoginRuntime({
       searchParams: Promise.resolve({ redirect: "/dashboard" }),
     }),
   );
 
   expect(screen.getByTestId("local-panel")).toHaveTextContent("/dashboard");
+  expect(
+    screen.getByRole("button", { name: "Continue with Google" }),
+  ).toBeEnabled();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 });
 
@@ -82,6 +89,33 @@ it("shows the deferred-provider state when local automation is disabled", async 
   expect(
     screen.getByText("No production sign-in provider is configured yet."),
   ).toBeInTheDocument();
+  expect(screen.queryByTestId("local-panel")).not.toBeInTheDocument();
+});
+
+it("shows configured providers without the local automation panel", async () => {
+  loadState.mockResolvedValue({
+    ok: true,
+    data: {
+      capabilities: {
+        localAutomationEnabled: false,
+        providers: [{ id: "github", displayName: "GitHub" }],
+      },
+      session: { authenticated: false, user: null, session: null },
+    },
+  });
+
+  renderWithMessages(
+    await LoginRuntime({
+      searchParams: Promise.resolve({ redirect: "/settings?tab=profile" }),
+    }),
+  );
+
+  expect(
+    screen.getByRole("button", { name: "Continue with GitHub" }),
+  ).toBeEnabled();
+  expect(
+    screen.queryByText("No production sign-in provider is configured yet."),
+  ).not.toBeInTheDocument();
   expect(screen.queryByTestId("local-panel")).not.toBeInTheDocument();
 });
 

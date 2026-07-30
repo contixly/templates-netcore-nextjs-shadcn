@@ -1,5 +1,12 @@
 import type { ApiConfigurationCode } from "@/src/lib/api/api-base-url";
 import type {
+  AccountConnectionsResponse,
+  AccountDeletionResponse,
+  AccountDisconnectionResponse,
+  AccountResponse,
+  AccountSessionRevocationResponse,
+  AccountSessionsResponse,
+  AccountSessionsRevocationResponse,
   AuthCapabilitiesResponse,
   AuthSessionResponse,
   LocalAutomationScenarioResponse,
@@ -31,3 +38,13 @@ export type AuthSessionResult = ApiResult<AuthSessionResponse>;
 export type LocalAutomationScenarioResult =
   ApiResult<LocalAutomationScenarioResponse>;
 export type AuthCsrfResult = ApiResult<string>;
+export type AccountResult = ApiResult<AccountResponse>;
+export type AccountConnectionsResult = ApiResult<AccountConnectionsResponse>;
+export type AccountSessionsResult = ApiResult<AccountSessionsResponse>;
+export type AccountDisconnectionResult =
+  ApiResult<AccountDisconnectionResponse>;
+export type AccountSessionRevocationResult =
+  ApiResult<AccountSessionRevocationResponse>;
+export type AccountSessionsRevocationResult =
+  ApiResult<AccountSessionsRevocationResponse>;
+export type AccountDeletionResult = ApiResult<AccountDeletionResponse>;

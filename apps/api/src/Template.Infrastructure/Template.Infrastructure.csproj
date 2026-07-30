@@ -10,9 +10,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <PackageReference Include="OpenIddict.Client.AspNetCore" />
+    <PackageReference Include="OpenIddict.Client.DataProtection" />
+    <PackageReference Include="OpenIddict.Client.SystemNetHttp" />
+    <PackageReference Include="OpenIddict.Client.WebIntegration" />
+    <PackageReference Include="OpenIddict.EntityFrameworkCore" />
   </ItemGroup>
 
 </Project>

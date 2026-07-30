@@ -12,6 +12,19 @@ internal static class AuthRateLimitPolicies
 {
     internal const string LocalAutomationCreate = "LocalAutomationCreate";
     internal const string LocalAutomationSignIn = "LocalAutomationSignIn";
+    internal const string ExternalOAuthChallenge = "ExternalOAuthChallenge";
+    internal const string ExternalOAuthCallback = "ExternalOAuthCallback";
+}
+
+internal sealed class ExternalOAuthSecurityOptions
+{
+    internal const string SectionName = "ExternalOAuthSecurity";
+
+    public int ChallengePermitLimitPerMinute { get; set; } = 20;
+
+    public int CallbackPermitLimitPerFiveMinutes { get; set; } = 60;
+
+    public int CallbackConcurrencyLimit { get; set; } = 10;
 }
 
 internal static class AuthSecurityServiceCollectionExtensions
@@ -33,6 +46,17 @@ internal static class AuthSecurityServiceCollectionExtensions
                     options.CreateRateLimitPerMinute > 0 &&
                     options.SignInRateLimitPerFiveMinutes > 0,
                 "Local automation rate limits must be positive.")
+            .ValidateOnStart();
+        services
+            .AddOptions<ExternalOAuthSecurityOptions>()
+            .Bind(configuration.GetSection(
+                ExternalOAuthSecurityOptions.SectionName))
+            .Validate(
+                options =>
+                    options.ChallengePermitLimitPerMinute > 0
+                    && options.CallbackPermitLimitPerFiveMinutes > 0
+                    && options.CallbackConcurrencyLimit > 0,
+                "External OAuth rate limits must be positive.")
             .ValidateOnStart();
         services.AddSingleton<
             ILocalAutomationAuthAvailability,
@@ -73,6 +97,51 @@ internal static class AuthSecurityServiceCollectionExtensions
                         context,
                         local.SignInRateLimitPerFiveMinutes,
                         TimeSpan.FromMinutes(5));
+                });
+            options.AddPolicy(
+                AuthRateLimitPolicies.ExternalOAuthChallenge,
+                context =>
+                {
+                    var external = context.RequestServices
+                        .GetRequiredService<
+                            IOptions<ExternalOAuthSecurityOptions>>()
+                        .Value;
+                    return Partition(
+                        context,
+                        external.ChallengePermitLimitPerMinute,
+                        TimeSpan.FromMinutes(1));
+                });
+            options.AddPolicy(
+                AuthRateLimitPolicies.ExternalOAuthCallback,
+                context =>
+                {
+                    var external = context.RequestServices
+                        .GetRequiredService<
+                            IOptions<ExternalOAuthSecurityOptions>>()
+                        .Value;
+                    var key =
+                        context.Connection.RemoteIpAddress?.ToString()
+                        ?? "unknown";
+                    return RateLimitPartition.Get(
+                        key,
+                        _ => RateLimiter.CreateChained(
+                            new FixedWindowRateLimiter(
+                                new FixedWindowRateLimiterOptions
+                                {
+                                    AutoReplenishment = true,
+                                    PermitLimit =
+                                        external
+                                            .CallbackPermitLimitPerFiveMinutes,
+                                    QueueLimit = 0,
+                                    Window = TimeSpan.FromMinutes(5)
+                                }),
+                            new ConcurrencyLimiter(
+                                new ConcurrencyLimiterOptions
+                                {
+                                    PermitLimit =
+                                        external.CallbackConcurrencyLimit,
+                                    QueueLimit = 0
+                                })));
                 });
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (rejected, cancellationToken) =>

@@ -1,0 +1,113 @@
+using Template.Domain.Accounts;
+using Template.Domain.Authentication;
+
+namespace Template.Application.Tests.Accounts;
+
+public sealed class ExternalConnectionPolicyTests
+{
+    [Theory]
+    [InlineData("google")]
+    [InlineData("github")]
+    [InlineData("gitlab")]
+    [InlineData("vk")]
+    [InlineData("yandex")]
+    public void ProviderIdsAreClosedAndCanonical(string value)
+    {
+        Assert.True(ExternalProvider.TryParse(value, out var provider));
+        Assert.Equal(value, provider.Value);
+    }
+
+    [Theory]
+    [InlineData("Google")]
+    [InlineData("GOOGLE")]
+    [InlineData("microsoft")]
+    [InlineData("")]
+    public void UnknownOrNonCanonicalProviderIdsAreRejected(string value)
+    {
+        Assert.False(ExternalProvider.TryParse(value, out var provider));
+        Assert.Null(provider);
+    }
+
+    [Fact]
+    public void ProvidersCannotBeConstructedOutsideTheClosedSet()
+    {
+        Assert.False(typeof(ExternalProvider).IsValueType);
+        Assert.Null(default(ExternalProvider));
+        Assert.Null(typeof(ExternalProvider).GetConstructor(Type.EmptyTypes));
+        Assert.Null(typeof(ExternalProvider).GetConstructor([typeof(string)]));
+    }
+
+    [Theory]
+    [InlineData(" Example@Example.com ", "Example@Example.com", "EXAMPLE@EXAMPLE.COM")]
+    [InlineData("Example@Example.com", "Example@Example.com", "EXAMPLE@EXAMPLE.COM")]
+    public void VerifiedEmailTrimsAndNormalizesInvariantly(
+        string value,
+        string expectedValue,
+        string expectedNormalizedValue)
+    {
+        var email = VerifiedEmail.Create(value);
+
+        Assert.Equal(expectedValue, email.Value);
+        Assert.Equal(expectedNormalizedValue, email.NormalizedValue);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("email\n@example.com")]
+    public void VerifiedEmailRejectsEmptyOrControlContainingValues(string value) =>
+        Assert.Throws<ArgumentException>(() => VerifiedEmail.Create(value));
+
+    [Fact]
+    public void VerifiedEmailRejectsNullValues() =>
+        Assert.Throws<ArgumentNullException>(() => VerifiedEmail.Create(null!));
+
+    [Fact]
+    public void VerifiedEmailRejectsValuesLongerThan254Characters() =>
+        Assert.Throws<ArgumentException>(() => VerifiedEmail.Create(new string('a', 255)));
+
+    [Fact]
+    public void DifferentFreeEmailCanBeAttachedAsSecondary() =>
+        Assert.Equal(
+            EmailOwnershipDecision.AttachSecondary,
+            ExternalConnectionPolicy.DecideEmailOwnership(new UserId(Guid.NewGuid()), null));
+
+    [Fact]
+    public void EmailOwnedByTheCurrentUserIsReused()
+    {
+        var userId = new UserId(Guid.NewGuid());
+
+        Assert.Equal(
+            EmailOwnershipDecision.ReuseCurrent,
+            ExternalConnectionPolicy.DecideEmailOwnership(userId, userId));
+    }
+
+    [Fact]
+    public void EmailOwnedByAnotherUserConflicts() =>
+        Assert.Equal(
+            EmailOwnershipDecision.ConflictWithOtherUser,
+            ExternalConnectionPolicy.DecideEmailOwnership(
+                new UserId(Guid.NewGuid()),
+                new UserId(Guid.NewGuid())));
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void NonPositiveConfiguredSurvivorCountsCannotDisconnect(
+        int configuredSurvivorCount) =>
+        Assert.False(ExternalConnectionPolicy.CanDisconnect(
+            null,
+            ExternalProvider.Google,
+            configuredSurvivorCount));
+
+    [Fact]
+    public void CurrentMethodOrCandidateWithoutConfiguredSurvivorCannotBeDisconnected()
+    {
+        Assert.False(ExternalConnectionPolicy.CanDisconnect(
+            ExternalProvider.Google, ExternalProvider.Google, 1));
+        Assert.False(ExternalConnectionPolicy.CanDisconnect(
+            null, ExternalProvider.Google, 0));
+        Assert.True(ExternalConnectionPolicy.CanDisconnect(
+            null, ExternalProvider.Google, 1));
+    }
+}

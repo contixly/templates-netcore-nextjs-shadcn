@@ -157,8 +157,9 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task DisabledLocalAuthLogsFinalNotFoundAtWarning()
     {
+        using var certificate = TestDataProtectionCertificate.CreateRsa();
         await using var production = factory.WithWebHostBuilder(
-            builder => builder.UseEnvironment("Production"));
+            certificate.ConfigureProductionHost);
         var logs = production.Services.GetRequiredService<CapturedLogProvider>();
         logs.Clear();
         using var client = production.CreateClient(new WebApplicationFactoryClientOptions

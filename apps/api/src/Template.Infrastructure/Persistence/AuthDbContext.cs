@@ -1,23 +1,37 @@
+using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using OpenIddict.EntityFrameworkCore.Models;
 using Template.Infrastructure.Identity;
 
 namespace Template.Infrastructure.Persistence;
 
 public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
-    : IdentityUserContext<ApplicationUser, Guid>(options)
+    : IdentityUserContext<
+        ApplicationUser,
+        Guid,
+        IdentityUserClaim<Guid>,
+        ApplicationUserLogin,
+        IdentityUserToken<Guid>>(options),
+      IDataProtectionKeyContext
 {
     public const string Schema = "auth";
 
     public DbSet<AuthSessionEntity> Sessions => Set<AuthSessionEntity>();
+    public DbSet<UserEmailEntity> UserEmails => Set<UserEmailEntity>();
+    public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
+    public DbSet<OpenIddictEntityFrameworkCoreToken> OpenIddictTokens =>
+        Set<OpenIddictEntityFrameworkCoreToken>();
 
     public static void Configure(
         DbContextOptionsBuilder options,
         string connectionString) =>
-        options.UseNpgsql(
-            connectionString,
-            npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", Schema));
+        options
+            .UseNpgsql(
+                connectionString,
+                npgsql => npgsql.MigrationsHistoryTable("__ef_migrations_history", Schema))
+            .UseOpenIddict();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -80,14 +94,32 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
             entity.HasIndex(value => value.UserId).HasDatabaseName("ix_user_claims_user_id");
         });
 
-        builder.Entity<IdentityUserLogin<Guid>>(entity =>
+        builder.Entity<ApplicationUserLogin>(entity =>
         {
             entity.ToTable("user_logins");
             entity.Property(value => value.LoginProvider).HasColumnName("login_provider");
             entity.Property(value => value.ProviderKey).HasColumnName("provider_key");
             entity.Property(value => value.ProviderDisplayName).HasColumnName("provider_display_name");
             entity.Property(value => value.UserId).HasColumnName("user_id");
+            entity.Property(value => value.VerifiedEmailId)
+                .HasColumnName("verified_email_id");
+            entity.Property(value => value.ConnectedAt)
+                .HasColumnName("connected_at")
+                .HasColumnType("timestamp with time zone");
+            entity.Property(value => value.LastUsedAt)
+                .HasColumnName("last_used_at")
+                .HasColumnType("timestamp with time zone");
             entity.HasIndex(value => value.UserId).HasDatabaseName("ix_user_logins_user_id");
+            entity.HasIndex(value => new { value.UserId, value.LoginProvider })
+                .IsUnique()
+                .HasDatabaseName("ux_user_logins_user_provider");
+            entity.HasIndex(value => value.VerifiedEmailId)
+                .HasDatabaseName("ix_user_logins_verified_email_id");
+            entity.HasOne<UserEmailEntity>()
+                .WithMany()
+                .HasForeignKey(value => value.VerifiedEmailId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_user_logins_user_emails_verified_email_id");
         });
 
         builder.Entity<IdentityUserToken<Guid>>(entity =>
@@ -101,10 +133,25 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
 
         builder.Entity<AuthSessionEntity>(entity =>
         {
-            entity.ToTable("sessions", table =>
-                table.HasCheckConstraint(
-                    "ck_sessions_expiry",
-                    "expires_at > created_at"));
+            entity.ToTable(
+                "sessions",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "ck_sessions_expiry",
+                        "expires_at > created_at");
+                    table.HasCheckConstraint(
+                        "ck_sessions_authentication_method",
+                        """
+                        authentication_method IN (
+                            'local',
+                            'google',
+                            'github',
+                            'gitlab',
+                            'vk',
+                            'yandex')
+                        """);
+                });
             entity.HasKey(value => value.Id).HasName("pk_sessions");
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.UserId).HasColumnName("user_id");
@@ -123,6 +170,10 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
             entity.Property(value => value.ExpiresAt)
                 .HasColumnName("expires_at")
                 .HasColumnType("timestamp with time zone");
+            entity.Property(value => value.AuthenticationMethod)
+                .HasColumnName("authentication_method")
+                .HasMaxLength(6)
+                .HasDefaultValue("local");
             entity.Property(value => value.IpAddress)
                 .HasColumnName("ip_address")
                 .HasColumnType("inet");
@@ -142,5 +193,99 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_sessions_users_user_id");
         });
+
+        builder.Entity<UserEmailEntity>(entity =>
+        {
+            entity.ToTable(
+                "user_emails",
+                table =>
+                {
+                    table.HasCheckConstraint(
+                        "ck_user_emails_email",
+                        "char_length(email) BETWEEN 1 AND 254");
+                    table.HasCheckConstraint(
+                        "ck_user_emails_normalized_email",
+                        "char_length(normalized_email) BETWEEN 1 AND 254");
+                });
+            entity.HasKey(value => value.Id).HasName("pk_user_emails");
+            entity.Property(value => value.Id).HasColumnName("id");
+            entity.Property(value => value.UserId).HasColumnName("user_id");
+            entity.Property(value => value.Email)
+                .HasColumnName("email")
+                .HasMaxLength(254);
+            entity.Property(value => value.NormalizedEmail)
+                .HasColumnName("normalized_email")
+                .HasMaxLength(254);
+            entity.Property(value => value.IsPrimary).HasColumnName("is_primary");
+            entity.Property(value => value.CreatedAt)
+                .HasColumnName("created_at")
+                .HasColumnType("timestamp with time zone");
+            entity.HasIndex(value => value.NormalizedEmail)
+                .IsUnique()
+                .HasDatabaseName("ux_user_emails_normalized_email");
+            entity.HasIndex(value => new { value.UserId, value.Id })
+                .HasDatabaseName("ix_user_emails_user_id");
+            entity.HasIndex(value => value.UserId)
+                .IsUnique()
+                .HasFilter("is_primary")
+                .HasDatabaseName("ux_user_emails_primary_user_id");
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(value => value.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_user_emails_users_user_id");
+        });
+
+        builder.Entity<DataProtectionKey>(entity =>
+        {
+            entity.ToTable("data_protection_keys");
+            entity.Property(value => value.Id).HasColumnName("id");
+            entity.Property(value => value.FriendlyName)
+                .HasColumnName("friendly_name");
+            entity.Property(value => value.Xml).HasColumnName("xml");
+        });
+
+        builder.UseOpenIddict();
+        ConfigureOpenIddict(builder);
     }
+
+    private static void ConfigureOpenIddict(ModelBuilder builder)
+    {
+        builder.Entity<OpenIddictEntityFrameworkCoreApplication>(entity =>
+        {
+            entity.ToTable("openiddict_applications");
+            UseSnakeCaseProperties(entity);
+        });
+        builder.Entity<OpenIddictEntityFrameworkCoreAuthorization>(entity =>
+        {
+            entity.ToTable("openiddict_authorizations");
+            UseSnakeCaseProperties(entity);
+        });
+        builder.Entity<OpenIddictEntityFrameworkCoreScope>(entity =>
+        {
+            entity.ToTable("openiddict_scopes");
+            UseSnakeCaseProperties(entity);
+        });
+        builder.Entity<OpenIddictEntityFrameworkCoreToken>(entity =>
+        {
+            entity.ToTable("openiddict_tokens");
+            UseSnakeCaseProperties(entity);
+        });
+    }
+
+    private static void UseSnakeCaseProperties<TEntity>(
+        Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> entity)
+        where TEntity : class
+    {
+        foreach (var property in entity.Metadata.GetProperties())
+        {
+            property.SetColumnName(ToSnakeCase(property.Name));
+        }
+    }
+
+    private static string ToSnakeCase(string value) =>
+        string.Concat(value.Select((character, index) =>
+            index > 0 && char.IsUpper(character)
+                ? $"_{char.ToLowerInvariant(character)}"
+                : char.ToLowerInvariant(character).ToString()));
 }

@@ -218,11 +218,17 @@ public sealed class LocalAutomationAuthServiceTests
 
         public Task<BrowserSession> SignInAsync(
             AuthUser user,
+            string authenticationMethod,
             CancellationToken cancellationToken)
         {
             SignInCalls++;
+            Assert.Equal(BrowserAuthenticationMethods.Local, authenticationMethod);
             return Task.FromResult(TestIdentity.Session(user).Session);
         }
+
+        public Task<BrowserSession> RenewCurrentAsync(
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Renewal is not part of this test.");
 
         public Task SignOutAsync(CancellationToken cancellationToken)
         {
@@ -259,7 +265,8 @@ public sealed class LocalAutomationAuthServiceTests
                     SessionId.New(),
                     window.CreatedAt,
                     window.UpdatedAt,
-                    window.ExpiresAt));
+                    window.ExpiresAt,
+                    BrowserAuthenticationMethods.Local));
         }
     }
 }

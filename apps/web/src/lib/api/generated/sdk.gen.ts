@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, LogoutData, LogoutErrors, LogoutResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses } from './types.gen';
+import type { ChallengeExternalAuthData, ChallengeExternalAuthErrors, ChallengeExternalAuthResponses, CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, DisconnectAccountProviderData, DisconnectAccountProviderErrors, DisconnectAccountProviderResponses, GetAccountConnectionsData, GetAccountConnectionsErrors, GetAccountConnectionsResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAccountSessionsData, GetAccountSessionsErrors, GetAccountSessionsResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, LogoutData, LogoutErrors, LogoutResponses, RevokeAccountSessionData, RevokeAccountSessionErrors, RevokeAccountSessionResponses, RevokeOtherAccountSessionsData, RevokeOtherAccountSessionsErrors, RevokeOtherAccountSessionsResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses, UpdateAccountProfileData, UpdateAccountProfileErrors, UpdateAccountProfileResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -31,6 +31,111 @@ export const logout = <ThrowOnError extends boolean = false>(options: Options<Lo
             type: 'apiKey'
         }],
     url: '/api/v1/auth/logout',
+    ...options
+});
+
+/**
+ * The signIn intent requires an anonymous browser. The connect intent requires the current cookieAuth BrowserSession.
+ */
+export const challengeExternalAuth = <ThrowOnError extends boolean = false>(options: Options<ChallengeExternalAuthData, ThrowOnError>): RequestResult<ChallengeExternalAuthResponses, ChallengeExternalAuthErrors, ThrowOnError> => (options.client ?? client).post<ChallengeExternalAuthResponses, ChallengeExternalAuthErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/auth/external/{provider}/challenge',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const deleteAccount = <ThrowOnError extends boolean = false>(options: Options<DeleteAccountData, ThrowOnError>): RequestResult<DeleteAccountResponses, DeleteAccountErrors, ThrowOnError> => (options.client ?? client).delete<DeleteAccountResponses, DeleteAccountErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getAccount = <ThrowOnError extends boolean = false>(options?: Options<GetAccountData, ThrowOnError>): RequestResult<GetAccountResponses, GetAccountErrors, ThrowOnError> => (options?.client ?? client).get<GetAccountResponses, GetAccountErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account',
+    ...options
+});
+
+export const updateAccountProfile = <ThrowOnError extends boolean = false>(options: Options<UpdateAccountProfileData, ThrowOnError>): RequestResult<UpdateAccountProfileResponses, UpdateAccountProfileErrors, ThrowOnError> => (options.client ?? client).patch<UpdateAccountProfileResponses, UpdateAccountProfileErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/profile',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getAccountConnections = <ThrowOnError extends boolean = false>(options?: Options<GetAccountConnectionsData, ThrowOnError>): RequestResult<GetAccountConnectionsResponses, GetAccountConnectionsErrors, ThrowOnError> => (options?.client ?? client).get<GetAccountConnectionsResponses, GetAccountConnectionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/connections',
+    ...options
+});
+
+export const disconnectAccountProvider = <ThrowOnError extends boolean = false>(options: Options<DisconnectAccountProviderData, ThrowOnError>): RequestResult<DisconnectAccountProviderResponses, DisconnectAccountProviderErrors, ThrowOnError> => (options.client ?? client).delete<DisconnectAccountProviderResponses, DisconnectAccountProviderErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/connections/{provider}',
+    ...options
+});
+
+export const getAccountSessions = <ThrowOnError extends boolean = false>(options?: Options<GetAccountSessionsData, ThrowOnError>): RequestResult<GetAccountSessionsResponses, GetAccountSessionsErrors, ThrowOnError> => (options?.client ?? client).get<GetAccountSessionsResponses, GetAccountSessionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/sessions',
+    ...options
+});
+
+export const revokeOtherAccountSessions = <ThrowOnError extends boolean = false>(options: Options<RevokeOtherAccountSessionsData, ThrowOnError>): RequestResult<RevokeOtherAccountSessionsResponses, RevokeOtherAccountSessionsErrors, ThrowOnError> => (options.client ?? client).delete<RevokeOtherAccountSessionsResponses, RevokeOtherAccountSessionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/sessions/others',
+    ...options
+});
+
+export const revokeAccountSession = <ThrowOnError extends boolean = false>(options: Options<RevokeAccountSessionData, ThrowOnError>): RequestResult<RevokeAccountSessionResponses, RevokeAccountSessionErrors, ThrowOnError> => (options.client ?? client).delete<RevokeAccountSessionResponses, RevokeAccountSessionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/sessions/{sessionId}',
     ...options
 });
 

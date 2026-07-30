@@ -14,7 +14,24 @@ public sealed record BrowserSession(
     SessionId Id,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    string AuthenticationMethod);
+
+public static class BrowserAuthenticationMethods
+{
+    public const string Local = "local";
+    public const string Google = "google";
+    public const string GitHub = "github";
+    public const string GitLab = "gitlab";
+    public const string Vk = "vk";
+    public const string Yandex = "yandex";
+
+    public static bool IsAllowed(string? value) =>
+        value is Local or Google or GitHub or GitLab or Vk or Yandex;
+
+    public static string Project(string? value) =>
+        IsAllowed(value) ? value! : Local;
+}
 
 public sealed record AuthenticatedSession(AuthUser User, BrowserSession Session);
 

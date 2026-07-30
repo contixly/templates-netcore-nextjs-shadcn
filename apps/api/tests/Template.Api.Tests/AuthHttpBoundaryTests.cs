@@ -121,8 +121,9 @@ public sealed class AuthHttpBoundaryTests(ApiWebApplicationFactory factory)
     [Fact]
     public async Task ProductionLocalRouteAlwaysReturnsLocalDisabledProblem()
     {
+        using var certificate = TestDataProtectionCertificate.CreateRsa();
         await using var production = factory.WithWebHostBuilder(
-            builder => builder.UseEnvironment("Production"));
+            certificate.ConfigureProductionHost);
         using var client = production.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost")

@@ -4,15 +4,18 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Net.Http.Headers;
 using Template.Api.Authentication;
 using Template.Api.Tests.Infrastructure;
+using Template.Application.Accounts.Ports;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
 using Template.Domain.Authentication;
+using Template.Infrastructure.Authentication;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Persistence;
 
@@ -55,7 +58,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
             options.AddInterceptors(
                 provider.GetRequiredService<SessionCommandBarrier>());
         });
-        services.AddAuthInfrastructure(configuration);
+        services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         services.AddApiAuthentication();
         services.PostConfigure<CookieAuthenticationOptions>(
             ApiAuthenticationDefaults.SchemeName,
@@ -106,6 +109,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _firstUserId,
                     "local-agent+cookie-one@local-agent.test",
                     "Cookie One"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         var newCookie = AssertSingleLiveSessionCookie(context);
 
@@ -142,6 +146,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _secondUserId,
                     "local-agent+cookie-two@local-agent.test",
                     "Cookie Two"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         await context.Response.StartAsync(TestContext.Current.CancellationToken);
 
@@ -173,6 +178,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _secondUserId,
                     "local-agent+cookie-two@local-agent.test",
                     "Cookie Two"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         var newCookie = AssertSingleLiveSessionCookie(context);
 
@@ -221,9 +227,13 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
 
         var session = await gateway.SignInAsync(
             user,
+            BrowserAuthenticationMethods.Local,
             TestContext.Current.CancellationToken);
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            gateway.SignInAsync(user, TestContext.Current.CancellationToken));
+            gateway.SignInAsync(
+                user,
+                BrowserAuthenticationMethods.Local,
+                TestContext.Current.CancellationToken));
 
         Assert.Contains("already", exception.Message, StringComparison.OrdinalIgnoreCase);
         AssertSingleLiveSessionCookie(context);
@@ -255,6 +265,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
                     _secondUserId,
                     "local-agent+cookie-two@local-agent.test",
                     "Cookie Two"),
+                BrowserAuthenticationMethods.Local,
                 TestContext.Current.CancellationToken);
         }
 
@@ -282,6 +293,140 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
             _secondUserId.ToString(),
             newAuthentication.Principal!.FindFirstValue(ClaimTypes.NameIdentifier));
         await AssertOnlySessionAsync(replacementSession.Id.Value);
+    }
+
+    [Fact]
+    public async Task CurrentRenewalRefreshesSecurityStampWithStableSessionAndKey()
+    {
+        var user = CreateAuthUser(
+            _firstUserId,
+            "local-agent+cookie-one@local-agent.test",
+            "Cookie One");
+        var originalCookie = await IssueCookieAsync(
+            user,
+            BrowserAuthenticationMethods.GitHub);
+        byte[] originalTicketKeyHash;
+        string originalSecurityStamp;
+        await using (var seedScope = _services.CreateAsyncScope())
+        {
+            var db = seedScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var session = await db.Sessions.AsNoTracking().SingleAsync(
+                TestContext.Current.CancellationToken);
+            originalTicketKeyHash = session.TicketKeyHash;
+            Assert.Equal(
+                BrowserAuthenticationMethods.GitHub,
+                session.AuthenticationMethod);
+            var storedUser = await db.Users.SingleAsync(
+                row => row.Id == _firstUserId,
+                TestContext.Current.CancellationToken);
+            originalSecurityStamp = storedUser.SecurityStamp!;
+            storedUser.SecurityStamp = Guid.NewGuid().ToString();
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider, originalCookie);
+        var authentication = await context.AuthenticateAsync(
+            ApiAuthenticationDefaults.SchemeName);
+        Assert.True(authentication.Succeeded);
+        context.User = authentication.Principal!;
+        var stampClaimType = scope.ServiceProvider
+            .GetRequiredService<
+                Microsoft.Extensions.Options.IOptions<IdentityOptions>>()
+            .Value.ClaimsIdentity.SecurityStampClaimType;
+        Assert.Equal(
+            originalSecurityStamp,
+            authentication.Principal!.FindFirstValue(stampClaimType));
+        Assert.Equal(
+            [BrowserAuthenticationMethods.GitHub],
+            authentication.Principal
+                .FindAll(BrowserSessionClaimTypes.AuthenticationMethod)
+                .Select(claim => claim.Value));
+        var gateway = scope.ServiceProvider.GetRequiredService<IBrowserSessionGateway>();
+        var before = await gateway.GetCurrentAsync(TestContext.Current.CancellationToken);
+
+        var renewed = await gateway.RenewCurrentAsync(
+            TestContext.Current.CancellationToken);
+        var renewedCookie = AssertSingleLiveSessionCookie(context);
+        var renewedAuthentication = await AuthenticateAsync(renewedCookie);
+        var originalCookieAfterRenewal = await AuthenticateAsync(originalCookie);
+        var row = await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            .Sessions.AsNoTracking()
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var refreshedStamp = await scope.ServiceProvider
+            .GetRequiredService<AuthDbContext>()
+            .Users.AsNoTracking()
+            .Where(value => value.Id == _firstUserId)
+            .Select(value => value.SecurityStamp)
+            .SingleAsync(TestContext.Current.CancellationToken);
+
+        Assert.NotEqual(originalCookie, renewedCookie);
+        Assert.Equal(before!.Session.Id, renewed.Id);
+        Assert.Equal(renewed.Id.Value, row.Id);
+        Assert.Equal(originalTicketKeyHash, row.TicketKeyHash);
+        Assert.Equal(BrowserAuthenticationMethods.GitHub, before.Session.AuthenticationMethod);
+        Assert.Equal(BrowserAuthenticationMethods.GitHub, renewed.AuthenticationMethod);
+        Assert.Equal(BrowserAuthenticationMethods.GitHub, row.AuthenticationMethod);
+        Assert.Equal(
+            [BrowserAuthenticationMethods.GitHub],
+            renewedAuthentication.Principal!
+                .FindAll(BrowserSessionClaimTypes.AuthenticationMethod)
+                .Select(claim => claim.Value));
+        Assert.NotEqual(originalSecurityStamp, refreshedStamp);
+        Assert.Equal(
+            refreshedStamp,
+            renewedAuthentication.Principal!.FindFirstValue(stampClaimType));
+        Assert.True(originalCookieAfterRenewal.Succeeded);
+        Assert.Equal(
+            refreshedStamp,
+            originalCookieAfterRenewal.Principal!.FindFirstValue(stampClaimType));
+    }
+
+    [Fact]
+    public async Task ConcurrentRevokeWinsOverCurrentRenewalWithoutResurrection()
+    {
+        var user = CreateAuthUser(
+            _firstUserId,
+            "local-agent+cookie-one@local-agent.test",
+            "Cookie One");
+        var originalCookie = await IssueCookieAsync(
+            user,
+            BrowserAuthenticationMethods.GitHub);
+        await using var renewalScope = _services.CreateAsyncScope();
+        var renewalContext = CreateHttpContext(
+            renewalScope.ServiceProvider,
+            originalCookie);
+        var authentication = await renewalContext.AuthenticateAsync(
+            ApiAuthenticationDefaults.SchemeName);
+        Assert.True(authentication.Succeeded);
+        renewalContext.User = authentication.Principal!;
+        var gateway = renewalScope.ServiceProvider
+            .GetRequiredService<IBrowserSessionGateway>();
+        var current = await gateway.GetCurrentAsync(
+            TestContext.Current.CancellationToken);
+        _commandBarrier.CoordinateSessionDeleteBeforeUpdate();
+
+        await using var revocationScope = _services.CreateAsyncScope();
+        var renewal = gateway.RenewCurrentAsync(
+            TestContext.Current.CancellationToken);
+        var revocation = revocationScope.ServiceProvider
+            .GetRequiredService<IAccountSessionStore>()
+            .RevokeAsync(
+                new UserId(_firstUserId),
+                current!.Session.Id,
+                TestContext.Current.CancellationToken);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            async () => await renewal);
+        Assert.True(await revocation);
+        await AssertNoSessionsAsync();
+        Assert.False((await AuthenticateAsync(originalCookie)).Succeeded);
+        foreach (var cookie in ParseSessionSetCookies(renewalContext)
+                     .Where(value => value.Expires > _time.GetUtcNow()))
+        {
+            Assert.False((await AuthenticateAsync(
+                $"{cookie.Name}={cookie.Value}")).Succeeded);
+        }
     }
 
     [Fact]
@@ -326,13 +471,18 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
             authentication.DefaultSignInScheme);
     }
 
-    private async Task<string> IssueCookieAsync(AuthUser user)
+    private async Task<string> IssueCookieAsync(
+        AuthUser user,
+        string authenticationMethod = BrowserAuthenticationMethods.Local)
     {
         await using var scope = _services.CreateAsyncScope();
         var context = CreateHttpContext(scope.ServiceProvider);
         await scope.ServiceProvider
             .GetRequiredService<IBrowserSessionGateway>()
-            .SignInAsync(user, TestContext.Current.CancellationToken);
+            .SignInAsync(
+                user,
+                authenticationMethod,
+                TestContext.Current.CancellationToken);
         return AssertSingleLiveSessionCookie(context);
     }
 

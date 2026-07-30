@@ -47,18 +47,23 @@ internal sealed class BrowserSessionGateway(
 
     public async Task<BrowserSession> SignInAsync(
         AuthUser user,
+        string authenticationMethod,
         CancellationToken cancellationToken)
     {
+        if (!BrowserAuthenticationMethods.IsAllowed(authenticationMethod))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(authenticationMethod),
+                authenticationMethod,
+                "Authentication method is not supported.");
+        }
+
         var context = RequiredHttpContext();
         var applicationUser = await users.FindByIdAsync(user.Id.Value.ToString()) ??
             throw new InvalidOperationException("Identity user disappeared before sign-in.");
         var principal = await principalFactory.CreateAsync(applicationUser);
-        var identity = principal.Identity as ClaimsIdentity ??
-            throw new InvalidOperationException("Identity principal has no ClaimsIdentity.");
         var sessionId = SessionId.New();
-        identity.AddClaim(new Claim(
-            BrowserSessionClaimTypes.SessionId,
-            sessionId.Value.ToString()));
+        AddSessionClaims(principal, sessionId, authenticationMethod);
         var window = SessionWindow.Start(timeProvider.GetUtcNow(), SessionLifetime);
 
         BrowserSessionReplacement.Begin(context);
@@ -74,6 +79,60 @@ internal sealed class BrowserSessionGateway(
                 IssuedUtc = window.CreatedAt,
                 ExpiresUtc = window.ExpiresAt
             });
+
+        var stored = await db.Sessions.AsNoTracking().SingleAsync(
+            row => row.Id == sessionId.Value,
+            cancellationToken);
+        return Map(stored);
+    }
+
+    public async Task<BrowserSession> RenewCurrentAsync(
+        CancellationToken cancellationToken)
+    {
+        var context = RequiredHttpContext();
+        var authentication = await context.AuthenticateAsync(
+            BrowserSessionAuthenticationDefaults.PrimaryScheme);
+        if (!authentication.Succeeded ||
+            authentication.Principal is null ||
+            authentication.Properties is null)
+        {
+            throw new InvalidOperationException(
+                "A current browser session is required for renewal.");
+        }
+
+        var sessionId = ParseSingleSessionId(authentication.Principal);
+        var authenticationMethod = ReadAuthenticationMethod(
+            authentication.Principal);
+        var userId = authentication.Principal.FindFirstValue(
+            ClaimTypes.NameIdentifier);
+        var applicationUser = userId is null
+            ? null
+            : await users.FindByIdAsync(userId);
+        if (applicationUser is null)
+        {
+            throw new InvalidOperationException(
+                "Identity user disappeared before session renewal.");
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var exists = await db.Sessions.AsNoTracking().AnyAsync(
+            row =>
+                row.Id == sessionId.Value &&
+                row.UserId == applicationUser.Id &&
+                row.ExpiresAt > now,
+            cancellationToken);
+        if (!exists)
+        {
+            throw new InvalidOperationException(
+                "The current browser session is no longer available.");
+        }
+
+        var principal = await principalFactory.CreateAsync(applicationUser);
+        AddSessionClaims(principal, sessionId, authenticationMethod);
+        await context.SignInAsync(
+            BrowserSessionAuthenticationDefaults.PrimaryScheme,
+            principal,
+            authentication.Properties);
 
         var stored = await db.Sessions.AsNoTracking().SingleAsync(
             row => row.Id == sessionId.Value,
@@ -103,5 +162,53 @@ internal sealed class BrowserSessionGateway(
             new SessionId(session.Id),
             session.CreatedAt,
             session.UpdatedAt,
-            session.ExpiresAt);
+            session.ExpiresAt,
+            BrowserAuthenticationMethods.Project(session.AuthenticationMethod));
+
+    private static void AddSessionClaims(
+        ClaimsPrincipal principal,
+        SessionId sessionId,
+        string authenticationMethod)
+    {
+        var identity = principal.Identity as ClaimsIdentity ??
+            throw new InvalidOperationException(
+                "Identity principal has no ClaimsIdentity.");
+        foreach (var claim in principal
+                     .FindAll(BrowserSessionClaimTypes.SessionId)
+                     .Concat(principal.FindAll(
+                         BrowserSessionClaimTypes.AuthenticationMethod))
+                     .ToArray())
+        {
+            claim.Subject?.RemoveClaim(claim);
+        }
+
+        identity.AddClaim(new Claim(
+            BrowserSessionClaimTypes.SessionId,
+            sessionId.Value.ToString()));
+        identity.AddClaim(new Claim(
+            BrowserSessionClaimTypes.AuthenticationMethod,
+            authenticationMethod));
+    }
+
+    private static SessionId ParseSingleSessionId(ClaimsPrincipal principal)
+    {
+        var claims = principal
+            .FindAll(BrowserSessionClaimTypes.SessionId)
+            .ToArray();
+        return claims.Length == 1 &&
+            Guid.TryParse(claims[0].Value, out var value)
+            ? new SessionId(value)
+            : throw new InvalidOperationException(
+                "The current browser session id is invalid.");
+    }
+
+    private static string ReadAuthenticationMethod(ClaimsPrincipal principal)
+    {
+        var claims = principal
+            .FindAll(BrowserSessionClaimTypes.AuthenticationMethod)
+            .ToArray();
+        return claims.Length == 1
+            ? BrowserAuthenticationMethods.Project(claims[0].Value)
+            : BrowserAuthenticationMethods.Local;
+    }
 }

@@ -24,6 +24,28 @@ namespace Template.Infrastructure.Persistence.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("FriendlyName")
+                        .HasColumnType("text")
+                        .HasColumnName("friendly_name");
+
+                    b.Property<string>("Xml")
+                        .HasColumnType("text")
+                        .HasColumnName("xml");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("data_protection_keys", "auth");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.Property<int>("Id")
@@ -53,32 +75,6 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.ToTable("user_claims", "auth");
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
-                {
-                    b.Property<string>("LoginProvider")
-                        .HasColumnType("text")
-                        .HasColumnName("login_provider");
-
-                    b.Property<string>("ProviderKey")
-                        .HasColumnType("text")
-                        .HasColumnName("provider_key");
-
-                    b.Property<string>("ProviderDisplayName")
-                        .HasColumnType("text")
-                        .HasColumnName("provider_display_name");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("LoginProvider", "ProviderKey");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("ix_user_logins_user_id");
-
-                    b.ToTable("user_logins", "auth");
-                });
-
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserToken<System.Guid>", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -100,6 +96,261 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("user_tokens", "auth");
+                });
+
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApplicationType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("application_type");
+
+                    b.Property<string>("ClientId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("client_id");
+
+                    b.Property<string>("ClientSecret")
+                        .HasColumnType("text")
+                        .HasColumnName("client_secret");
+
+                    b.Property<string>("ClientType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("client_type");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<string>("ConsentType")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("consent_type");
+
+                    b.Property<string>("DisplayName")
+                        .HasColumnType("text")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("DisplayNames")
+                        .HasColumnType("text")
+                        .HasColumnName("display_names");
+
+                    b.Property<string>("JsonWebKeySet")
+                        .HasColumnType("text")
+                        .HasColumnName("json_web_key_set");
+
+                    b.Property<string>("Permissions")
+                        .HasColumnType("text")
+                        .HasColumnName("permissions");
+
+                    b.Property<string>("PostLogoutRedirectUris")
+                        .HasColumnType("text")
+                        .HasColumnName("post_logout_redirect_uris");
+
+                    b.Property<string>("Properties")
+                        .HasColumnType("text")
+                        .HasColumnName("properties");
+
+                    b.Property<string>("RedirectUris")
+                        .HasColumnType("text")
+                        .HasColumnName("redirect_uris");
+
+                    b.Property<string>("Requirements")
+                        .HasColumnType("text")
+                        .HasColumnName("requirements");
+
+                    b.Property<string>("Settings")
+                        .HasColumnType("text")
+                        .HasColumnName("settings");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClientId")
+                        .IsUnique();
+
+                    b.ToTable("openiddict_applications", "auth");
+                });
+
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApplicationId")
+                        .HasColumnType("text")
+                        .HasColumnName("application_id");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime?>("CreationDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("creation_date");
+
+                    b.Property<string>("Properties")
+                        .HasColumnType("text")
+                        .HasColumnName("properties");
+
+                    b.Property<string>("Scopes")
+                        .HasColumnType("text")
+                        .HasColumnName("scopes");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("subject");
+
+                    b.Property<string>("Type")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId", "Status", "Subject", "Type");
+
+                    b.ToTable("openiddict_authorizations", "auth");
+                });
+
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreScope", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("Descriptions")
+                        .HasColumnType("text")
+                        .HasColumnName("descriptions");
+
+                    b.Property<string>("DisplayName")
+                        .HasColumnType("text")
+                        .HasColumnName("display_name");
+
+                    b.Property<string>("DisplayNames")
+                        .HasColumnType("text")
+                        .HasColumnName("display_names");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Properties")
+                        .HasColumnType("text")
+                        .HasColumnName("properties");
+
+                    b.Property<string>("Resources")
+                        .HasColumnType("text")
+                        .HasColumnName("resources");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("openiddict_scopes", "auth");
+                });
+
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreToken", b =>
+                {
+                    b.Property<string>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ApplicationId")
+                        .HasColumnType("text")
+                        .HasColumnName("application_id");
+
+                    b.Property<string>("AuthorizationId")
+                        .HasColumnType("text")
+                        .HasColumnName("authorization_id");
+
+                    b.Property<string>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("concurrency_token");
+
+                    b.Property<DateTime?>("CreationDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("creation_date");
+
+                    b.Property<DateTime?>("ExpirationDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expiration_date");
+
+                    b.Property<string>("Payload")
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<string>("Properties")
+                        .HasColumnType("text")
+                        .HasColumnName("properties");
+
+                    b.Property<DateTime?>("RedemptionDate")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("redemption_date");
+
+                    b.Property<string>("ReferenceId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reference_id");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Subject")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)")
+                        .HasColumnName("subject");
+
+                    b.Property<string>("Type")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizationId");
+
+                    b.HasIndex("ReferenceId")
+                        .IsUnique();
+
+                    b.HasIndex("ApplicationId", "Status", "Subject", "Type");
+
+                    b.ToTable("openiddict_tokens", "auth");
                 });
 
             modelBuilder.Entity("Template.Infrastructure.Identity.ApplicationUser", b =>
@@ -206,12 +457,65 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.ToTable("users", "auth");
                 });
 
+            modelBuilder.Entity("Template.Infrastructure.Identity.ApplicationUserLogin", b =>
+                {
+                    b.Property<string>("LoginProvider")
+                        .HasColumnType("text")
+                        .HasColumnName("login_provider");
+
+                    b.Property<string>("ProviderKey")
+                        .HasColumnType("text")
+                        .HasColumnName("provider_key");
+
+                    b.Property<DateTimeOffset>("ConnectedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("connected_at");
+
+                    b.Property<DateTimeOffset?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_used_at");
+
+                    b.Property<string>("ProviderDisplayName")
+                        .HasColumnType("text")
+                        .HasColumnName("provider_display_name");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("VerifiedEmailId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("verified_email_id");
+
+                    b.HasKey("LoginProvider", "ProviderKey");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_user_logins_user_id");
+
+                    b.HasIndex("VerifiedEmailId")
+                        .HasDatabaseName("ix_user_logins_verified_email_id");
+
+                    b.HasIndex("UserId", "LoginProvider")
+                        .IsUnique()
+                        .HasDatabaseName("ux_user_logins_user_provider");
+
+                    b.ToTable("user_logins", "auth");
+                });
+
             modelBuilder.Entity("Template.Infrastructure.Persistence.AuthSessionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<string>("AuthenticationMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasDefaultValue("local")
+                        .HasColumnName("authentication_method");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -263,20 +567,67 @@ namespace Template.Infrastructure.Persistence.Migrations
 
                     b.ToTable("sessions", "auth", t =>
                         {
+                            t.HasCheckConstraint("ck_sessions_authentication_method", "authentication_method IN (\n    'local',\n    'google',\n    'github',\n    'gitlab',\n    'vk',\n    'yandex')");
+
                             t.HasCheckConstraint("ck_sessions_expiry", "expires_at > created_at");
                         });
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
+            modelBuilder.Entity("Template.Infrastructure.Persistence.UserEmailEntity", b =>
                 {
-                    b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("email");
+
+                    b.Property<bool>("IsPrimary")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_primary");
+
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("normalized_email");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_user_emails");
+
+                    b.HasIndex("NormalizedEmail")
+                        .IsUnique()
+                        .HasDatabaseName("ux_user_emails_normalized_email");
+
+                    b.HasIndex("UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_user_emails_primary_user_id")
+                        .HasFilter("is_primary");
+
+                    b.HasIndex("UserId", "Id")
+                        .HasDatabaseName("ix_user_emails_user_id");
+
+                    b.ToTable("user_emails", "auth", t =>
+                        {
+                            t.HasCheckConstraint("ck_user_emails_email", "char_length(email) BETWEEN 1 AND 254");
+
+                            t.HasCheckConstraint("ck_user_emails_normalized_email", "char_length(normalized_email) BETWEEN 1 AND 254");
+                        });
                 });
 
-            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<System.Guid>", b =>
+            modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserClaim<System.Guid>", b =>
                 {
                     b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
@@ -294,6 +645,46 @@ namespace Template.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
+                {
+                    b.HasOne("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", "Application")
+                        .WithMany("Authorizations")
+                        .HasForeignKey("ApplicationId");
+
+                    b.Navigation("Application");
+                });
+
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreToken", b =>
+                {
+                    b.HasOne("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", "Application")
+                        .WithMany("Tokens")
+                        .HasForeignKey("ApplicationId");
+
+                    b.HasOne("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", "Authorization")
+                        .WithMany("Tokens")
+                        .HasForeignKey("AuthorizationId");
+
+                    b.Navigation("Application");
+
+                    b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Identity.ApplicationUserLogin", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Template.Infrastructure.Persistence.UserEmailEntity", null)
+                        .WithMany()
+                        .HasForeignKey("VerifiedEmailId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_logins_user_emails_verified_email_id");
+                });
+
             modelBuilder.Entity("Template.Infrastructure.Persistence.AuthSessionEntity", b =>
                 {
                     b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
@@ -302,6 +693,28 @@ namespace Template.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
                         .HasConstraintName("fk_sessions_users_user_id");
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Persistence.UserEmailEntity", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_user_emails_users_user_id");
+                });
+
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreApplication", b =>
+                {
+                    b.Navigation("Authorizations");
+
+                    b.Navigation("Tokens");
+                });
+
+            modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
+                {
+                    b.Navigation("Tokens");
                 });
 #pragma warning restore 612, 618
         }

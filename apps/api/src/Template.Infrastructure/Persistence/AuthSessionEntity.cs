@@ -11,6 +11,7 @@ public sealed class AuthSessionEntity
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public DateTimeOffset ExpiresAt { get; set; }
+    public required string AuthenticationMethod { get; set; }
     public IPAddress? IpAddress { get; set; }
     public string? UserAgent { get; set; }
 }
