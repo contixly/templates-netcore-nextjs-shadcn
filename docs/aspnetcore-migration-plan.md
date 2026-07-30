@@ -654,7 +654,7 @@ hosts Google, GitHub и GitLab, не открыл его для Yandex в огр
 | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | HTTP ownership     | ASP.NET Core остаётся единственным владельцем `/api/**`; Next.js использует generated REST SDK и не содержит Route Handlers, Server Actions, Prisma, Better Auth или direct database access                                                   |
 | Browser auth       | только `__Host-template.session` secure HttpOnly same-origin cookie; no Bearer/browser token storage; все unsafe browser mutations и external challenge требуют fresh CSRF                                                                    |
-| External start     | `POST /api/v1/auth/external/{provider}/challenge`; `signIn` только anonymous, `connect` только current session; unsafe return paths fail closed                                                                                               |
+| External start     | `POST /api/v1/auth/external/{provider}/challenge`; `signIn` только anonymous, `connect` только current session; unsafe path encodings fail closed while encoded query/fragment data survives; Production Google uses `prompt=select_account`  |
 | Protocol callbacks | Google `/api/auth/callback/google`; GitHub `/api/auth/callback/github`; GitLab `/api/auth/callback/gitlab`; VK `/api/auth/callback/vk`; Yandex `/api/auth/oauth2/callback/yandex`; GET/POST, unversioned, excluded from OpenAPI/generated SDK |
 | Account REST       | `GET /account`, `PATCH /account/profile`, `GET/DELETE /account/connections`, `GET /account/sessions`, revoke one/others и `DELETE /account`, все под `/api/v1` и `Cache-Control: no-store`                                                    |
 | Account UI         | `/user` → `/user/profile`; ровно Profile, Connections, Security, Danger; `/auth/error` отображает только allow-listed stable codes                                                                                                            |
@@ -703,12 +703,23 @@ Production callback владеет mutable ephemeral token bag и очищает
 `IReadOnlyDictionary` фактически mutable. Для immutable/read-only caller
 остаётся владельцем cleanup.
 
+OpenIddict state cleanup удаляет только expired/terminal redeemed records
+bounded batches. Non-cancellation tick failure логируется без token material,
+не останавливает hosted service и повторяется на следующем interval;
+host-stop cancellation продолжает распространяться.
+
 Session list сортируется `(lastSeenAt DESC, id DESC)`, default limit `20`,
 границы `1..100`. Cursor — opaque versioned canonical base64url tuple с
 checksum для format/corruption detection, а не MAC/authorization token.
 Account listing не загружает protected ticket/hash. Single revoke использует
 ownership-qualified delete и запрещает current id; revoke-others одним
 set-based delete сохраняет current session.
+
+После successful disconnect browser reload-ит и заменяет весь connections
+projection через generated SDK, поэтому survivor-dependent permissions не
+остаются stale. После revoke-others browser reload-ит fresh first session page
+и сохраняет current session видимой, даже когда до mutation она не была
+загружена.
 
 External reconciliation использует одну transaction на попытку и один
 bounded retry после classified unique race. Disconnect locks/revalidates
@@ -762,6 +773,26 @@ Ignored `appsettings.Local.json` загружается последним то�
 | exact local-value collision, private-key marker, runtime `template/.env`, ignored-overlay mode/artifact guards                                                      | PASS; 9 nonempty local OAuth values checked with values suppressed; no non-reference tracked collision/private key/runtime reference; local overlay ignored, `0600`, absent from build output |
 | documentation Prettier, `git diff --check`, exact four-file scope, working-tree `template/` diff and `origin/main...HEAD -- template/`                              | PASS; docs formatted/whitespace-clean; only four durable docs changed before commit; immutable reference diffs empty                                                                          |
 
+### PR #5 review round 1 verification 2026-07-30
+
+Review hardening added deterministic coverage for cleanup tick failure
+containment/cancellation, browser/API UTF-16 display-name parity, authoritative
+post-disconnect and post-revoke-others reloads, Production-only Google account
+selection, and safe encoded query/fragment OAuth return targets.
+
+| Команда / проверка                                                                                                            | Наблюдаемый результат                                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused API review regressions                                                                                                | PASS; 40/40 cleanup, return-target, Google challenge and provider-configuration tests                                                                                                                    |
+| focused Jest account-component regressions                                                                                    | PASS; 24/24 profile, connections and sessions tests                                                                                                                                                      |
+| `dotnet restore Template.sln`; `dotnet build Template.sln --no-restore`; `dotnet test Template.sln --no-restore`              | PASS; build 0 warnings/errors; Application 100/100, API 317/317, total 417/417                                                                                                                           |
+| EF pending-model check and nonempty idempotent script                                                                         | PASS; no pending model changes; generated script 17,791 bytes                                                                                                                                            |
+| two exact OpenAPI exports, hash comparison, committed-contract diff and `npm run api:check`                                   | PASS; both exports and committed artifact SHA-256 `05831e17145a9dcdb95cc725592ee45c6dff7ad8175997202102767c9de56cbb`; generated SDK deterministic/current                                                |
+| clean `npm ci`; production/full npm audit; NuGet vulnerability audit                                                          | PASS production: 0 npm and 0 NuGet vulnerabilities; known full development audit remains 26 high and 0 other severities                                                                                  |
+| `npm run boundaries:check`; web/docs Prettier; lint; typecheck; full Jest                                                     | PASS; boundaries harness 3/3; formatting/lint/types clean; Jest 34/34 suites, 167/167 tests                                                                                                              |
+| clean production web build, standalone check and `npm run e2e`                                                                | PASS; Next.js 16.2.11 built 11/11 static generation units; standalone server present; Playwright 9 deterministic passed, 5 opt-in live skipped                                                           |
+| credential collision, private-key marker, runtime `template/.env`, ignored overlay, whitespace and immutable-reference guards | PASS; 9 local values suppressed/no collision; no marker/runtime reference; overlay ignored, `0600`, absent from output; working-tree and `251382016e0534103443822dc5ca19d505877b32` template diffs empty |
+| `dotnet format Template.sln --no-restore --verify-no-changes`                                                                 | pre-existing baseline blocker in unchanged `Template.Application.Tests/Accounts/ExternalIdentityServiceTests.cs:438`; all review-modified C# files pass the same scoped format guard                     |
+
 Live credentials were read only from the user-authorized ignored local JSON
 into per-provider child-process environment in memory. Inherited
 `ExternalAuthentication__*` values were scrubbed; only one complete pair ran at
@@ -803,8 +834,7 @@ a time; values and authorization query URLs were not printed or written.
   is not specified; operators should use an explicit mounted path.
 - The cursor checksum detects format/corruption but is not cryptographic
   tamper authorization. UI recovery after `invalid_cursor` retries the rejected
-  cursor instead of refreshing page one, and revoke-others visibility is based
-  on loaded rows.
+  cursor instead of refreshing page one.
 - `VerifiedEmail` rejects an empty value, but its current Domain exception says
   only that email must contain at most 254 characters; validation-message
   precision is deferred.

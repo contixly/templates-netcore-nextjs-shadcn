@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Template.Infrastructure.Persistence;
 using static OpenIddict.Abstractions.OpenIddictConstants;
 
@@ -8,7 +9,8 @@ namespace Template.Infrastructure.Authentication;
 
 public sealed class OpenIddictStateCleanupService(
     IServiceScopeFactory scopeFactory,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ILogger<OpenIddictStateCleanupService> logger)
     : BackgroundService
 {
     public const int MaximumBatchSize = 500;
@@ -37,13 +39,29 @@ public sealed class OpenIddictStateCleanupService(
             .ExecuteDeleteAsync(cancellationToken);
     }
 
+    internal async Task RunCleanupTickAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await CleanupOnceAsync(cancellationToken);
+        }
+        catch (Exception exception)
+            when (exception is not OperationCanceledException)
+        {
+            logger.LogError(
+                exception,
+                "OpenIddict state cleanup tick failed; the next tick will retry.");
+        }
+    }
+
     protected override async Task ExecuteAsync(
         CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(CleanupInterval, timeProvider);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await CleanupOnceAsync(stoppingToken);
+            await RunCleanupTickAsync(stoppingToken);
         }
     }
 }

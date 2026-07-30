@@ -106,7 +106,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<
             ILocalAutomationCredentialGenerator,
             CryptographicLocalAutomationCredentialGenerator>();
-        services.AddOpenIddictExternalClient(configuration);
+        services.AddOpenIddictExternalClient(configuration, environment);
         return services;
     }
 }

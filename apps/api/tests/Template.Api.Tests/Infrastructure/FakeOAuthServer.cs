@@ -47,6 +47,44 @@ internal sealed class FakeOAuthServer : IHttpClientFactory
 
             var response = request.RequestUri switch
             {
+                {
+                    Host: "accounts.google.com",
+                    AbsolutePath: "/.well-known/openid-configuration"
+                } =>
+                    Json(
+                        """
+                        {
+                          "issuer": "https://accounts.google.com",
+                          "authorization_endpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+                          "token_endpoint": "https://oauth2.googleapis.com/token",
+                          "userinfo_endpoint": "https://openidconnect.googleapis.com/v1/userinfo",
+                          "jwks_uri": "https://www.googleapis.com/oauth2/v3/certs",
+                          "grant_types_supported": ["authorization_code"],
+                          "response_types_supported": ["code"],
+                          "response_modes_supported": ["query"],
+                          "subject_types_supported": ["public"],
+                          "id_token_signing_alg_values_supported": ["RS256"]
+                        }
+                        """),
+                {
+                    Host: "www.googleapis.com",
+                    AbsolutePath: "/oauth2/v3/certs"
+                } =>
+                    Json(
+                        """
+                        {
+                          "keys": [
+                            {
+                              "kty": "RSA",
+                              "use": "sig",
+                              "alg": "RS256",
+                              "kid": "fake-google-signing-key",
+                              "n": "hVsCxk7X2OLA1WSmVByg2OyjdkojMOjJcNZ6Uc7Kgzzwm1zThm5ICqFDXOwyFb9E03r84xoVyviOIGfCf5eTms1ww6DMaLGK0AF_q606__EP_XOeF2PMhyn40LAEZFJvcYqf5a7Ie_PcZNt5mziX8UUyxj5Q0pZ-v2fUGCPj6sAam-gwWPtShtBaS0Bt1Z03Tik8fh_ZuFzZffAZ-ANt7JbZHAnNfn6lj9PyUtu9Z0yFvaqDtT6xQPGMvmAJLvsLvVSahAhXqM8axvNGw3j8iQOukZvFsUv4q9IOFyD-QXvi6e6CxcPVtoFxX66o_fEh5dZWD1K4Pla_hDSv1-VRdw",
+                              "e": "AQAB"
+                            }
+                          ]
+                        }
+                        """),
                 { Host: "oauth.yandex.ru", AbsolutePath: "/token" } =>
                     Json(
                         $$"""

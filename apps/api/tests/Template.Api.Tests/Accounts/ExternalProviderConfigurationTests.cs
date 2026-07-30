@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using OpenIddict.Client;
 using OpenIddict.Client.DataProtection;
 using OpenIddict.Client.WebIntegration;
+using Template.Api.Tests.Infrastructure;
 using Template.Domain.Accounts;
 using Template.Infrastructure.Authentication;
 using Template.Infrastructure.Persistence;
@@ -205,7 +206,9 @@ public sealed class ExternalProviderConfigurationTests
             AuthDbContext.Configure(
                 options,
                 "Host=localhost;Database=unused;Username=unused;Password=unused"));
-        services.AddOpenIddictExternalClient(configuration);
+        services.AddOpenIddictExternalClient(
+            configuration,
+            new TestHostEnvironment());
         return services.BuildServiceProvider(validateScopes: true);
     }
 

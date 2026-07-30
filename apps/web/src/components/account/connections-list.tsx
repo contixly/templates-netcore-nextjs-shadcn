@@ -8,10 +8,12 @@ import { Button } from "@/src/components/ui/button";
 import { disconnectBrowserAccountProvider } from "@/src/lib/api/account/browser/account-mutations";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
-import type {
-  AccountConnectionResponse,
-  AccountConnectionsResponse,
+import {
+  getAccountConnections,
+  type AccountConnectionResponse,
+  type AccountConnectionsResponse,
 } from "@/src/lib/api/generated";
+import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import type { ApiFailure } from "@/src/lib/api/result";
 
 type Feedback =
@@ -113,9 +115,9 @@ export function ConnectionsList({
       createBrowserApiClient(),
       connection.provider,
     );
-    setPendingProvider(null);
 
     if (!result.ok) {
+      setPendingProvider(null);
       setFeedback({
         kind: "failure",
         message: t("disconnectFailure"),
@@ -124,32 +126,39 @@ export function ConnectionsList({
       return;
     }
 
-    setConnections((current) =>
-      current.flatMap((item) => {
-        if (item.provider !== result.data.provider) {
-          return [item];
-        }
-        return item.configured
-          ? [
-              {
-                ...item,
-                connected: false,
-                email: null,
-                connectedAt: null,
-                lastUsedAt: null,
-                isCurrentAuthenticationMethod: false,
-                canConnect: true,
-                canDisconnect: false,
-                disabledReason: null,
-              },
-            ]
-          : [];
-      }),
-    );
-    setFeedback({
-      kind: "success",
-      message: t("disconnectSuccess", { provider: connection.displayName }),
-    });
+    try {
+      const refreshed = await getAccountConnections({
+        client: createBrowserApiClient(),
+        cache: "no-store",
+      });
+      if (refreshed.data === undefined) {
+        const failure = normalizeApiFailure(
+          refreshed.error,
+          refreshed.response,
+        );
+        setFeedback({
+          kind: "failure",
+          message: t("disconnectFailure"),
+          traceId: failureTrace(failure),
+        });
+        return;
+      }
+
+      setConnections(refreshed.data.data.items);
+      setFeedback({
+        kind: "success",
+        message: t("disconnectSuccess", { provider: connection.displayName }),
+      });
+    } catch (error) {
+      const failure = normalizeApiFailure(error);
+      setFeedback({
+        kind: "failure",
+        message: t("disconnectFailure"),
+        traceId: failureTrace(failure),
+      });
+    } finally {
+      setPendingProvider(null);
+    }
   }
 
   return (

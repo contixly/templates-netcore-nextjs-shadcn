@@ -126,8 +126,11 @@ leave the existing server-rendered state in place. JavaScript never reads or
 copies the cookie.
 
 Redirect targets are normalized to safe same-origin application paths. Full
-URLs, protocol-relative `//` values, malformed/encoded escape forms, and
-`/api/**` or `/auth/**` targets are rejected in favor of `/dashboard`.
+URLs, protocol-relative `//` values, malformed escapes, repeated encoded
+separator confusion in the pathname, and `/api/**` or `/auth/**` targets are
+rejected in favor of `/dashboard`. Encoded `/` and `%` remain valid query or
+fragment data, while literal or repeatedly encoded controls and backslashes are
+rejected anywhere in the target.
 
 `/auth/login` has no name, email, or password fields. When the API advertises
 local automation, the page offers one **Create local automation user** button.
@@ -174,9 +177,10 @@ not implied by this navigation and remain in their planned iterations.
 
 The profile page renders the provider-managed avatar, display name, canonical
 read-only primary email, secondary verified emails, user id, and creation time.
-The client trims and validates the 2–50 character name for feedback, but the API
-is authoritative. The visible projection changes only after the REST mutation
-returns its confirmed account response.
+The client trims and validates the 2–50 UTF-16-code-unit name with JavaScript
+`string.length`, matching .NET `string.Length`, but the API is authoritative.
+The visible projection changes only after the REST mutation returns its
+confirmed account response.
 
 Connections render the server's configured-plus-connected union, including a
 connection whose provider configuration was removed. Connect reuses the
@@ -186,14 +190,19 @@ presentation only: the API again prevents removal of the current provider or
 any removal that would leave no connected provider with complete runtime
 configuration. Connected providers whose configuration was removed stay
 visible but do not count as usable survivors. Disconnect revokes neither
-provider consent nor remote tokens because no token is stored.
+provider consent nor remote tokens because no token is stored. After a
+successful disconnect, the browser reloads and replaces the complete
+connections projection through the generated SDK so survivor-dependent
+disconnect permissions are authoritative.
 
 Security renders only safe session fields. Browser/OS text is best-effort
 presentation derived from the bounded user-agent projection and is not an
 authorization input. Pagination returns the opaque `nextCursor` verbatim,
 appends and de-duplicates ids, and never decodes or constructs cursors. The
 current session has no single-revoke control; revoke-others keeps the current
-browser.
+browser. After revoke-others succeeds, the browser reloads and replaces the
+fresh first page through the generated SDK, so the current session remains
+visible even when it was not in the previously loaded pages.
 
 Danger requires the exact primary email after outer whitespace trimming.
 During the destructive request a synchronous request-identity lock prevents

@@ -170,9 +170,9 @@ export function SessionList({
     const result = await revokeOtherBrowserAccountSessions(
       createBrowserApiClient(),
     );
-    setPendingAction(null);
 
     if (!result.ok) {
+      setPendingAction(null);
       setFeedback({
         kind: "failure",
         message: t("revokeOthersFailure"),
@@ -181,14 +181,48 @@ export function SessionList({
       return;
     }
 
-    setSessions((current) => current.filter((session) => session.isCurrent));
-    setNextCursor(null);
-    setFeedback({
-      kind: "success",
-      message: t("revokeOthersSuccess", {
-        count: result.data.revokedCount,
-      }),
-    });
+    try {
+      const refreshed = await getAccountSessions({
+        client: createBrowserApiClient(),
+        cache: "no-store",
+      });
+      if (refreshed.data === undefined) {
+        const failure = normalizeApiFailure(
+          refreshed.error,
+          refreshed.response,
+        );
+        setSessions((current) =>
+          current.filter((session) => session.isCurrent),
+        );
+        setNextCursor(null);
+        setFeedback({
+          kind: "failure",
+          message: t("loadFailure"),
+          traceId: failureTrace(failure),
+        });
+        return;
+      }
+
+      setSessions(refreshed.data.data.items);
+      setNextCursor(refreshed.data.data.nextCursor);
+      setFeedback({
+        kind: "success",
+        message: t("revokeOthersSuccess", {
+          count: result.data.revokedCount,
+        }),
+      });
+    } catch (error) {
+      const failure = normalizeApiFailure(error);
+      setSessions((current) => current.filter((session) => session.isCurrent));
+      setNextCursor(null);
+      setFeedback({
+        kind: "failure",
+        message: t("loadFailure"),
+        traceId: failureTrace(failure),
+      });
+    } finally {
+      setPendingAction(null);
+    }
   }
 
   const hasOtherSession = sessions.some((session) => !session.isCurrent);

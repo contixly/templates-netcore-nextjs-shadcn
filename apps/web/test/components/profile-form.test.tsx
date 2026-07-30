@@ -71,6 +71,7 @@ it.each([
   [" ", "Use at least 2 characters."],
   [" a ", "Use at least 2 characters."],
   ["x".repeat(51), "Use 50 characters or fewer."],
+  ["😀".repeat(26), "Use 50 characters or fewer."],
 ])("rejects an invalid trimmed display name %p", async (value, message) => {
   renderWithMessages(<ProfileForm initialAccount={account} />);
 
@@ -82,6 +83,29 @@ it.each([
   expect(await screen.findByRole("alert")).toHaveTextContent(message);
   expect(updateProfile).not.toHaveBeenCalled();
 });
+
+it.each(["😀", "😀".repeat(25)])(
+  "accepts %p using the API's UTF-16 display-name length",
+  async (value) => {
+    updateProfile.mockResolvedValue({
+      ok: true,
+      data: { ...account, displayName: value },
+    });
+    renderWithMessages(<ProfileForm initialAccount={account} />);
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Display name" }), {
+      target: { value },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save profile" }));
+
+    await waitFor(() => {
+      expect(updateProfile).toHaveBeenCalledWith(
+        { id: "browser-client" },
+        { displayName: value },
+      );
+    });
+  },
+);
 
 it("submits the trimmed name and renders only the confirmed projection", async () => {
   updateProfile.mockResolvedValue({

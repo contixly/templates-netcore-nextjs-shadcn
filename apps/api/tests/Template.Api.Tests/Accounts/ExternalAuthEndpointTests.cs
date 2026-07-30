@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OpenIddict.Abstractions;
@@ -124,6 +125,7 @@ public sealed class ExternalAuthEndpointTests(
     [InlineData("//evil.example/steal")]
     [InlineData("/\\evil.example/steal")]
     [InlineData("/%2f%2fevil.example/steal")]
+    [InlineData("/%252f%252fevil.example/steal")]
     [InlineData("/%255c%255cevil.example/steal")]
     [InlineData("/safe%0apath")]
     [InlineData("/safe/../api/v1/auth/session")]
@@ -150,6 +152,28 @@ public sealed class ExternalAuthEndpointTests(
             "invalid_return_url");
     }
 
+    [Theory]
+    [InlineData("/search?next=%2Fdashboard", "safe-query")]
+    [InlineData("/search#next=%2Fdashboard", "safe-fragment")]
+    public async Task EncodedQueryAndFragmentReturnValuesSurviveTheCallback(
+        string returnUrl,
+        string code)
+    {
+        using var client = _factory.CreateOAuthClient();
+        var callback = await CompleteAuthorizationAsync(
+            client,
+            "yandex",
+            code,
+            returnUrl: returnUrl);
+
+        using var response = await client.GetAsync(
+            callback,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(returnUrl, response.Headers.Location!.OriginalString);
+    }
+
     [Fact]
     public async Task ChallengeReturnsOneExpectedHttpsAuthorizationUrlAsJson()
     {
@@ -174,6 +198,85 @@ public sealed class ExternalAuthEndpointTests(
         Assert.Equal("oauth.yandex.ru", authorizationUrl.Host);
         Assert.Equal("/authorize", authorizationUrl.AbsolutePath);
         Assert.Single(QueryHelpers.ParseQuery(authorizationUrl.Query)["state"]);
+    }
+
+    [Fact]
+    public async Task GoogleSelectsAnAccountOnlyForProductionChallenges()
+    {
+        using var certificate = TestDataProtectionCertificate.CreateRsa();
+        await using var production = new ExternalOAuthWebApplicationFactory(
+            postgres,
+            Environments.Production,
+            configureGoogle: true,
+            certificate);
+        await production.InitializeAsync();
+        await using var nonProduction =
+            new ExternalOAuthWebApplicationFactory(
+                postgres,
+                "Test",
+                configureGoogle: true);
+        await nonProduction.InitializeAsync();
+        using var productionClient = production.CreateOAuthClient();
+        using var nonProductionClient = nonProduction.CreateOAuthClient();
+
+        using var productionResponse = await ChallengeAsync(
+            productionClient,
+            "google",
+            "signIn");
+        using var nonProductionResponse = await ChallengeAsync(
+            nonProductionClient,
+            "google",
+            "signIn");
+        var productionBody = await productionResponse.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        var nonProductionBody = await nonProductionResponse.Content
+            .ReadAsStringAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(
+            productionResponse.StatusCode == HttpStatusCode.OK,
+            $"Production challenge returned " +
+            $"{(int)productionResponse.StatusCode}: {productionBody}" +
+            Environment.NewLine +
+            string.Join(
+                Environment.NewLine,
+                production.Services
+                    .GetRequiredService<CapturedLogProvider>()
+                    .Logs
+                    .Select(log => string.Join(
+                        " | ",
+                        [
+                            log.Message,
+                            .. log.State.Select(pair =>
+                                $"{pair.Key}={pair.Value}"),
+                            log.Exception?.ToString()
+                        ]))));
+        Assert.True(
+            nonProductionResponse.StatusCode == HttpStatusCode.OK,
+            $"Non-Production challenge returned " +
+            $"{(int)nonProductionResponse.StatusCode}: {nonProductionBody}");
+        var productionEnvelope =
+            System.Text.Json.JsonSerializer.Deserialize<
+                Envelope<Authorization>>(
+                    productionBody,
+                    new System.Text.Json.JsonSerializerOptions(
+                        System.Text.Json.JsonSerializerDefaults.Web));
+        var nonProductionEnvelope =
+            System.Text.Json.JsonSerializer.Deserialize<
+                Envelope<Authorization>>(
+                    nonProductionBody,
+                    new System.Text.Json.JsonSerializerOptions(
+                        System.Text.Json.JsonSerializerDefaults.Web));
+        var productionQuery = QueryHelpers.ParseQuery(
+            new Uri(
+                productionEnvelope!.Data.AuthorizationUrl,
+                UriKind.Absolute).Query);
+        var nonProductionQuery = QueryHelpers.ParseQuery(
+            new Uri(
+                nonProductionEnvelope!.Data.AuthorizationUrl,
+                UriKind.Absolute).Query);
+
+        Assert.Equal("select_account", Assert.Single(productionQuery["prompt"]));
+        Assert.False(nonProductionQuery.ContainsKey("prompt"));
     }
 
     [Theory]
@@ -790,7 +893,10 @@ public sealed class ExternalAuthEndpointTests(
     private sealed record SessionMetadata(Guid Id);
 
     private sealed class ExternalOAuthWebApplicationFactory(
-        PostgreSqlContainerFixture postgres)
+        PostgreSqlContainerFixture postgres,
+        string environment = "Test",
+        bool configureGoogle = false,
+        TestDataProtectionCertificate? certificate = null)
         : WebApplicationFactory<Program>, IAsyncLifetime
     {
         internal static WebApplicationFactoryClientOptions OAuthClientOptions =>
@@ -823,7 +929,17 @@ public sealed class ExternalAuthEndpointTests(
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Test");
+            builder.UseEnvironment(environment);
+            if (certificate is not null)
+            {
+                builder.UseSetting(
+                    "DataProtection:CertificatePath",
+                    certificate.Path);
+                builder.UseSetting(
+                    "DataProtection:CertificatePassword",
+                    certificate.Password);
+            }
+
             builder.UseSetting(
                 "ExternalAuthentication:PublicOrigin",
                 "https://accounts.example.test");
@@ -839,32 +955,54 @@ public sealed class ExternalAuthEndpointTests(
             builder.UseSetting(
                 "ExternalAuthentication:Providers:Yandex:ClientSecret",
                 "test-yandex-secret");
+            if (configureGoogle)
+            {
+                builder.UseSetting(
+                    "ExternalAuthentication:Providers:Google:ClientId",
+                    "test-google-id");
+                builder.UseSetting(
+                    "ExternalAuthentication:Providers:Google:ClientSecret",
+                    "test-google-secret");
+            }
+
             builder.ConfigureAppConfiguration((_, configuration) =>
-                configuration.AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        ["ConnectionStrings:Postgres"] = _connectionString,
-                        ["LocalAutomationAuth:Enabled"] = "true",
-                        ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "100",
-                        ["LocalAutomationAuth:SignInRateLimitPerFiveMinutes"] =
-                            "100",
-                        ["ExternalAuthentication:PublicOrigin"] =
-                            "https://accounts.example.test",
-                        ["ExternalAuthentication:Providers:GitHub:ClientId"] =
-                            "test-github-id",
-                        ["ExternalAuthentication:Providers:GitHub:ClientSecret"] =
-                            "test-github-secret",
-                        ["ExternalAuthentication:Providers:Yandex:ClientId"] =
-                            "test-yandex-id",
-                        ["ExternalAuthentication:Providers:Yandex:ClientSecret"] =
-                            "test-yandex-secret",
-                        ["ExternalOAuthSecurity:ChallengePermitLimitPerMinute"] =
-                            "200",
-                        ["ExternalOAuthSecurity:CallbackPermitLimitPerFiveMinutes"] =
-                            "200",
-                        ["ExternalOAuthSecurity:CallbackConcurrencyLimit"] = "10",
-                        ["Testing:AssumeHttpsBoundary"] = "true"
-                    }));
+            {
+                var settings = new Dictionary<string, string?>
+                {
+                    ["ConnectionStrings:Postgres"] = _connectionString,
+                    ["LocalAutomationAuth:Enabled"] = "true",
+                    ["LocalAutomationAuth:CreateRateLimitPerMinute"] = "100",
+                    ["LocalAutomationAuth:SignInRateLimitPerFiveMinutes"] =
+                        "100",
+                    ["ExternalAuthentication:PublicOrigin"] =
+                        "https://accounts.example.test",
+                    ["ExternalAuthentication:Providers:GitHub:ClientId"] =
+                        "test-github-id",
+                    ["ExternalAuthentication:Providers:GitHub:ClientSecret"] =
+                        "test-github-secret",
+                    ["ExternalAuthentication:Providers:Yandex:ClientId"] =
+                        "test-yandex-id",
+                    ["ExternalAuthentication:Providers:Yandex:ClientSecret"] =
+                        "test-yandex-secret",
+                    ["ExternalOAuthSecurity:ChallengePermitLimitPerMinute"] =
+                        "200",
+                    ["ExternalOAuthSecurity:CallbackPermitLimitPerFiveMinutes"] =
+                        "200",
+                    ["ExternalOAuthSecurity:CallbackConcurrencyLimit"] = "10",
+                    ["Testing:AssumeHttpsBoundary"] = "true"
+                };
+                if (configureGoogle)
+                {
+                    settings[
+                        "ExternalAuthentication:Providers:Google:ClientId"] =
+                        "test-google-id";
+                    settings[
+                        "ExternalAuthentication:Providers:Google:ClientSecret"] =
+                        "test-google-secret";
+                }
+
+                configuration.AddInMemoryCollection(settings);
+            });
             builder.ConfigureTestServices(services =>
             {
                 services.RemoveAll<IHttpClientFactory>();

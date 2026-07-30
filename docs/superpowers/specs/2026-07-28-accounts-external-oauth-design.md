@@ -281,6 +281,10 @@ The endpoint returns an authorization URL produced through the OpenIddict
 client pipeline. The UI performs top-level `window.location.assign`; provider
 navigation is never attempted as an XHR redirect.
 
+Production Google challenges request `prompt=select_account` through the
+supported OpenIddict Web Integration registration API. Non-production Google
+challenges omit it, and no other provider receives the parameter.
+
 ### Stable callback paths
 
 The callback routes are protocol endpoints rather than versioned REST
@@ -315,8 +319,10 @@ exchange is byte-for-byte identical.
 | `DELETE /api/v1/account`                        | `BrowserSession` + CSRF | deletion acknowledgement and expired cookie |
 
 Profile update accepts only `displayName`. It is trimmed, must contain 2–50
-characters after normalization and cannot contain control characters. Avatar,
-emails, id and creation timestamp are read-only in this iteration.
+UTF-16 code units after normalization and cannot contain control characters.
+The browser uses JavaScript `string.length` so its early feedback matches .NET
+`string.Length`. Avatar, emails, id and creation timestamp are read-only in
+this iteration.
 
 Account projection contains:
 
@@ -353,9 +359,11 @@ never expose cookie keys, ticket hash, protected ticket or security stamps.
 
 `returnUrl` is optional and must normalize to a same-origin application path.
 Absolute URLs, protocol-relative paths, backslashes, control characters,
-encoded path confusion and paths below `/api/**` or `/auth/**` are rejected.
-The existing central auth-redirect sanitizer is extended rather than
-duplicated.
+malformed escapes, encoded path-separator confusion and paths below `/api/**`
+or `/auth/**` are rejected. Encoded `/` and `%` remain valid query or fragment
+data; literal or repeatedly decoded controls and backslashes are rejected
+anywhere in the target. The existing central auth-redirect sanitizer is
+extended rather than duplicated.
 
 OpenIddict state binds provider, intent and normalized return path. A connect
 state additionally binds the initiating user id and persistent session id.
@@ -513,7 +521,9 @@ retained. The application does not persist remote access/refresh tokens.
 
 A small Infrastructure hosted service periodically deletes only expired or
 terminal redeemed state records in bounded batches. It does not introduce a
-general job framework.
+general job framework. A non-cancellation tick failure is logged without token
+material, contained, and retried on the next interval; host-stop cancellation
+continues to propagate.
 
 ### Data Protection keys
 
@@ -674,13 +684,17 @@ removed. Connected cards show provider email, connected/last-used timestamps
 and current-method state. Connect is available only when configured and starts
 `intent=connect`. Disconnect confirmation is disabled with the server-provided
 stable reason when unsafe; the server revalidates regardless of UI state.
+After successful disconnect, the browser replaces the complete projection with
+a generated-SDK reload so survivor-dependent permissions cannot remain stale.
 
 ### Security
 
 `/user/security` renders session cards with current marker, authentication
 method, timestamps, IP/user-agent presentation and “load more” cursor paging.
 The current card has no single-revoke action. “Revoke all others” preserves the
-current browser.
+current browser and then replaces the list with a generated-SDK reload of the
+fresh first page, including a current session that had not been loaded before
+the mutation.
 
 Browser/OS labels are best-effort presentation derived from the bounded
 user-agent string; authorization never depends on parsing.

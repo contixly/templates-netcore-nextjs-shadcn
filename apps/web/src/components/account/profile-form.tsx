@@ -66,7 +66,7 @@ export function ProfileForm({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedName = displayName.trim();
-    const length = [...normalizedName].length;
+    const length = normalizedName.length;
 
     setUpdated(false);
     setFailure(null);

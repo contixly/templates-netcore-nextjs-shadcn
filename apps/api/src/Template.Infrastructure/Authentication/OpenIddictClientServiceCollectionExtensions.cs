@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Http;
@@ -16,10 +17,12 @@ public static class OpenIddictClientServiceCollectionExtensions
 {
     public static IServiceCollection AddOpenIddictExternalClient(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
 
         services
             .AddOptions<ExternalAuthenticationOptions>()
@@ -122,7 +125,11 @@ public static class OpenIddictClientServiceCollectionExtensions
             }
 
             var providers = options.UseWebProviders();
-            AddGoogle(providers, configured, publicOrigin);
+            AddGoogle(
+                providers,
+                configured,
+                publicOrigin,
+                environment.IsProduction());
             AddGitHub(providers, configured, publicOrigin);
             AddGitLab(providers, configured, publicOrigin);
             AddVk(providers, configured, publicOrigin);
@@ -138,7 +145,8 @@ public static class OpenIddictClientServiceCollectionExtensions
     private static void AddGoogle(
         OpenIddictClientWebIntegrationBuilder providers,
         ExternalAuthenticationOptions options,
-        Uri publicOrigin)
+        Uri publicOrigin,
+        bool isProduction)
     {
         if (!options.TryGetCompleteCredentials(
                 Template.Domain.Accounts.ExternalProvider.Google,
@@ -148,6 +156,7 @@ public static class OpenIddictClientServiceCollectionExtensions
         }
 
         providers.AddGoogle(registration =>
+        {
             registration
                 .SetRegistrationId("google")
                 .SetProviderName("google")
@@ -157,7 +166,12 @@ public static class OpenIddictClientServiceCollectionExtensions
                 .SetRedirectUri(CallbackUri(
                     publicOrigin,
                     Template.Domain.Accounts.ExternalProvider.Google))
-                .AddScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email));
+                .AddScopes(Scopes.OpenId, Scopes.Profile, Scopes.Email);
+            if (isProduction)
+            {
+                registration.SetPrompt("select_account");
+            }
+        });
     }
 
     private static void AddGitHub(

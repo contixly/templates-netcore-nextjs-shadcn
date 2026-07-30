@@ -157,6 +157,14 @@ it("revokes all other sessions while preserving the current session", async () =
     ok: true,
     data: { revokedCount: 1 },
   });
+  getSessions.mockResolvedValue({
+    data: {
+      data: {
+        items: [currentSession],
+        nextCursor: null,
+      },
+    },
+  } as Awaited<ReturnType<typeof getAccountSessions>>);
   renderWithMessages(<SessionList initialPage={initialPage} />);
 
   fireEvent.click(
@@ -173,6 +181,54 @@ it("revokes all other sessions while preserving the current session", async () =
       name: "Chrome on macOS, Current session",
     }),
   ).toBeInTheDocument();
+});
+
+it("reloads the first page after revoke-others when the current session was on a later page", async () => {
+  const firstPageSessions = Array.from({ length: 20 }, (_, index) => ({
+    ...otherSession,
+    id: `01900000-0000-7000-8000-${(100 + index).toString().padStart(12, "0")}`,
+    lastSeenAt: `2026-07-${(28 - Math.floor(index / 10)).toString().padStart(2, "0")}T${(23 - (index % 10)).toString().padStart(2, "0")}:00:00Z`,
+  })) satisfies AccountSessionResponse[];
+  revokeOthers.mockResolvedValue({
+    ok: true,
+    data: { revokedCount: 25 },
+  });
+  getSessions.mockResolvedValue({
+    data: {
+      data: {
+        items: [currentSession],
+        nextCursor: null,
+      },
+    },
+  } as Awaited<ReturnType<typeof getAccountSessions>>);
+  renderWithMessages(
+    <SessionList
+      initialPage={{
+        items: firstPageSessions,
+        nextCursor: "cursor-current-later",
+      }}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Revoke all other sessions" }),
+  );
+
+  await waitFor(() => {
+    expect(getSessions).toHaveBeenCalledWith({
+      client: { id: "browser-client" },
+      cache: "no-store",
+    });
+  });
+  expect(screen.getAllByRole("article")).toHaveLength(1);
+  expect(
+    screen.getByRole("article", {
+      name: "Chrome on macOS, Current session",
+    }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Load more sessions" }),
+  ).not.toBeInTheDocument();
 });
 
 it("renders load and revoke failures without removing session state", async () => {

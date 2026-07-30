@@ -3,7 +3,10 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { ConnectionsList } from "@/src/components/account/connections-list";
 import { disconnectBrowserAccountProvider } from "@/src/lib/api/account/browser/account-mutations";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
-import type { AccountConnectionsResponse } from "@/src/lib/api/generated";
+import {
+  getAccountConnections,
+  type AccountConnectionsResponse,
+} from "@/src/lib/api/generated";
 import { renderWithMessages } from "@/test/support/render";
 
 jest.mock("@/src/lib/api/browser/client", () => ({
@@ -14,6 +17,9 @@ jest.mock("@/src/lib/api/account/browser/account-mutations", () => ({
 }));
 jest.mock("@/src/lib/api/auth/browser/start-external-auth", () => ({
   startExternalAuth: jest.fn(),
+}));
+jest.mock("@/src/lib/api/generated", () => ({
+  getAccountConnections: jest.fn(),
 }));
 
 const initialConnections = {
@@ -62,6 +68,7 @@ const initialConnections = {
 
 const startAuth = jest.mocked(startExternalAuth);
 const disconnect = jest.mocked(disconnectBrowserAccountProvider);
+const getConnections = jest.mocked(getAccountConnections);
 
 type LocationImplementation = {
   assign(url: string): void;
@@ -213,6 +220,22 @@ it("applies a confirmed disconnect and preserves configured providers", async ()
     ...initialConnections.items[2],
     configured: true,
   };
+  const disconnectedConnection = {
+    ...configuredConnection,
+    connected: false,
+    email: null,
+    connectedAt: null,
+    lastUsedAt: null,
+    isCurrentAuthenticationMethod: false,
+    canConnect: true,
+    canDisconnect: false,
+    disabledReason: null,
+  };
+  getConnections.mockResolvedValue({
+    data: {
+      data: { items: [disconnectedConnection] },
+    },
+  } as Awaited<ReturnType<typeof getAccountConnections>>);
   renderWithMessages(
     <ConnectionsList initialConnections={{ items: [configuredConnection] }} />,
   );
@@ -226,6 +249,70 @@ it("applies a confirmed disconnect and preserves configured providers", async ()
   expect(
     screen.getByRole("article", { name: "GitLab connection" }),
   ).toHaveTextContent("Not connected");
+});
+
+it("reloads disconnect policy after removing one of two configured local-session connections", async () => {
+  const google = {
+    ...initialConnections.items[0],
+    isCurrentAuthenticationMethod: false,
+    canDisconnect: true,
+    disabledReason: null,
+  };
+  const github = {
+    ...initialConnections.items[1],
+    connected: true,
+    email: "github@example.test",
+    connectedAt: "2026-07-21T10:00:00Z",
+    lastUsedAt: "2026-07-29T10:00:00Z",
+    canConnect: false,
+    canDisconnect: true,
+  };
+  disconnect.mockResolvedValue({
+    ok: true,
+    data: { provider: "github" },
+  });
+  getConnections.mockResolvedValue({
+    data: {
+      data: {
+        items: [
+          {
+            ...google,
+            canDisconnect: false,
+            disabledReason: "external_connection_required",
+          },
+          {
+            ...github,
+            connected: false,
+            email: null,
+            connectedAt: null,
+            lastUsedAt: null,
+            canConnect: true,
+            canDisconnect: false,
+            disabledReason: null,
+          },
+        ],
+      },
+    },
+  } as Awaited<ReturnType<typeof getAccountConnections>>);
+  renderWithMessages(
+    <ConnectionsList initialConnections={{ items: [google, github] }} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Disconnect GitHub" }));
+
+  await waitFor(() => {
+    expect(getConnections).toHaveBeenCalledWith({
+      client: { id: "browser-client" },
+      cache: "no-store",
+    });
+  });
+  const survivor = screen.getByRole("article", { name: "Google connection" });
+  expect(
+    within(survivor).getByRole("button", { name: "Disconnect Google" }),
+  ).toBeDisabled();
+  expect(survivor).toHaveTextContent(
+    "The server requires this connection to remain available.",
+  );
 });
 
 it("renders disconnect server failures and re-enables the action", async () => {

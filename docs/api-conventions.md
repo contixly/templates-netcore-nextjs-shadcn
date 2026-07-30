@@ -137,10 +137,15 @@ OAuth operation. Its strict JSON body selects `signIn` or `connect` and may
 provide a safe same-origin return path. It always requires a fresh CSRF pair.
 `signIn` requires an anonymous browser; `connect` requires the current
 `Api.BrowserSession`. Full URLs, network paths, backslashes, controls,
-encoded-separator confusion, `/api/**`, and `/auth/**` return targets fail
-closed. The response contains an absolute HTTPS authorization URL produced by
-the server; the browser validates its structure but does not duplicate provider
-host configuration.
+malformed escapes, encoded-separator confusion in the escaped pathname,
+`/api/**`, and `/auth/**` return targets fail closed. Encoded `/` and `%`
+characters remain valid in query and fragment data; repeated decoding still
+rejects controls or backslashes anywhere in the target. The response contains
+an absolute HTTPS authorization URL produced by the server; the browser
+validates its structure but does not duplicate provider host configuration.
+Production Google challenges add `prompt=select_account` through OpenIddict Web
+Integration; non-production Google challenges omit it. No other provider
+inherits that Google-specific parameter.
 
 The provider protocol callbacks are stable, unversioned, accept only `GET` and
 `POST`, and are deliberately excluded from OpenAPI and the generated browser
