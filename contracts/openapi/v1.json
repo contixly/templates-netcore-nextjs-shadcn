@@ -1462,7 +1462,7 @@
                   }
                 }
               ],
-              "description": "Canonical organization UUID or lowercase slug. An accessible organization ID takes precedence; otherwise an accessible UUID-shaped slug is used as a fallback. The response canonicalKey is always the preferred slug."
+              "description": "Canonical organization UUID or lowercase non-UUID-shaped slug. UUID keys resolve only by organization ID. The response canonicalKey is always the preferred slug."
             }
           }
         ],
@@ -4087,13 +4087,21 @@
             "maxLength": 64,
             "minLength": 1,
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "type": "string"
+            "type": "string",
+            "not": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            }
           },
           "canonicalKey": {
             "maxLength": 64,
             "minLength": 1,
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "type": "string"
+            "type": "string",
+            "not": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            }
           },
           "createdAt": {
             "type": "string",
@@ -4258,13 +4266,21 @@
             "maxLength": 64,
             "minLength": 1,
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "type": "string"
+            "type": "string",
+            "not": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            }
           },
           "canonicalKey": {
             "maxLength": 64,
             "minLength": 1,
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
-            "type": "string"
+            "type": "string",
+            "not": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string"
+            }
           },
           "createdAt": {
             "type": "string",
@@ -4514,10 +4530,11 @@
               "null",
               "string"
             ],
-            "description": "Trimmed and lowercased before use; the normalized slug must contain 1 to 64 lowercase ASCII letters or digits separated by single hyphens.",
+            "description": "Trimmed and lowercased before use; the normalized slug must contain 1 to 64 lowercase ASCII letters or digits separated by single hyphens and must not be UUID-shaped.",
             "x-trimmed-min-length": 1,
             "x-trimmed-max-length": 64,
-            "x-trimmed-pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+            "x-trimmed-pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "x-trimmed-not-pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
           },
           "allowedEmailDomains": {
             "type": [

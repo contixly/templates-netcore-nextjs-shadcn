@@ -420,11 +420,15 @@ role; admins cannot mutate an owner; redundant changes conflict; role changes
 preserve at least one owner. Server-computed capabilities are presentation aids,
 not authorization substitutes.
 
-Organizations use a UUID id and a canonical lower-case slug. A key lookup
-accepts either, but returned `canonicalKey` is the slug. Organization pages sort
-by `(normalizedName ASC, id ASC)` and member pages by `(joinedAt ASC, id ASC)`;
-both use opaque versioned base64url checksum cursors, default `50`, range
-`1..100`. Clients return `nextCursor` verbatim and never construct it.
+Organizations use a UUID id and a canonical lower-case slug in disjoint
+namespaces. User-supplied UUID-shaped slugs are rejected after trim/lowercase
+normalization, and a UUID-shaped name-derived base is deterministically prefixed
+with `workspace-`. A UUID key resolves only by organization id; a non-UUID key
+resolves only by slug. Returned `canonicalKey` is always the slug. Organization
+pages sort by `(normalizedName ASC, id ASC)` and member pages by
+`(joinedAt ASC, id ASC)`; both use opaque versioned base64url checksum cursors,
+default `50`, range `1..100`. Clients return `nextCursor` verbatim and never
+construct it.
 
 Missing and foreign organizations intentionally share `404
 organization_not_found`; foreign/missing members likewise do not disclose
@@ -447,6 +451,12 @@ accessible set, requires another accessible organization, and relies on the FK
 `SET NULL`; add/change-role lock and re-evaluate all relevant membership/owner
 state. Unique indexes are authoritative for slug/member races and classified
 results are retried only where the persistence operation specifies it.
+
+Member-list reads do not acquire `FOR UPDATE` locks. They authorize and project
+from one PostgreSQL repeatable-read snapshot, so concurrent reads progress
+together while organization deletion or access removal yields either the
+authorized snapshot or the same non-disclosing not-found result. Mutation lock
+and recheck behavior is unchanged.
 
 The `organizations` schema contains `organizations`, `members`, and
 `allowed_email_domains`; `auth.sessions.active_organization_id` is nullable,

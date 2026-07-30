@@ -295,6 +295,20 @@ it("renders an accessible workspace dashboard despite list failure", async () =>
   ).toBeVisible();
 });
 
+it.each(["01900000-0000-7000-8000-000000000010", "previous-acme-slug"])(
+  "canonicalizes a noncanonical %s dashboard route",
+  async (key) => {
+    await expect(
+      OrganizationDashboardPage({
+        params: Promise.resolve({ organizationKey: key }),
+      }),
+    ).rejects.toThrow("NEXT_REDIRECT:/w/acme/dashboard");
+
+    expect(loadDetail).toHaveBeenCalledWith(key);
+    expect(redirect).toHaveBeenCalledWith("/w/acme/dashboard");
+  },
+);
+
 it("calls forbidden for an unresolved key when organizations remain accessible", async () => {
   loadDetail.mockResolvedValue({
     ok: false,
@@ -351,6 +365,7 @@ it("renders only minimal accessible organization dashboard context", async () =>
   expect(screen.getByText("acme")).toBeVisible();
   expect(screen.getByTestId("browser-session-refresh")).toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(redirect).not.toHaveBeenCalled();
 });
 
 it("loads requested cursor pages verbatim and de-duplicates list results", async () => {

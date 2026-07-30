@@ -147,7 +147,7 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
-    public async Task Uuid_shaped_slug_resolution_prefers_an_accessible_id_then_an_accessible_slug()
+    public async Task Uuid_keys_resolve_only_by_id_even_if_invalid_legacy_slug_rows_collide()
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
         var actor = await fixture.CreateUserAndSessionAsync(
@@ -175,7 +175,7 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             "foreign-id",
             OrganizationRole.Owner,
             new OrganizationId(foreignId));
-        var accessibleSlug = await fixture.SeedOrganizationForAsync(
+        await fixture.SeedOrganizationForAsync(
             actor,
             "Accessible Slug",
             foreignId.ToString(),
@@ -185,7 +185,7 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             actor.UserId,
             ambiguousKey.ToString(),
             TestContext.Current.CancellationToken);
-        var membershipQualifiedSlug = await fixture.Store.GetByKeyAsync(
+        var invalidLegacySlug = await fixture.Store.GetByKeyAsync(
             actor.UserId,
             foreignId.ToString(),
             TestContext.Current.CancellationToken);
@@ -193,10 +193,7 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
         Assert.Equal(
             idMatch,
             Assert.IsType<OrganizationDetail>(idWins.Value).Id);
-        Assert.Equal(
-            accessibleSlug,
-            Assert.IsType<OrganizationDetail>(
-                membershipQualifiedSlug.Value).Id);
+        Assert.Equal(OrganizationFailure.NotFound, invalidLegacySlug.Failure);
     }
 
     [Fact]
@@ -532,6 +529,32 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
         Assert.Equal(OrganizationFailure.NotFound, hidden.Failure);
     }
 
+    [Fact]
+    public async Task Concurrent_member_lists_for_one_organization_progress_together()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "concurrent-member-list-owner@local-agent.test");
+        var organizationId = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Concurrent Member List",
+            "concurrent-member-list",
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentMemberLists();
+
+        var first = fixture.ListMembersAsync(owner.UserId, organizationId);
+        var second = fixture.ListMembersAsync(owner.UserId, organizationId);
+        var results = await Task.WhenAll(first, second);
+
+        Assert.All(results, result =>
+        {
+            Assert.True(result.Succeeded);
+            Assert.Single(Assert.IsType<OrganizationStorePage<
+                OrganizationMember,
+                OrganizationMemberCursorPosition>>(result.Value).Items);
+        });
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -572,63 +595,39 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Member_list_returns_not_found_when_target_or_access_disappears(
+    public async Task Member_list_keeps_one_authorized_snapshot_when_target_or_access_disappears(
         bool deleteOrganization)
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
         var actor = await fixture.CreateUserAndSessionAsync(
             "disappearing-member-list@local-agent.test");
+        var other = await fixture.CreateUserAndSessionAsync(
+            "disappearing-member-list-other@local-agent.test");
         var organizationId = await fixture.SeedOrganizationForAsync(
             actor,
             "Disappearing Member List",
             "disappearing-member-list",
             OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            organizationId,
+            other,
+            OrganizationRole.Member);
+        fixture.PauseNextMemberListAfterAuthorization();
+        var listing = fixture.ListMembersAsync(actor.UserId, organizationId);
+        await fixture.WaitForPausedMemberListAsync();
+
         await using var connection = new NpgsqlConnection(
             fixture.ConnectionString);
         await connection.OpenAsync(TestContext.Current.CancellationToken);
-        await using var transaction = await connection.BeginTransactionAsync(
-            TestContext.Current.CancellationToken);
-        await using (var lockCommand = connection.CreateCommand())
+        Task<int>? deletion = null;
+        try
         {
-            lockCommand.Transaction = transaction;
-            lockCommand.CommandText = deleteOrganization
-                ? """
-                  SELECT id
-                  FROM organizations.organizations
-                  WHERE id = $1
-                  FOR UPDATE
-                  """
-                : """
-                  SELECT id
-                  FROM organizations.members
-                  WHERE organization_id = $1 AND user_id = $2
-                  FOR UPDATE
-                  """;
-            lockCommand.Parameters.AddWithValue(organizationId.Value);
-            if (!deleteOrganization)
-            {
-                lockCommand.Parameters.AddWithValue(actor.UserId.Value);
-            }
-
-            Assert.NotNull(await lockCommand.ExecuteScalarAsync(
-                TestContext.Current.CancellationToken));
-        }
-
-        var listing = fixture.Store.ListMembersAsync(
-            actor.UserId,
-            organizationId,
-            after: null,
-            limit: 50,
-            TestContext.Current.CancellationToken);
-        await Task.Delay(
-            TimeSpan.FromMilliseconds(100),
-            TestContext.Current.CancellationToken);
-        Assert.False(listing.IsCompleted);
-        await using (var deleteCommand = connection.CreateCommand())
-        {
-            deleteCommand.Transaction = transaction;
+            await using var deleteCommand = connection.CreateCommand();
             deleteCommand.CommandText = deleteOrganization
-                ? "DELETE FROM organizations.organizations WHERE id = $1"
+                ? """
+                  DELETE FROM organizations.organizations
+                  WHERE id = $1
+                  """
                 : """
                   DELETE FROM organizations.members
                   WHERE organization_id = $1 AND user_id = $2
@@ -639,16 +638,33 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
                 deleteCommand.Parameters.AddWithValue(actor.UserId.Value);
             }
 
+            deletion = deleteCommand.ExecuteNonQueryAsync(
+                TestContext.Current.CancellationToken);
             Assert.Equal(
                 1,
-                await deleteCommand.ExecuteNonQueryAsync(
+                await deletion.WaitAsync(
+                    TimeSpan.FromSeconds(2),
                     TestContext.Current.CancellationToken));
         }
+        finally
+        {
+            fixture.ReleasePausedMemberList();
+            if (deletion is not null)
+            {
+                await deletion;
+            }
+        }
 
-        await transaction.CommitAsync(TestContext.Current.CancellationToken);
         var result = await listing;
+        var page = Assert.IsType<OrganizationStorePage<
+            OrganizationMember,
+            OrganizationMemberCursorPosition>>(result.Value);
+        Assert.Equal(
+            [actor.UserId, other.UserId],
+            page.Items.Select(member => member.UserId));
 
-        Assert.Equal(OrganizationFailure.NotFound, result.Failure);
+        var later = await fixture.ListMembersAsync(actor.UserId, organizationId);
+        Assert.Equal(OrganizationFailure.NotFound, later.Failure);
     }
 
     [Fact]
@@ -909,9 +925,11 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<TimeProvider>(new FixedOrganizationTimeProvider(Now));
         services.AddSingleton<OrganizationNameConflictBarrier>();
+        services.AddSingleton<OrganizationMemberListBarrier>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
             options.AddInterceptors(
-                provider.GetRequiredService<OrganizationNameConflictBarrier>()));
+                provider.GetRequiredService<OrganizationNameConflictBarrier>(),
+                provider.GetRequiredService<OrganizationMemberListBarrier>()));
         services.AddAuthInfrastructure(
             configuration,
             new TestHostEnvironment());
@@ -959,6 +977,26 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         _services
             .GetRequiredService<OrganizationNameConflictBarrier>()
             .CoordinateNextPair();
+
+    internal void CoordinateConcurrentMemberLists() =>
+        _services
+            .GetRequiredService<OrganizationMemberListBarrier>()
+            .CoordinateNextPair();
+
+    internal void PauseNextMemberListAfterAuthorization() =>
+        _services
+            .GetRequiredService<OrganizationMemberListBarrier>()
+            .PauseNext();
+
+    internal Task WaitForPausedMemberListAsync() =>
+        _services
+            .GetRequiredService<OrganizationMemberListBarrier>()
+            .WaitUntilPausedAsync();
+
+    internal void ReleasePausedMemberList() =>
+        _services
+            .GetRequiredService<OrganizationMemberListBarrier>()
+            .ReleasePaused();
 
     internal TemplateDbContext CreateDbContext()
     {
@@ -1231,6 +1269,24 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                 TestContext.Current.CancellationToken);
     }
 
+    internal async Task<OrganizationOperationResult<
+        OrganizationStorePage<
+            OrganizationMember,
+            OrganizationMemberCursorPosition>>> ListMembersAsync(
+        UserId actorUserId,
+        OrganizationId organizationId)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .ListMembersAsync(
+                actorUserId,
+                organizationId,
+                after: null,
+                limit: 50,
+                TestContext.Current.CancellationToken);
+    }
+
     internal async Task<OrganizationOperationResult<OrganizationDetail>>
         UpdateOrganizationAsync(
             OrganizationActor actor,
@@ -1433,6 +1489,88 @@ internal sealed class OrganizationNameConflictBarrier : DbCommandInterceptor
             StringComparison.OrdinalIgnoreCase) &&
         command.CommandText.Contains(
             "lower(",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static TaskCompletionSource NewSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+internal sealed class OrganizationMemberListBarrier : DbCommandInterceptor
+{
+    private const int Disabled = 0;
+    private const int CoordinatePair = 1;
+    private const int PauseOne = 2;
+    private int _mode;
+    private int _arrived;
+    private TaskCompletionSource _pairRelease = NewSignal();
+    private TaskCompletionSource _paused = NewSignal();
+    private TaskCompletionSource _pauseRelease = NewSignal();
+
+    internal void CoordinateNextPair()
+    {
+        _arrived = 0;
+        _pairRelease = NewSignal();
+        Volatile.Write(ref _mode, CoordinatePair);
+    }
+
+    internal void PauseNext()
+    {
+        _paused = NewSignal();
+        _pauseRelease = NewSignal();
+        Volatile.Write(ref _mode, PauseOne);
+    }
+
+    internal Task WaitUntilPausedAsync() =>
+        _paused.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+    internal void ReleasePaused() => _pauseRelease.TrySetResult();
+
+    public override async ValueTask<InterceptionResult<DbDataReader>>
+        ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+    {
+        if (!IsAllowedDomainsRead(command))
+        {
+            return result;
+        }
+
+        var mode = Volatile.Read(ref _mode);
+        if (mode == CoordinatePair)
+        {
+            if (Interlocked.Increment(ref _arrived) == 2)
+            {
+                Volatile.Write(ref _mode, Disabled);
+                _pairRelease.TrySetResult();
+            }
+
+            await _pairRelease.Task.WaitAsync(
+                TimeSpan.FromSeconds(3),
+                cancellationToken);
+        }
+        else if (mode == PauseOne &&
+                 Interlocked.CompareExchange(
+                     ref _mode,
+                     Disabled,
+                     PauseOne) == PauseOne)
+        {
+            _paused.TrySetResult();
+            await _pauseRelease.Task.WaitAsync(
+                TimeSpan.FromSeconds(3),
+                cancellationToken);
+        }
+
+        return result;
+    }
+
+    private static bool IsAllowedDomainsRead(DbCommand command) =>
+        command.CommandText.Contains(
+            "organizations.allowed_email_domains",
+            StringComparison.OrdinalIgnoreCase) &&
+        command.CommandText.Contains(
+            "SELECT",
             StringComparison.OrdinalIgnoreCase);
 
     private static TaskCompletionSource NewSignal() =>

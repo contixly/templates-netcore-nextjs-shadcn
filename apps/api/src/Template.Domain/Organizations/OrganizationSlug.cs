@@ -22,7 +22,7 @@ public readonly record struct OrganizationSlug
 
         var normalized = value.Trim().ToLowerInvariant();
 
-        if (!IsCanonical(normalized))
+        if (!IsCanonical(normalized) || IsUuidShaped(normalized))
         {
             return false;
         }
@@ -65,7 +65,10 @@ public readonly record struct OrganizationSlug
             needsSeparator = builder.Length > 0;
         }
 
-        return builder.Length == 0 ? "workspace" : builder.ToString();
+        var generated = builder.Length == 0 ? "workspace" : builder.ToString();
+        return IsUuidShaped(generated)
+            ? $"workspace-{generated}"
+            : generated;
     }
 
     public override string ToString() => Value;
@@ -102,4 +105,7 @@ public readonly record struct OrganizationSlug
 
     private static bool IsAsciiLetterOrDigit(char character) =>
         character is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9';
+
+    private static bool IsUuidShaped(string value) =>
+        Guid.TryParseExact(value, "D", out _);
 }

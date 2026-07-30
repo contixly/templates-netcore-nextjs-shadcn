@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Template.Application.Common.Ports;
@@ -104,13 +105,9 @@ internal sealed class EfOrganizationStore(
         var parsedId = Guid.Empty;
         var isId = Guid.TryParseExact(organizationKey, "D", out parsedId);
         var row = isId
-            ? await query
-                .Where(value =>
-                    value.Id == parsedId ||
-                    value.Slug == organizationKey)
-                .OrderByDescending(value => value.Id == parsedId)
-                .ThenBy(value => value.Id)
-                .FirstOrDefaultAsync(cancellationToken)
+            ? await query.SingleOrDefaultAsync(
+                value => value.Id == parsedId,
+                cancellationToken)
             : await query.SingleOrDefaultAsync(
                 value => value.Slug == organizationKey,
                 cancellationToken);
@@ -548,16 +545,18 @@ internal sealed class EfOrganizationStore(
     {
         try
         {
-            return await unitOfWork.ExecuteAsync(
+            return await ExecuteSnapshotReadAsync(
                 async transactionCancellationToken =>
                 {
-                    if (await LockOrganizationAsync(
-                            organizationId.Value,
-                            transactionCancellationToken) is null
-                        || await LockMembershipAsync(
-                            organizationId.Value,
-                            actorUserId.Value,
-                            transactionCancellationToken) is null)
+                    var accessible = await db.OrganizationMembers
+                        .AsNoTracking()
+                        .AnyAsync(
+                            membership =>
+                                membership.OrganizationId ==
+                                organizationId.Value &&
+                                membership.UserId == actorUserId.Value,
+                            transactionCancellationToken);
+                    if (!accessible)
                     {
                         return OrganizationOperationResult<
                             OrganizationStorePage<
@@ -637,6 +636,39 @@ internal sealed class EfOrganizationStore(
                     OrganizationMember,
                     OrganizationMemberCursorPosition>>.Failed(
                         OrganizationFailure.ConcurrencyConflict);
+        }
+    }
+
+    private async Task<T> ExecuteSnapshotReadAsync<T>(
+        Func<CancellationToken, Task<T>> action,
+        CancellationToken cancellationToken)
+    {
+        if (db.Database.CurrentTransaction is not null)
+        {
+            return await action(cancellationToken);
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync(
+            IsolationLevel.RepeatableRead,
+            cancellationToken);
+        try
+        {
+            var result = await action(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        }
+        catch
+        {
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch
+            {
+                // Preserve the read failure when rollback cannot complete.
+            }
+
+            throw;
         }
     }
 

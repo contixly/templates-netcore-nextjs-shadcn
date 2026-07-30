@@ -918,9 +918,11 @@ immutable reference прошли.
 
 ### Delivered contract, boundaries, and intentional differences
 
-Organizations have UUID IDs and canonical slugs; slug or UUID routes resolve to
-canonical slug UI routes. The active organization is a nullable FK-backed
-preference on the persistent `auth.sessions` row, not a ticket claim. `POST
+Organizations have UUID IDs and canonical non-UUID-shaped slugs in disjoint
+namespaces. UUID keys resolve only by id, name generation prefixes a
+UUID-shaped base, and both workspace-root and direct dashboard deep links
+canonicalize to the slug UI route. The active organization is a nullable
+FK-backed preference on the persistent `auth.sessions` row, not a ticket claim. `POST
 /api/v1/organizations` atomically creates the organization and owner membership
 and sets the actor's current session preference; `PUT
 /api/v1/auth/session/active-organization` explicitly changes that preference
@@ -947,9 +949,14 @@ lock/recheck update/delete/member changes, use unique indexes for races, and
 clear active FK references by `SET NULL`. Account deletion/local cleanup uses
 the same transaction and lock order: delete sole-member organizations, remove
 safe memberships, reject a sole owner of a multi-member organization, and return
-the true cleanup count. SSR organization projections suppress session renewal;
-browser reads keep ordinary renewal. Client mutation recovery keeps confirmed
-responses through a failed refresh and retries only the later GET.
+the true cleanup count. Member-list reads use a non-locking repeatable-read
+snapshot so concurrent GETs progress while delete/access races remain stable;
+mutation locks remain unchanged. SSR organization projections suppress session
+renewal; browser reads keep ordinary renewal. Client mutation recovery keeps
+confirmed responses through a failed refresh and retries only the later GET.
+The account-deletion dialog gives localized promote/share-owner guidance only
+for the exact ownership-transfer blocker and otherwise retains generic safe copy
+plus any safe trace id.
 
 ### Final verification 2026-07-30
 
@@ -972,6 +979,41 @@ responses through a failed refresh and retries only the later GET.
 | clean production build + standalone guard                            | PASS; Next.js 16.2.11; 19/19 static-generation units; `.next/standalone/server.js` exists.                                                                                      |
 | `npm run e2e`                                                        | PASS; 12 passed, 5 opt-in live-provider tests skipped, 0 failed (17 discovered).                                                                                                |
 | whitespace and reference guards                                      | PASS; `git diff --check`, `git diff --check origin/main...HEAD`, working-tree `template/`, `origin/main...HEAD -- template/`, and `git status --short -- template/` were empty. |
+
+### PR #6 auto-review round 1 verification 2026-07-31
+
+The four confirmed findings were repaired test-first without expanding iteration
+5 scope. Slug and UUID namespaces are now disjoint across Domain, runtime,
+OpenAPI, generated SDK, and store resolution. Member-list GETs use a non-locking
+repeatable-read snapshot while mutation locks remain unchanged. Direct dashboard
+deep links canonicalize after lookup. The account deletion UI maps only the
+exact ownership-transfer Problem Details code to actionable localized guidance.
+Task 14 final automatic-review steps remain pending until the controller pushes
+this commit and receives the next review state.
+
+| Command / gate                                                                                                        | Observed result                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| finding 1 focused RED                                                                                                 | Expected 3 Domain failures plus store collision, HTTP 200-vs-400, and 3 OpenAPI contract failures                             |
+| finding 1 focused GREEN                                                                                               | PASS; Domain 36/36 and API/store/contract 5/5                                                                                 |
+| finding 2 focused RED                                                                                                 | Expected 3 integration failures: concurrent reads timed out and both delete/access races could not progress                   |
+| finding 2 focused GREEN                                                                                               | PASS; 6/6 member-list pagination, exact-id, concurrency, and delete/access-race tests                                         |
+| finding 3 focused RED → GREEN                                                                                         | Expected 2 dashboard canonicalization failures; then route suite PASS 23/23                                                   |
+| finding 4 focused RED → GREEN                                                                                         | Expected component and i18n failures; then component/i18n suites PASS 17/17                                                   |
+| consolidated focused Application/API/web                                                                              | PASS; organization Application 63/63, organization API/integration 80/80, route/account/i18n Jest 40/40                       |
+| `dotnet restore Template.sln`                                                                                         | PASS; all projects up to date                                                                                                 |
+| `dotnet build Template.sln --no-restore`                                                                              | PASS; 0 warnings, 0 errors                                                                                                    |
+| `dotnet test Template.sln --no-restore`                                                                               | PASS; `Template.Application.Tests` 171/171, `Template.Api.Tests` 412/412; total 583/583, 0 failed/skipped                     |
+| `dotnet format Template.sln --no-restore --verify-no-changes`                                                         | PASS                                                                                                                          |
+| EF pending-model check and idempotent script                                                                          | PASS; no pending model changes; `/tmp/template-pr-review-round-1.sql` 22,799 bytes                                            |
+| `dotnet list Template.sln package --vulnerable --include-transitive`                                                  | PASS; no vulnerable direct/transitive packages in all 7 projects                                                              |
+| two OpenAPI export builds, SHA-256 comparison, and `npm run api:check`                                                | PASS; deterministic SHA-256 `dc2a10e2da80545c30e4e8db16bff86c3a285fc90da4abf1cb0c93fe4becc524`; generated SDK 4 files current |
+| `npm audit --omit=dev`                                                                                                | PASS; 0 production vulnerabilities                                                                                            |
+| boundaries, Prettier, ESLint, and typecheck                                                                           | PASS; boundary harness 3/3 and all source/format/type gates clean                                                             |
+| `npm test -- --runInBand`                                                                                             | PASS; 51/51 suites, 322/322 tests, 0 snapshots                                                                                |
+| clean production build and standalone guard                                                                           | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                     |
+| focused `organizations.spec.ts account-settings.spec.ts account-security.spec.ts`                                     | PASS; 8/8 using 3 workers                                                                                                     |
+| default full 5-worker `npm run e2e`                                                                                   | PASS; 12 passed, 5 opt-in live-provider tests skipped, 0 failed (17 discovered)                                               |
+| final whitespace, generated-metadata, working-tree template, and `949a549... -- template/` immutable-reference guards | PASS; no whitespace errors, no generated metadata drift, and no `template/` changes (recorded after this evidence update)     |
 
 **Next product gate:** iteration 6 may start only as its own planned vertical
 slice for Teams and invitations: define invitation security/expiry,

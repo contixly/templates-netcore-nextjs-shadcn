@@ -94,6 +94,12 @@ describe("fixed deployment locale", () => {
     expect(russian.account.deleteAccount.confirmationLabel).not.toBe(
       english.account.deleteAccount.confirmationLabel,
     );
+    expect(english.account.deleteAccount.ownershipTransferRequired).toContain(
+      "owner",
+    );
+    expect(russian.account.deleteAccount.ownershipTransferRequired).not.toBe(
+      english.account.deleteAccount.ownershipTransferRequired,
+    );
     expect(russian.account.sessions.authenticationMethods.local).not.toBe(
       english.account.sessions.authenticationMethods.local,
     );

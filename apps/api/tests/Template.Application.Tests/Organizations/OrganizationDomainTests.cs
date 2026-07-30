@@ -29,6 +29,19 @@ public sealed class OrganizationDomainTests
         Assert.True(slug.Length <= 48);
     }
 
+    [Fact]
+    public void Generated_slug_base_prefixes_a_uuid_shaped_name()
+    {
+        const string uuidShapedName =
+            "01900000-0000-7000-8000-000000000001";
+
+        var slug = OrganizationSlug.GenerateBase(uuidShapedName);
+
+        Assert.Equal($"workspace-{uuidShapedName}", slug);
+        Assert.True(OrganizationSlug.TryCreate(slug, out _));
+        Assert.True(slug.Length <= 64);
+    }
+
     [Theory]
     [InlineData(" Acme-Team ", "acme-team")]
     [InlineData("e2e-slug", "e2e-slug")]
@@ -46,6 +59,8 @@ public sealed class OrganizationDomainTests
     [InlineData("acme-")]
     [InlineData("acme--team")]
     [InlineData("жю")]
+    [InlineData("01900000-0000-7000-8000-000000000001")]
+    [InlineData(" 01900000-0000-7000-8000-000000000001 ")]
     public void Slug_try_create_rejects_noncanonical_shapes(string value) =>
         Assert.False(OrganizationSlug.TryCreate(value, out _));
 

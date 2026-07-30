@@ -1,4 +1,4 @@
-import { forbidden } from "next/navigation";
+import { forbidden, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
@@ -62,6 +62,9 @@ export default async function OrganizationDashboardPage({
       forbidden();
     }
     return <OrganizationFailure failure={organization.failure} />;
+  }
+  if (organizationKey !== organization.data.canonicalKey) {
+    redirect(organizationRoutes.dashboard(organization.data.canonicalKey));
   }
   const t = await translationsPromise;
 

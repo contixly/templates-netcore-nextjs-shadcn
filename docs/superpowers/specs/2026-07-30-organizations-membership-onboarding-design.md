@@ -231,10 +231,11 @@ not overwrite it.
 
 ### Organization ID and key
 
-New IDs are UUIDv7. `organizationKey` accepts either canonical UUID text or slug.
-API detail resolution returns `canonicalKey`, which is the slug. UI links prefer
-slug; UUID routes remain valid and redirect to canonical slug routes where the
-reference does so.
+New IDs are UUIDv7. `organizationKey` accepts either canonical UUID text or a
+non-UUID-shaped slug. The namespaces are disjoint: UUID keys resolve only by id,
+while other keys resolve only by slug. API detail resolution returns
+`canonicalKey`, which is the slug. UI links prefer slug; UUID routes remain valid
+and redirect to canonical slug routes where the reference does so.
 
 A deep link selects its URL organization for the request but never changes the
 session preference. Only an explicit switch mutation updates active context.
@@ -256,9 +257,10 @@ DB invariant.
 ### Slug
 
 PATCH slugs trim and lowercase, then require
-`^[a-z0-9]+(?:-[a-z0-9]+)*$`. Generated slugs strip unsupported characters,
-collapse separators, use a 48-character base, fall back to `workspace`, and try
-`-2`, `-3`, etc. Global unique DB authority and five bounded attempts handle
+`^[a-z0-9]+(?:-[a-z0-9]+)*$` and reject UUID-shaped normalized values. Generated
+slugs strip unsupported characters, collapse separators, use a 48-character
+base, fall back to `workspace`, prefix a UUID-shaped base with `workspace-`, and
+try `-2`, `-3`, etc. Global unique DB authority and five bounded attempts handle
 concurrent create collisions.
 
 ### Allowed domains
@@ -392,6 +394,15 @@ active organization. Failure rolls everything back.
 One membership-qualified update changes only the current unexpired session.
 Foreign/non-member organization produces the non-disclosing not-found result.
 
+### List members
+
+The read path does not acquire organization or membership `FOR UPDATE` locks.
+Authorization, allowed domains, and the stable paged projection are read from
+one PostgreSQL repeatable-read snapshot. Concurrent GETs for the same
+organization therefore progress together; a concurrent organization/access
+deletion yields the authorized snapshot or the same non-disclosing not-found
+result without weakening any mutation lock.
+
 ### Update
 
 Lock organization and actor membership, re-evaluate permission, validate any
@@ -427,6 +438,8 @@ organization-aware:
 - membership is removed when another owner remains;
 - deletion is rejected with `organization_ownership_transfer_required` when the
   user is sole owner of a multi-member organization;
+- the account-deletion dialog maps only that exact code to localized
+  promote/share-ownership guidance and keeps all other failures generic and safe;
 - session active-organization references are cleared when access disappears;
 - local cleanup returns the real count of deleted sole-member organizations;
 - account deletion, organization cleanup and user deletion share one transaction.
@@ -467,7 +480,9 @@ organization in deterministic list order, otherwise redirects to `/welcome`.
 
 The root validates REST access and redirects to canonical
 `/w/{slug}/dashboard`. A UUID-compatible link remains valid. Deep-link rendering
-does not update active session context.
+does not update active session context. A successful direct
+`/w/{nonCanonicalKey}/dashboard` lookup applies the same canonical redirect
+before rendering.
 
 The organization dashboard is a minimal organization-aware context page; charts,
 data table and final shell remain iteration 9.

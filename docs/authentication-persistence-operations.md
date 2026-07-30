@@ -279,7 +279,10 @@ another owner remains; a sole owner of a multi-member organization receives
 active-organization session preferences are cleared before cascades. Local
 automation cleanup follows the same path and returns the actual
 `deletedOrganizations` count. Only after commit does the API expire the browser
-cookie. API keys remain iteration 7 and have no cleanup behavior here.
+cookie. The browser dialog recognizes only that exact ownership blocker code for
+localized promote/share-ownership guidance; every other failure retains generic
+safe copy, and a supplied trace id remains visible. API keys remain iteration 7
+and have no cleanup behavior here.
 
 Session list cursors are opaque versioned base64url values for
 `(lastSeenAt, id)` ordering with a checksum for format/corruption detection.

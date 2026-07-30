@@ -285,18 +285,14 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
         OrganizationEndpointTestSupport.AssertNoStore(response);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task MemberListUsesExactIdInsteadOfAnAccessibleUuidShapedSlug(
-        bool idBelongsToForeignOrganization)
+    [Fact]
+    public async Task OrganizationPatchRejectsAUuidShapedSlugAtTheHttpBoundary()
     {
-        var suffix = idBelongsToForeignOrganization ? "foreign" : "missing";
         using var ownerClient = factory.CreateApiClient();
         await OrganizationEndpointTestSupport.CreateScenarioAsync(
             ownerClient,
             "Exact ID Owner",
-            $"local-agent+exact-id-owner-{suffix}@local-agent.test");
+            "local-agent+exact-id-owner@local-agent.test");
         using var created =
             await OrganizationEndpointTestSupport.CreateOrganizationAsync(
                 ownerClient,
@@ -307,39 +303,16 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             .GetGuid();
 
         var requestedId = Guid.NewGuid();
-        if (idBelongsToForeignOrganization)
-        {
-            using var foreignClient = factory.CreateApiClient();
-            await OrganizationEndpointTestSupport.CreateScenarioAsync(
-                foreignClient,
-                "Exact ID Foreign",
-                "local-agent+exact-id-foreign@local-agent.test");
-            using var foreign =
-                await OrganizationEndpointTestSupport.CreateOrganizationAsync(
-                    foreignClient,
-                    "Exact ID Foreign Workspace");
-            requestedId =
-                (await OrganizationEndpointTestSupport.ReadDataAsync(foreign))
-                .GetProperty("id")
-                .GetGuid();
-        }
 
         using var slug = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
             ownerClient,
             HttpMethod.Patch,
             $"/api/v1/organizations/{accessibleId:D}",
             new { slug = requestedId.ToString("D") });
-        Assert.Equal(HttpStatusCode.OK, slug.StatusCode);
-
-        using var response = await ownerClient.GetAsync(
-            $"/api/v1/organizations/{requestedId:D}/members",
-            TestContext.Current.CancellationToken);
-
-        await OrganizationEndpointTestSupport.AssertProblemAsync(
-            response,
-            HttpStatusCode.NotFound,
-            "organization_not_found");
-        OrganizationEndpointTestSupport.AssertNoStore(response);
+        await OrganizationEndpointTestSupport.AssertValidationProblemAsync(
+            slug,
+            "slug");
+        OrganizationEndpointTestSupport.AssertNoStore(slug);
     }
 
     [Fact]

@@ -9,6 +9,9 @@ namespace Template.Api.OpenApi;
 internal sealed class OrganizationContractSchemaTransformer
     : IOpenApiSchemaTransformer
 {
+    private const string CanonicalUuidPattern =
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
+        "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
     private const string OrganizationNamePattern =
         """^[\p{L}\p{Nd} _-]+$""";
     private const string OrganizationSlugPattern =
@@ -173,9 +176,11 @@ internal sealed class OrganizationContractSchemaTransformer
         AddExtension(slug, "x-trimmed-min-length", 1);
         AddExtension(slug, "x-trimmed-max-length", 64);
         AddExtension(slug, "x-trimmed-pattern", OrganizationSlugPattern);
+        AddExtension(slug, "x-trimmed-not-pattern", CanonicalUuidPattern);
         slug.Description =
             "Trimmed and lowercased before use; the normalized slug must contain " +
-            "1 to 64 lowercase ASCII letters or digits separated by single hyphens.";
+            "1 to 64 lowercase ASCII letters or digits separated by single hyphens " +
+            "and must not be UUID-shaped.";
     }
 
     private static void ApplyTrimmedEmailDomainArray(
@@ -236,6 +241,11 @@ internal sealed class OrganizationContractSchemaTransformer
         slug.MinLength = 1;
         slug.MaxLength = 64;
         slug.Pattern = OrganizationSlugPattern;
+        slug.Not = new OpenApiSchema
+        {
+            Type = JsonSchemaType.String,
+            Pattern = CanonicalUuidPattern
+        };
     }
 
     private static void ApplyEmailProjection(

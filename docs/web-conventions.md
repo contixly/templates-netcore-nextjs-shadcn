@@ -292,11 +292,13 @@ SDK; raw organization `fetch` calls and hand-written DTOs are prohibited.
 organization in server ordering, otherwise redirects to `/welcome`. `/welcome`
 renders first-workspace onboarding only for zero accessible organizations;
 otherwise it redirects through `/dashboard`. `/workspaces` is the paged,
-explicit-load-more list. `/w/{organizationKey}` accepts a UUID or slug but
-redirects to `/w/{canonicalSlug}/dashboard`; a deep-link read never changes
-active context. A missing key sends a zero-organization user to onboarding and
-a user with another accessible organization to `forbidden()`, so the API's
-non-disclosure result keeps the intended protected UI distinction.
+explicit-load-more list. `/w/{organizationKey}` accepts a UUID or non-UUID slug;
+both the workspace root and a direct
+`/w/{nonCanonicalOrganizationKey}/dashboard` request redirect to
+`/w/{canonicalSlug}/dashboard` after successful lookup. A deep-link read never
+changes active context. A missing key sends a zero-organization user to
+onboarding and a user with another accessible organization to `forbidden()`, so
+the API's non-disclosure result keeps the intended protected UI distinction.
 
 Workspace settings are `/w/{key}/settings/{workspace,users,roles}`. They show
 only the fixed organization roles and omit Teams, Invitations, and API Keys.
@@ -313,3 +315,9 @@ repeats the mutation. Direct member add exposes an outside-domain confirmation
 only for the typed 409 acknowledgement problem; the initial request has no
 write. Directory state also keeps the current actor separate and never renders
 member removal controls.
+
+The account-deletion dialog keeps generic safe copy for unknown failures, but
+maps the exact typed `organization_ownership_transfer_required` Problem Details
+code to localized guidance to promote another owner or share ownership before
+retrying. A safe trace id remains visible when supplied; the API result remains
+authoritative.

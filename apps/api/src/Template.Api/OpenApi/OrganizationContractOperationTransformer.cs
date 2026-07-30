@@ -215,10 +215,9 @@ internal sealed class OrganizationContractOperationTransformer
             }
         ];
         schema.Description =
-            "Canonical organization UUID or lowercase slug. An accessible " +
-            "organization ID takes precedence; otherwise an accessible UUID-shaped " +
-            "slug is used as a fallback. The response canonicalKey is always the " +
-            "preferred slug.";
+            "Canonical organization UUID or lowercase non-UUID-shaped slug. " +
+            "UUID keys resolve only by organization ID. The response canonicalKey " +
+            "is always the preferred slug.";
     }
 
     private static void ApplyPaginationContract(OpenApiOperation operation)

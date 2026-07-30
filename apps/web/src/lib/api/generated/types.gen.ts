@@ -405,7 +405,7 @@ export type UpdateOrganizationRequest = ({
      */
     name?: null | string;
     /**
-     * Trimmed and lowercased before use; the normalized slug must contain 1 to 64 lowercase ASCII letters or digits separated by single hyphens.
+     * Trimmed and lowercased before use; the normalized slug must contain 1 to 64 lowercase ASCII letters or digits separated by single hyphens and must not be UUID-shaped.
      */
     slug?: null | string;
     allowedEmailDomains?: null | Array<string>;
@@ -1124,7 +1124,7 @@ export type GetOrganizationByKeyData = {
     body?: never;
     path: {
         /**
-         * Canonical organization UUID or lowercase slug. An accessible organization ID takes precedence; otherwise an accessible UUID-shaped slug is used as a fallback. The response canonicalKey is always the preferred slug.
+         * Canonical organization UUID or lowercase non-UUID-shaped slug. UUID keys resolve only by organization ID. The response canonicalKey is always the preferred slug.
          */
         organizationKey: string | string;
     };

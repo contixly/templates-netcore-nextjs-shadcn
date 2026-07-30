@@ -130,6 +130,7 @@
     "confirm": "Permanently delete account",
     "deleting": "Deleting account",
     "success": "Account deleted.",
-    "failure": "The account could not be deleted."
+    "failure": "The account could not be deleted.",
+    "ownershipTransferRequired": "Promote another member to owner or share ownership, then try deleting your account again."
   }
 }

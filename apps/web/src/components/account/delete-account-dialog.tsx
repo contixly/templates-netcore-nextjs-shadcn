@@ -28,6 +28,13 @@ function failureTrace(failure: ApiFailure): string | undefined {
   return failure.kind === "problem" ? failure.traceId : undefined;
 }
 
+function isOwnershipTransferRequired(failure: ApiFailure): boolean {
+  return (
+    failure.kind === "problem" &&
+    failure.code === "organization_ownership_transfer_required"
+  );
+}
+
 export function DeleteAccountDialog({
   primaryEmail,
 }: Readonly<{ primaryEmail: string }>) {
@@ -158,7 +165,13 @@ export function DeleteAccountDialog({
               className="flex flex-col gap-1 text-sm text-destructive"
               role="alert"
             >
-              <p>{t("failure")}</p>
+              <p>
+                {t(
+                  isOwnershipTransferRequired(failure)
+                    ? "ownershipTransferRequired"
+                    : "failure",
+                )}
+              </p>
               {failureTrace(failure) ? (
                 <p className="font-mono text-xs">{failureTrace(failure)}</p>
               ) : null}

@@ -8,6 +8,10 @@ namespace Template.Api.Tests;
 public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     : IClassFixture<ApiWebApplicationFactory>
 {
+    private const string CanonicalUuidPattern =
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
+        "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+
     [Fact]
     public async Task TestHostPublishesVersionedOpenApi31Contract()
     {
@@ -932,9 +936,8 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             slug["not"]!["pattern"]!.GetValue<string>(),
             uuidShapedKey);
         Assert.Equal(
-            "Canonical organization UUID or lowercase slug. An accessible " +
-            "organization ID takes precedence; otherwise an accessible " +
-            "UUID-shaped slug is used as a fallback. The response canonicalKey " +
+            "Canonical organization UUID or lowercase non-UUID-shaped slug. " +
+            "UUID keys resolve only by organization ID. The response canonicalKey " +
             "is always the preferred slug.",
             parameter["schema"]!["description"]!.GetValue<string>());
     }
@@ -1005,6 +1008,10 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Equal(
             "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             update["properties"]!["slug"]!["x-trimmed-pattern"]!
+                .GetValue<string>());
+        Assert.Equal(
+            CanonicalUuidPattern,
+            update["properties"]!["slug"]!["x-trimmed-not-pattern"]!
                 .GetValue<string>());
         var domain = update["properties"]!["allowedEmailDomains"]!["items"]!;
         Assert.Null(domain["maxLength"]);
@@ -1090,8 +1097,15 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 properties["slug"]!["pattern"]!.GetValue<string>());
             Assert.Equal(64, properties["slug"]!["maxLength"]!.GetValue<int>());
             Assert.Equal(
+                CanonicalUuidPattern,
+                properties["slug"]!["not"]!["pattern"]!.GetValue<string>());
+            Assert.Equal(
                 "^[a-z0-9]+(?:-[a-z0-9]+)*$",
                 properties["canonicalKey"]!["pattern"]!.GetValue<string>());
+            Assert.Equal(
+                CanonicalUuidPattern,
+                properties["canonicalKey"]!["not"]!["pattern"]!
+                    .GetValue<string>());
         }
 
         var member = schemas["OrganizationMemberResponse"]!["properties"]!;
