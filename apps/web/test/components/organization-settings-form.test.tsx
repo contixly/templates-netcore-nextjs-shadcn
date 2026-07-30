@@ -140,6 +140,100 @@ it("keeps confirmed returned settings when the canonical key is unchanged", asyn
   expect(refresh).toHaveBeenCalledTimes(1);
 });
 
+it("sends only changed domains from a stale two-admin baseline and refreshes the baseline from success", async () => {
+  const authoritativeAfterDomains = {
+    ...ownerOrganization,
+    name: "Renamed By Another Admin",
+    slug: "renamed-by-another-admin",
+    canonicalKey: "renamed-by-another-admin",
+    allowedEmailDomains: ["new.example.com"],
+  };
+  updateOrganization
+    .mockResolvedValueOnce({
+      ok: true,
+      data: authoritativeAfterDomains,
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ...authoritativeAfterDomains,
+        name: "My Follow-up Rename",
+      },
+    });
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+
+  fireEvent.change(screen.getByLabelText("Allowed Email Domains"), {
+    target: { value: "new.example.com" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenNthCalledWith(
+      1,
+      { id: "browser-client" },
+      ownerOrganization.id,
+      { allowedEmailDomains: ["new.example.com"] },
+    );
+  });
+  expect(screen.getByLabelText("Workspace Name")).toHaveValue(
+    "Renamed By Another Admin",
+  );
+  expect(screen.getByLabelText("Workspace Slug")).toHaveValue(
+    "renamed-by-another-admin",
+  );
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "My Follow-up Rename" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenNthCalledWith(
+      2,
+      { id: "browser-client" },
+      ownerOrganization.id,
+      { name: "My Follow-up Rename" },
+    );
+  });
+});
+
+it("sends only a changed name and excludes unchanged slug and domains", async () => {
+  updateOrganization.mockResolvedValue({
+    ok: true,
+    data: {
+      ...ownerOrganization,
+      name: "Name Only",
+    },
+  });
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: " Name Only " },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenCalledWith(
+      { id: "browser-client" },
+      ownerOrganization.id,
+      { name: "Name Only" },
+    );
+  });
+});
+
+it("keeps save as a stable no-op when normalized settings are unchanged", () => {
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(updateOrganization).not.toHaveBeenCalled();
+});
+
 it("uses stable localized update errors and exposes only an allowed trace id", async () => {
   updateOrganization.mockResolvedValue({
     ok: false,
@@ -221,6 +315,57 @@ it.each([
   },
 );
 
+it("rejects an exact normalized D-format UUID-shaped slug before transport", async () => {
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+  const slug = screen.getByLabelText("Workspace Slug");
+
+  fireEvent.change(slug, {
+    target: { value: " 123E4567-E89B-12D3-A456-426614174000 " },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Use 1–64 lowercase letters or numbers separated by single hyphens.",
+  );
+  expect(slug).toHaveAttribute("aria-invalid", "true");
+  expect(slug.closest('[data-slot="field"]')).toHaveAttribute(
+    "data-invalid",
+    "true",
+  );
+  expect(updateOrganization).not.toHaveBeenCalled();
+});
+
+it("preserves a non-UUID canonical slug containing hexadecimal hyphen segments", async () => {
+  updateOrganization.mockResolvedValue({
+    ok: true,
+    data: {
+      ...ownerOrganization,
+      slug: "123e4567-e89b-12d3-a456-42661417400z",
+      canonicalKey: "123e4567-e89b-12d3-a456-42661417400z",
+    },
+  });
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+
+  fireEvent.change(screen.getByLabelText("Workspace Slug"), {
+    target: { value: "123e4567-e89b-12d3-a456-42661417400z" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenCalledWith(
+      { id: "browser-client" },
+      ownerOrganization.id,
+      expect.objectContaining({
+        slug: "123e4567-e89b-12d3-a456-42661417400z",
+      }),
+    );
+  });
+});
+
 it("renders API-wide validation as a form alert without falsely marking a field", async () => {
   updateOrganization.mockResolvedValue({
     ok: false,
@@ -234,6 +379,9 @@ it("renders API-wide validation as a form alert without falsely marking a field"
     <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
   );
 
+  fireEvent.change(screen.getByLabelText("Workspace Slug"), {
+    target: { value: "api-valid-but-rejected" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent(

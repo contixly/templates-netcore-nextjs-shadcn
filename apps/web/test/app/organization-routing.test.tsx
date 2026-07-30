@@ -368,83 +368,29 @@ it("renders only minimal accessible organization dashboard context", async () =>
   expect(redirect).not.toHaveBeenCalled();
 });
 
-it("loads requested cursor pages verbatim and de-duplicates list results", async () => {
-  loadList
-    .mockResolvedValueOnce({
-      ok: true,
-      data: { items: [acme], nextCursor: "opaque first" },
-    })
-    .mockResolvedValueOnce({
-      ok: true,
-      data: {
-        items: [
-          { ...acme, name: "Duplicate" },
-          { ...acme, id: "beta-id", name: "Beta", canonicalKey: "beta" },
-        ],
-        nextCursor: null,
-      },
-    });
-
+it("renders only the authoritative first page at the canonical workspace URL", async () => {
   renderWithMessages(
     await WorkspacesPage({
-      searchParams: Promise.resolve({ cursor: "opaque first" }),
+      searchParams: Promise.resolve({}),
     }),
   );
 
-  expect(loadList).toHaveBeenNthCalledWith(1);
-  expect(loadList).toHaveBeenNthCalledWith(2, { cursor: "opaque first" });
-  expect(screen.getAllByRole("article")).toHaveLength(2);
-  expect(screen.queryByText("Duplicate")).not.toBeInTheDocument();
-  expect(screen.getByRole("article", { name: "Beta workspace" })).toBeVisible();
+  expect(loadList).toHaveBeenCalledTimes(1);
+  expect(loadList).toHaveBeenCalledWith();
+  expect(screen.getAllByRole("article")).toHaveLength(1);
 });
 
-it("deduplicates untrusted cursor values and loads at most one continuation", async () => {
-  const cursors = [
-    "duplicate",
-    "duplicate",
-    ...Array.from({ length: 20 }, (_, index) => `cursor-${index}`),
-  ];
-  loadList.mockResolvedValue({
-    ok: true,
-    data: { items: [acme], nextCursor: null },
-  });
-
-  await WorkspacesPage({
-    searchParams: Promise.resolve({ cursor: cursors }),
-  });
-
-  expect(loadList).toHaveBeenCalledTimes(2);
-  expect(loadList).toHaveBeenNthCalledWith(2, { cursor: "duplicate" });
-});
-
-it("preserves successful pages when one continuation fails", async () => {
-  loadList
-    .mockResolvedValueOnce({
-      ok: true,
-      data: { items: [acme], nextCursor: "cursor-one" },
-    })
-    .mockResolvedValueOnce({
-      ok: false,
-      failure: {
-        kind: "problem",
-        code: "internal_error",
-        status: 500,
-        traceId: "trace-continuation",
-      },
-    });
-  renderWithMessages(
-    await WorkspacesPage({
+it("redirects stale cursor bookmarks to the canonical first-page workspace URL", async () => {
+  await expect(
+    WorkspacesPage({
       searchParams: Promise.resolve({
-        cursor: ["cursor-one", "cursor-two"],
+        cursor: ["page-three", "amplified"],
       }),
     }),
-  );
+  ).rejects.toThrow("NEXT_REDIRECT:/workspaces");
 
-  expect(screen.getAllByRole("article")).toHaveLength(1);
-  expect(screen.getByRole("alert")).toHaveTextContent(
-    "Some workspaces could not be loaded.",
-  );
-  expect(screen.getByRole("alert")).toHaveTextContent("trace-continuation");
+  expect(redirect).toHaveBeenCalledWith("/workspaces");
+  expect(loadList).not.toHaveBeenCalled();
 });
 
 it("renders safe list failures with trace only", async () => {

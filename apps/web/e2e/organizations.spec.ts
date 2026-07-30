@@ -45,6 +45,24 @@ const slugOwner: OrganizationTestIdentity = {
   password: localPassword,
 };
 
+const staleSettingsOwner: OrganizationTestIdentity = {
+  name: "E2E Stale Settings Owner",
+  email: "local-agent+organization-stale-settings-owner@local-agent.test",
+  password: localPassword,
+};
+
+const staleSettingsAdmin: OrganizationTestIdentity = {
+  name: "E2E Stale Settings Admin",
+  email: "local-agent+organization-stale-settings-admin@local-agent.test",
+  password: localPassword,
+};
+
+const paginationOwner: OrganizationTestIdentity = {
+  name: "E2E Pagination Owner",
+  email: "local-agent+organization-pagination-owner@local-agent.test",
+  password: localPassword,
+};
+
 async function expectNoFutureOrganizationLinks(page: Page) {
   for (const futureSurface of [/invitations?/i, /teams?/i, /api keys?/i]) {
     await expect(page.getByRole("link", { name: futureSurface })).toHaveCount(
@@ -365,6 +383,208 @@ test.describe.serial("organization full-stack workflows", () => {
     ).toHaveCount(0);
   });
 
+  test("two stale administrators patch only dirty settings fields", async ({
+    organizationScenario,
+    page,
+  }) => {
+    const adminContext = await organizationScenario.createContext(
+      "stale settings admin context",
+    );
+    const adminPage = await adminContext.newPage();
+    const [owner, admin] = await organizationScenario.createLocalUsers([
+      organizationScenario.prepareLocalUser(
+        page.context(),
+        staleSettingsOwner,
+        "stale settings owner",
+      ),
+      organizationScenario.prepareLocalUser(
+        adminContext,
+        staleSettingsAdmin,
+        "stale settings admin",
+      ),
+    ]);
+    const organization = await organizationScenario.createOrganization(
+      owner,
+      page.context().request,
+      "E2E Stale Settings",
+    );
+
+    await page.goto(`/w/${organization.canonicalKey}/settings/users`);
+    const addAdmin = page.getByRole("button", { name: "Add member" });
+    await waitForOrganizationControlInteraction(addAdmin);
+    await addAdmin.click();
+    await page.getByLabel("User ID").fill(admin.user.id);
+    await page.getByRole("combobox", { name: "Role" }).click();
+    await page.getByRole("option", { name: "Administrator" }).click();
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByRole("status")).toHaveText("Member added.");
+
+    await Promise.all([
+      page.goto(`/w/${organization.canonicalKey}/settings/workspace`),
+      adminPage.goto(`/w/${organization.canonicalKey}/settings/workspace`),
+    ]);
+    const ownerName = page.getByRole("textbox", { name: "Workspace Name" });
+    const adminDomains = adminPage.getByRole("textbox", {
+      name: "Allowed Email Domains",
+    });
+    await Promise.all([
+      waitForInteraction(ownerName),
+      waitForInteraction(adminDomains),
+    ]);
+
+    await ownerName.fill("E2E Owner Rename");
+    const ownerPatch = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        request.method() === "PATCH" &&
+        new URL(response.url()).pathname ===
+          `/api/v1/organizations/${organization.id}`
+      );
+    });
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const ownerResponse = await ownerPatch;
+    expect(ownerResponse.status()).toBe(200);
+    expect(ownerResponse.request().postDataJSON()).toEqual({
+      name: "E2E Owner Rename",
+    });
+
+    await adminDomains.fill("Example.COM,\n@example.com");
+    const adminPatch = adminPage.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        request.method() === "PATCH" &&
+        new URL(response.url()).pathname ===
+          `/api/v1/organizations/${organization.id}`
+      );
+    });
+    await adminPage.getByRole("button", { name: "Save", exact: true }).click();
+    const adminResponse = await adminPatch;
+    expect(adminResponse.status()).toBe(200);
+    expect(adminResponse.request().postDataJSON()).toEqual({
+      allowedEmailDomains: ["example.com"],
+    });
+    await expect(
+      adminPage.getByRole("textbox", { name: "Workspace Name" }),
+    ).toHaveValue("E2E Owner Rename");
+
+    await page.reload();
+    await waitForInteraction(ownerName);
+    await expect(ownerName).toHaveValue("E2E Owner Rename");
+    await expect(
+      page.getByRole("textbox", { name: "Allowed Email Domains" }),
+    ).toHaveValue("example.com");
+  });
+
+  test("workspace load-more stays canonical and refreshes back to the authoritative first page", async ({
+    organizationScenario,
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const owner = await organizationScenario.createLocalUser(
+      page.context(),
+      paginationOwner,
+      "pagination owner",
+    );
+    for (let index = 1; index <= 51; index += 1) {
+      await organizationScenario.createOrganization(
+        owner,
+        page.context().request,
+        `E2E Pagination ${String(index).padStart(2, "0")}`,
+      );
+    }
+
+    const fakeSummary = (id: string, name: string, canonicalKey: string) => ({
+      id,
+      name,
+      slug: canonicalKey,
+      canonicalKey,
+      createdAt: "2026-07-31T10:00:00Z",
+      updatedAt: "2026-07-31T10:00:00Z",
+      currentRole: "owner",
+      capabilities: {
+        canUpdateOrganization: true,
+        canDeleteOrganization: true,
+        canAddMembers: true,
+        canUpdateMemberRoles: true,
+      },
+    });
+    await page.route("**/api/v1/organizations?cursor=*", async (route) => {
+      const cursor = new URL(route.request().url()).searchParams.get("cursor");
+      const thirdPage = cursor === "browser-page-three";
+      await route.fulfill({
+        contentType: "application/json",
+        status: 200,
+        body: JSON.stringify({
+          data: {
+            items: [
+              thirdPage
+                ? fakeSummary(
+                    "01900000-0000-7000-8000-000000000093",
+                    "Browser Accumulated Page Three",
+                    "browser-accumulated-page-three",
+                  )
+                : fakeSummary(
+                    "01900000-0000-7000-8000-000000000092",
+                    "Browser Accumulated Page Two",
+                    "browser-accumulated-page-two",
+                  ),
+            ],
+            nextCursor: thirdPage ? null : "browser-page-three",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/workspaces");
+    const loadMore = page.getByRole("button", {
+      name: "Load more workspaces",
+    });
+    await waitForOrganizationControlInteraction(loadMore);
+    await loadMore.click();
+    await expect(
+      page.getByRole("article", {
+        name: "Browser Accumulated Page Two workspace",
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Load more workspaces" }).click();
+    await expect(
+      page.getByRole("article", {
+        name: "Browser Accumulated Page Three workspace",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("article", {
+        name: "Browser Accumulated Page Two workspace",
+      }),
+    ).toBeVisible();
+    await expect(page).toHaveURL("/workspaces");
+
+    await page.reload();
+    await expect(
+      page.getByRole("article", {
+        name: "Browser Accumulated Page Two workspace",
+      }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("article", {
+        name: "Browser Accumulated Page Three workspace",
+      }),
+    ).toHaveCount(0);
+
+    const bookmarkedPage = await page.context().newPage();
+    try {
+      await bookmarkedPage.goto("/workspaces?cursor=browser-page-three");
+      await expect(bookmarkedPage).toHaveURL("/workspaces");
+      await expect(
+        bookmarkedPage.getByRole("article", {
+          name: "Browser Accumulated Page Two workspace",
+        }),
+      ).toHaveCount(0);
+    } finally {
+      await bookmarkedPage.close();
+    }
+  });
+
   test("slug collision, suffix-preserving switch, and last workspace guard", async ({
     organizationScenario,
     page,
@@ -406,6 +626,27 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Switch workspace" }),
     ).toHaveCount(0);
+
+    // Deep-linking to the first workspace does not alter the active preference.
+    // Selecting that already-routed workspace explicitly must persist it.
+    const currentRouteSwitcher = page.getByRole("button", {
+      name: "Current workspace: E2E Slug",
+    });
+    await waitForOrganizationControlInteraction(currentRouteSwitcher);
+    await currentRouteSwitcher.click();
+    const persistCurrentResponse = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        request.method() === "PUT" &&
+        new URL(response.url()).pathname ===
+          "/api/v1/auth/session/active-organization"
+      );
+    });
+    await page.getByRole("button", { name: "Switch to E2E Slug" }).click();
+    expect((await persistCurrentResponse).status()).toBe(200);
+    await expect(page).toHaveURL("/w/e2e-slug/dashboard");
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL("/w/e2e-slug/dashboard");
 
     await page.goto("/w/e2e-slug/settings/users");
     const reopenedSwitcher = page.getByRole("button", {

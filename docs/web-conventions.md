@@ -291,8 +291,12 @@ SDK; raw organization `fetch` calls and hand-written DTOs are prohibited.
 `/dashboard` resolves the active accessible organization, otherwise the first
 organization in server ordering, otherwise redirects to `/welcome`. `/welcome`
 renders first-workspace onboarding only for zero accessible organizations;
-otherwise it redirects through `/dashboard`. `/workspaces` is the paged,
-explicit-load-more list. `/w/{organizationKey}` accepts a UUID or non-UUID slug;
+otherwise it redirects through `/dashboard`. `/workspaces` server-renders its
+authoritative first page at the canonical URL. Its explicit load-more button uses
+the generated organizations GET operation in the browser and the returned opaque
+cursor without changing the URL; refresh/new-tab navigation starts again at page
+one, and old cursor bookmarks redirect to `/workspaces`.
+`/w/{organizationKey}` accepts a UUID or non-UUID slug;
 both the workspace root and a direct
 `/w/{nonCanonicalOrganizationKey}/dashboard` request redirect to
 `/w/{canonicalSlug}/dashboard` after successful lookup. A deep-link read never
@@ -304,17 +308,32 @@ Workspace settings are `/w/{key}/settings/{workspace,users,roles}`. They show
 only the fixed organization roles and omit Teams, Invitations, and API Keys.
 The header's route-owned parallel switcher slot calls set-active before routing;
 it preserves known one-key settings routes and otherwise goes to the selected
-dashboard. A slug update replaces the browser URL with the returned canonical
-key.
+dashboard. It may skip set-active for the routed selection only when that id also
+equals the session's active preference, so an explicit deep-linked selection
+persists for later `/dashboard`. A slug update replaces the browser URL with the
+returned canonical key.
 
 Lists return opaque server cursors unchanged, explicitly load more, and
-de-duplicate ids. Mutation responses are immediately authoritative. A successful
-write followed by a failed refresh remains a confirmed partial success: the UI
-keeps a conservative projection and offers a GET-only refresh retry, never
-repeats the mutation. Direct member add exposes an outside-domain confirmation
-only for the typed 409 acknowledgement problem; the initial request has no
-write. Directory state also keeps the current actor separate and never renders
-member removal controls.
+de-duplicate ids. Workspace browser accumulation keeps prior pages and the last
+cursor on a safe failure, retries the same GET, and applies every incoming
+duplicate over its older entry while preserving local tail entries and confirmed
+deletion tombstones. The load-more control uses its organization-boundary
+hydration readiness marker.
+
+Workspace settings reject exact normalized D-format UUID-shaped slugs before
+transport. They compare normalized inputs with the latest confirmed detail and
+send the exact generated PATCH request containing only dirty name, slug, and/or
+allowed-domain fields. A normalized no-change form keeps Save disabled; a
+successful response replaces both visible inputs and the dirty comparison
+baseline, preventing stale administrators from overwriting unrelated fields.
+
+Mutation responses are immediately authoritative. A successful write followed
+by a failed refresh remains a confirmed partial success: the UI keeps a
+conservative projection and offers a GET-only refresh retry, never repeats the
+mutation. Direct member add exposes an outside-domain confirmation only for the
+typed 409 acknowledgement problem; the initial request has no write. Directory
+state also keeps the current actor separate and never renders member removal
+controls.
 
 The account-deletion dialog keeps generic safe copy for unknown failures, but
 maps the exact typed `organization_ownership_transfer_required` Problem Details

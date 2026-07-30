@@ -492,6 +492,11 @@ data table and final shell remain iteration 9.
 - settings root redirects to `/settings/workspace`;
 - workspace page edits name, slug and domains when permitted, otherwise renders
   read-only values;
+- client validation rejects an exact normalized D-format UUID-shaped slug before
+  transport, while preserving other canonical hexadecimal/hyphen slugs;
+- workspace PATCH sends only normalized fields that differ from the latest
+  confirmed detail response; an unchanged form is a disabled no-op, and every
+  successful response replaces the comparison baseline;
 - canonical URL is replaced after slug change;
 - danger control requires owner/delete capability and another accessible org;
 - users page separates the current actor, pages other members, exposes direct
@@ -504,6 +509,9 @@ data table and final shell remain iteration 9.
 A minimal workspace switcher explicitly updates session preference, then
 preserves known single-key routes such as settings users/workspace/roles.
 Unknown/complex workspace paths fall back to the selected organization dashboard.
+Selecting the already-routed workspace skips that mutation only when its id also
+matches the persistent session preference. Thus an explicit selection after a
+deep link persists the routed workspace for a later `/dashboard`.
 
 Protected organization pages redirect only an explicit anonymous session to a
 route-specific login URL. Transport, configuration and malformed-projection
@@ -523,14 +531,15 @@ than reverse-registering state through a client effect. It projects only
 beyond the first 50 list items, and shares request-time session/list/detail
 reads through React request memoization.
 
-`/workspaces` treats repeated cursor query values as untrusted input:
-values are de-duplicated and at most one continuation is loaded per server
-request. The load-more Link carries only the next opaque cursor; client list
-state appends and de-duplicates the returned page across query-only soft
-navigations without accumulating cursors in the next request. A failed
-continuation does not discard successful pages; confirmed items remain visible
-beside stable localized failure copy, and further continuation is suppressed
-until a clean request.
+`/workspaces` server-renders only the authoritative first page at its canonical
+URL. Every explicit continuation is an unmarked same-origin browser call to the
+generated organizations GET operation with the last opaque cursor; the URL does
+not advance or accumulate cursor state. Old `?cursor=` bookmarks redirect to the
+canonical route and therefore restart from page one. Client state appends in API
+order, de-duplicates ids, supports an arbitrary practical number of sequential
+clicks, and keeps its one cookie jar. A failed continuation does not discard
+successful pages or advance the cursor: stable localized failure copy and the
+same ready retry remain available.
 
 Mutation response DTOs are authoritative. If a follow-up refresh fails after a
 successful write, the UI does not report the mutation as failed and never repeats
@@ -550,10 +559,13 @@ mutation callback even if its transport never settles. A first-page refresh
 preserves already loaded tail pages and their opaque last cursor, and a recovery
 action performs GET only. The workspace list similarly tombstones a confirmed
 deletion so accumulated or refreshed props cannot resurrect it and delete
-eligibility is recomputed immediately. Current-actor domain eligibility mirrors
-the domain policy's exact email/domain syntax but serializes only the resulting
-outside-policy boolean. A direct-add domain override is offered only for exact
-HTTP 409
+eligibility is recomputed immediately. Refreshed/generated incoming list entries
+replace older duplicates by id—including name, slug, role, and capabilities—
+while confirmed deletion tombstones and locally accumulated tail entries absent
+from the refreshed first page remain in force. Current-actor domain eligibility
+mirrors the domain policy's exact email/domain syntax but serializes only the
+resulting outside-policy boolean. A direct-add domain override is offered only
+for exact HTTP 409
 `member_domain_acknowledgement_required` responses carrying nonempty email,
 email domain, and allowed-domain list metadata.
 

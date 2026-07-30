@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
@@ -35,17 +36,13 @@ export default async function WorkspacesPage({
 }: WorkspacesPageProps) {
   await connection();
   const { cursor } = await searchParams;
-  const continuationCursor =
-    cursor === undefined
-      ? undefined
-      : [...new Set(Array.isArray(cursor) ? cursor : [cursor])][0];
-  const [session, t, firstPage, continuation] = await Promise.all([
+  if (cursor !== undefined) {
+    redirect(organizationRoutes.workspaces);
+  }
+  const [session, t, firstPage] = await Promise.all([
     loadProtectedSession(organizationRoutes.workspaces),
     getTranslations("organizations.pages.workspaces"),
     loadOrganizations(),
-    continuationCursor
-      ? loadOrganizations({ cursor: continuationCursor })
-      : Promise.resolve(undefined),
   ]);
 
   if (!session.ok) {
@@ -86,15 +83,7 @@ export default async function WorkspacesPage({
         />
       ) : (
         <OrganizationList
-          continuationFailure={
-            continuation && !continuation.ok ? continuation.failure : undefined
-          }
-          pages={[
-            compactOrganizationPage(firstPage.data),
-            ...(continuation?.ok
-              ? [compactOrganizationPage(continuation.data)]
-              : []),
-          ]}
+          initialPage={compactOrganizationPage(firstPage.data)}
         />
       )}
     </main>

@@ -178,6 +178,59 @@ it("sets active context before preserving a registered route and refreshing", as
   expect(order).toEqual(["mutation", "navigation", "refresh"]);
 });
 
+it("persists an explicitly selected routed organization when the session preference differs", async () => {
+  setActive.mockResolvedValue({
+    ok: true,
+    data: { organizationId: "old-id" },
+  });
+  renderWithMessages(
+    <OrganizationSwitcher
+      activeOrganizationId="new-id"
+      organizations={organizations}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Current workspace: Old" }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Switch to Old" }));
+
+  await waitFor(() => {
+    expect(setActive).toHaveBeenCalledWith(
+      { id: "browser-client" },
+      { organizationId: "old-id" },
+    );
+    expect(push).toHaveBeenCalledWith("/w/old/settings/users");
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+  expect(
+    screen.queryByRole("heading", { name: "Switch workspace" }),
+  ).not.toBeInTheDocument();
+});
+
+it("closes without transport only when the routed and active organizations both match", async () => {
+  renderWithMessages(
+    <OrganizationSwitcher
+      activeOrganizationId="old-id"
+      organizations={organizations}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Current workspace: Old" }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Switch to Old" }));
+
+  await waitFor(() => {
+    expect(
+      screen.queryByRole("heading", { name: "Switch workspace" }),
+    ).not.toBeInTheDocument();
+  });
+  expect(setActive).not.toHaveBeenCalled();
+  expect(push).not.toHaveBeenCalled();
+  expect(refresh).not.toHaveBeenCalled();
+});
+
 it("falls back unknown deep paths to the selected dashboard", async () => {
   pathname.mockReturnValue("/w/old/custom/deep");
   setActive.mockResolvedValue({
@@ -196,7 +249,7 @@ it("falls back unknown deep paths to the selected dashboard", async () => {
   });
 });
 
-it("offers an explicit continuation when the first page is truncated", async () => {
+it("routes truncated switcher results to the canonical client-paged workspace list", async () => {
   renderWithMessages(
     <OrganizationSwitcher
       nextCursor="opaque cursor"
@@ -209,7 +262,7 @@ it("offers an explicit continuation when the first page is truncated", async () 
   );
   expect(
     await screen.findByRole("link", { name: "Load more workspaces" }),
-  ).toHaveAttribute("href", "/workspaces?cursor=opaque%20cursor");
+  ).toHaveAttribute("href", "/workspaces");
 });
 
 it.each([

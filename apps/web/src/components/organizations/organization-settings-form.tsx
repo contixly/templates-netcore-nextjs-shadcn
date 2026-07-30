@@ -21,12 +21,17 @@ import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
-import type { OrganizationDetailResponse } from "@/src/lib/api/generated/types.gen";
+import type {
+  OrganizationDetailResponse,
+  UpdateOrganizationRequest,
+} from "@/src/lib/api/generated/types.gen";
 import { updateBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { ApiFailure } from "@/src/lib/api/result";
 
 const supportedOrganizationName = /^[\p{L}\p{Nd} _-]+$/u;
 const supportedOrganizationSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const uuidShapedOrganizationSlug =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const supportedEmailDomain =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
@@ -77,6 +82,51 @@ function failureTrace(failure: ApiFailure | null): string | undefined {
   return failure?.kind === "problem" ? failure.traceId : undefined;
 }
 
+function sameDomains(
+  current: readonly string[],
+  baseline: readonly string[],
+): boolean {
+  return (
+    current.length === baseline.length &&
+    current.every((domain, index) => domain === baseline[index])
+  );
+}
+
+function dirtyUpdateRequest(
+  baseline: OrganizationSettingsView,
+  normalizedName: string,
+  normalizedSlug: string,
+  normalizedDomains: string[],
+): UpdateOrganizationRequest | null {
+  const nameChanged = normalizedName !== baseline.name;
+  const slugChanged = normalizedSlug !== baseline.slug;
+  const domainsChanged = !sameDomains(
+    normalizedDomains,
+    baseline.allowedEmailDomains,
+  );
+
+  if (nameChanged) {
+    if (slugChanged) {
+      return domainsChanged
+        ? {
+            name: normalizedName,
+            slug: normalizedSlug,
+            allowedEmailDomains: normalizedDomains,
+          }
+        : { name: normalizedName, slug: normalizedSlug };
+    }
+    return domainsChanged
+      ? { name: normalizedName, allowedEmailDomains: normalizedDomains }
+      : { name: normalizedName };
+  }
+  if (slugChanged) {
+    return domainsChanged
+      ? { slug: normalizedSlug, allowedEmailDomains: normalizedDomains }
+      : { slug: normalizedSlug };
+  }
+  return domainsChanged ? { allowedEmailDomains: normalizedDomains } : null;
+}
+
 export function OrganizationSettingsForm({
   initialOrganization,
 }: Readonly<{ initialOrganization: OrganizationSettingsView }>) {
@@ -97,6 +147,14 @@ export function OrganizationSettingsForm({
   const canUpdate = organization.capabilities.canUpdateOrganization;
   const parsedDomains = parseDomains(domainsText);
   const previewDomains = parsedDomains.domains;
+  const normalizedName = name.trim();
+  const normalizedSlug = slug.trim().toLowerCase();
+  const updateRequest = dirtyUpdateRequest(
+    organization,
+    normalizedName,
+    normalizedSlug,
+    previewDomains,
+  );
 
   function resetFeedback() {
     setValidation(null);
@@ -110,8 +168,6 @@ export function OrganizationSettingsForm({
       return;
     }
 
-    const normalizedName = name.trim();
-    const normalizedSlug = slug.trim().toLowerCase();
     if (!normalizedName) {
       setValidation({
         field: "name",
@@ -131,7 +187,8 @@ export function OrganizationSettingsForm({
     }
     if (
       normalizedSlug.length > 64 ||
-      !supportedOrganizationSlug.test(normalizedSlug)
+      !supportedOrganizationSlug.test(normalizedSlug) ||
+      uuidShapedOrganizationSlug.test(normalizedSlug)
     ) {
       setValidation({
         field: "slug",
@@ -146,6 +203,9 @@ export function OrganizationSettingsForm({
       });
       return;
     }
+    if (!updateRequest) {
+      return;
+    }
 
     requestInFlight.current = true;
     setPending(true);
@@ -155,11 +215,7 @@ export function OrganizationSettingsForm({
     const result = await updateBrowserOrganization(
       createBrowserApiClient(),
       organization.id,
-      {
-        name: normalizedName,
-        slug: normalizedSlug,
-        allowedEmailDomains: previewDomains,
-      },
+      updateRequest,
     );
     requestInFlight.current = false;
     setPending(false);
@@ -335,7 +391,7 @@ export function OrganizationSettingsForm({
           <div className="flex justify-end">
             <Button
               {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-              disabled={!interactionReady || pending}
+              disabled={!interactionReady || pending || !updateRequest}
               type="submit"
             >
               {pending ? t("saving") : t("save")}

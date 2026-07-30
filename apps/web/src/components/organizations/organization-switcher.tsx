@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { Route } from "next";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
@@ -85,7 +84,13 @@ export function OrganizationSwitcher({
     options[0];
 
   async function selectOrganization(organization: OrganizationSwitcherItem) {
-    if (requestInFlight.current || organization.id === current.id) {
+    if (requestInFlight.current) {
+      return;
+    }
+    if (
+      organization.id === current.id &&
+      organization.id === activeOrganizationId
+    ) {
       setOpen(false);
       return;
     }
@@ -111,10 +116,6 @@ export function OrganizationSwitcher({
     );
     router.refresh();
   }
-
-  const moreHref = nextCursor
-    ? (`${organizationRoutes.workspaces}?cursor=${encodeURIComponent(nextCursor)}` as Route)
-    : organizationRoutes.workspaces;
 
   return (
     <Dialog
@@ -216,7 +217,7 @@ export function OrganizationSwitcher({
           {nextCursor ? (
             <Button asChild className="sm:flex-1" variant="outline">
               <Link
-                href={moreHref}
+                href={organizationRoutes.workspaces}
                 onClick={() => setOpen(false)}
                 onNavigate={() => setOpen(false)}
               >

@@ -28,6 +28,7 @@
     "emptyTitle": "No workspaces yet",
     "emptyDescription": "Create your first workspace to get started.",
     "loadMore": "Load more workspaces",
+    "loadingMore": "Loading more workspaces",
     "partialFailureTitle": "Some workspaces could not be loaded.",
     "partialFailureDescription": "The workspaces already shown are still available. Try loading more again later."
   },

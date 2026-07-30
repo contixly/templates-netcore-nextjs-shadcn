@@ -929,11 +929,17 @@ and sets the actor's current session preference; `PUT
 for an existing accessible organization. `DELETE /organizations/{id}` may clear
 session preferences that reference the deleted organization through the FK
 `SET NULL`; organization `PATCH` and membership mutations do not change active
-context. Owner/admin/member is a closed role matrix: owner has all organization/membership mutations, admin may update and
-assign member/admin roles, and member is read-only; self edits, admin-to-owner
-mutation and loss of the last owner are blocked. Missing and foreign resources
-share non-disclosing results. Organization and member lists use opaque
-checksummed cursor continuation (`50`, range `1..100`), not unbounded lists.
+context. The switcher persists an explicit routed selection whenever the
+persistent session preference differs, so a later `/dashboard` resolves the
+selection. Owner/admin/member is a closed role matrix: owner has all
+organization/membership mutations, admin may update and assign member/admin roles,
+and member is read-only; self edits, admin-to-owner mutation and loss of the last
+owner are blocked. Missing and foreign resources share non-disclosing results.
+Organization and member lists use opaque checksummed cursor continuation (`50`,
+range `1..100`), not unbounded lists. `/workspaces` renders the authoritative
+first page at its canonical URL and advances only through generated browser GETs;
+refresh and old cursor bookmarks restart at page one without losing an
+intermediate page from a misleading advanced URL.
 
 The target intentionally strengthens the reference: checked single roles replace
 CSV-compatible parsing, the active context has a real FK and transactional
@@ -954,6 +960,11 @@ snapshot so concurrent GETs progress while delete/access races remain stable;
 mutation locks remain unchanged. SSR organization projections suppress session
 renewal; browser reads keep ordinary renewal. Client mutation recovery keeps
 confirmed responses through a failed refresh and retries only the later GET.
+Workspace settings validate the disjoint slug namespace before transport and
+PATCH only normalized dirty fields against the latest confirmed response, so
+stale administrators do not overwrite unrelated settings. Workspace list
+reconciliation gives incoming server entries precedence over accumulated
+duplicates while retaining confirmed deletion tombstones and local tail pages.
 The account-deletion dialog gives localized promote/share-owner guidance only
 for the exact ownership-transfer blocker and otherwise retains generic safe copy
 plus any safe trace id.
@@ -1014,6 +1025,30 @@ this commit and receives the next review state.
 | focused `organizations.spec.ts account-settings.spec.ts account-security.spec.ts`                                     | PASS; 8/8 using 3 workers                                                                                                     |
 | default full 5-worker `npm run e2e`                                                                                   | PASS; 12 passed, 5 opt-in live-provider tests skipped, 0 failed (17 discovered)                                               |
 | final whitespace, generated-metadata, working-tree template, and `949a549... -- template/` immutable-reference guards | PASS; no whitespace errors, no generated metadata drift, and no `template/` changes (recorded after this evidence update)     |
+
+### PR #6 auto-review round 2 verification 2026-07-31
+
+All five confirmed UI findings were repaired test-first without adding a Route
+Handler, Server Action, raw fetch, handwritten organization transport DTO, or
+browser credential storage. Explicit deep-link selection now persists the active
+preference; UUID-shaped slugs fail at the field boundary; `/workspaces`
+continuations accumulate through the generated browser GET at a canonical URL;
+settings PATCH contains only dirty fields and refreshes its response baseline;
+and incoming list entries immediately replace stale identity/role/capability
+duplicates. Task 14's final clean-review step remains pending until the controller
+pushes this commit and receives the next automatic review state.
+
+| Command / gate                                                        | Observed result                                                                                                                                                                                                     |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| five focused RED cycles                                               | Expected failures: routed-current selection skipped transport; UUID-shaped slug reached transport; stale cursor bookmark loaded only one continuation; PATCH sent all fields/no-op; incoming duplicate stayed stale |
+| focused switcher/settings/list/route/i18n Jest                        | PASS; 5/5 suites, 68/68 tests                                                                                                                                                                                       |
+| focused organization Playwright                                       | PASS after correcting the test's endpoint predicate; 5/5 scenarios, including deep-link selection, two-admin PATCH, and canonical three-page accumulation                                                           |
+| `dotnet restore/build/test/format`                                    | PASS; build 0 warnings/errors; Application 171/171, API 412/412, total 583/583; format clean                                                                                                                        |
+| two OpenAPI exports, committed-contract diff, and generated SDK check | PASS; deterministic SHA-256 `dc2a10e2da80545c30e4e8db16bff86c3a285fc90da4abf1cb0c93fe4becc524`; generated SDK 4 files current                                                                                       |
+| boundaries, Prettier, ESLint, and typecheck                           | PASS; boundary harness 3/3 and all format/lint/type gates clean                                                                                                                                                     |
+| `npm test -- --runInBand`                                             | PASS; 51/51 suites, 329/329 tests, 0 snapshots                                                                                                                                                                      |
+| clean production build and standalone guard                           | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                                                           |
+| default full 5-worker E2E                                             | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                                     |
 
 **Next product gate:** iteration 6 may start only as its own planned vertical
 slice for Teams and invitations: define invitation security/expiry,
