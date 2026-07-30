@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Application.Accounts;
 using Template.Application.Accounts.Ports;
+using Template.Application.Organizations.Ports;
 using Template.Domain.Accounts;
 using Template.Domain.Authentication;
 using Template.Api.Tests.Infrastructure;
@@ -972,6 +973,59 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task AccountDeleteConcurrencyExhaustionReturnsConflict()
+    {
+        var lifecycle = new ExhaustedOrganizationLifecycleStore();
+        await using var racingFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IOrganizationUserLifecycleStore>();
+                services.AddSingleton<IOrganizationUserLifecycleStore>(
+                    lifecycle);
+            }));
+        using var client = racingFactory.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        var scenario = await AccountEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Delete Concurrency",
+            "local-agent+delete-concurrency@local-agent.test");
+        racingFactory.Services.GetRequiredService<CapturedLogProvider>().Clear();
+
+        using var response = await AccountEndpointTestSupport.SendWithCsrfAsync(
+            client,
+            HttpMethod.Delete,
+            "/api/v1/account",
+            new { confirmationEmail = scenario.Email });
+        var problem = await AccountEndpointTestSupport.ReadProblemAsync(response);
+        var audit = Assert.Single(
+            racingFactory.Services
+                .GetRequiredService<CapturedLogProvider>()
+                .Logs,
+            log =>
+                log.Category ==
+                "Template.Api.Features.Account.AccountEndpointModule");
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal("concurrency_conflict", problem.Code);
+        Assert.Equal(3, lifecycle.Attempts);
+        Assert.Equal("account_delete", audit.State["AccountOperation"]);
+        Assert.Equal("concurrency_conflict", audit.State["AccountOutcome"]);
+        await using var scope = racingFactory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+        Assert.True(await db.Users.AnyAsync(
+            user => user.Id == scenario.UserId,
+            TestContext.Current.CancellationToken));
+        Assert.True(await db.Sessions.AnyAsync(
+            session => session.UserId == scenario.UserId,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task InvalidStoredIpAddressesProjectAsNull()
     {
         await using var invalidIpFactory = factory.WithWebHostBuilder(builder =>
@@ -1119,6 +1173,20 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
 
         public Task DeleteAsync(UserId userId, CancellationToken ct) =>
             Task.CompletedTask;
+    }
+
+    private sealed class ExhaustedOrganizationLifecycleStore
+        : IOrganizationUserLifecycleStore
+    {
+        public int Attempts { get; private set; }
+
+        public Task<OrganizationUserDeletionPreparation> PrepareDeletionAsync(
+            UserId userId,
+            CancellationToken cancellationToken)
+        {
+            Attempts++;
+            throw new OrganizationUserLifecycleConcurrencyException();
+        }
     }
 }
 

@@ -430,6 +430,13 @@ internal sealed class AccountEndpointModule : IEndpointModule
                         .OrganizationOwnershipTransferRequired);
             }
 
+            if (result.Failure == AccountFailure.ConcurrencyConflict)
+            {
+                throw new ApiProblemException(
+                    StatusCodes.Status409Conflict,
+                    ApiProblemCodes.ConcurrencyConflict);
+            }
+
             throw new ApiProblemException(
                 StatusCodes.Status401Unauthorized,
                 ApiProblemCodes.Unauthorized);
