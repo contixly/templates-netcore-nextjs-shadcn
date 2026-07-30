@@ -158,6 +158,13 @@ logout, and is not the product dashboard planned for iteration 9.
 
 ## Account settings UI
 
+The site header streams its account entry below a request-time
+`connection()`/`Suspense` boundary and shows it only for a confirmed
+authenticated projection; anonymous, failed, or malformed projections fail
+closed. This visible entry is the supported path from workspace UI into the
+protected account shell and its logout control, and its cached SSR session read
+suppresses sliding renewal.
+
 The protected `/user` shell is request-time server rendered below
 `connection()`/`Suspense`. It forwards only the incoming cookie and correlation
 id to isolated generated clients. Only an explicit anonymous projection

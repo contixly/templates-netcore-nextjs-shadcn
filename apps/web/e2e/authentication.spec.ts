@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
-import { waitForInteraction } from "./support/app-readiness";
+import {
+  waitForInteraction,
+  waitForOrganizationControlInteraction,
+} from "./support/app-readiness";
 import {
   cleanupLocalAutomationUser,
   getGeneratedAuthSession,
@@ -50,6 +53,23 @@ test("local credentials create persistent independent sessions and cleanup all a
     (await getGeneratedAuthSession(page.context().request)).session?.id,
   ).toBe(firstSessionId);
 
+  const createWorkspace = page.getByRole("button", {
+    name: "Create Workspace",
+  });
+  await waitForOrganizationControlInteraction(createWorkspace);
+  await createWorkspace.click();
+  await page.getByLabel(/Workspace name/i).fill("Authentication Workspace");
+  const workspaceResponse = page.waitForResponse((response) => {
+    const request = response.request();
+    return (
+      request.method() === "POST" &&
+      new URL(response.url()).pathname === "/api/v1/organizations"
+    );
+  });
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  expect((await workspaceResponse).status()).toBe(201);
+  await expect(page).toHaveURL(/\/w\/authentication-workspace\/dashboard$/);
+
   const secondContext = await browser.newContext();
   const secondPage = await secondContext.newPage();
   await signInLocalAutomationUser(
@@ -58,13 +78,20 @@ test("local credentials create persistent independent sessions and cleanup all a
     scenario.data.password,
   );
   await secondPage.goto("/dashboard");
-  await expect(secondPage).toHaveURL(/\/welcome$/);
+  await expect(secondPage).toHaveURL(
+    /\/w\/authentication-workspace\/dashboard$/,
+  );
   const secondSessionId = (await getGeneratedAuthSession(secondContext.request))
     .session?.id;
   expect(secondSessionId).toBeTruthy();
   expect(secondSessionId).not.toBe(firstSessionId);
 
-  await page.goto("/user/profile");
+  const accountSettings = page.getByRole("link", {
+    name: "Account settings",
+  });
+  await expect(accountSettings).toBeVisible();
+  await accountSettings.click();
+  await expect(page).toHaveURL(/\/user\/profile$/);
   const logout = page.getByRole("button", { name: "Log out" });
   await waitForInteraction(logout);
   await logout.click();
@@ -72,7 +99,9 @@ test("local credentials create persistent independent sessions and cleanup all a
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/auth\/login\?redirect=%2Fdashboard$/);
   await secondPage.reload();
-  await expect(secondPage).toHaveURL(/\/welcome$/);
+  await expect(secondPage).toHaveURL(
+    /\/w\/authentication-workspace\/dashboard$/,
+  );
   expect(
     (await getGeneratedAuthSession(secondContext.request)).session?.id,
   ).toBe(secondSessionId);

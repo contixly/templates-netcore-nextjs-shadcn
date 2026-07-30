@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
+import { AuthenticatedAccountNavigation } from "@/src/components/account/authenticated-account-navigation";
 import { SiteHeader } from "@/src/components/application/site-header";
 
 export default function SiteLayout({
@@ -11,7 +12,14 @@ export default function SiteLayout({
 }>) {
   return (
     <>
-      <SiteHeader organizationSwitcher={organizationSwitcher} />
+      <SiteHeader
+        accountNavigation={
+          <Suspense fallback={null}>
+            <AuthenticatedAccountNavigation />
+          </Suspense>
+        }
+        organizationSwitcher={organizationSwitcher}
+      />
       {children}
     </>
   );

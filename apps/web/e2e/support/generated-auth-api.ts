@@ -7,7 +7,6 @@ import {
   getAccountSessions,
   getAuthCsrf,
   getAuthSession,
-  logout,
   signInLocalAutomation,
   type CreateLocalAutomationScenarioRequest,
 } from "../../src/lib/api/generated";
@@ -151,18 +150,6 @@ export async function cleanupLocalAutomationUser(request: APIRequestContext) {
     throw new Error(
       `Local cleanup failed with ${result.response?.status ?? 0}.`,
     );
-  }
-  return result.data.data;
-}
-
-export async function logoutGeneratedSession(request: APIRequestContext) {
-  const client = clientFor(request);
-  const result = await logout({
-    client,
-    headers: { "X-CSRF-TOKEN": await csrf(client) },
-  });
-  if (!result.data) {
-    throw new Error(`Logout failed with ${result.response?.status ?? 0}.`);
   }
   return result.data.data;
 }

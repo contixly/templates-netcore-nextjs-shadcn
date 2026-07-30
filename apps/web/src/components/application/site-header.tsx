@@ -6,8 +6,12 @@ import { ThemeSwitcher } from "@/src/components/application/theme-switcher";
 import { applicationRoutes } from "@/src/features/application/application-routes";
 
 export function SiteHeader({
+  accountNavigation = null,
   organizationSwitcher = null,
-}: Readonly<{ organizationSwitcher?: ReactNode }>) {
+}: Readonly<{
+  accountNavigation?: ReactNode;
+  organizationSwitcher?: ReactNode;
+}>) {
   const t = useTranslations("common");
 
   return (
@@ -31,6 +35,7 @@ export function SiteHeader({
           </Link>
         </nav>
         <div className="mr-auto min-w-0 flex-1">{organizationSwitcher}</div>
+        {accountNavigation}
         <div className="shrink-0">
           <ThemeSwitcher />
         </div>

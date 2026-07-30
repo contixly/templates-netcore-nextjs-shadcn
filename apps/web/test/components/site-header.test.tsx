@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 
+import { AccountHeaderNavigation } from "@/src/components/account/account-header-navigation";
 import { SiteHeader } from "@/src/components/application/site-header";
 import { renderWithMessages } from "@/test/support/render";
 
@@ -23,17 +24,27 @@ describe("SiteHeader", () => {
     );
     expect(screen.getByRole("button", { name: "Toggle theme" })).toBeDisabled();
     expect(screen.getByRole("banner").firstElementChild).toHaveClass("min-w-0");
+    expect(
+      screen.queryByRole("link", { name: "Account settings" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/sign in/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/workspace/i)).not.toBeInTheDocument();
   });
 
-  it("renders the route-owned organization slot inside the header", () => {
+  it("renders route-owned authenticated header content without duplicating account landmarks", () => {
     renderWithMessages(
       <SiteHeader
+        accountNavigation={<AccountHeaderNavigation />}
         organizationSwitcher={<p>Server-owned workspace switcher</p>}
       />,
     );
 
     expect(screen.getByText("Server-owned workspace switcher")).toBeVisible();
+    expect(
+      screen.queryByRole("navigation", { name: "Account settings" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Account settings" }),
+    ).toHaveAttribute("href", "/user/profile");
   });
 });
