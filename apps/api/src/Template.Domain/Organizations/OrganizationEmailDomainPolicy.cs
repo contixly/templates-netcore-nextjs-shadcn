@@ -88,9 +88,12 @@ public static class OrganizationEmailDomainPolicy
     private static string? ExtractEmailDomain(string email)
     {
         var normalizedEmail = email.Trim().ToLowerInvariant();
-        var atIndex = normalizedEmail.LastIndexOf('@');
+        var atIndex = normalizedEmail.IndexOf('@');
 
-        if (atIndex < 1 || atIndex == normalizedEmail.Length - 1)
+        if (normalizedEmail.Any(char.IsWhiteSpace) ||
+            atIndex < 1 ||
+            atIndex != normalizedEmail.LastIndexOf('@') ||
+            atIndex == normalizedEmail.Length - 1)
         {
             return null;
         }

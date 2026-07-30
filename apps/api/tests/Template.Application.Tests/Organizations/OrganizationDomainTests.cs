@@ -180,6 +180,18 @@ public sealed class OrganizationDomainTests
         Assert.Null(eligibility.EmailDomain);
     }
 
+    [Theory]
+    [InlineData("first@second@example.com")]
+    [InlineData("person name@example.com")]
+    public void Malformed_email_does_not_produce_an_allowed_domain(string email)
+    {
+        var eligibility = OrganizationEmailDomainPolicy.Evaluate(email, ["example.com"]);
+
+        Assert.False(eligibility.IsAllowed);
+        Assert.Null(eligibility.EmailDomain);
+        Assert.False(OrganizationEmailDomainPolicy.IsAllowed(email, ["example.com"]));
+    }
+
     [Fact]
     public void Invalid_email_has_no_email_domain()
     {
