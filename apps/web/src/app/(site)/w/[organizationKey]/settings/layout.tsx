@@ -6,8 +6,7 @@ import { Suspense, type ReactNode } from "react";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
 import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";
-import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
-import { organizationRoutes } from "@/src/features/organizations/organization-routes";
+import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
 
@@ -22,9 +21,7 @@ export async function AuthenticatedOrganizationSettingsShell({
 }: OrganizationSettingsLayoutProps) {
   await connection();
   const { organizationKey } = await params;
-  const sessionPromise = loadProtectedSession(
-    organizationRoutes.settings(organizationKey),
-  );
+  const sessionPromise = loadServerAuthSession();
   const organizationPromise = loadOrganization(organizationKey);
   const organizationsPromise = loadOrganizations();
   const session = await sessionPromise;
@@ -36,11 +33,10 @@ export async function AuthenticatedOrganizationSettingsShell({
       </main>
     );
   }
-  if (
-    session.data.authenticated !== true ||
-    !session.data.session ||
-    !session.data.user
-  ) {
+  if (session.data.authenticated === false) {
+    return children;
+  }
+  if (!session.data.session || !session.data.user) {
     return (
       <main className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure

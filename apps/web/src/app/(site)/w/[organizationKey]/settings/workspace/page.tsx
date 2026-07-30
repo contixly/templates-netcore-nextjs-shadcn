@@ -84,7 +84,19 @@ export default async function OrganizationWorkspaceSettingsPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <OrganizationSettingsForm initialOrganization={organization.data} />
+          <OrganizationSettingsForm
+            initialOrganization={{
+              id: organization.data.id,
+              name: organization.data.name,
+              slug: organization.data.slug,
+              canonicalKey: organization.data.canonicalKey,
+              allowedEmailDomains: organization.data.allowedEmailDomains,
+              capabilities: {
+                canUpdateOrganization:
+                  organization.data.capabilities.canUpdateOrganization,
+              },
+            }}
+          />
         </CardContent>
       </Card>
       {canDelete ? (

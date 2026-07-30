@@ -520,6 +520,20 @@ successful write, the UI does not report the mutation as failed and never repeat
 it. It retains a conservative confirmed projection and offers a separate
 refresh retry.
 
+The settings parent shell never owns anonymous navigation because doing so can
+race the segment-specific return URL; Workspace, Users, and Roles each own their
+exact protected redirect. Member directory client state keeps ordered server
+pages separate from confirmed mutation overlays. A monotonically increasing
+read generation ignores superseded load-more/refresh responses, a first-page
+refresh preserves already loaded tail pages and their opaque last cursor, and a
+recovery action performs GET only. Confirmed member projections overlay stale
+reads until the component remounts. The workspace list similarly tombstones a
+confirmed deletion so accumulated or refreshed props cannot resurrect it and
+delete eligibility is recomputed immediately. A direct-add domain override is
+offered only for exact HTTP 409
+`member_domain_acknowledgement_required` responses carrying nonempty email,
+email domain, and allowed-domain list metadata.
+
 ## 16. Test-first implementation order
 
 1. Domain tests for slug/domain/role/permission/last-owner rules.

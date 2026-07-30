@@ -5,7 +5,10 @@ import type { Route } from "next";
 import { useTranslations } from "next-intl";
 import { useMemo, useReducer } from "react";
 
-import { OrganizationCard } from "@/src/components/organizations/organization-card";
+import {
+  OrganizationCard,
+  type OrganizationCardView,
+} from "@/src/components/organizations/organization-card";
 import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -17,15 +20,30 @@ import {
   EmptyTitle,
 } from "@/src/components/ui/empty";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
-import type {
-  OrganizationPageResponse,
-  OrganizationSummaryResponse,
-} from "@/src/lib/api/generated/types.gen";
 import type { ApiFailure } from "@/src/lib/api/result";
 
+export type OrganizationListItem = OrganizationCardView;
+
+export type OrganizationListPage = Readonly<{
+  items: readonly OrganizationListItem[];
+  nextCursor: string | null;
+}>;
+
+type OrganizationListState = Readonly<{
+  accumulated: readonly OrganizationListItem[];
+  deletedIds: ReadonlySet<string>;
+}>;
+
+type OrganizationListAction =
+  | Readonly<{
+      type: "append";
+      organizations: readonly OrganizationListItem[];
+    }>
+  | Readonly<{ type: "delete"; organizationId: string }>;
+
 function uniqueOrganizations(
-  organizations: readonly OrganizationSummaryResponse[],
-): OrganizationSummaryResponse[] {
+  organizations: readonly OrganizationListItem[],
+): OrganizationListItem[] {
   const seen = new Set<string>();
   return organizations.filter((organization) => {
     if (seen.has(organization.id)) {
@@ -34,6 +52,30 @@ function uniqueOrganizations(
     seen.add(organization.id);
     return true;
   });
+}
+
+function organizationListReducer(
+  state: OrganizationListState,
+  action: OrganizationListAction,
+): OrganizationListState {
+  if (action.type === "delete") {
+    const deletedIds = new Set(state.deletedIds);
+    deletedIds.add(action.organizationId);
+    return {
+      accumulated: state.accumulated.filter(
+        (organization) => organization.id !== action.organizationId,
+      ),
+      deletedIds,
+    };
+  }
+
+  return {
+    ...state,
+    accumulated: uniqueOrganizations([
+      ...state.accumulated,
+      ...action.organizations,
+    ]).filter((organization) => !state.deletedIds.has(organization.id)),
+  };
 }
 
 export function OrganizationFailure({
@@ -61,24 +103,21 @@ export function OrganizationList({
   pages,
 }: Readonly<{
   continuationFailure?: ApiFailure;
-  pages: readonly OrganizationPageResponse[];
+  pages: readonly OrganizationListPage[];
 }>) {
   const t = useTranslations("organizations.list");
   const incomingOrganizations = useMemo(
     () => uniqueOrganizations(pages.flatMap((page) => page.items)),
     [pages],
   );
-  const [accumulatedOrganizations, appendIncomingOrganizations] = useReducer(
-    (
-      current: readonly OrganizationSummaryResponse[],
-      incoming: readonly OrganizationSummaryResponse[],
-    ) => uniqueOrganizations([...current, ...incoming]),
-    incomingOrganizations,
-  );
+  const [state, dispatch] = useReducer(organizationListReducer, {
+    accumulated: incomingOrganizations,
+    deletedIds: new Set<string>(),
+  });
   const organizations = uniqueOrganizations([
-    ...accumulatedOrganizations,
+    ...state.accumulated,
     ...incomingOrganizations,
-  ]);
+  ]).filter((organization) => !state.deletedIds.has(organization.id));
   const nextCursor = pages.at(-1)?.nextCursor ?? null;
 
   if (organizations.length === 0) {
@@ -110,6 +149,9 @@ export function OrganizationList({
                 nextCursor !== null)
             }
             key={organization.id}
+            onDeleted={(organizationId) =>
+              dispatch({ type: "delete", organizationId })
+            }
             organization={organization}
           />
         ))}
@@ -133,7 +175,12 @@ export function OrganizationList({
               href={
                 `${organizationRoutes.workspaces}?cursor=${encodeURIComponent(nextCursor)}` as Route
               }
-              onClick={() => appendIncomingOrganizations(incomingOrganizations)}
+              onClick={() =>
+                dispatch({
+                  type: "append",
+                  organizations: incomingOrganizations,
+                })
+              }
               prefetch={false}
             >
               {t("loadMore")}

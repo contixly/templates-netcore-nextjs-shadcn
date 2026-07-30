@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import { Suspense } from "react";
+import { Suspense, type ReactElement } from "react";
 
 import SettingsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/page";
 import RolesSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/roles/page";
@@ -205,6 +205,36 @@ it("uses a non-disclosing forbidden state for inaccessible settings when another
   ).rejects.toThrow("NEXT_FORBIDDEN");
 });
 
+it("lets each child segment own its exact anonymous login return URL", async () => {
+  loadSession.mockResolvedValue({
+    ok: true,
+    data: {
+      authenticated: false,
+      user: null,
+      session: null,
+    },
+  });
+
+  const shell = await AuthenticatedOrganizationSettingsShell({
+    children: <p>child owns authentication</p>,
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+  render(shell);
+  expect(screen.getByText("child owns authentication")).toBeVisible();
+
+  for (const [page, destination] of [
+    [WorkspacePage, "/w/acme/settings/workspace"],
+    [UsersPage, "/w/acme/settings/users"],
+    [RolesPage, "/w/acme/settings/roles"],
+  ] as const) {
+    await expect(
+      page({ params: Promise.resolve({ organizationKey: "acme" }) }),
+    ).rejects.toThrow(
+      `NEXT_REDIRECT:/auth/login?redirect=${encodeURIComponent(destination)}`,
+    );
+  }
+});
+
 it("renders role-aware workspace, users, and fixed-role explanation pages", async () => {
   const workspace = await WorkspacePage({
     params: Promise.resolve({ organizationKey: "acme" }),
@@ -239,6 +269,50 @@ it("renders role-aware workspace, users, and fixed-role explanation pages", asyn
   expect(
     screen.queryByRole("button", { name: /create role/i }),
   ).not.toBeInTheDocument();
+});
+
+it("serializes compact actor, organization, and member views into the users client boundary", async () => {
+  const users = (await UsersPage({
+    params: Promise.resolve({ organizationKey: "acme" }),
+  })) as ReactElement<{ children: ReactElement[] }>;
+  const directory = users.props.children[1] as ReactElement<{
+    currentActor: unknown;
+    initialPage: unknown;
+    organization: unknown;
+  }>;
+
+  expect(directory.props.currentActor).toEqual({
+    userId: "user-id",
+    name: "Current User",
+    email: "current@example.com",
+    role: "owner",
+    emailDomain: "example.com",
+    isOutsideAllowedEmailDomains: false,
+  });
+  expect(directory.props.organization).toEqual({
+    id: detail.id,
+    currentRole: "owner",
+    capabilities: {
+      canAddMembers: true,
+      canUpdateMemberRoles: true,
+    },
+  });
+  expect(directory.props.initialPage).toEqual({
+    items: [
+      {
+        id: currentMember.id,
+        userId: currentMember.userId,
+        name: currentMember.name,
+        email: currentMember.email,
+        role: currentMember.role,
+        joinedAt: currentMember.joinedAt,
+        emailDomain: currentMember.emailDomain,
+        isOutsideAllowedEmailDomains:
+          currentMember.isOutsideAllowedEmailDomains,
+      },
+    ],
+    nextCursor: null,
+  });
 });
 
 it("adds explicit workspace switcher slot pages for every settings destination", async () => {

@@ -31,9 +31,11 @@ function failureTrace(failure: ApiFailure | null): string | undefined {
 
 export function OrganizationDeleteDialog({
   canDelete,
+  onDeleted,
   organization,
 }: Readonly<{
   canDelete: boolean;
+  onDeleted?: (organizationId: string) => void | Promise<void>;
   organization: DeletableOrganization;
 }>) {
   const t = useTranslations("organizations.settings.deleteDialog");
@@ -88,6 +90,7 @@ export function OrganizationDeleteDialog({
     }
 
     setOpen(false);
+    await onDeleted?.(organization.id);
     router.replace(organizationRoutes.workspaces);
     router.refresh();
   }

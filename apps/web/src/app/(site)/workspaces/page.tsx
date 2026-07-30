@@ -8,6 +8,23 @@ import {
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
+import type { OrganizationPageResponse } from "@/src/lib/api/generated/types.gen";
+
+function compactOrganizationPage(page: OrganizationPageResponse) {
+  return {
+    items: page.items.map((organization) => ({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      canonicalKey: organization.canonicalKey,
+      currentRole: organization.currentRole,
+      capabilities: {
+        canDeleteOrganization: organization.capabilities.canDeleteOrganization,
+      },
+    })),
+    nextCursor: page.nextCursor,
+  };
+}
 
 type WorkspacesPageProps = Readonly<{
   searchParams: Promise<{ cursor?: string | string[] }>;
@@ -73,8 +90,10 @@ export default async function WorkspacesPage({
             continuation && !continuation.ok ? continuation.failure : undefined
           }
           pages={[
-            firstPage.data,
-            ...(continuation?.ok ? [continuation.data] : []),
+            compactOrganizationPage(firstPage.data),
+            ...(continuation?.ok
+              ? [compactOrganizationPage(continuation.data)]
+              : []),
           ]}
         />
       )}

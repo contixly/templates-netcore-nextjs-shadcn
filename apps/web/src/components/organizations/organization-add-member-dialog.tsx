@@ -46,8 +46,13 @@ type DomainAcknowledgement = Readonly<{
   userId: string;
   role: OrganizationRole;
   email: string;
-  emailDomain?: string;
+  emailDomain: string;
   allowedEmailDomains: string[];
+}>;
+
+type AddMemberValidation = Readonly<{
+  field: "role" | "userId";
+  message: string;
 }>;
 
 function failureTrace(failure: ApiFailure | null): string | undefined {
@@ -76,7 +81,9 @@ export function OrganizationAddMemberDialog({
   );
   const [acknowledgement, setAcknowledgement] =
     useState<DomainAcknowledgement | null>(null);
-  const [validation, setValidation] = useState<string | null>(null);
+  const [validation, setValidation] = useState<AddMemberValidation | null>(
+    null,
+  );
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -129,16 +136,20 @@ export function OrganizationAddMemberDialog({
           : {}),
       },
     );
-    requestInFlight.current = false;
-    setPending(false);
 
     if (!result.ok) {
+      requestInFlight.current = false;
+      setPending(false);
       if (
         !acknowledgeDomainRestriction &&
         result.failure.kind === "problem" &&
         result.failure.code === "member_domain_acknowledgement_required" &&
-        result.failure.email &&
-        result.failure.allowedEmailDomains
+        result.failure.status === 409 &&
+        result.failure.email?.trim() &&
+        result.failure.emailDomain?.trim() &&
+        result.failure.allowedEmailDomains &&
+        result.failure.allowedEmailDomains.length > 0 &&
+        result.failure.allowedEmailDomains.every((domain) => domain.trim())
       ) {
         setAcknowledgement({
           userId: nextUserId,
@@ -155,19 +166,27 @@ export function OrganizationAddMemberDialog({
     }
 
     setAcknowledgement(null);
-    await onMemberConfirmed(result.data);
-    changeOpen(false);
+    try {
+      await onMemberConfirmed(result.data);
+      setOpen(false);
+      setUserId("");
+      setRole(assignableRoles[0] ?? "member");
+      clearFeedback();
+    } finally {
+      requestInFlight.current = false;
+      setPending(false);
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedUserId = userId.trim();
     if (!uuid.test(normalizedUserId)) {
-      setValidation(t("userIdInvalid"));
+      setValidation({ field: "userId", message: t("userIdInvalid") });
       return;
     }
     if (!assignableRoles.includes(role)) {
-      setValidation(t("roleInvalid"));
+      setValidation({ field: "role", message: t("roleInvalid") });
       return;
     }
     await add(normalizedUserId, role);
@@ -218,13 +237,18 @@ export function OrganizationAddMemberDialog({
           <FieldGroup>
             <Field
               data-disabled={pending ? true : undefined}
-              data-invalid={validation ? true : undefined}
+              data-invalid={validation?.field === "userId" ? true : undefined}
             >
               <FieldLabel htmlFor="organization-add-member-user-id">
                 {t("userIdLabel")}
               </FieldLabel>
               <Input
-                aria-invalid={validation ? true : undefined}
+                aria-describedby={`organization-add-member-user-id-hint${
+                  validation?.field === "userId"
+                    ? " organization-add-member-user-id-error"
+                    : ""
+                }`}
+                aria-invalid={validation?.field === "userId" ? true : undefined}
                 autoComplete="off"
                 disabled={pending}
                 id="organization-add-member-user-id"
@@ -235,10 +259,19 @@ export function OrganizationAddMemberDialog({
                 ref={inputRef}
                 value={userId}
               />
-              <FieldDescription>{t("userIdHint")}</FieldDescription>
-              {validation ? <FieldError>{validation}</FieldError> : null}
+              <FieldDescription id="organization-add-member-user-id-hint">
+                {t("userIdHint")}
+              </FieldDescription>
+              {validation?.field === "userId" ? (
+                <FieldError id="organization-add-member-user-id-error">
+                  {validation.message}
+                </FieldError>
+              ) : null}
             </Field>
-            <Field data-disabled={pending ? true : undefined}>
+            <Field
+              data-disabled={pending ? true : undefined}
+              data-invalid={validation?.field === "role" ? true : undefined}
+            >
               <FieldLabel htmlFor="organization-add-member-role">
                 {t("roleLabel")}
               </FieldLabel>
@@ -257,6 +290,12 @@ export function OrganizationAddMemberDialog({
                 value={role}
               >
                 <SelectTrigger
+                  aria-describedby={`organization-add-member-role-hint${
+                    validation?.field === "role"
+                      ? " organization-add-member-role-error"
+                      : ""
+                  }`}
+                  aria-invalid={validation?.field === "role" ? true : undefined}
                   aria-label={t("roleLabel")}
                   className="w-full"
                   id="organization-add-member-role"
@@ -273,7 +312,14 @@ export function OrganizationAddMemberDialog({
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <FieldDescription>{t("roleHint")}</FieldDescription>
+              <FieldDescription id="organization-add-member-role-hint">
+                {t("roleHint")}
+              </FieldDescription>
+              {validation?.field === "role" ? (
+                <FieldError id="organization-add-member-role-error">
+                  {validation.message}
+                </FieldError>
+              ) : null}
             </Field>
           </FieldGroup>
 
@@ -283,8 +329,7 @@ export function OrganizationAddMemberDialog({
               <AlertDescription>
                 {t("domainWarningDescription", {
                   email: acknowledgement.email,
-                  domain:
-                    acknowledgement.emailDomain ?? t("unknownEmailDomain"),
+                  domain: acknowledgement.emailDomain,
                   domains: acknowledgement.allowedEmailDomains.join(", "),
                 })}
               </AlertDescription>

@@ -18,6 +18,11 @@ import type { OrganizationMemberResponse } from "@/src/lib/api/generated/types.g
 import { updateBrowserOrganizationMemberRole } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { ApiFailure } from "@/src/lib/api/result";
 
+type RoleMemberView = Pick<
+  OrganizationMemberResponse,
+  "email" | "id" | "name" | "role"
+>;
+
 function failureTrace(failure: ApiFailure | null): string | undefined {
   return failure?.kind === "problem" ? failure.traceId : undefined;
 }
@@ -29,7 +34,7 @@ export function OrganizationMemberRoleControl({
   onMemberConfirmed,
 }: Readonly<{
   assignableRoles: readonly OrganizationRole[];
-  member: OrganizationMemberResponse;
+  member: RoleMemberView;
   organizationId: string;
   onMemberConfirmed: (
     member: OrganizationMemberResponse,
@@ -59,16 +64,19 @@ export function OrganizationMemberRoleControl({
       member.id,
       { role: nextRole },
     );
-    requestInFlight.current = false;
-
     if (!result.ok) {
+      requestInFlight.current = false;
       setPending(false);
       setFailure(result.failure);
       return;
     }
 
-    await onMemberConfirmed(result.data);
-    setPending(false);
+    try {
+      await onMemberConfirmed(result.data);
+    } finally {
+      requestInFlight.current = false;
+      setPending(false);
+    }
   }
 
   const failureMessage =

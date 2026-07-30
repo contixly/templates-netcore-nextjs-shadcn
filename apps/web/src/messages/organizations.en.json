@@ -98,7 +98,8 @@
       "validation": {
         "nameRequired": "Enter a workspace name.",
         "nameInvalid": "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
-        "slugInvalid": "Use 1–64 lowercase letters or numbers separated by single hyphens."
+        "slugInvalid": "Use 1–64 lowercase letters or numbers separated by single hyphens.",
+        "domainsInvalid": "Enter valid exact email domains such as example.com."
       },
       "failures": {
         "nameConflict": "Choose a different workspace name.",

@@ -1,7 +1,16 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
-import { updateBrowserOrganizationMemberRole } from "@/src/lib/api/organizations/browser/organization-mutations";
+import {
+  addBrowserOrganizationMember,
+  updateBrowserOrganizationMemberRole,
+} from "@/src/lib/api/organizations/browser/organization-mutations";
 import { getOrganizationMembers } from "@/src/lib/api/generated/sdk.gen";
 import type {
   OrganizationDetailResponse,
@@ -22,6 +31,7 @@ jest.mock("@/src/lib/api/generated/sdk.gen", () => ({
 }));
 
 const getMembers = jest.mocked(getOrganizationMembers);
+const addMember = jest.mocked(addBrowserOrganizationMember);
 const updateRole = jest.mocked(updateBrowserOrganizationMemberRole);
 const currentUserId = "01900000-0000-7000-8000-000000000020";
 const organization = {
@@ -51,6 +61,14 @@ const currentMember = {
   emailDomain: "example.com",
   isOutsideAllowedEmailDomains: false,
 } satisfies OrganizationMemberResponse;
+const currentActor = {
+  userId: currentMember.userId,
+  name: currentMember.name,
+  email: currentMember.email,
+  role: currentMember.role,
+  emailDomain: currentMember.emailDomain,
+  isOutsideAllowedEmailDomains: currentMember.isOutsideAllowedEmailDomains,
+};
 const otherMember = {
   id: "01900000-0000-7000-8000-000000000031",
   userId: "01900000-0000-7000-8000-000000000021",
@@ -71,6 +89,28 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+function memberPageResult(
+  items: OrganizationMemberResponse[],
+  nextCursor: string | null,
+) {
+  return {
+    data: {
+      data: {
+        items,
+        nextCursor,
+      },
+    },
+  } as Awaited<ReturnType<typeof getOrganizationMembers>>;
+}
+
 it("separates the current actor, preserves returned order, and never renders member removal", () => {
   const laterMember = {
     ...otherMember,
@@ -82,7 +122,7 @@ it("separates the current actor, preserves returned order, and never renders mem
   };
   renderWithMessages(
     <OrganizationMemberDirectory
-      currentUserId={currentUserId}
+      currentActor={currentActor}
       initialPage={{
         items: [currentMember, otherMember, laterMember],
         nextCursor: null,
@@ -106,10 +146,31 @@ it("separates the current actor, preserves returned order, and never renders mem
   ).not.toBeInTheDocument();
 });
 
+it("shows the compact current actor even when the actor is beyond the first member page", () => {
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={{ items: [otherMember], nextCursor: "cursor-next" }}
+      organization={organization}
+    />,
+  );
+
+  expect(
+    within(screen.getByRole("region", { name: "Your access" })).getByText(
+      "Current User",
+    ),
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole("region", { name: "Other members" })).getByText(
+      "Other User",
+    ),
+  ).toBeVisible();
+});
+
 it("does not offer owner assignment or owner mutation to an admin", () => {
   renderWithMessages(
     <OrganizationMemberDirectory
-      currentUserId={currentUserId}
+      currentActor={{ ...currentActor, role: "admin" }}
       initialPage={{
         items: [
           { ...currentMember, role: "admin" },
@@ -160,7 +221,7 @@ it("loads the next opaque cursor, appends members, and deduplicates ids", async 
   } as Awaited<ReturnType<typeof getOrganizationMembers>>);
   renderWithMessages(
     <OrganizationMemberDirectory
-      currentUserId={currentUserId}
+      currentActor={currentActor}
       initialPage={initialPage}
       organization={organization}
     />,
@@ -206,7 +267,7 @@ it("retains a confirmed role when refresh fails and retry performs GET only", as
     } as Awaited<ReturnType<typeof getOrganizationMembers>>);
   renderWithMessages(
     <OrganizationMemberDirectory
-      currentUserId={currentUserId}
+      currentActor={currentActor}
       initialPage={{ ...initialPage, nextCursor: null }}
       organization={organization}
     />,
@@ -244,4 +305,170 @@ it("retains a confirmed role when refresh fails and retry performs GET only", as
     cache: "no-store",
     path: { organizationId: organization.id },
   });
+});
+
+it("replaces the refreshed first page order, preserves loaded progress, and overlays the confirmed role", async () => {
+  const nextMember = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000032",
+    userId: "01900000-0000-7000-8000-000000000022",
+    name: "Next User",
+    email: "next@example.com",
+    isOutsideAllowedEmailDomains: false,
+  };
+  const confirmed = { ...otherMember, role: "admin" as const };
+  updateRole.mockResolvedValue({ ok: true, data: confirmed });
+  getMembers
+    .mockResolvedValueOnce(memberPageResult([nextMember], "cursor-tail"))
+    .mockResolvedValueOnce(
+      memberPageResult(
+        [currentMember, nextMember, { ...otherMember, role: "member" }],
+        "cursor-refreshed-first-page",
+      ),
+    )
+    .mockResolvedValueOnce(memberPageResult([], null));
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={initialPage}
+      organization={organization}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  expect(await screen.findByText("Next User")).toBeVisible();
+
+  fireEvent.click(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+
+  await waitFor(() => {
+    const rows = within(
+      screen.getByRole("region", { name: "Other members" }),
+    ).getAllByRole("article");
+    expect(rows[0]).toHaveTextContent("Next User");
+    expect(rows[1]).toHaveTextContent("Other User");
+  });
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toHaveTextContent("Administrator");
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => {
+    expect(getMembers).toHaveBeenNthCalledWith(3, {
+      client: { id: "browser-client" },
+      cache: "no-store",
+      path: { organizationId: organization.id },
+      query: { cursor: "cursor-tail" },
+    });
+  });
+});
+
+it("ignores an older delayed load-more response after mutation refresh wins", async () => {
+  const delayedLoadMore =
+    deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
+  const mutationRefresh =
+    deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
+  const staleMember = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000033",
+    userId: "01900000-0000-7000-8000-000000000023",
+    name: "Stale Delayed User",
+  };
+  updateRole.mockResolvedValue({
+    ok: true,
+    data: { ...otherMember, role: "admin" },
+  });
+  getMembers
+    .mockImplementationOnce(() => delayedLoadMore.promise as never)
+    .mockImplementationOnce(() => mutationRefresh.promise as never)
+    .mockResolvedValueOnce(memberPageResult([], null));
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={initialPage}
+      organization={organization}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  fireEvent.click(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(2));
+  await act(async () => {
+    mutationRefresh.resolve(
+      memberPageResult(
+        [currentMember, { ...otherMember, role: "member" }],
+        "cursor-from-refresh",
+      ),
+    );
+  });
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toHaveTextContent("Administrator");
+
+  await act(async () => {
+    delayedLoadMore.resolve(
+      memberPageResult([staleMember], "cursor-from-stale-read"),
+    );
+  });
+  expect(screen.queryByText("Stale Delayed User")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => {
+    expect(getMembers).toHaveBeenNthCalledWith(3, {
+      client: { id: "browser-client" },
+      cache: "no-store",
+      path: { organizationId: organization.id },
+      query: { cursor: "cursor-from-refresh" },
+    });
+  });
+});
+
+it("keeps the confirmed add projection over a stale refresh projection", async () => {
+  const confirmed = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000034",
+    userId: "01900000-0000-7000-8000-000000000024",
+    name: "Confirmed Added User",
+    email: "confirmed@example.com",
+    role: "admin" as const,
+    isOutsideAllowedEmailDomains: false,
+  };
+  addMember.mockResolvedValue({ ok: true, data: confirmed });
+  getMembers.mockResolvedValue(
+    memberPageResult(
+      [
+        currentMember,
+        otherMember,
+        { ...confirmed, name: "Stale Added User", role: "member" },
+      ],
+      null,
+    ),
+  );
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={{ ...initialPage, nextCursor: null }}
+      organization={organization}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Add member" }));
+  fireEvent.change(await screen.findByLabelText("User ID"), {
+    target: { value: confirmed.userId },
+  });
+  fireEvent.click(screen.getByRole("combobox", { name: "Role" }));
+  fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+  expect(await screen.findByText("Confirmed Added User")).toBeVisible();
+  expect(screen.queryByText("Stale Added User")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("combobox", { name: "Role for Confirmed Added User" }),
+  ).toHaveTextContent("Administrator");
 });

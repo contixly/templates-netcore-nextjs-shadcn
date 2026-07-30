@@ -46,12 +46,8 @@ it("renders member organization settings as read-only without a save action", ()
     <OrganizationSettingsForm
       initialOrganization={{
         ...ownerOrganization,
-        currentRole: "member",
         capabilities: {
           canUpdateOrganization: false,
-          canDeleteOrganization: false,
-          canAddMembers: false,
-          canUpdateMemberRoles: false,
         },
       }}
     />,
@@ -168,5 +164,90 @@ it("uses stable localized update errors and exposes only an allowed trace id", a
   expect(screen.getByRole("alert")).toHaveTextContent("trace-settings");
   expect(screen.getByRole("alert")).not.toHaveTextContent(
     "organization_slug_conflict",
+  );
+});
+
+it.each([
+  {
+    label: "Workspace Name",
+    value: "Invalid!",
+    message: "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
+  },
+  {
+    label: "Workspace Slug",
+    value: "invalid slug",
+    message:
+      "Use 1–64 lowercase letters or numbers separated by single hyphens.",
+  },
+  {
+    label: "Allowed Email Domains",
+    value: "not-a-domain",
+    message: "Enter valid exact email domains such as example.com.",
+  },
+])(
+  "associates the $label client error only with its actual field",
+  async ({ label, message, value }) => {
+    renderWithMessages(
+      <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+    );
+    const field = screen.getByLabelText(label);
+
+    fireEvent.change(field, { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent(message);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute(
+      "aria-describedby",
+      expect.stringContaining(error.id),
+    );
+    expect(field.closest('[data-slot="field"]')).toHaveAttribute(
+      "data-invalid",
+      "true",
+    );
+    for (const otherLabel of [
+      "Workspace Name",
+      "Workspace Slug",
+      "Allowed Email Domains",
+    ].filter((candidate) => candidate !== label)) {
+      expect(screen.getByLabelText(otherLabel)).not.toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+    }
+    expect(updateOrganization).not.toHaveBeenCalled();
+  },
+);
+
+it("renders API-wide validation as a form alert without falsely marking a field", async () => {
+  updateOrganization.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "validation_failed",
+      status: 400,
+    },
+  });
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Check the workspace details and try again.",
+  );
+  expect(screen.getByLabelText("Workspace Name")).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(screen.getByLabelText("Workspace Slug")).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(screen.getByLabelText("Allowed Email Domains")).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
   );
 });

@@ -16,12 +16,22 @@ import {
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";
 
+export type OrganizationCardView = Pick<
+  OrganizationSummaryResponse,
+  "canonicalKey" | "currentRole" | "id" | "name" | "slug"
+> &
+  Readonly<{
+    capabilities: Readonly<{ canDeleteOrganization: boolean }>;
+  }>;
+
 export function OrganizationCard({
   canDelete = false,
+  onDeleted,
   organization,
 }: Readonly<{
   canDelete?: boolean;
-  organization: OrganizationSummaryResponse;
+  onDeleted?: (organizationId: string) => void | Promise<void>;
+  organization: OrganizationCardView;
 }>) {
   const t = useTranslations("organizations.card");
   const roles = useTranslations("organizations.roles");
@@ -46,7 +56,11 @@ export function OrganizationCard({
       </CardContent>
       <CardFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {canDelete ? (
-          <OrganizationDeleteDialog canDelete organization={organization} />
+          <OrganizationDeleteDialog
+            canDelete
+            onDeleted={onDeleted}
+            organization={organization}
+          />
         ) : null}
         <Button asChild className="w-full sm:flex-1" variant="outline">
           <Link

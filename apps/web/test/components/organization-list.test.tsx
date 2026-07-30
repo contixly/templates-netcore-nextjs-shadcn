@@ -2,6 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 
 import { OrganizationList } from "@/src/components/organizations/organization-list";
+import { deleteBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type {
   OrganizationPageResponse,
   OrganizationSummaryResponse,
@@ -11,8 +12,20 @@ import { render } from "@testing-library/react";
 import organizationsRu from "@/src/messages/organizations.ru.json";
 
 jest.mock("next/navigation", () => ({
-  useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    refresh: jest.fn(),
+  }),
 }));
+jest.mock("@/src/lib/api/browser/client", () => ({
+  createBrowserApiClient: () => ({ id: "browser-client" }),
+}));
+jest.mock("@/src/lib/api/organizations/browser/organization-mutations", () => ({
+  deleteBrowserOrganization: jest.fn(),
+}));
+
+const deleteOrganization = jest.mocked(deleteBrowserOrganization);
 
 const capabilities = {
   canUpdateOrganization: true,
@@ -80,6 +93,59 @@ it("offers delete only to capable owners when another workspace is accessible", 
       "button",
       { name: "Delete workspace" },
     ),
+  ).not.toBeInTheDocument();
+});
+
+it("removes a confirmed deletion immediately and cannot resurrect it from stale refreshed pages", async () => {
+  const otherOwner = {
+    ...beta,
+    currentRole: "owner" as const,
+    capabilities,
+  };
+  deleteOrganization.mockResolvedValue({
+    ok: true,
+    data: { organizationId: acme.id },
+  });
+  const view = renderWithMessages(
+    <OrganizationList
+      pages={[{ items: [acme, otherOwner], nextCursor: null }]}
+    />,
+  );
+
+  fireEvent.click(
+    within(screen.getByRole("article", { name: "Acme workspace" })).getByRole(
+      "button",
+      { name: "Delete workspace" },
+    ),
+  );
+  fireEvent.change(await screen.findByLabelText('Type "Acme" to confirm'), {
+    target: { value: "Acme" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Permanently delete workspace" }),
+  );
+
+  await waitFor(() => {
+    expect(
+      screen.queryByRole("article", { name: "Acme workspace" }),
+    ).not.toBeInTheDocument();
+  });
+  expect(
+    within(screen.getByRole("article", { name: "Beta workspace" })).queryByRole(
+      "button",
+      { name: "Delete workspace" },
+    ),
+  ).not.toBeInTheDocument();
+
+  view.rerender(
+    withMessages(
+      <OrganizationList
+        pages={[{ items: [acme, otherOwner], nextCursor: null }]}
+      />,
+    ),
+  );
+  expect(
+    screen.queryByRole("article", { name: "Acme workspace" }),
   ).not.toBeInTheDocument();
 });
 

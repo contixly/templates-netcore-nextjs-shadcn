@@ -23,13 +23,50 @@ import type { ApiFailure } from "@/src/lib/api/result";
 
 const supportedOrganizationName = /^[\p{L}\p{Nd} _-]+$/u;
 const supportedOrganizationSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const supportedEmailDomain =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-function normalizedDomains(value: string): string[] {
-  const domains = value
+export type OrganizationSettingsView = Readonly<{
+  id: string;
+  name: string;
+  slug: string;
+  canonicalKey: string;
+  allowedEmailDomains: readonly string[];
+  capabilities: Readonly<{ canUpdateOrganization: boolean }>;
+}>;
+
+type SettingsValidation = Readonly<{
+  field: "domains" | "name" | "slug";
+  message: string;
+}>;
+
+function parseDomains(value: string): {
+  domains: string[];
+  invalidDomain?: string;
+} {
+  const values = value
     .split(/[,\n]/)
     .map((domain) => domain.trim().toLowerCase().replace(/^@/, ""))
     .filter(Boolean);
-  return [...new Set(domains)];
+  return {
+    domains: [...new Set(values)],
+    invalidDomain: values.find((domain) => !supportedEmailDomain.test(domain)),
+  };
+}
+
+function toSettingsView(
+  organization: OrganizationDetailResponse,
+): OrganizationSettingsView {
+  return {
+    id: organization.id,
+    name: organization.name,
+    slug: organization.slug,
+    canonicalKey: organization.canonicalKey,
+    allowedEmailDomains: organization.allowedEmailDomains,
+    capabilities: {
+      canUpdateOrganization: organization.capabilities.canUpdateOrganization,
+    },
+  };
 }
 
 function failureTrace(failure: ApiFailure | null): string | undefined {
@@ -38,7 +75,7 @@ function failureTrace(failure: ApiFailure | null): string | undefined {
 
 export function OrganizationSettingsForm({
   initialOrganization,
-}: Readonly<{ initialOrganization: OrganizationDetailResponse }>) {
+}: Readonly<{ initialOrganization: OrganizationSettingsView }>) {
   const t = useTranslations("organizations.settings.form");
   const router = useRouter();
   const requestInFlight = useRef(false);
@@ -48,12 +85,13 @@ export function OrganizationSettingsForm({
   const [domainsText, setDomainsText] = useState(
     initialOrganization.allowedEmailDomains.join("\n"),
   );
-  const [validation, setValidation] = useState<string | null>(null);
+  const [validation, setValidation] = useState<SettingsValidation | null>(null);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [success, setSuccess] = useState(false);
   const [pending, setPending] = useState(false);
   const canUpdate = organization.capabilities.canUpdateOrganization;
-  const previewDomains = normalizedDomains(domainsText);
+  const parsedDomains = parseDomains(domainsText);
+  const previewDomains = parsedDomains.domains;
 
   function resetFeedback() {
     setValidation(null);
@@ -70,21 +108,37 @@ export function OrganizationSettingsForm({
     const normalizedName = name.trim();
     const normalizedSlug = slug.trim().toLowerCase();
     if (!normalizedName) {
-      setValidation(t("validation.nameRequired"));
+      setValidation({
+        field: "name",
+        message: t("validation.nameRequired"),
+      });
       return;
     }
     if (
       normalizedName.length > 50 ||
       !supportedOrganizationName.test(normalizedName)
     ) {
-      setValidation(t("validation.nameInvalid"));
+      setValidation({
+        field: "name",
+        message: t("validation.nameInvalid"),
+      });
       return;
     }
     if (
       normalizedSlug.length > 64 ||
       !supportedOrganizationSlug.test(normalizedSlug)
     ) {
-      setValidation(t("validation.slugInvalid"));
+      setValidation({
+        field: "slug",
+        message: t("validation.slugInvalid"),
+      });
+      return;
+    }
+    if (parsedDomains.invalidDomain) {
+      setValidation({
+        field: "domains",
+        message: t("validation.domainsInvalid"),
+      });
       return;
     }
 
@@ -111,7 +165,7 @@ export function OrganizationSettingsForm({
     }
 
     const previousCanonicalKey = organization.canonicalKey;
-    setOrganization(result.data);
+    setOrganization(toSettingsView(result.data));
     setName(result.data.name);
     setSlug(result.data.slug);
     setDomainsText(result.data.allowedEmailDomains.join("\n"));
@@ -147,13 +201,18 @@ export function OrganizationSettingsForm({
         <FieldGroup>
           <Field
             data-disabled={!canUpdate || pending ? true : undefined}
-            data-invalid={validation ? true : undefined}
+            data-invalid={validation?.field === "name" ? true : undefined}
           >
             <FieldLabel htmlFor="organization-settings-name">
               {t("nameLabel")}
             </FieldLabel>
             <Input
-              aria-invalid={validation ? true : undefined}
+              aria-describedby={`organization-settings-name-hint${
+                validation?.field === "name"
+                  ? " organization-settings-name-error"
+                  : ""
+              }`}
+              aria-invalid={validation?.field === "name" ? true : undefined}
               autoComplete="organization"
               disabled={!canUpdate || pending}
               id="organization-settings-name"
@@ -164,13 +223,29 @@ export function OrganizationSettingsForm({
               }}
               value={name}
             />
-            <FieldDescription>{t("nameHint")}</FieldDescription>
+            <FieldDescription id="organization-settings-name-hint">
+              {t("nameHint")}
+            </FieldDescription>
+            {validation?.field === "name" ? (
+              <FieldError id="organization-settings-name-error">
+                {validation.message}
+              </FieldError>
+            ) : null}
           </Field>
-          <Field data-disabled={!canUpdate || pending ? true : undefined}>
+          <Field
+            data-disabled={!canUpdate || pending ? true : undefined}
+            data-invalid={validation?.field === "slug" ? true : undefined}
+          >
             <FieldLabel htmlFor="organization-settings-slug">
               {t("slugLabel")}
             </FieldLabel>
             <Input
+              aria-describedby={`organization-settings-slug-hint${
+                validation?.field === "slug"
+                  ? " organization-settings-slug-error"
+                  : ""
+              }`}
+              aria-invalid={validation?.field === "slug" ? true : undefined}
               autoComplete="off"
               disabled={!canUpdate || pending}
               id="organization-settings-slug"
@@ -181,13 +256,29 @@ export function OrganizationSettingsForm({
               }}
               value={slug}
             />
-            <FieldDescription>{t("slugHint")}</FieldDescription>
+            <FieldDescription id="organization-settings-slug-hint">
+              {t("slugHint")}
+            </FieldDescription>
+            {validation?.field === "slug" ? (
+              <FieldError id="organization-settings-slug-error">
+                {validation.message}
+              </FieldError>
+            ) : null}
           </Field>
-          <Field data-disabled={!canUpdate || pending ? true : undefined}>
+          <Field
+            data-disabled={!canUpdate || pending ? true : undefined}
+            data-invalid={validation?.field === "domains" ? true : undefined}
+          >
             <FieldLabel htmlFor="organization-settings-domains">
               {t("domainsLabel")}
             </FieldLabel>
             <Textarea
+              aria-describedby={`organization-settings-domains-hint${
+                validation?.field === "domains"
+                  ? " organization-settings-domains-error"
+                  : ""
+              }`}
+              aria-invalid={validation?.field === "domains" ? true : undefined}
               autoComplete="off"
               disabled={!canUpdate || pending}
               id="organization-settings-domains"
@@ -198,7 +289,9 @@ export function OrganizationSettingsForm({
               rows={4}
               value={domainsText}
             />
-            <FieldDescription>{t("domainsHint")}</FieldDescription>
+            <FieldDescription id="organization-settings-domains-hint">
+              {t("domainsHint")}
+            </FieldDescription>
             {domainsText.trim() ? (
               <FieldDescription aria-live="polite">
                 {t("domainsPreview", {
@@ -206,10 +299,14 @@ export function OrganizationSettingsForm({
                 })}
               </FieldDescription>
             ) : null}
+            {validation?.field === "domains" ? (
+              <FieldError id="organization-settings-domains-error">
+                {validation.message}
+              </FieldError>
+            ) : null}
           </Field>
         </FieldGroup>
 
-        {validation ? <FieldError>{validation}</FieldError> : null}
         {failure ? (
           <Alert variant="destructive">
             <AlertTitle>{failureMessage}</AlertTitle>

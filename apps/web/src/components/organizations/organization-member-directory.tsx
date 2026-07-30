@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useReducer, useRef } from "react";
 import { IconAlertTriangle, IconUsers } from "@tabler/icons-react";
 
 import {
@@ -31,13 +31,48 @@ import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import { getOrganizationMembers } from "@/src/lib/api/generated/sdk.gen";
 import type {
-  OrganizationDetailResponse,
   OrganizationMemberPageResponse,
   OrganizationMemberResponse,
 } from "@/src/lib/api/generated/types.gen";
 import type { ApiFailure } from "@/src/lib/api/result";
 
+export type OrganizationMemberView = Pick<
+  OrganizationMemberResponse,
+  | "email"
+  | "emailDomain"
+  | "id"
+  | "isOutsideAllowedEmailDomains"
+  | "joinedAt"
+  | "name"
+  | "role"
+  | "userId"
+>;
+
+export type OrganizationMemberPageView = Readonly<{
+  items: readonly OrganizationMemberView[];
+  nextCursor: string | null;
+}>;
+
+export type OrganizationCurrentActorView = Readonly<{
+  userId: string;
+  name: string;
+  email: string;
+  role: OrganizationRole;
+  emailDomain: string | null;
+  isOutsideAllowedEmailDomains: boolean;
+}>;
+
+export type OrganizationMemberDirectoryView = Readonly<{
+  id: string;
+  currentRole: OrganizationRole;
+  capabilities: Readonly<{
+    canAddMembers: boolean;
+    canUpdateMemberRoles: boolean;
+  }>;
+}>;
+
 type ConfirmedAction = "add" | "role";
+type ReadKind = "loadMore" | "refresh";
 
 type RefreshRecovery = Readonly<{
   action: ConfirmedAction;
@@ -49,17 +84,173 @@ type Feedback =
   | Readonly<{ kind: "success"; message: string }>
   | null;
 
-function uniqueMembers(
-  members: readonly OrganizationMemberResponse[],
-): OrganizationMemberResponse[] {
-  const byId = new Map<string, OrganizationMemberResponse>();
-  for (const member of members) {
-    byId.set(member.id, member);
-  }
-  return [...byId.values()];
+type ActiveRead = Readonly<{
+  id: number;
+  kind: ReadKind;
+  action?: ConfirmedAction;
+}>;
+
+type DirectoryState = Readonly<{
+  pages: readonly OrganizationMemberPageView[];
+  confirmedById: ReadonlyMap<string, OrganizationMemberView>;
+  confirmedOrder: readonly string[];
+  activeRead: ActiveRead | null;
+  feedback: Feedback;
+  refreshRecovery: RefreshRecovery | null;
+}>;
+
+type DirectoryAction =
+  | Readonly<{ type: "confirm"; member: OrganizationMemberView }>
+  | Readonly<{ type: "readStarted"; read: ActiveRead }>
+  | Readonly<{
+      type: "loadMoreSucceeded";
+      readId: number;
+      page: OrganizationMemberPageView;
+    }>
+  | Readonly<{
+      type: "refreshSucceeded";
+      readId: number;
+      page: OrganizationMemberPageView;
+      action: ConfirmedAction;
+      successMessage: string;
+    }>
+  | Readonly<{
+      type: "loadMoreFailed";
+      readId: number;
+      message: string;
+      traceId?: string;
+    }>
+  | Readonly<{
+      type: "refreshFailed";
+      readId: number;
+      action: ConfirmedAction;
+      traceId?: string;
+    }>;
+
+function memberView(
+  member: OrganizationMemberResponse,
+): OrganizationMemberView {
+  return {
+    id: member.id,
+    userId: member.userId,
+    name: member.name,
+    email: member.email,
+    role: member.role,
+    joinedAt: member.joinedAt,
+    emailDomain: member.emailDomain,
+    isOutsideAllowedEmailDomains: member.isOutsideAllowedEmailDomains,
+  };
 }
 
-function memberDisplayName(member: OrganizationMemberResponse): string {
+function pageView(
+  page: OrganizationMemberPageResponse,
+): OrganizationMemberPageView {
+  return {
+    items: page.items.map(memberView),
+    nextCursor: page.nextCursor,
+  };
+}
+
+function directoryReducer(
+  state: DirectoryState,
+  action: DirectoryAction,
+): DirectoryState {
+  if (action.type === "confirm") {
+    const confirmedById = new Map(state.confirmedById);
+    confirmedById.set(action.member.id, action.member);
+    return {
+      ...state,
+      confirmedById,
+      confirmedOrder: state.confirmedOrder.includes(action.member.id)
+        ? state.confirmedOrder
+        : [...state.confirmedOrder, action.member.id],
+      feedback: null,
+      refreshRecovery: null,
+    };
+  }
+
+  if (action.type === "readStarted") {
+    return {
+      ...state,
+      activeRead: action.read,
+      ...(action.read.kind === "loadMore" ? { feedback: null } : {}),
+    };
+  }
+
+  if (state.activeRead?.id !== action.readId) {
+    return state;
+  }
+
+  if (action.type === "loadMoreSucceeded") {
+    return {
+      ...state,
+      pages: [...state.pages, action.page],
+      activeRead: null,
+    };
+  }
+
+  if (action.type === "refreshSucceeded") {
+    return {
+      ...state,
+      pages:
+        state.pages.length === 0
+          ? [action.page]
+          : [action.page, ...state.pages.slice(1)],
+      activeRead: null,
+      refreshRecovery: null,
+      feedback: { kind: "success", message: action.successMessage },
+    };
+  }
+
+  if (action.type === "loadMoreFailed") {
+    return {
+      ...state,
+      activeRead: null,
+      feedback: {
+        kind: "failure",
+        message: action.message,
+        traceId: action.traceId,
+      },
+    };
+  }
+
+  return {
+    ...state,
+    activeRead: null,
+    feedback: null,
+    refreshRecovery: {
+      action: action.action,
+      traceId: action.traceId,
+    },
+  };
+}
+
+function orderedVisibleMembers(
+  state: DirectoryState,
+): OrganizationMemberView[] {
+  const orderedServerMembers: OrganizationMemberView[] = [];
+  const serverIds = new Set<string>();
+  for (const page of state.pages) {
+    for (const member of page.items) {
+      if (!serverIds.has(member.id)) {
+        serverIds.add(member.id);
+        orderedServerMembers.push(state.confirmedById.get(member.id) ?? member);
+      }
+    }
+  }
+
+  for (const memberId of state.confirmedOrder) {
+    const confirmed = state.confirmedById.get(memberId);
+    if (confirmed && !serverIds.has(memberId)) {
+      orderedServerMembers.push(confirmed);
+    }
+  }
+  return orderedServerMembers;
+}
+
+function memberDisplayName(
+  member: Pick<OrganizationMemberView, "email" | "name">,
+) {
   return member.name.trim() || member.email;
 }
 
@@ -68,7 +259,7 @@ function failureTrace(failure: ApiFailure): string | undefined {
 }
 
 function assignableRolesFor(
-  organization: OrganizationDetailResponse,
+  organization: OrganizationMemberDirectoryView,
 ): OrganizationRole[] {
   if (
     !organization.capabilities.canAddMembers &&
@@ -96,39 +287,42 @@ function formattedDate(value: string, locale: string): string {
 }
 
 export function OrganizationMemberDirectory({
-  currentUserId,
+  currentActor,
   initialPage,
   organization,
 }: Readonly<{
-  currentUserId: string;
-  initialPage: OrganizationMemberPageResponse;
-  organization: OrganizationDetailResponse;
+  currentActor: OrganizationCurrentActorView;
+  initialPage: OrganizationMemberPageView;
+  organization: OrganizationMemberDirectoryView;
 }>) {
   const t = useTranslations("organizations.settings.members");
   const roles = useTranslations("organizations.roles");
   const locale = useLocale();
-  const [members, setMembers] = useState(() =>
-    uniqueMembers(initialPage.items),
-  );
-  const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
-  const [pendingRead, setPendingRead] = useState(false);
-  const [feedback, setFeedback] = useState<Feedback>(null);
-  const [refreshRecovery, setRefreshRecovery] =
-    useState<RefreshRecovery | null>(null);
-  const currentMember =
-    members.find((member) => member.userId === currentUserId) ?? null;
+  const [state, dispatch] = useReducer(directoryReducer, {
+    pages: [initialPage],
+    confirmedById: new Map<string, OrganizationMemberView>(),
+    confirmedOrder: [],
+    activeRead: null,
+    feedback: null,
+    refreshRecovery: null,
+  });
+  const readGeneration = useRef(0);
+  const activeReadId = useRef<number | null>(null);
+  const members = orderedVisibleMembers(state);
   const otherMembers = members.filter(
-    (member) => member.userId !== currentUserId,
+    (member) => member.userId !== currentActor.userId,
   );
-  const outsideCount = members.filter(
-    (member) => member.isOutsideAllowedEmailDomains,
-  ).length;
+  const outsideCount =
+    otherMembers.filter((member) => member.isOutsideAllowedEmailDomains)
+      .length + (currentActor.isOutsideAllowedEmailDomains ? 1 : 0);
   const actorAssignableRoles = assignableRolesFor(organization);
+  const nextCursor = state.pages.at(-1)?.nextCursor ?? null;
+  const pendingRead = state.activeRead !== null;
 
   async function readMembers(
     query: { cursor?: string } | undefined,
   ): Promise<
-    | { ok: true; data: OrganizationMemberPageResponse }
+    | { ok: true; data: OrganizationMemberPageView }
     | { ok: false; failure: ApiFailure }
   > {
     try {
@@ -143,81 +337,79 @@ export function OrganizationMemberDirectory({
             ok: false,
             failure: normalizeApiFailure(result.error, result.response),
           }
-        : { ok: true, data: result.data.data };
+        : { ok: true, data: pageView(result.data.data) };
     } catch (error) {
       return { ok: false, failure: normalizeApiFailure(error) };
     }
   }
 
   async function loadMore() {
-    if (!nextCursor || pendingRead) {
+    if (!nextCursor || activeReadId.current !== null) {
       return;
     }
-    setPendingRead(true);
-    setFeedback(null);
+    const readId = ++readGeneration.current;
+    activeReadId.current = readId;
+    dispatch({ type: "readStarted", read: { id: readId, kind: "loadMore" } });
     const result = await readMembers({ cursor: nextCursor });
+    if (activeReadId.current !== readId) {
+      return;
+    }
+    activeReadId.current = null;
     if (result.ok) {
-      setMembers((current) =>
-        uniqueMembers([...current, ...result.data.items]),
-      );
-      setNextCursor(result.data.nextCursor);
+      dispatch({ type: "loadMoreSucceeded", readId, page: result.data });
     } else {
-      setFeedback({
-        kind: "failure",
+      dispatch({
+        type: "loadMoreFailed",
+        readId,
         message: t("loadFailure"),
         traceId: failureTrace(result.failure),
       });
     }
-    setPendingRead(false);
   }
 
   async function refreshAfterMutation(action: ConfirmedAction) {
-    setPendingRead(true);
+    const readId = ++readGeneration.current;
+    activeReadId.current = readId;
+    dispatch({
+      type: "readStarted",
+      read: { id: readId, kind: "refresh", action },
+    });
     const result = await readMembers(undefined);
+    if (activeReadId.current !== readId) {
+      return;
+    }
+    activeReadId.current = null;
     if (!result.ok) {
-      setFeedback(null);
-      setRefreshRecovery({
+      dispatch({
+        type: "refreshFailed",
+        readId,
         action,
         traceId: failureTrace(result.failure),
       });
-      setPendingRead(false);
       return;
     }
 
-    setMembers((current) => uniqueMembers([...current, ...result.data.items]));
-    setNextCursor(result.data.nextCursor);
-    setRefreshRecovery(null);
-    setFeedback({
-      kind: "success",
-      message: action === "add" ? t("addSuccess") : t("roleSuccess"),
+    dispatch({
+      type: "refreshSucceeded",
+      readId,
+      page: result.data,
+      action,
+      successMessage: action === "add" ? t("addSuccess") : t("roleSuccess"),
     });
-    setPendingRead(false);
   }
 
   async function confirmMember(
     member: OrganizationMemberResponse,
     action: ConfirmedAction,
   ) {
-    setMembers((current) => {
-      const index = current.findIndex(
-        (candidate) => candidate.id === member.id,
-      );
-      if (index < 0) {
-        return [...current, member];
-      }
-      return current.map((candidate) =>
-        candidate.id === member.id ? member : candidate,
-      );
-    });
-    setFeedback(null);
-    setRefreshRecovery(null);
+    dispatch({ type: "confirm", member: memberView(member) });
     await refreshAfterMutation(action);
   }
 
-  function roleOptions(member: OrganizationMemberResponse): OrganizationRole[] {
+  function roleOptions(member: OrganizationMemberView): OrganizationRole[] {
     if (
       !organization.capabilities.canUpdateMemberRoles ||
-      member.userId === currentUserId ||
+      member.userId === currentActor.userId ||
       (organization.currentRole === "admin" && member.role === "owner")
     ) {
       return [];
@@ -225,7 +417,12 @@ export function OrganizationMemberDirectory({
     return actorAssignableRoles;
   }
 
-  function memberIdentity(member: OrganizationMemberResponse) {
+  function memberIdentity(
+    member: Pick<
+      OrganizationMemberView,
+      "email" | "isOutsideAllowedEmailDomains" | "name" | "role"
+    >,
+  ) {
     return (
       <div className="flex min-w-0 flex-col gap-1">
         <p className="truncate text-sm font-medium">
@@ -254,32 +451,36 @@ export function OrganizationMemberDirectory({
         </Alert>
       ) : null}
 
-      {feedback ? (
+      {state.feedback ? (
         <Alert
-          role={feedback.kind === "success" ? "status" : undefined}
-          variant={feedback.kind === "failure" ? "destructive" : "default"}
+          role={state.feedback.kind === "success" ? "status" : undefined}
+          variant={
+            state.feedback.kind === "failure" ? "destructive" : "default"
+          }
         >
-          <AlertTitle>{feedback.message}</AlertTitle>
-          {feedback.kind === "failure" && feedback.traceId ? (
+          <AlertTitle>{state.feedback.message}</AlertTitle>
+          {state.feedback.kind === "failure" && state.feedback.traceId ? (
             <AlertDescription className="font-mono text-xs">
-              {feedback.traceId}
+              {state.feedback.traceId}
             </AlertDescription>
           ) : null}
         </Alert>
       ) : null}
 
-      {refreshRecovery ? (
+      {state.refreshRecovery ? (
         <Alert variant="destructive">
           <AlertTitle>{t("refreshFailure")}</AlertTitle>
           <AlertDescription className="flex flex-col items-start gap-2">
-            {refreshRecovery.traceId ? (
+            {state.refreshRecovery.traceId ? (
               <span className="font-mono text-xs">
-                {refreshRecovery.traceId}
+                {state.refreshRecovery.traceId}
               </span>
             ) : null}
             <Button
               disabled={pendingRead}
-              onClick={() => void refreshAfterMutation(refreshRecovery.action)}
+              onClick={() =>
+                void refreshAfterMutation(state.refreshRecovery!.action)
+              }
               type="button"
               variant="outline"
             >
@@ -289,32 +490,20 @@ export function OrganizationMemberDirectory({
         </Alert>
       ) : null}
 
-      {currentMember ? (
-        <Card
-          aria-labelledby="organization-current-member-heading"
-          role="region"
-        >
-          <CardHeader>
-            <CardTitle>
-              <h2 id="organization-current-member-heading">
-                {t("currentTitle")}
-              </h2>
-            </CardTitle>
-            <CardDescription>{t("currentDescription")}</CardDescription>
-            <CardAction>
-              <Badge variant="secondary">{t("you")}</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            {memberIdentity(currentMember)}
-            <p className="text-xs text-muted-foreground">
-              {t("joined", {
-                date: formattedDate(currentMember.joinedAt, locale),
-              })}
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
+      <Card aria-labelledby="organization-current-member-heading" role="region">
+        <CardHeader>
+          <CardTitle>
+            <h2 id="organization-current-member-heading">
+              {t("currentTitle")}
+            </h2>
+          </CardTitle>
+          <CardDescription>{t("currentDescription")}</CardDescription>
+          <CardAction>
+            <Badge variant="secondary">{t("you")}</Badge>
+          </CardAction>
+        </CardHeader>
+        <CardContent>{memberIdentity(currentActor)}</CardContent>
+      </Card>
 
       <Card aria-labelledby="organization-other-members-heading" role="region">
         <CardHeader>

@@ -32,6 +32,14 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 async function openAndFill() {
   fireEvent.click(screen.getByRole("button", { name: "Add member" }));
   fireEvent.change(await screen.findByLabelText("User ID"), {
@@ -54,10 +62,56 @@ it("accepts an exact UUID user id and prevents invalid ids from reaching the ada
   });
   fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Enter an exact UUID user ID.",
+  const userIdField = screen.getByLabelText("User ID");
+  const error = await screen.findByRole("alert");
+  expect(error).toHaveTextContent("Enter an exact UUID user ID.");
+  expect(userIdField).toHaveAttribute("aria-invalid", "true");
+  expect(userIdField).toHaveAttribute(
+    "aria-describedby",
+    expect.stringContaining(error.id),
+  );
+  expect(userIdField.closest('[data-slot="field"]')).toHaveAttribute(
+    "data-invalid",
+    "true",
+  );
+  expect(screen.getByRole("combobox", { name: "Role" })).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
   );
   expect(addMember).not.toHaveBeenCalled();
+});
+
+it("renders API-wide validation without falsely marking User ID or Role", async () => {
+  addMember.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "validation_failed",
+      status: 400,
+    },
+  });
+  renderWithMessages(
+    <OrganizationAddMemberDialog
+      assignableRoles={["member", "admin"]}
+      organizationId={organizationId}
+      onMemberConfirmed={jest.fn()}
+    />,
+  );
+  await openAndFill();
+
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Check the user ID and role, then try again.",
+  );
+  expect(screen.getByLabelText("User ID")).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(screen.getByRole("combobox", { name: "Role" })).not.toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
 });
 
 it("shows the API-provided domain warning and retries exactly once only after confirmation", async () => {
@@ -153,6 +207,91 @@ it("does not offer a second acknowledgement retry when the acknowledged request 
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "The member could not be added.",
   );
+});
+
+it.each([
+  {
+    label: "non-409 response",
+    failure: {
+      kind: "problem" as const,
+      code: "member_domain_acknowledgement_required",
+      status: 400,
+      email: "outside@external.test",
+      emailDomain: "external.test",
+      allowedEmailDomains: ["example.com"],
+    },
+  },
+  {
+    label: "missing normalized domain",
+    failure: {
+      kind: "problem" as const,
+      code: "member_domain_acknowledgement_required",
+      status: 409,
+      email: "outside@external.test",
+      allowedEmailDomains: ["example.com"],
+    },
+  },
+  {
+    label: "empty allow-list",
+    failure: {
+      kind: "problem" as const,
+      code: "member_domain_acknowledgement_required",
+      status: 409,
+      email: "outside@external.test",
+      emailDomain: "external.test",
+      allowedEmailDomains: [],
+    },
+  },
+])(
+  "fails closed for malformed domain acknowledgement: $label",
+  async ({ failure }) => {
+    addMember.mockResolvedValue({ ok: false, failure });
+    renderWithMessages(
+      <OrganizationAddMemberDialog
+        assignableRoles={["member", "admin"]}
+        organizationId={organizationId}
+        onMemberConfirmed={jest.fn()}
+      />,
+    );
+    await openAndFill();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The member could not be added.",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Confirm add" }),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it("holds the submit latch until confirmed recovery finishes", async () => {
+  const recovery = deferred<void>();
+  const onMemberConfirmed = jest.fn(() => recovery.promise);
+  addMember.mockResolvedValue({ ok: true, data: member });
+  renderWithMessages(
+    <OrganizationAddMemberDialog
+      assignableRoles={["member", "admin"]}
+      organizationId={organizationId}
+      onMemberConfirmed={onMemberConfirmed}
+    />,
+  );
+  await openAndFill();
+
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+  await waitFor(() => expect(onMemberConfirmed).toHaveBeenCalledTimes(1));
+
+  expect(screen.getByRole("button", { name: "Adding" })).toBeDisabled();
+  fireEvent.submit(
+    screen.getByRole("button", { name: "Adding" }).closest("form")!,
+  );
+  expect(addMember).toHaveBeenCalledTimes(1);
+
+  recovery.resolve();
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 });
 
 it("never offers owner when the caller supplies the admin assignment matrix", async () => {

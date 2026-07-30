@@ -1,6 +1,7 @@
 /** @jest-environment node */
 
 import { getAuthCsrfToken } from "@/src/lib/api/auth/browser/get-auth-csrf";
+import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import {
   addBrowserOrganizationMember,
   createBrowserOrganization,
@@ -388,3 +389,54 @@ it("preserves only the safe domain-acknowledgement extensions for member confirm
   expect(JSON.stringify(result)).not.toContain("private domain policy detail");
   expect(JSON.stringify(result)).not.toContain("unsafeExtension");
 });
+
+it.each([
+  {
+    label: "status is not 409",
+    status: 400,
+    error: {
+      code: "member_domain_acknowledgement_required",
+      email: "member@external.test",
+      emailDomain: "external.test",
+      allowedEmailDomains: ["example.test"],
+    },
+  },
+  {
+    label: "email is missing",
+    status: 409,
+    error: {
+      code: "member_domain_acknowledgement_required",
+      emailDomain: "external.test",
+      allowedEmailDomains: ["example.test"],
+    },
+  },
+  {
+    label: "email domain is blank",
+    status: 409,
+    error: {
+      code: "member_domain_acknowledgement_required",
+      email: "member@external.test",
+      emailDomain: " ",
+      allowedEmailDomains: ["example.test"],
+    },
+  },
+  {
+    label: "allow-list is empty",
+    status: 409,
+    error: {
+      code: "member_domain_acknowledgement_required",
+      email: "member@external.test",
+      emailDomain: "external.test",
+      allowedEmailDomains: [],
+    },
+  },
+])(
+  "strips incomplete domain acknowledgement metadata when $label",
+  ({ error, status }) => {
+    expect(normalizeApiFailure(error, new Response(null, { status }))).toEqual({
+      kind: "problem",
+      code: "member_domain_acknowledgement_required",
+      status,
+    });
+  },
+);
