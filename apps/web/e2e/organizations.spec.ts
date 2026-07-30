@@ -54,7 +54,6 @@ test.describe.serial("organization full-stack workflows", () => {
     organizationScenario,
     page,
   }) => {
-    await organizationScenario.preflightLocalUsers([onboardingOwner]);
     const owner = await organizationScenario.createLocalUser(
       page.context(),
       onboardingOwner,
@@ -107,11 +106,7 @@ test.describe.serial("organization full-stack workflows", () => {
     organizationScenario,
     page,
   }) => {
-    await organizationScenario.preflightLocalUsers([
-      membershipOwner,
-      membershipMember,
-    ]);
-    const owner = await organizationScenario.createLocalUser(
+    const preparedOwner = organizationScenario.prepareLocalUser(
       page.context(),
       membershipOwner,
       "membership owner",
@@ -120,11 +115,15 @@ test.describe.serial("organization full-stack workflows", () => {
       "membership member context",
     );
     const memberPage = await memberContext.newPage();
-    const member = await organizationScenario.createLocalUser(
+    const preparedMember = organizationScenario.prepareLocalUser(
       memberContext,
       membershipMember,
       "membership member",
     );
+    const [owner, member] = await organizationScenario.createLocalUsers([
+      preparedOwner,
+      preparedMember,
+    ]);
     expect(owner.user.id).not.toBe(member.user.id);
 
     const organization = await organizationScenario.createOrganization(
@@ -207,7 +206,6 @@ test.describe.serial("organization full-stack workflows", () => {
     organizationScenario,
     page,
   }) => {
-    await organizationScenario.preflightLocalUsers([slugOwner]);
     const owner = await organizationScenario.createLocalUser(
       page.context(),
       slugOwner,

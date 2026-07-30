@@ -10,18 +10,18 @@ import type {
   OrganizationDetailResponse,
 } from "../../src/lib/api/generated";
 import {
-  cleanupExistingLocalAutomationUser,
   cleanupLocalAutomationUser,
   createLocalAutomationUser,
+  recoverExistingLocalAutomationUser,
 } from "./generated-auth-api";
 import {
   createGeneratedOrganization,
   deleteGeneratedOrganization,
 } from "./generated-organizations-api";
 import {
+  createLocalAutomationUsersWithConflictRecovery,
   finalizeOrganizationTeardown,
   OrganizationTeardownRegistry,
-  preflightLocalAutomationUsers,
   type TrackedLocalUser,
 } from "./organization-e2e-harness";
 
@@ -38,33 +38,19 @@ export type TrackedLocalAutomationScenario = LocalAutomationScenarioResponse & {
   readonly teardown: TrackedLocalUser;
 };
 
+type PreparedLocalAutomationUser = Readonly<{
+  context: BrowserContext;
+  identity: OrganizationTestIdentity;
+  teardown: TrackedLocalUser;
+}>;
+
 class OrganizationScenario {
   readonly #browser: Browser;
-  readonly #defaultRequest: APIRequestContext;
   readonly #registry: OrganizationTeardownRegistry;
 
-  constructor(
-    browser: Browser,
-    defaultRequest: APIRequestContext,
-    registry: OrganizationTeardownRegistry,
-  ) {
+  constructor(browser: Browser, registry: OrganizationTeardownRegistry) {
     this.#browser = browser;
-    this.#defaultRequest = defaultRequest;
     this.#registry = registry;
-  }
-
-  async preflightLocalUsers(
-    identitiesInCreationOrder: readonly OrganizationTestIdentity[],
-  ) {
-    await preflightLocalAutomationUsers(
-      identitiesInCreationOrder,
-      async (identity) =>
-        cleanupExistingLocalAutomationUser(
-          this.#defaultRequest,
-          identity.email,
-          identity.password,
-        ),
-    );
   }
 
   async createContext(label: string): Promise<BrowserContext> {
@@ -73,16 +59,54 @@ class OrganizationScenario {
     return context;
   }
 
+  prepareLocalUser(
+    context: BrowserContext,
+    identity: OrganizationTestIdentity,
+    label: string,
+  ): PreparedLocalAutomationUser {
+    const teardown = this.#registry.reserveLocalUser(label, () =>
+      cleanupLocalAutomationUser(context.request),
+    );
+    return { context, identity, teardown };
+  }
+
+  async createLocalUsers(
+    preparedUsers: readonly PreparedLocalAutomationUser[],
+  ): Promise<TrackedLocalAutomationScenario[]> {
+    const scenarios = await createLocalAutomationUsersWithConflictRecovery(
+      preparedUsers,
+      {
+        create: (prepared) =>
+          createLocalAutomationUser(
+            prepared.context.request,
+            prepared.identity,
+          ),
+        onCreated: (prepared) => {
+          this.#registry.localUserCreated(prepared.teardown);
+        },
+        recoverExisting: (prepared) =>
+          recoverExistingLocalAutomationUser(
+            prepared.context.request,
+            prepared.identity.email,
+            prepared.identity.password,
+          ),
+      },
+    );
+
+    return scenarios.map((scenario, index) => ({
+      ...scenario,
+      teardown: preparedUsers[index].teardown,
+    }));
+  }
+
   async createLocalUser(
     context: BrowserContext,
     identity: OrganizationTestIdentity,
     label: string,
   ): Promise<TrackedLocalAutomationScenario> {
-    const scenario = await createLocalAutomationUser(context.request, identity);
-    const teardown = this.#registry.trackLocalUser(label, () =>
-      cleanupLocalAutomationUser(context.request),
-    );
-    return { ...scenario, teardown };
+    const prepared = this.prepareLocalUser(context, identity, label);
+    const [scenario] = await this.createLocalUsers([prepared]);
+    return scenario;
   }
 
   organizationCreated(scenario: TrackedLocalAutomationScenario, count = 1) {
@@ -128,12 +152,10 @@ type OrganizationFixtures = {
 export const test = base.extend<OrganizationFixtures>({
   organizationScenario: [
     async ({ browser, page }, use, testInfo) => {
+      // Keep the default page/context alive until organization cleanup finishes.
+      void page;
       const registry = new OrganizationTeardownRegistry();
-      const scenario = new OrganizationScenario(
-        browser,
-        page.context().request,
-        registry,
-      );
+      const scenario = new OrganizationScenario(browser, registry);
 
       await use(scenario);
 
