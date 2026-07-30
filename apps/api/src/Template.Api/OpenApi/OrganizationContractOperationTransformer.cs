@@ -8,18 +8,25 @@ namespace Template.Api.OpenApi;
 internal sealed class OrganizationContractOperationTransformer
     : IOpenApiOperationTransformer
 {
-    private static readonly HashSet<string> OrganizationOperationIds =
-    [
-        "GetOrganizations",
-        "CreateOrganization",
-        "GetOrganizationByKey",
-        "UpdateOrganization",
-        "DeleteOrganization",
-        "SetActiveOrganization",
-        "GetOrganizationMembers",
-        "AddOrganizationMember",
-        "UpdateOrganizationMemberRole"
-    ];
+    private const string CanonicalUuidPattern =
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
+        "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+    private const string OrganizationSlugPattern =
+        "^[a-z0-9]+(?:-[a-z0-9]+)*$";
+
+    private static readonly IReadOnlyDictionary<string, int[]> ProblemStatusesByOperation =
+        new Dictionary<string, int[]>(StringComparer.Ordinal)
+        {
+            ["GetOrganizations"] = [400, 401, 405, 500],
+            ["CreateOrganization"] = [400, 401, 403, 405, 409, 500],
+            ["GetOrganizationByKey"] = [401, 404, 405, 500],
+            ["UpdateOrganization"] = [400, 401, 403, 404, 405, 409, 500],
+            ["DeleteOrganization"] = [400, 401, 403, 404, 405, 409, 500],
+            ["SetActiveOrganization"] = [400, 401, 404, 405, 409, 500],
+            ["GetOrganizationMembers"] = [400, 401, 404, 405, 409, 500],
+            ["AddOrganizationMember"] = [400, 401, 403, 404, 405, 409, 500],
+            ["UpdateOrganizationMemberRole"] = [400, 401, 403, 404, 405, 409, 500]
+        };
 
     public Task TransformAsync(
         OpenApiOperation operation,
@@ -27,9 +34,21 @@ internal sealed class OrganizationContractOperationTransformer
         CancellationToken cancellationToken)
     {
         if (operation.OperationId is null ||
-            !OrganizationOperationIds.Contains(operation.OperationId))
+            !ProblemStatusesByOperation.TryGetValue(
+                operation.OperationId,
+                out var problemStatuses))
         {
             return Task.CompletedTask;
+        }
+
+        ApplyExactProblemResponses(
+            operation,
+            context.Document!,
+            problemStatuses);
+        if (operation.OperationId is "CreateOrganization" or
+            "AddOrganizationMember")
+        {
+            ApplyRequiredLocationHeader(operation);
         }
 
         ApplyPathParameterContract(operation, "organizationId", uuid: true);
@@ -49,6 +68,87 @@ internal sealed class OrganizationContractOperationTransformer
 
         return Task.CompletedTask;
     }
+
+    private static void ApplyRequiredLocationHeader(OpenApiOperation operation)
+    {
+        if (operation.Responses?.TryGetValue(
+                StatusCodes.Status201Created.ToString(),
+                out var response) != true ||
+            response is not OpenApiResponse created)
+        {
+            return;
+        }
+
+        created.Headers ??=
+            new Dictionary<string, IOpenApiHeader>(StringComparer.Ordinal);
+        created.Headers["Location"] = new OpenApiHeader
+        {
+            Required = true,
+            Description = "URI reference for the created resource.",
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                Format = "uri-reference"
+            }
+        };
+    }
+
+    private static void ApplyExactProblemResponses(
+        OpenApiOperation operation,
+        OpenApiDocument document,
+        IReadOnlyCollection<int> expectedStatuses)
+    {
+        operation.Responses ??= new OpenApiResponses();
+        var expected = expectedStatuses
+            .Select(status => status.ToString())
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var status in operation.Responses.Keys
+                     .Where(status =>
+                         int.TryParse(status, out var value) &&
+                         value >= StatusCodes.Status400BadRequest &&
+                         !expected.Contains(status))
+                     .ToArray())
+        {
+            operation.Responses.Remove(status);
+        }
+
+        foreach (var status in expectedStatuses)
+        {
+            if (operation.Responses.ContainsKey(status.ToString()))
+            {
+                continue;
+            }
+
+            operation.Responses[status.ToString()] = new OpenApiResponse
+            {
+                Description = ReasonPhrase(status),
+                Content = new Dictionary<string, OpenApiMediaType>(
+                    StringComparer.Ordinal)
+                {
+                    [OpenApiDefaults.ProblemContentType] = new()
+                    {
+                        Schema = new OpenApiSchemaReference(
+                            nameof(ProblemDetails),
+                            document)
+                    }
+                }
+            };
+        }
+    }
+
+    private static string ReasonPhrase(int status) =>
+        status switch
+        {
+            StatusCodes.Status400BadRequest => "Bad Request",
+            StatusCodes.Status401Unauthorized => "Unauthorized",
+            StatusCodes.Status403Forbidden => "Forbidden",
+            StatusCodes.Status404NotFound => "Not Found",
+            StatusCodes.Status405MethodNotAllowed => "Method Not Allowed",
+            StatusCodes.Status409Conflict => "Conflict",
+            StatusCodes.Status500InternalServerError => "Internal Server Error",
+            _ => throw new InvalidOperationException(
+                $"Unsupported organization problem status {status}.")
+        };
 
     private static void ApplyPathParameterContract(
         OpenApiOperation operation,
@@ -88,12 +188,35 @@ internal sealed class OrganizationContractOperationTransformer
             return;
         }
 
-        schema.Type = JsonSchemaType.String;
-        schema.MinLength = 1;
-        schema.MaxLength = 64;
+        schema.Type = null;
+        schema.Format = null;
+        schema.MinLength = null;
+        schema.MaxLength = null;
+        schema.Pattern = null;
+        schema.OneOf =
+        [
+            new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                Format = "uuid",
+                Pattern = CanonicalUuidPattern
+            },
+            new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                MinLength = 1,
+                MaxLength = 64,
+                Pattern = OrganizationSlugPattern,
+                Not = new OpenApiSchema
+                {
+                    Type = JsonSchemaType.String,
+                    Pattern = CanonicalUuidPattern
+                }
+            }
+        ];
         schema.Description =
-            "Canonical organization UUID or lowercase slug. The response canonicalKey " +
-            "is always the preferred slug.";
+            "Canonical organization UUID or lowercase slug. UUID-shaped values are " +
+            "resolved as IDs; the response canonicalKey is always the preferred slug.";
     }
 
     private static void ApplyPaginationContract(OpenApiOperation operation)

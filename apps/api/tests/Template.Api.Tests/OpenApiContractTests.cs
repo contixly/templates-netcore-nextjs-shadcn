@@ -663,7 +663,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "GetOrganizations",
                 SuccessStatus = "200",
                 Envelope = "ApiResponseOfOrganizationPageResponse",
-                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "500" },
+                ProblemStatuses = new[] { "400", "401", "405", "500" },
                 Mutation = false,
                 BadRequestIsUnion = true
             },
@@ -674,7 +674,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "CreateOrganization",
                 SuccessStatus = "201",
                 Envelope = "ApiResponseOfOrganizationDetailResponse",
-                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                ProblemStatuses = new[] { "400", "401", "403", "405", "409", "500" },
                 Mutation = true,
                 BadRequestIsUnion = true
             },
@@ -685,7 +685,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "GetOrganizationByKey",
                 SuccessStatus = "200",
                 Envelope = "ApiResponseOfOrganizationDetailResponse",
-                ProblemStatuses = new[] { "401", "403", "404", "405", "500" },
+                ProblemStatuses = new[] { "401", "404", "405", "500" },
                 Mutation = false,
                 BadRequestIsUnion = false
             },
@@ -718,7 +718,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "SetActiveOrganization",
                 SuccessStatus = "200",
                 Envelope = "ApiResponseOfActiveOrganizationResponse",
-                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                ProblemStatuses = new[] { "400", "401", "404", "405", "409", "500" },
                 Mutation = true,
                 BadRequestIsUnion = true
             },
@@ -729,7 +729,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "GetOrganizationMembers",
                 SuccessStatus = "200",
                 Envelope = "ApiResponseOfOrganizationMemberPageResponse",
-                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "500" },
+                ProblemStatuses = new[] { "400", "401", "404", "405", "409", "500" },
                 Mutation = false,
                 BadRequestIsUnion = true
             },
@@ -806,6 +806,88 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 }
             }
         }
+    }
+
+    [Fact]
+    public async Task OrganizationMemberListPublishesItsConcurrencyConflictButNoForbiddenResponse()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var responses = AssertOperation(
+            document,
+            "/api/v1/organizations/{organizationId}/members",
+            "get",
+            "GetOrganizationMembers")["responses"]!;
+
+        Assert.NotNull(responses["409"]);
+        AssertSchemaReference(responses["409"]!, "ProblemDetails");
+        Assert.Null(responses["403"]);
+    }
+
+    [Fact]
+    public async Task OrganizationCreatedResponsesPublishRequiredLocationHeaders()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        foreach (var operation in new[]
+                 {
+                     AssertOperation(
+                         document,
+                         "/api/v1/organizations",
+                         "post",
+                         "CreateOrganization"),
+                     AssertOperation(
+                         document,
+                         "/api/v1/organizations/{organizationId}/members",
+                         "post",
+                         "AddOrganizationMember")
+                 })
+        {
+            var location = operation["responses"]!["201"]!["headers"]!["Location"]!;
+            Assert.True(location["required"]!.GetValue<bool>());
+            Assert.Equal(
+                "string",
+                location["schema"]!["type"]!.GetValue<string>());
+            Assert.Equal(
+                "uri-reference",
+                location["schema"]!["format"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
+    public async Task OrganizationKeyPublishesUuidOrCanonicalSlugAlternatives()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var operation = AssertOperation(
+            document,
+            "/api/v1/organizations/by-key/{organizationKey}",
+            "get",
+            "GetOrganizationByKey");
+        var parameter = Assert.Single(
+            operation["parameters"]!.AsArray(),
+            value => value!["name"]!.GetValue<string>() == "organizationKey");
+        var alternatives = parameter!["schema"]!["oneOf"]!.AsArray();
+        Assert.Equal(2, alternatives.Count);
+
+        var uuid = alternatives[0]!;
+        Assert.Equal("string", uuid["type"]!.GetValue<string>());
+        Assert.Equal("uuid", uuid["format"]!.GetValue<string>());
+
+        var slug = alternatives[1]!;
+        Assert.Equal("string", slug["type"]!.GetValue<string>());
+        Assert.Equal(1, slug["minLength"]!.GetValue<int>());
+        Assert.Equal(64, slug["maxLength"]!.GetValue<int>());
+        Assert.Equal(
+            "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            slug["pattern"]!.GetValue<string>());
     }
 
     [Fact]

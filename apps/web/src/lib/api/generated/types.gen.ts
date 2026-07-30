@@ -1049,14 +1049,6 @@ export type GetOrganizationsErrors = {
      */
     401: ProblemDetails;
     /**
-     * Forbidden
-     */
-    403: ProblemDetails;
-    /**
-     * Not Found
-     */
-    404: ProblemDetails;
-    /**
      * Method Not Allowed
      */
     405: ProblemDetails;
@@ -1104,10 +1096,6 @@ export type CreateOrganizationErrors = {
      */
     403: ProblemDetails;
     /**
-     * Not Found
-     */
-    404: ProblemDetails;
-    /**
      * Method Not Allowed
      */
     405: ProblemDetails;
@@ -1136,9 +1124,9 @@ export type GetOrganizationByKeyData = {
     body?: never;
     path: {
         /**
-         * Canonical organization UUID or lowercase slug. The response canonicalKey is always the preferred slug.
+         * Canonical organization UUID or lowercase slug. UUID-shaped values are resolved as IDs; the response canonicalKey is always the preferred slug.
          */
-        organizationKey: string;
+        organizationKey: string | string;
     };
     query?: never;
     url: '/api/v1/organizations/by-key/{organizationKey}';
@@ -1149,10 +1137,6 @@ export type GetOrganizationByKeyErrors = {
      * Unauthorized
      */
     401: ProblemDetails;
-    /**
-     * Forbidden
-     */
-    403: ProblemDetails;
     /**
      * Not Found
      */
@@ -1315,10 +1299,6 @@ export type SetActiveOrganizationErrors = {
      */
     401: ProblemDetails;
     /**
-     * Forbidden
-     */
-    403: ProblemDetails;
-    /**
      * Not Found
      */
     404: ProblemDetails;
@@ -1372,10 +1352,6 @@ export type GetOrganizationMembersErrors = {
      */
     401: ProblemDetails;
     /**
-     * Forbidden
-     */
-    403: ProblemDetails;
-    /**
      * Not Found
      */
     404: ProblemDetails;
@@ -1383,6 +1359,10 @@ export type GetOrganizationMembersErrors = {
      * Method Not Allowed
      */
     405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
     /**
      * Internal Server Error
      */

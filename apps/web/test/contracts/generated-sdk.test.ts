@@ -89,6 +89,30 @@ describe("generated system status SDK", () => {
     expect(updateOrganizationMemberRole).toEqual(expect.any(Function));
   });
 
+  it("generates the exact organization error unions", () => {
+    const generatedTypes = readFileSync(
+      resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
+      "utf8",
+    );
+    const expected = {
+      GetOrganizationsErrors: [400, 401, 405, 500],
+      CreateOrganizationErrors: [400, 401, 403, 405, 409, 500],
+      GetOrganizationByKeyErrors: [401, 404, 405, 500],
+      UpdateOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
+      DeleteOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
+      SetActiveOrganizationErrors: [400, 401, 404, 405, 409, 500],
+      GetOrganizationMembersErrors: [400, 401, 404, 405, 409, 500],
+      AddOrganizationMemberErrors: [400, 401, 403, 404, 405, 409, 500],
+      UpdateOrganizationMemberRoleErrors: [400, 401, 403, 404, 405, 409, 500],
+    } as const;
+
+    for (const [typeName, statuses] of Object.entries(expected)) {
+      expect(generatedErrorStatuses(generatedTypes, typeName)).toEqual(
+        statuses,
+      );
+    }
+  });
+
   it("keeps protocol callbacks and provider secrets outside the UI contract", () => {
     const contractText = readFileSync(
       resolve(process.cwd(), "../../contracts/openapi/v1.json"),
@@ -211,6 +235,16 @@ describe("generated system status SDK", () => {
 
 function schemaTypes(schema: { type: string | string[] }): string[] {
   return Array.isArray(schema.type) ? schema.type : [schema.type];
+}
+
+function generatedErrorStatuses(source: string, typeName: string): number[] {
+  const start = source.indexOf(`export type ${typeName} = {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const end = source.indexOf("\n};", start);
+  expect(end).toBeGreaterThan(start);
+  return [...source.slice(start, end).matchAll(/^[ ]+(\d{3}):/gm)].map(
+    (match) => Number(match[1]),
+  );
 }
 
 function badRequestSchema(
