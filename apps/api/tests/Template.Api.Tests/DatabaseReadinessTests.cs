@@ -83,4 +83,52 @@ public sealed class DatabaseReadinessTests(ApiWebApplicationFactory factory)
                 CancellationToken.None);
         }
     }
+
+    [Fact]
+    public async Task AuthOnlyPostgresFailsReadinessWithoutExposingSchemaDetails()
+    {
+        var database = await factory.CreateAuthOnlyDatabaseAsync(
+            TestContext.Current.CancellationToken);
+        try
+        {
+            await using var authOnly = factory.WithWebHostBuilder(builder =>
+                builder.ConfigureAppConfiguration((_, configuration) =>
+                    configuration.AddInMemoryCollection(
+                        new Dictionary<string, string?>
+                        {
+                            ["ConnectionStrings:Postgres"] =
+                                database.ConnectionString
+                        })));
+            using var client = authOnly.CreateClient(new()
+            {
+                BaseAddress = new Uri("https://localhost")
+            });
+
+            using var ready = await client.GetAsync(
+                "/api/health/ready",
+                TestContext.Current.CancellationToken);
+            using var live = await client.GetAsync(
+                "/api/health/live",
+                TestContext.Current.CancellationToken);
+            var readinessBody = await ready.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, live.StatusCode);
+            Assert.DoesNotContain(
+                "auth.users",
+                readinessBody,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(
+                "organizations.organizations",
+                readinessBody,
+                StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            await factory.DropDatabaseAsync(
+                database.DatabaseName,
+                CancellationToken.None);
+        }
+    }
 }

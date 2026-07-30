@@ -76,14 +76,14 @@ function createPlaywrightFetch(request: APIRequestContext): typeof fetch {
   };
 }
 
-function clientFor(request: APIRequestContext): Client {
+export function clientFor(request: APIRequestContext): Client {
   return createClient({
     baseUrl: webOrigin,
     fetch: createPlaywrightFetch(request),
   });
 }
 
-async function csrf(client: Client): Promise<string> {
+export async function csrf(client: Client): Promise<string> {
   const result = await getAuthCsrf({ client });
   if (!result.data) {
     throw new Error(

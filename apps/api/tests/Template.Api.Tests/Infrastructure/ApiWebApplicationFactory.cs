@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Template.Api.Endpoints;
 using Template.Infrastructure.Persistence;
 
@@ -51,6 +52,33 @@ public sealed class ApiWebApplicationFactory(
     public Task<(string DatabaseName, string ConnectionString)>
         CreateUnmigratedDatabaseAsync(CancellationToken cancellationToken) =>
         postgres.CreateDatabaseAsync(cancellationToken);
+
+    public async Task<(string DatabaseName, string ConnectionString)>
+        CreateAuthOnlyDatabaseAsync(CancellationToken cancellationToken)
+    {
+        var database = await postgres.CreateDatabaseAsync(cancellationToken);
+        try
+        {
+            await using var connection = new NpgsqlConnection(
+                database.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE SCHEMA auth;
+                CREATE TABLE auth.users (id uuid PRIMARY KEY);
+                """;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            return database;
+        }
+        catch
+        {
+            await postgres.DropDatabaseAsync(
+                database.DatabaseName,
+                CancellationToken.None);
+            throw;
+        }
+    }
 
     public Task DropDatabaseAsync(
         string databaseName,
