@@ -70,7 +70,10 @@
     "connectedNavigationFailure": "The provider connection could not be started.",
     "invalidAuthorizationUrl": "The connection destination was rejected.",
     "disconnectFailure": "The provider could not be disconnected.",
+    "disconnectRefreshFailure": "{provider} was disconnected, but connections could not be refreshed.",
     "disconnectSuccess": "{provider} disconnected.",
+    "retryRefresh": "Retry connection list refresh",
+    "refreshing": "Refreshing connection list",
     "disabledReasons": {
       "external_connection_required": "The server requires this connection to remain available.",
       "unknown": "The server does not allow this connection to be disconnected."
@@ -105,8 +108,11 @@
     "loadFailure": "Sessions could not be loaded.",
     "revokeFailure": "The session could not be revoked.",
     "revokeOthersFailure": "Other sessions could not be revoked.",
+    "revokeOthersRefreshFailure": "Other sessions were revoked, but the session list could not be refreshed.",
     "revokeSuccess": "Session revoked.",
-    "revokeOthersSuccess": "{count, plural, one {# other session revoked.} other {# other sessions revoked.}}"
+    "revokeOthersSuccess": "{count, plural, one {# other session revoked.} other {# other sessions revoked.}}",
+    "retryRefresh": "Retry session list refresh",
+    "refreshing": "Refreshing session list"
   },
   "danger": {
     "title": "Delete account",

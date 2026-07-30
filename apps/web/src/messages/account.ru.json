@@ -70,7 +70,10 @@
     "connectedNavigationFailure": "Не удалось начать подключение провайдера.",
     "invalidAuthorizationUrl": "Адрес подключения отклонён.",
     "disconnectFailure": "Не удалось отключить провайдера.",
+    "disconnectRefreshFailure": "Провайдер {provider} отключён, но не удалось обновить список подключений.",
     "disconnectSuccess": "Провайдер {provider} отключён.",
+    "retryRefresh": "Повторить обновление списка подключений",
+    "refreshing": "Обновление списка подключений",
     "disabledReasons": {
       "external_connection_required": "Сервер требует сохранить это подключение доступным.",
       "unknown": "Сервер не разрешает отключить это подключение."
@@ -105,8 +108,11 @@
     "loadFailure": "Не удалось загрузить сессии.",
     "revokeFailure": "Не удалось отозвать сессию.",
     "revokeOthersFailure": "Не удалось отозвать остальные сессии.",
+    "revokeOthersRefreshFailure": "Остальные сессии отозваны, но не удалось обновить список сессий.",
     "revokeSuccess": "Сессия отозвана.",
-    "revokeOthersSuccess": "{count, plural, one {Отозвана # другая сессия.} few {Отозвано # другие сессии.} many {Отозвано # других сессий.} other {Отозвано # других сессий.}}"
+    "revokeOthersSuccess": "{count, plural, one {Отозвана # другая сессия.} few {Отозвано # другие сессии.} many {Отозвано # других сессий.} other {Отозвано # других сессий.}}",
+    "retryRefresh": "Повторить обновление списка сессий",
+    "refreshing": "Обновление списка сессий"
   },
   "danger": {
     "title": "Удаление аккаунта",

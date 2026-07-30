@@ -23,6 +23,11 @@ type Feedback =
   | { kind: "success"; message: string }
   | null;
 
+type RevokeOthersRefreshRecovery = Readonly<{
+  revokedCount: number;
+  traceId?: string;
+}>;
+
 type UserAgentPresentation = Readonly<{
   browser: string;
   os: string;
@@ -88,6 +93,8 @@ export function SessionList({
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [revokeOthersRefreshRecovery, setRevokeOthersRefreshRecovery] =
+    useState<RevokeOthersRefreshRecovery | null>(null);
 
   async function loadMore() {
     if (!nextCursor || pendingAction) {
@@ -167,6 +174,7 @@ export function SessionList({
 
     setPendingAction("others");
     setFeedback(null);
+    setRevokeOthersRefreshRecovery(null);
     const result = await revokeOtherBrowserAccountSessions(
       createBrowserApiClient(),
     );
@@ -181,6 +189,13 @@ export function SessionList({
       return;
     }
 
+    setSessions((current) => current.filter((session) => session.isCurrent));
+    setNextCursor(null);
+    await refreshAfterRevokeOthers(result.data.revokedCount);
+  }
+
+  async function refreshAfterRevokeOthers(revokedCount: number) {
+    setPendingAction("refresh-others");
     try {
       const refreshed = await getAccountSessions({
         client: createBrowserApiClient(),
@@ -191,13 +206,9 @@ export function SessionList({
           refreshed.error,
           refreshed.response,
         );
-        setSessions((current) =>
-          current.filter((session) => session.isCurrent),
-        );
-        setNextCursor(null);
-        setFeedback({
-          kind: "failure",
-          message: t("loadFailure"),
+        setFeedback(null);
+        setRevokeOthersRefreshRecovery({
+          revokedCount,
           traceId: failureTrace(failure),
         });
         return;
@@ -205,19 +216,18 @@ export function SessionList({
 
       setSessions(refreshed.data.data.items);
       setNextCursor(refreshed.data.data.nextCursor);
+      setRevokeOthersRefreshRecovery(null);
       setFeedback({
         kind: "success",
         message: t("revokeOthersSuccess", {
-          count: result.data.revokedCount,
+          count: revokedCount,
         }),
       });
     } catch (error) {
       const failure = normalizeApiFailure(error);
-      setSessions((current) => current.filter((session) => session.isCurrent));
-      setNextCursor(null);
-      setFeedback({
-        kind: "failure",
-        message: t("loadFailure"),
+      setFeedback(null);
+      setRevokeOthersRefreshRecovery({
+        revokedCount,
         traceId: failureTrace(failure),
       });
     } finally {
@@ -261,9 +271,39 @@ export function SessionList({
         </div>
       ) : null}
 
-      {sessions.length === 0 ? (
+      {revokeOthersRefreshRecovery ? (
+        <div
+          className="flex flex-col items-start gap-2 text-sm text-destructive"
+          role="alert"
+        >
+          <p>{t("revokeOthersRefreshFailure")}</p>
+          {revokeOthersRefreshRecovery.traceId ? (
+            <p className="font-mono text-xs">
+              {revokeOthersRefreshRecovery.traceId}
+            </p>
+          ) : null}
+          <Button
+            disabled={pendingAction !== null}
+            onClick={() =>
+              void refreshAfterRevokeOthers(
+                revokeOthersRefreshRecovery.revokedCount,
+              )
+            }
+            type="button"
+            variant="outline"
+          >
+            {pendingAction === "refresh-others"
+              ? t("refreshing")
+              : t("retryRefresh")}
+          </Button>
+        </div>
+      ) : null}
+
+      {sessions.length === 0 &&
+      !revokeOthersRefreshRecovery &&
+      pendingAction !== "refresh-others" ? (
         <p className="text-sm text-muted-foreground">{t("empty")}</p>
-      ) : (
+      ) : sessions.length > 0 ? (
         <div className="grid gap-3">
           {sessions.map((session) => {
             const presentation = presentUserAgent(session.userAgent, {
@@ -349,7 +389,7 @@ export function SessionList({
             );
           })}
         </div>
-      )}
+      ) : null}
 
       {nextCursor ? (
         <Button

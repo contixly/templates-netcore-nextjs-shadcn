@@ -70,6 +70,14 @@ const startAuth = jest.mocked(startExternalAuth);
 const disconnect = jest.mocked(disconnectBrowserAccountProvider);
 const getConnections = jest.mocked(getAccountConnections);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 type LocationImplementation = {
   assign(url: string): void;
 };
@@ -313,6 +321,117 @@ it("reloads disconnect policy after removing one of two configured local-session
   expect(survivor).toHaveTextContent(
     "The server requires this connection to remain available.",
   );
+});
+
+it("preserves a successful disconnect with a conservative projection until refresh retry succeeds", async () => {
+  const google = {
+    ...initialConnections.items[0],
+    isCurrentAuthenticationMethod: false,
+    canDisconnect: true,
+    disabledReason: null,
+  };
+  const github = {
+    ...initialConnections.items[1],
+    connected: true,
+    email: "github@example.test",
+    connectedAt: "2026-07-21T10:00:00Z",
+    lastUsedAt: "2026-07-29T10:00:00Z",
+    canConnect: false,
+    canDisconnect: true,
+  };
+  const disconnectedGithub = {
+    ...github,
+    connected: false,
+    email: null,
+    connectedAt: null,
+    lastUsedAt: null,
+    isCurrentAuthenticationMethod: false,
+    canConnect: true,
+    canDisconnect: false,
+    disabledReason: null,
+  };
+  disconnect.mockResolvedValue({
+    ok: true,
+    data: { provider: "github" },
+  });
+  const firstRefresh = deferred<unknown>();
+  getConnections
+    .mockReturnValueOnce(
+      firstRefresh.promise as ReturnType<typeof getAccountConnections>,
+    )
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [
+            {
+              ...google,
+              canDisconnect: false,
+              disabledReason: "external_connection_required",
+            },
+            disconnectedGithub,
+          ],
+        },
+      },
+    } as Awaited<ReturnType<typeof getAccountConnections>>);
+  renderWithMessages(
+    <ConnectionsList initialConnections={{ items: [google, github] }} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Disconnect GitHub" }));
+
+  await waitFor(() => {
+    expect(getConnections).toHaveBeenCalledTimes(1);
+  });
+  const survivor = screen.getByRole("article", { name: "Google connection" });
+  expect(
+    within(survivor).getByRole("button", { name: "Disconnect Google" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("article", { name: "GitHub connection" }),
+  ).toHaveTextContent("Not connected");
+  expect(
+    screen.queryByRole("button", { name: "Disconnect GitHub" }),
+  ).not.toBeInTheDocument();
+
+  firstRefresh.resolve({
+    error: {
+      code: "api_unavailable",
+      traceId: "trace-connections-refresh",
+    },
+    response: { status: 503 } as Response,
+  });
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "GitHub was disconnected, but connections could not be refreshed.",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "trace-connections-refresh",
+  );
+  expect(screen.getByRole("alert")).not.toHaveTextContent(
+    "The provider could not be disconnected.",
+  );
+  expect(
+    within(survivor).getByRole("button", { name: "Disconnect Google" }),
+  ).toBeDisabled();
+  expect(survivor).toHaveTextContent(
+    "The server requires this connection to remain available.",
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Retry connection list refresh" }),
+  );
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "GitHub disconnected.",
+  );
+  expect(getConnections).toHaveBeenCalledTimes(2);
+  expect(getConnections).toHaveBeenNthCalledWith(2, {
+    client: { id: "browser-client" },
+    cache: "no-store",
+  });
+  expect(disconnect).toHaveBeenCalledTimes(1);
+  expect(
+    screen.queryByRole("button", { name: "Retry connection list refresh" }),
+  ).not.toBeInTheDocument();
 });
 
 it("renders disconnect server failures and re-enables the action", async () => {

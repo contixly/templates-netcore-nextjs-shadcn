@@ -56,6 +56,14 @@ const getSessions = jest.mocked(getAccountSessions);
 const revokeSession = jest.mocked(revokeBrowserAccountSession);
 const revokeOthers = jest.mocked(revokeOtherBrowserAccountSessions);
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -228,6 +236,89 @@ it("reloads the first page after revoke-others when the current session was on a
   ).toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Load more sessions" }),
+  ).not.toBeInTheDocument();
+});
+
+it("recovers page one after revoke-others succeeds but its refresh fails", async () => {
+  const firstPageSessions = Array.from({ length: 20 }, (_, index) => ({
+    ...otherSession,
+    id: `01900000-0000-7000-8000-${(200 + index).toString().padStart(12, "0")}`,
+  })) satisfies AccountSessionResponse[];
+  revokeOthers.mockResolvedValue({
+    ok: true,
+    data: { revokedCount: 25 },
+  });
+  const firstRefresh = deferred<unknown>();
+  getSessions
+    .mockReturnValueOnce(
+      firstRefresh.promise as ReturnType<typeof getAccountSessions>,
+    )
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [currentSession],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getAccountSessions>>);
+  renderWithMessages(
+    <SessionList
+      initialPage={{
+        items: firstPageSessions,
+        nextCursor: "cursor-current-later",
+      }}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Revoke all other sessions" }),
+  );
+
+  await waitFor(() => {
+    expect(getSessions).toHaveBeenCalledTimes(1);
+  });
+  expect(screen.queryAllByRole("article")).toHaveLength(0);
+  expect(
+    screen.queryByText("No active sessions were returned."),
+  ).not.toBeInTheDocument();
+
+  firstRefresh.resolve({
+    error: {
+      code: "api_unavailable",
+      traceId: "trace-sessions-refresh",
+    },
+    response: { status: 503 } as Response,
+  });
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Other sessions were revoked, but the session list could not be refreshed.",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("trace-sessions-refresh");
+  expect(screen.getByRole("alert")).not.toHaveTextContent(
+    "Other sessions could not be revoked.",
+  );
+  expect(revokeOthers).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Retry session list refresh" }),
+  );
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "25 other sessions revoked.",
+  );
+  expect(
+    screen.getByRole("article", {
+      name: "Chrome on macOS, Current session",
+    }),
+  ).toBeInTheDocument();
+  expect(getSessions).toHaveBeenCalledTimes(2);
+  expect(getSessions).toHaveBeenNthCalledWith(2, {
+    client: { id: "browser-client" },
+    cache: "no-store",
+  });
+  expect(revokeOthers).toHaveBeenCalledTimes(1);
+  expect(
+    screen.queryByRole("button", { name: "Retry session list refresh" }),
   ).not.toBeInTheDocument();
 });
 

@@ -193,7 +193,11 @@ visible but do not count as usable survivors. Disconnect revokes neither
 provider consent nor remote tokens because no token is stored. After a
 successful disconnect, the browser reloads and replaces the complete
 connections projection through the generated SDK so survivor-dependent
-disconnect permissions are authoritative.
+disconnect permissions are authoritative. The confirmed DELETE is never
+reported as failed merely because that reload fails: the client first applies a
+conservative disconnected projection, recomputes survivor permissions with the
+server's current-method/configured-survivor rules, and offers an explicit
+generated-SDK list-refresh retry without repeating the DELETE.
 
 Security renders only safe session fields. Browser/OS text is best-effort
 presentation derived from the bounded user-agent projection and is not an
@@ -202,7 +206,9 @@ appends and de-duplicates ids, and never decodes or constructs cursors. The
 current session has no single-revoke control; revoke-others keeps the current
 browser. After revoke-others succeeds, the browser reloads and replaces the
 fresh first page through the generated SDK, so the current session remains
-visible even when it was not in the previously loaded pages.
+visible even when it was not in the previously loaded pages. If that reload
+fails, stale revoked rows and the normal empty state stay hidden; a distinct
+partial-success state retries page one without repeating revoke-others.
 
 Danger requires the exact primary email after outer whitespace trimming.
 During the destructive request a synchronous request-identity lock prevents

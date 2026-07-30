@@ -793,6 +793,25 @@ selection, and safe encoded query/fragment OAuth return targets.
 | credential collision, private-key marker, runtime `template/.env`, ignored overlay, whitespace and immutable-reference guards | PASS; 9 local values suppressed/no collision; no marker/runtime reference; overlay ignored, `0600`, absent from output; working-tree and `251382016e0534103443822dc5ca19d505877b32` template diffs empty |
 | `dotnet format Template.sln --no-restore --verify-no-changes`                                                                 | pre-existing baseline blocker in unchanged `Template.Application.Tests/Accounts/ExternalIdentityServiceTests.cs:438`; all review-modified C# files pass the same scoped format guard                     |
 
+### PR #5 review round 1b verification 2026-07-30
+
+Partial-success recovery now distinguishes a committed account mutation from a
+failed follow-up projection reload. Disconnect retains a conservative local
+projection and recomputed survivor policy until generated-SDK retry succeeds.
+Revoke-others suppresses stale rows and the normal empty state while first-page
+recovery is pending, and retry never repeats either mutation.
+
+| Команда / проверка                                                     | Наблюдаемый результат                                                                                                          |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| deferred disconnect and revoke-others regressions                      | RED reproduced false mutation-failure copy and false session empty state; GREEN verifies conservative/pending state and retry  |
+| focused account components plus en/ru path parity                      | PASS; 26/26 tests                                                                                                              |
+| `npm run format:check`; `npm run lint`; `npm run typecheck`            | PASS                                                                                                                           |
+| `npm run boundaries:check`                                             | PASS; harness 3/3 and generated-SDK/no-raw-transport source scan                                                               |
+| `npm test -- --runInBand`                                              | PASS; Jest 34/34 suites, 169/169 tests                                                                                         |
+| clean production `npm run build` and standalone existence              | PASS; Next.js 16.2.11, 11/11 static generation units, standalone server present                                                |
+| .NET, EF and OpenAPI gates                                             | not rerun because round 1b changes only web/tests/docs; round 1 evidence above remains at 417/417 with deterministic contracts |
+| documentation Prettier, `git diff --check` and both `template/` guards | PASS                                                                                                                           |
+
 Live credentials were read only from the user-authorized ignored local JSON
 into per-provider child-process environment in memory. Inherited
 `ExternalAuthentication__*` values were scrubbed; only one complete pair ran at

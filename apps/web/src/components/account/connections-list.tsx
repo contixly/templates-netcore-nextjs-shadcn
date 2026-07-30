@@ -21,6 +21,11 @@ type Feedback =
   | { kind: "success"; message: string }
   | null;
 
+type RefreshRecovery = Readonly<{
+  provider: string;
+  traceId?: string;
+}>;
+
 function formattedDate(value: string, locale: string): string {
   const date = new Date(value);
   return Number.isNaN(date.valueOf())
@@ -49,6 +54,56 @@ function safeAuthorizationUrl(value: string): string | undefined {
   }
 }
 
+function conservativeDisconnectProjection(
+  current: AccountConnectionResponse[],
+  disconnectedProvider: AccountConnectionResponse["provider"],
+): AccountConnectionResponse[] {
+  const disconnected = current.flatMap((connection) => {
+    if (connection.provider !== disconnectedProvider) {
+      return [connection];
+    }
+
+    return connection.configured
+      ? [
+          {
+            ...connection,
+            connected: false,
+            email: null,
+            connectedAt: null,
+            lastUsedAt: null,
+            isCurrentAuthenticationMethod: false,
+            canConnect: true,
+            canDisconnect: false,
+            disabledReason: null,
+          },
+        ]
+      : [];
+  });
+
+  return disconnected.map((connection) => {
+    const configuredSurvivorCount = disconnected.filter(
+      (candidate) =>
+        candidate.provider !== connection.provider &&
+        candidate.configured &&
+        candidate.connected,
+    ).length;
+    const canDisconnect =
+      connection.connected &&
+      !connection.isCurrentAuthenticationMethod &&
+      configuredSurvivorCount > 0;
+
+    return {
+      ...connection,
+      canConnect: connection.configured && !connection.connected,
+      canDisconnect,
+      disabledReason:
+        connection.connected && !canDisconnect
+          ? "external_connection_required"
+          : null,
+    };
+  });
+}
+
 export function ConnectionsList({
   initialConnections,
 }: Readonly<{ initialConnections: AccountConnectionsResponse }>) {
@@ -59,9 +114,17 @@ export function ConnectionsList({
     AccountConnectionResponse["provider"] | null
   >(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [refreshRecovery, setRefreshRecovery] =
+    useState<RefreshRecovery | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   async function connect(connection: AccountConnectionResponse) {
-    if (pendingProvider || !connection.configured || !connection.canConnect) {
+    if (
+      pendingProvider ||
+      refreshing ||
+      !connection.configured ||
+      !connection.canConnect
+    ) {
       return;
     }
 
@@ -104,13 +167,52 @@ export function ConnectionsList({
     }
   }
 
+  async function refreshConnections(provider: string) {
+    setRefreshing(true);
+    try {
+      const refreshed = await getAccountConnections({
+        client: createBrowserApiClient(),
+        cache: "no-store",
+      });
+      if (refreshed.data === undefined) {
+        const failure = normalizeApiFailure(
+          refreshed.error,
+          refreshed.response,
+        );
+        setFeedback(null);
+        setRefreshRecovery({
+          provider,
+          traceId: failureTrace(failure),
+        });
+        return;
+      }
+
+      setConnections(refreshed.data.data.items);
+      setRefreshRecovery(null);
+      setFeedback({
+        kind: "success",
+        message: t("disconnectSuccess", { provider }),
+      });
+    } catch (error) {
+      const failure = normalizeApiFailure(error);
+      setFeedback(null);
+      setRefreshRecovery({
+        provider,
+        traceId: failureTrace(failure),
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   async function disconnect(connection: AccountConnectionResponse) {
-    if (pendingProvider || !connection.canDisconnect) {
+    if (pendingProvider || refreshing || !connection.canDisconnect) {
       return;
     }
 
     setPendingProvider(connection.provider);
     setFeedback(null);
+    setRefreshRecovery(null);
     const result = await disconnectBrowserAccountProvider(
       createBrowserApiClient(),
       connection.provider,
@@ -126,39 +228,11 @@ export function ConnectionsList({
       return;
     }
 
-    try {
-      const refreshed = await getAccountConnections({
-        client: createBrowserApiClient(),
-        cache: "no-store",
-      });
-      if (refreshed.data === undefined) {
-        const failure = normalizeApiFailure(
-          refreshed.error,
-          refreshed.response,
-        );
-        setFeedback({
-          kind: "failure",
-          message: t("disconnectFailure"),
-          traceId: failureTrace(failure),
-        });
-        return;
-      }
-
-      setConnections(refreshed.data.data.items);
-      setFeedback({
-        kind: "success",
-        message: t("disconnectSuccess", { provider: connection.displayName }),
-      });
-    } catch (error) {
-      const failure = normalizeApiFailure(error);
-      setFeedback({
-        kind: "failure",
-        message: t("disconnectFailure"),
-        traceId: failureTrace(failure),
-      });
-    } finally {
-      setPendingProvider(null);
-    }
+    setConnections((current) =>
+      conservativeDisconnectProjection(current, result.data.provider),
+    );
+    setPendingProvider(null);
+    await refreshConnections(connection.displayName);
   }
 
   return (
@@ -176,6 +250,30 @@ export function ConnectionsList({
           {feedback.kind === "failure" && feedback.traceId ? (
             <p className="font-mono text-xs">{feedback.traceId}</p>
           ) : null}
+        </div>
+      ) : null}
+
+      {refreshRecovery ? (
+        <div
+          className="flex flex-col items-start gap-2 text-sm text-destructive"
+          role="alert"
+        >
+          <p>
+            {t("disconnectRefreshFailure", {
+              provider: refreshRecovery.provider,
+            })}
+          </p>
+          {refreshRecovery.traceId ? (
+            <p className="font-mono text-xs">{refreshRecovery.traceId}</p>
+          ) : null}
+          <Button
+            disabled={refreshing}
+            onClick={() => void refreshConnections(refreshRecovery.provider)}
+            type="button"
+            variant="outline"
+          >
+            {refreshing ? t("refreshing") : t("retryRefresh")}
+          </Button>
         </div>
       ) : null}
 
@@ -249,7 +347,9 @@ export function ConnectionsList({
                       provider: connection.displayName,
                     })}
                     disabled={
-                      pendingProvider !== null || !connection.canDisconnect
+                      pendingProvider !== null ||
+                      refreshing ||
+                      !connection.canDisconnect
                     }
                     onClick={() => void disconnect(connection)}
                     type="button"
@@ -270,6 +370,7 @@ export function ConnectionsList({
                     })}
                     disabled={
                       pendingProvider !== null ||
+                      refreshing ||
                       !connection.configured ||
                       !connection.canConnect
                     }
