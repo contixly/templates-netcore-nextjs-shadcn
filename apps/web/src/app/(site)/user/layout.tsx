@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
+import { getTranslations } from "next-intl/server";
 import { Suspense, type ReactNode } from "react";
 
 import { AccountNav } from "@/src/components/account/account-nav";
@@ -46,14 +47,16 @@ export async function AuthenticatedAccountShell({
   );
 }
 
-export default function UserLayout({
+export default async function UserLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  const t = await getTranslations("account.navigation");
+
   return (
     <Suspense
       fallback={
         <p className="mx-auto w-full max-w-5xl px-4 py-12" role="status">
-          Loading account settings
+          {t("loading")}
         </p>
       }
     >

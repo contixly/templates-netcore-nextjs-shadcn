@@ -70,11 +70,12 @@ expiration. The cookie contains only a protected opaque key. PostgreSQL stores
 only its SHA-256 hash and a separately Data-Protection-protected authentication
 ticket through `ITicketStore`; the database record is the revocation source of
 truth. API challenge/forbid returns `401`/`403` and never redirects to HTML.
-Sliding renewal is suppressed only for an SSR-marked
-`GET /api/v1/auth/session`, because a Next.js Server Component cannot propagate
-the API `Set-Cookie` header to the browser. An unmarked same-origin browser
-session read uses the normal cookie handler and renews both the persisted ticket
-and browser cookie after half-life.
+Sliding renewal is suppressed for SSR-marked authenticated `GET` projections,
+because a Next.js Server Component cannot propagate the API `Set-Cookie` header
+to the browser. An unmarked same-origin browser read uses the normal cookie
+handler and renews both the persisted ticket and browser cookie after half-life.
+The session projection additionally completes that renewal before producing its
+timestamps.
 
 The implemented browser authentication surface is:
 
@@ -114,7 +115,8 @@ Next.js SSR auth read uses two isolated generated-SDK clients in parallel:
 capabilities receives only the incoming correlation ID and therefore cannot
 authenticate or slide a session, while session receives `Cookie`, correlation
 ID, and the narrow `X-Template-Session-Renewal: suppress` marker. That header
-can only prevent a renewal and is recognized only on the session-read path.
+can only prevent renewal on a safe `GET`; account Server Component loaders use
+the same marker for their cookie-bearing projections.
 The authenticated UI then performs an unmarked generated-SDK session refresh
 in the browser so any half-life `Set-Cookie` reaches the cookie jar. Every
 unsafe browser operation first obtains a request token from
@@ -206,8 +208,11 @@ no-store`, and expose only typed `{ "data": ... }` projections:
 
 The normalized verified-email value is globally unique. A new anonymous
 provider subject links to the owner of a matching primary or secondary
-verified email; otherwise it creates a user and primary email. Explicit connect
-may reuse an email already owned by the current user or add a free secondary
+verified email only while another provider login owned by that user still
+references that exact email row. A historical primary email with no current
+provider vouch returns an email conflict instead of implicitly linking. An
+otherwise free email creates a user and primary email. Explicit connect may
+reuse an email already owned by the current user or add a free secondary
 verified email, but an email owned by another user is a conflict. A newly
 connected provider may update display name and HTTPS avatar. Ordinary repeat
 sign-in for an unchanged `(provider, subject, email)` updates only the provider

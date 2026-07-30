@@ -105,6 +105,15 @@ public sealed class ExternalIdentityService(
         }
         else if (emailOwner is not null)
         {
+            var isVouched = await accounts.IsEmailVouchedAsync(
+                emailOwner.Id,
+                identity.Email.NormalizedValue,
+                cancellationToken);
+            if (!isVouched)
+            {
+                return Failed(AccountFailure.EmailConflict);
+            }
+
             user = emailOwner;
         }
         else

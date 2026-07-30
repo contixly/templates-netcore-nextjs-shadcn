@@ -25,6 +25,15 @@ public interface IExternalAccountStore
         string normalizedEmail,
         CancellationToken ct);
 
+    /// <summary>
+    /// Returns whether a provider login owned by <paramref name="userId"/>
+    /// currently references the exact verified-email row.
+    /// </summary>
+    Task<bool> IsEmailVouchedAsync(
+        UserId userId,
+        string normalizedEmail,
+        CancellationToken ct);
+
     Task<AuthUser> CreateUserAsync(
         ExternalIdentity identity,
         CancellationToken ct);

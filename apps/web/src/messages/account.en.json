@@ -4,7 +4,8 @@
     "profile": "Profile",
     "connections": "Connections",
     "security": "Security",
-    "danger": "Danger"
+    "danger": "Danger",
+    "loading": "Loading account settings"
   },
   "pages": {
     "profile": {

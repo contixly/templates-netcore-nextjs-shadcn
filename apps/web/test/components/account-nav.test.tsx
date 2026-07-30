@@ -13,6 +13,15 @@ import { renderWithMessages, withMessages } from "@/test/support/render";
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),
 }));
+jest.mock("next-intl/server", () => ({
+  getTranslations: async (namespace: string) => {
+    const messages: Record<string, string> = {
+      "account.navigation.loading": "Загрузка настроек аккаунта",
+    };
+
+    return (key: string) => messages[`${namespace}.${key}`] ?? key;
+  },
+}));
 jest.mock("next/navigation", () => ({
   redirect: jest.fn((path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -173,8 +182,12 @@ it("renders protected children only after server-confirmed authentication", asyn
   ).toBeInTheDocument();
 });
 
-it("places the async auth gate below a suspense boundary", () => {
-  const layout = UserLayout({ children: <p>Protected account</p> });
+it("places the async auth gate below a localized suspense boundary", async () => {
+  const layout = await UserLayout({ children: <p>Protected account</p> });
 
   expect(layout.type).toBe(Symbol.for("react.suspense"));
+  renderWithMessages(layout.props.fallback);
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Загрузка настроек аккаунта",
+  );
 });

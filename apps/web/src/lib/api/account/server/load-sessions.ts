@@ -25,6 +25,9 @@ export async function loadSessions(
     const result = await getAccountSessions({
       client: client.client,
       cache: "no-store",
+      headers: {
+        "X-Template-Session-Renewal": "suppress",
+      },
       query,
     });
     return result.data !== undefined

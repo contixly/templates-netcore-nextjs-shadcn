@@ -650,16 +650,16 @@ hosts Google, GitHub и GitLab, не открыл его для Yandex в огр
 
 ### Реализованный contract и architecture
 
-| Область            | Реализованное решение                                                                                                                                                                                                                         |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| HTTP ownership     | ASP.NET Core остаётся единственным владельцем `/api/**`; Next.js использует generated REST SDK и не содержит Route Handlers, Server Actions, Prisma, Better Auth или direct database access                                                   |
-| Browser auth       | только `__Host-template.session` secure HttpOnly same-origin cookie; no Bearer/browser token storage; все unsafe browser mutations и external challenge требуют fresh CSRF                                                                    |
-| External start     | `POST /api/v1/auth/external/{provider}/challenge`; `signIn` только anonymous, `connect` только current session; unsafe path encodings fail closed while encoded query/fragment data survives; Production Google uses `prompt=select_account`  |
-| Protocol callbacks | Google `/api/auth/callback/google`; GitHub `/api/auth/callback/github`; GitLab `/api/auth/callback/gitlab`; VK `/api/auth/callback/vk`; Yandex `/api/auth/oauth2/callback/yandex`; GET/POST, unversioned, excluded from OpenAPI/generated SDK |
-| Account REST       | `GET /account`, `PATCH /account/profile`, `GET/DELETE /account/connections`, `GET /account/sessions`, revoke one/others и `DELETE /account`, все под `/api/v1` и `Cache-Control: no-store`                                                    |
-| Account UI         | `/user` → `/user/profile`; ровно Profile, Connections, Security, Danger; `/auth/error` отображает только allow-listed stable codes                                                                                                            |
-| Persistence        | global unique verified-email ownership, one primary/user, one provider/user, stable provider-subject ownership, relational session authentication method, OpenIddict client-state rows, PostgreSQL Data Protection keys                       |
-| Layering           | Domain не зависит от HTTP/Infrastructure; Application владеет use cases/ports; Infrastructure реализует Identity/EF/OpenIddict; API валидирует/авторизует на boundary                                                                         |
+| Область            | Реализованное решение                                                                                                                                                                                                                                                               |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP ownership     | ASP.NET Core остаётся единственным владельцем `/api/**`; Next.js использует generated REST SDK и не содержит Route Handlers, Server Actions, Prisma, Better Auth или direct database access                                                                                         |
+| Browser auth       | только `__Host-template.session` secure HttpOnly same-origin cookie; no Bearer/browser token storage; все unsafe browser mutations и external challenge требуют fresh CSRF                                                                                                          |
+| External start     | `POST /api/v1/auth/external/{provider}/challenge`; `signIn` только anonymous, `connect` только current session; unsafe path encodings fail closed while encoded query/fragment data survives; Production Google uses `prompt=select_account`                                        |
+| Protocol callbacks | Google `/api/auth/callback/google`; GitHub `/api/auth/callback/github`; GitLab `/api/auth/callback/gitlab`; VK `/api/auth/callback/vk`; Yandex `/api/auth/oauth2/callback/yandex`; GET/POST, unversioned, excluded from OpenAPI/generated SDK                                       |
+| Account REST       | `GET /account`, `PATCH /account/profile`, `GET/DELETE /account/connections`, `GET /account/sessions`, revoke one/others и `DELETE /account`, все под `/api/v1` и `Cache-Control: no-store`                                                                                          |
+| Account UI         | `/user` → `/user/profile`; ровно Profile, Connections, Security, Danger; `/auth/error` отображает только allow-listed stable codes                                                                                                                                                  |
+| Persistence        | global unique verified-email ownership, one primary/user, one provider/user, stable provider-subject ownership, anonymous implicit link only for a currently vouched email, relational session authentication method, OpenIddict client-state rows, PostgreSQL Data Protection keys |
+| Layering           | Domain не зависит от HTTP/Infrastructure; Application владеет use cases/ports; Infrastructure реализует Identity/EF/OpenIddict; API валидирует/авторизует на boundary                                                                                                               |
 
 Provider email mapping:
 
@@ -672,10 +672,13 @@ Provider email mapping:
 | Yandex   | string `id`           | `default_email` считается provider-confirmed по согласованной mapping   |
 
 Anonymous sign-in с новым subject не создаёт duplicate user, если primary или
-secondary normalized verified email уже принадлежит существующему user.
-Explicit connect может переиспользовать email текущего user или создать
-свободный secondary email; чужой owner даёт conflict. Новая connection может
-обновить display name/HTTPS avatar.
+secondary normalized verified email уже принадлежит существующему user и хотя
+бы один его remaining provider login всё ещё ссылается на этот exact email row.
+Исторический primary email без текущего provider vouch не используется для
+anonymous implicit linking и даёт email conflict. Explicit connect по-прежнему
+может переиспользовать email текущего user или создать свободный secondary
+email; чужой owner даёт conflict. Новая connection может обновить display
+name/HTTPS avatar.
 
 Для известного `(provider, subject)` changed email другого user даёт conflict
 без перемещения login. Email того же user переиспользуется, а свободный
@@ -811,6 +814,30 @@ recovery is pending, and retry never repeats either mutation.
 | clean production `npm run build` and standalone existence              | PASS; Next.js 16.2.11, 11/11 static generation units, standalone server present                                                |
 | .NET, EF and OpenAPI gates                                             | not rerun because round 1b changes only web/tests/docs; round 1 evidence above remains at 417/417 with deterministic contracts |
 | documentation Prettier, `git diff --check` and both `template/` guards | PASS                                                                                                                           |
+
+### PR #5 review round 2 verification 2026-07-30
+
+Anonymous implicit linking now requires another login owned by the matched user
+to reference the exact verified-email row. A retained historical primary email
+without a current provider vouch returns the existing safe email-conflict
+result; authenticated connect still reuses an email already owned by the
+current user. Cookie-bearing account Server Component reads mark all three
+account projections as non-renewing, so an internal API `Set-Cookie` cannot
+silently extend only the PostgreSQL ticket. Unmarked browser GET requests keep
+normal sliding expiration. The account-shell Suspense fallback is sourced from
+the fixed en/ru message catalogue.
+
+| Команда / проверка                                                               | Наблюдаемый результат                                                                                                                            |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| stale-primary implicit-link regression                                           | RED linked a new anonymous subject through an unvouched historical primary; GREEN returns `external_email_conflict` without login/profile writes |
+| marked account SSR renewal regressions                                           | RED emitted renewal cookies for profile, connections and sessions GET; GREEN preserves persisted timestamps and emits no session cookie          |
+| account-shell locale regression                                                  | RED rendered English under the Russian catalogue; GREEN renders the localized fallback                                                           |
+| `dotnet restore Template.sln`; `dotnet build Template.sln --no-restore`          | PASS; restore current; build has 0 warnings and 0 errors                                                                                         |
+| `dotnet test Template.sln --no-restore`                                          | PASS; Application 101/101 and API 320/320                                                                                                        |
+| `dotnet format Template.sln --no-restore --verify-no-changes`                    | PASS                                                                                                                                             |
+| generated SDK check; Prettier; lint; typecheck; boundaries; full Jest            | PASS; deterministic SDK, harness 3/3, Jest 34/34 suites and 169/169 tests                                                                        |
+| clean production `npm run build`; standalone check; deterministic Playwright E2E | PASS; Next.js 16.2.11 generated 11/11 units; standalone server present; Playwright 9 passed and 5 opt-in live-provider checks skipped            |
+| `git diff --check` and both immutable `template/` guards                         | PASS                                                                                                                                             |
 
 Live credentials were read only from the user-authorized ignored local JSON
 into per-provider child-process environment in memory. Inherited

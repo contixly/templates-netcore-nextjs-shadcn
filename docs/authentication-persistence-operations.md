@@ -198,7 +198,9 @@ dashboard follows with an unmarked same-origin generated-SDK session read, so
 normal half-life sliding renewal updates both PostgreSQL and the browser's
 secure HttpOnly cookie before the endpoint projects `updatedAt` and `expiresAt`.
 The response therefore describes the renewed server-side session rather than
-the pre-renewal row.
+the pre-renewal row. Cookie-bearing account Server Component reads send the same
+suppression marker; unmarked browser `GET` requests keep normal sliding
+expiration.
 
 When a valid opaque cookie references a missing, expired, corrupt, or mismatched
 server-side ticket, authentication remains anonymous and the same response
@@ -226,8 +228,11 @@ External identity reconciliation performs stable `(provider, subject)` lookup
 before email ownership lookup and runs one unit-of-work transaction per attempt.
 A classified PostgreSQL uniqueness race receives exactly one retry with fresh
 reads. New anonymous identities implicitly link to the owner of a matching
-primary or secondary verified email; explicit connect can add a free secondary
-email but cannot claim another user's email.
+primary or secondary verified email only when another login owned by that user
+still references the same email row. A retained historical primary email with
+no current provider vouch fails with an email conflict. Explicit connect can
+reuse the current user's existing email or add a free secondary email, but
+cannot claim another user's email.
 
 When a known `(provider, subject)` returns a changed email, reconciliation first
 checks normalized ownership. Another user's email produces a conflict without

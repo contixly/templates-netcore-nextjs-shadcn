@@ -364,6 +364,10 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         Assert.Equal(created.Id, foundByEmail?.Id);
         Assert.Equal(Now.AddMinutes(1), login?.ConnectedAt);
         Assert.Null(login?.LastUsedAt);
+        Assert.True(await store.IsEmailVouchedAsync(
+            created.Id,
+            primaryIdentity.Email.NormalizedValue,
+            TestContext.Current.CancellationToken));
 
         var refreshedIdentity = Identity(
             ExternalProvider.Google,
@@ -401,6 +405,14 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             TestContext.Current.CancellationToken);
         Assert.Equal("NEW-OWNER@EXAMPLE.TEST", login?.Email.NormalizedValue);
         Assert.Null(login?.LastUsedAt);
+        Assert.False(await store.IsEmailVouchedAsync(
+            created.Id,
+            primaryIdentity.Email.NormalizedValue,
+            TestContext.Current.CancellationToken));
+        Assert.True(await store.IsEmailVouchedAsync(
+            created.Id,
+            refreshedIdentity.Email.NormalizedValue,
+            TestContext.Current.CancellationToken));
         Assert.False(await db.UserEmails.AnyAsync(
             row => row.NormalizedEmail == "OWNER@EXAMPLE.TEST" && !row.IsPrimary,
             TestContext.Current.CancellationToken));
@@ -1429,6 +1441,12 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             string normalizedEmail,
             CancellationToken ct) =>
             inner.FindUserByEmailAsync(normalizedEmail, ct);
+
+        public Task<bool> IsEmailVouchedAsync(
+            UserId userId,
+            string normalizedEmail,
+            CancellationToken ct) =>
+            inner.IsEmailVouchedAsync(userId, normalizedEmail, ct);
 
         public Task<AuthUser> CreateUserAsync(
             ExternalIdentity identity,

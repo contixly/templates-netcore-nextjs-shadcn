@@ -39,7 +39,12 @@ public sealed class BrowserSessionSlidingExpirationTests(
             });
         using var created = await LocalAuthTestClient.CreateScenarioAsync(client);
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
-        var original = await ReadOnlySessionAsync(timeControlled);
+        var scenario = await created.Content
+            .ReadFromJsonAsync<LocalAuthTestClient.ScenarioEnvelope>(
+                TestContext.Current.CancellationToken);
+        var original = await ReadOnlySessionAsync(
+            timeControlled,
+            scenario!.Data.User.Id);
 
         _time.Advance(TimeSpan.FromDays(4));
         using var ssrRequest = new HttpRequestMessage(
@@ -49,7 +54,9 @@ public sealed class BrowserSessionSlidingExpirationTests(
         using var ssrResponse = await client.SendAsync(
             ssrRequest,
             TestContext.Current.CancellationToken);
-        var afterSsr = await ReadOnlySessionAsync(timeControlled);
+        var afterSsr = await ReadOnlySessionAsync(
+            timeControlled,
+            scenario.Data.User.Id);
 
         Assert.Equal(HttpStatusCode.OK, ssrResponse.StatusCode);
         Assert.False(HasSessionSetCookie(ssrResponse));
@@ -62,7 +69,9 @@ public sealed class BrowserSessionSlidingExpirationTests(
         var browserState = await browserResponse.Content
             .ReadFromJsonAsync<AuthEndpointTests.SessionEnvelope>(
                 TestContext.Current.CancellationToken);
-        var afterBrowser = await ReadOnlySessionAsync(timeControlled);
+        var afterBrowser = await ReadOnlySessionAsync(
+            timeControlled,
+            scenario.Data.User.Id);
 
         Assert.Equal(HttpStatusCode.OK, browserResponse.StatusCode);
         Assert.True(HasSessionSetCookie(browserResponse));
@@ -78,15 +87,65 @@ public sealed class BrowserSessionSlidingExpirationTests(
             browserState.Data.Session.ExpiresAt);
     }
 
+    [Theory]
+    [InlineData("/api/v1/account")]
+    [InlineData("/api/v1/account/connections")]
+    [InlineData("/api/v1/account/sessions")]
+    public async Task MarkedAccountSsrReadsDoNotRenewAnInvisibleCookie(
+        string requestPath)
+    {
+        await using var timeControlled = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<TimeProvider>(_time);
+                services.PostConfigureAll<CookieAuthenticationOptions>(options =>
+                    options.TimeProvider = _time);
+            }));
+        using var client = timeControlled.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        using var created = await LocalAuthTestClient.CreateScenarioAsync(client);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var scenario = await created.Content
+            .ReadFromJsonAsync<LocalAuthTestClient.ScenarioEnvelope>(
+                TestContext.Current.CancellationToken);
+        var original = await ReadOnlySessionAsync(
+            timeControlled,
+            scenario!.Data.User.Id);
+
+        _time.Advance(TimeSpan.FromDays(4));
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestPath);
+        request.Headers.Add("X-Template-Session-Renewal", "suppress");
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+        var afterSsr = await ReadOnlySessionAsync(
+            timeControlled,
+            scenario.Data.User.Id);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(HasSessionSetCookie(response));
+        Assert.Equal(original.UpdatedAt, afterSsr.UpdatedAt);
+        Assert.Equal(original.ExpiresAt, afterSsr.ExpiresAt);
+    }
+
     private static async Task<AuthSessionEntity> ReadOnlySessionAsync(
-        WebApplicationFactory<Program> application)
+        WebApplicationFactory<Program> application,
+        Guid userId)
     {
         await using var scope = application.Services.CreateAsyncScope();
         return await scope.ServiceProvider
             .GetRequiredService<AuthDbContext>()
             .Sessions
             .AsNoTracking()
-            .SingleAsync(TestContext.Current.CancellationToken);
+            .SingleAsync(
+                row => row.UserId == userId,
+                TestContext.Current.CancellationToken);
     }
 
     private static bool HasSessionSetCookie(HttpResponseMessage response) =>

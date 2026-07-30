@@ -41,6 +41,12 @@ public sealed class ExternalIdentityServiceTests
     {
         var fixture = new Fixture();
         var owner = fixture.Store.AddUser(Email(), primary: true);
+        fixture.Store.AddLogin(
+            owner,
+            Identity(
+                provider: ExternalProvider.GitHub,
+                subject: "existing-github-subject"),
+            Now.AddDays(-2));
 
         var result = await fixture.Subject.ReconcileAsync(
             Identity(),
@@ -58,10 +64,41 @@ public sealed class ExternalIdentityServiceTests
     }
 
     [Fact]
+    public async Task AnonymousNewSubjectRejectsHistoricalUnvouchedPrimaryEmail()
+    {
+        var fixture = new Fixture();
+        var owner = fixture.Store.AddUser(Email(), primary: true);
+        fixture.Store.AddLogin(
+            owner,
+            Identity(
+                email: VerifiedEmail.Create("current@example.test"),
+                provider: ExternalProvider.GitHub,
+                subject: "current-github-subject"),
+            Now.AddDays(-2));
+
+        var result = await fixture.Subject.ReconcileAsync(
+            Identity(subject: "new-provider-subject"),
+            ExternalAuthIntent.SignIn,
+            null,
+            Ct);
+
+        Assert.Null(result.Value);
+        Assert.Equal(AccountFailure.EmailConflict, result.Failure);
+        Assert.Empty(fixture.Store.AddedLogins);
+        Assert.Empty(fixture.Store.ProfileUpdates);
+    }
+
+    [Fact]
     public async Task AnonymousVerifiedSecondaryEmailImplicitlyLinksItsOwner()
     {
         var fixture = new Fixture();
         var owner = fixture.Store.AddUser(Email(), primary: false);
+        fixture.Store.AddLogin(
+            owner,
+            Identity(
+                provider: ExternalProvider.GitHub,
+                subject: "existing-github-subject"),
+            Now.AddDays(-2));
 
         var result = await fixture.Subject.ReconcileAsync(
             Identity(),
@@ -344,6 +381,12 @@ public sealed class ExternalIdentityServiceTests
     {
         var fixture = new Fixture();
         var owner = fixture.Store.AddUser(Email(), primary: true);
+        fixture.Store.AddLogin(
+            owner,
+            Identity(
+                provider: ExternalProvider.GitHub,
+                subject: "existing-github-subject"),
+            Now.AddDays(-2));
 
         await fixture.Subject.ReconcileAsync(
             Identity(),
@@ -370,9 +413,10 @@ public sealed class ExternalIdentityServiceTests
 
     private static ExternalIdentity Identity(
         VerifiedEmail? email = null,
-        string subject = "provider-subject") =>
+        string subject = "provider-subject",
+        ExternalProvider? provider = null) =>
         new(
-            ExternalProvider.Google,
+            provider ?? ExternalProvider.Google,
             subject,
             email ?? Email(),
             "Provider Name",
@@ -435,7 +479,8 @@ public sealed class ExternalIdentityServiceTests
         public List<ExternalIdentity> CreatedIdentities { get; } = [];
         public List<(UserId UserId, VerifiedEmail Email, bool Primary)> EnsuredEmails { get; } = [];
         public List<(UserId UserId, ExternalIdentity Identity, DateTimeOffset ConnectedAt, bool UsedForSignIn)>
-            AddedLogins { get; } = [];
+            AddedLogins
+        { get; } = [];
         public List<(UserId UserId, ExternalIdentity Identity, DateTimeOffset? UsedAt)> UpdatedLogins { get; } = [];
         public List<(UserId UserId, string? DisplayName, Uri? ImageUrl)> ProfileUpdates { get; } = [];
         public Queue<Exception> CreateFailures { get; } = [];
@@ -490,6 +535,17 @@ public sealed class ExternalIdentityServiceTests
                 usersByEmail.TryGetValue(normalizedEmail, out var entry)
                     ? entry.User
                     : null);
+        }
+
+        public Task<bool> IsEmailVouchedAsync(
+            UserId userId,
+            string normalizedEmail,
+            CancellationToken ct)
+        {
+            Operations.Add("is-email-vouched");
+            return Task.FromResult(logins.Values.Any(login =>
+                login.UserId == userId &&
+                login.Email.NormalizedValue == normalizedEmail));
         }
 
         public Task<AuthUser> CreateUserAsync(

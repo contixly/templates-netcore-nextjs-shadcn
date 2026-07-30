@@ -114,14 +114,23 @@ it("loads account projections with request-bound headers and no-store generated 
   expect(mockedGetAccount).toHaveBeenCalledWith({
     client,
     cache: "no-store",
+    headers: {
+      "X-Template-Session-Renewal": "suppress",
+    },
   });
   expect(mockedGetConnections).toHaveBeenCalledWith({
     client,
     cache: "no-store",
+    headers: {
+      "X-Template-Session-Renewal": "suppress",
+    },
   });
   expect(mockedGetSessions).toHaveBeenCalledWith({
     client,
     cache: "no-store",
+    headers: {
+      "X-Template-Session-Renewal": "suppress",
+    },
     query: { cursor: "opaque-cursor", limit: 10 },
   });
 });

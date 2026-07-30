@@ -12,7 +12,7 @@ internal static class BrowserSessionRenewal
     private static readonly object SynchronousRenewalKey = new();
 
     internal static bool IsSuppressed(HttpContext context) =>
-        IsSessionRead(context) &&
+        HttpMethods.IsGet(context.Request.Method) &&
         string.Equals(
             context.Request.Headers[SuppressionHeaderName].ToString(),
             SuppressionHeaderValue,
@@ -21,14 +21,14 @@ internal static class BrowserSessionRenewal
     internal static void HandleSlidingExpiration(
         CookieSlidingExpirationContext context)
     {
-        if (!IsSessionRead(context.HttpContext))
-        {
-            return;
-        }
-
         if (IsSuppressed(context.HttpContext))
         {
             context.ShouldRenew = false;
+            return;
+        }
+
+        if (!IsSessionRead(context.HttpContext))
+        {
             return;
         }
 

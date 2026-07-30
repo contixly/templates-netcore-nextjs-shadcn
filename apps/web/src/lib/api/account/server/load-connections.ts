@@ -16,6 +16,9 @@ export async function loadConnections(): Promise<AccountConnectionsResult> {
     const result = await getAccountConnections({
       client: client.client,
       cache: "no-store",
+      headers: {
+        "X-Template-Session-Renewal": "suppress",
+      },
     });
     return result.data !== undefined
       ? { ok: true, data: result.data.data }

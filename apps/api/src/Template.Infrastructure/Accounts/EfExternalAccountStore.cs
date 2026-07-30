@@ -61,6 +61,20 @@ internal sealed class EfExternalAccountStore(
         return user is null ? null : Map(user);
     }
 
+    public Task<bool> IsEmailVouchedAsync(
+        UserId userId,
+        string normalizedEmail,
+        CancellationToken ct) =>
+        (
+            from login in db.UserLogins.AsNoTracking()
+            join email in db.UserEmails.AsNoTracking()
+                on login.VerifiedEmailId equals email.Id
+            where login.UserId == userId.Value
+                && email.UserId == userId.Value
+                && email.NormalizedEmail == normalizedEmail
+            select login)
+        .AnyAsync(ct);
+
     public async Task<AuthUser> CreateUserAsync(
         ExternalIdentity identity,
         CancellationToken ct)

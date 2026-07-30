@@ -100,12 +100,12 @@ explicit anonymous session causes navigation between login and dashboard,
 while network/configuration/Problem Details failures render the safe
 API-failure state rather than being treated as anonymous.
 
-Server-rendered session reads add
+Server-rendered cookie-bearing session and account projection reads add
 `X-Template-Session-Renewal: suppress` through the generated SDK. ASP.NET Core
 still authenticates and projects the request, but it does not slide the
 persistent ticket or emit an unusable renewal cookie during Server Component
-rendering. This marker grants no access and is not forwarded to other API
-operations.
+rendering. This marker grants no access, affects only safe `GET` requests, and
+is added explicitly only by the relevant server adapters.
 
 ## Authentication UI and mutations
 
@@ -163,7 +163,9 @@ The protected `/user` shell is request-time server rendered below
 id to isolated generated clients. Only an explicit anonymous projection
 redirects to `/auth/login?redirect=%2Fuser%2Fprofile`; API, network,
 configuration, or malformed-projection failures render a safe failure state
-instead of being treated as anonymous. `/user` redirects to `/user/profile`.
+instead of being treated as anonymous. Its Suspense fallback comes from the
+fixed deployment-locale message catalogue. `/user` redirects to
+`/user/profile`.
 
 Iteration 4 owns exactly four navigation destinations:
 
