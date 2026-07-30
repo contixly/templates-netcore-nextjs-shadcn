@@ -6,6 +6,7 @@ public sealed class AuthSessionEntity
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
+    public Guid? ActiveOrganizationId { get; set; }
     public required byte[] TicketKeyHash { get; set; }
     public required byte[] ProtectedTicket { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
