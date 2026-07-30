@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
+import { waitForAppHydration } from "./support/app-readiness";
 import {
   cleanupLocalAutomationUser,
   createLocalAutomationUser,
@@ -12,6 +13,7 @@ async function createLocalAccount(
   page: Page,
 ): Promise<ApiResponseOfLocalAutomationScenarioResponse["data"]> {
   await page.goto("/auth/login");
+  await waitForAppHydration(page);
   const scenarioResponse = page.waitForResponse((response) => {
     const request = response.request();
     return (
@@ -36,6 +38,7 @@ test("account root redirects to a persisted profile update", async ({
 
   try {
     await page.goto("/user");
+    await waitForAppHydration(page);
     await expect(page).toHaveURL(/\/user\/profile$/);
     await expect(
       page.getByRole("heading", { name: "Profile settings" }),
@@ -58,6 +61,7 @@ test("configured external providers are available in login and account states", 
   page,
 }) => {
   await page.goto("/auth/login");
+  await waitForAppHydration(page);
 
   for (const provider of ["Google", "GitHub", "GitLab", "VK", "Yandex"]) {
     await expect(
@@ -68,6 +72,7 @@ test("configured external providers are available in login and account states", 
   await createLocalAccount(page);
   try {
     await page.goto("/user/connections");
+    await waitForAppHydration(page);
 
     for (const provider of ["Google", "GitHub", "GitLab", "VK", "Yandex"]) {
       const connection = page.getByRole("article", {
@@ -96,6 +101,7 @@ test("account deletion rejects a mismatched confirmation and does not reuse the 
     expect(oldAccount.id).toBe(scenario.user.id);
 
     await page.goto("/user/danger");
+    await waitForAppHydration(page);
     await page.getByRole("button", { name: "Delete account" }).click();
 
     const confirmation = page.getByRole("textbox", {

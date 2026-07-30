@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { waitForAppHydration } from "./support/app-readiness";
+
 const webOrigin = "http://127.0.0.1:3127";
 const browserStatusPath = "/api/v1/system/status";
 
@@ -25,6 +27,7 @@ test("SSR and browser use the API through their supported paths", async ({
   });
 
   await page.goto("/");
+  await waitForAppHydration(page);
 
   const request = await browserRequest;
   expect(new URL(request.url()).origin).toBe(webOrigin);
@@ -74,6 +77,7 @@ test("browser Problem Details is safe and retry restores success", async ({
   });
 
   await page.goto("/");
+  await waitForAppHydration(page);
 
   const browserRegion = page.getByTestId("status-browser");
   await expect(browserRegion).toContainText(
@@ -92,6 +96,7 @@ test("browser Problem Details is safe and retry restores success", async ({
 
 test("theme toggle is keyboard accessible", async ({ page }) => {
   await page.goto("/");
+  await waitForAppHydration(page);
 
   const toggle = page.getByRole("button", { name: "Switch to dark theme" });
   await expect(toggle).toBeEnabled();

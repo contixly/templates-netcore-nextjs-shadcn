@@ -1,48 +1,43 @@
-import {
-  expect,
-  test,
-  type APIRequestContext,
-  type BrowserContext,
-} from "@playwright/test";
+import type { Page } from "@playwright/test";
 
-import type { LocalAutomationScenarioResponse } from "@/src/lib/api/generated";
+import { waitForAppHydration } from "./support/app-readiness";
 import {
-  cleanupLocalAutomationUser,
-  createLocalAutomationUser,
-} from "./support/generated-auth-api";
-import {
-  createGeneratedOrganization,
-  deleteGeneratedOrganization,
   getGeneratedOrganizations,
   setGeneratedOrganizationAllowedEmailDomains,
 } from "./support/generated-organizations-api";
+import {
+  expect,
+  test,
+  type OrganizationTestIdentity,
+} from "./support/organization-test-fixture";
 
 const localPassword = "E2E-Organization-Owner-123!";
 
-function deletedOrganizationCount(value: number | string): number {
-  return Number(value);
-}
+const onboardingOwner: OrganizationTestIdentity = {
+  name: "E2E Organization Owner",
+  email: "local-agent+organization-onboarding-owner@local-agent.test",
+  password: localPassword,
+};
 
-async function createIsolatedLocalUser(
-  context: BrowserContext,
-  identity: Readonly<{ email: string; name: string }>,
-): Promise<LocalAutomationScenarioResponse> {
-  return createLocalAutomationUser(context.request, {
-    ...identity,
-    password: localPassword,
-  });
-}
+const membershipOwner: OrganizationTestIdentity = {
+  name: "E2E Membership Owner",
+  email: "local-agent+organization-membership-owner@local-agent.test",
+  password: localPassword,
+};
 
-async function expectCleanupCount(
-  request: APIRequestContext,
-  expected: number,
-) {
-  const cleanup = await cleanupLocalAutomationUser(request);
-  expect(deletedOrganizationCount(cleanup.deletedOrganizations)).toBe(expected);
-}
+const membershipMember: OrganizationTestIdentity = {
+  name: "E2E Organization Member",
+  email: "local-agent+organization-membership-member@local-agent.test",
+  password: localPassword,
+};
 
-async function expectNoFutureOrganizationLinks(context: BrowserContext) {
-  const page = context.pages()[0];
+const slugOwner: OrganizationTestIdentity = {
+  name: "E2E Slug Owner",
+  email: "local-agent+organization-slug-owner@local-agent.test",
+  password: localPassword,
+};
+
+async function expectNoFutureOrganizationLinks(page: Page) {
   for (const futureSurface of [/invitations?/i, /teams?/i, /api keys?/i]) {
     await expect(page.getByRole("link", { name: futureSurface })).toHaveCount(
       0,
@@ -50,230 +45,213 @@ async function expectNoFutureOrganizationLinks(context: BrowserContext) {
   }
 }
 
+function isOrganizationCreateResponse(url: string, method: string) {
+  return method === "POST" && new URL(url).pathname === "/api/v1/organizations";
+}
+
 test.describe.serial("organization full-stack workflows", () => {
-  test("zero organization onboarding and first workspace", async ({ page }) => {
-    let localUserCreated = false;
-    let expectedCleanupOrganizations = 0;
+  test("zero organization onboarding and first workspace", async ({
+    organizationScenario,
+    page,
+  }) => {
+    await organizationScenario.preflightLocalUsers([onboardingOwner]);
+    const owner = await organizationScenario.createLocalUser(
+      page.context(),
+      onboardingOwner,
+      "onboarding owner",
+    );
 
-    try {
-      await createIsolatedLocalUser(page.context(), {
-        name: "E2E Organization Owner",
-        email: "local-agent+organization-onboarding-owner@local-agent.test",
-      });
-      localUserCreated = true;
-      await page.goto("/dashboard");
-      await expect(page).toHaveURL("/welcome");
-      await expect(
-        page.getByRole("heading", { name: "Create your first workspace" }),
-      ).toBeVisible();
-      await page.getByRole("button", { name: "Create Workspace" }).click();
-      await page.getByLabel("Workspace Name").fill("E2E Organization");
-      await page.getByRole("button", { name: "Create", exact: true }).click();
-      await expect(page).toHaveURL("/w/e2e-organization/dashboard");
-      expectedCleanupOrganizations = 1;
+    await page.goto("/dashboard");
+    await waitForAppHydration(page);
+    await expect(page).toHaveURL("/welcome");
+    await expect(
+      page.getByRole("heading", { name: "Create your first workspace" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Create Workspace" }).click();
+    await page.getByLabel("Workspace Name").fill("E2E Organization");
 
-      const organizations = await getGeneratedOrganizations(
-        page.context().request,
-      );
-      expect(organizations.items).toHaveLength(1);
-      expect(organizations.items[0]).toMatchObject({
-        name: "E2E Organization",
-        slug: "e2e-organization",
-        canonicalKey: "e2e-organization",
-      });
+    const persistedOrganization = page.waitForResponse((response) => {
+      const request = response.request();
+      return isOrganizationCreateResponse(response.url(), request.method());
+    });
+    await page.getByRole("button", { name: "Create", exact: true }).click();
+    const createResponse = await persistedOrganization;
+    expect(createResponse.status()).toBe(201);
+    organizationScenario.organizationCreated(owner);
 
-      await page.goto(`/w/${organizations.items[0].id}`);
-      await expect(page).toHaveURL("/w/e2e-organization/dashboard");
+    await expect(page).toHaveURL("/w/e2e-organization/dashboard");
 
-      await page.goto("/w/e2e-organization/settings/workspace");
-      await expect(
-        page.getByRole("navigation", { name: "Workspace settings" }),
-      ).toBeVisible();
-      await expectNoFutureOrganizationLinks(page.context());
-    } finally {
-      if (localUserCreated) {
-        await expectCleanupCount(
-          page.context().request,
-          expectedCleanupOrganizations,
-        );
-      }
-    }
+    const organizations = await getGeneratedOrganizations(
+      page.context().request,
+    );
+    expect(organizations.items).toHaveLength(1);
+    expect(organizations.items[0]).toMatchObject({
+      name: "E2E Organization",
+      slug: "e2e-organization",
+      canonicalKey: "e2e-organization",
+    });
+
+    await page.goto(`/w/${organizations.items[0].id}`);
+    await waitForAppHydration(page);
+    await expect(page).toHaveURL("/w/e2e-organization/dashboard");
+
+    await page.goto("/w/e2e-organization/settings/workspace");
+    await waitForAppHydration(page);
+    await expect(
+      page.getByRole("navigation", { name: "Workspace settings" }),
+    ).toBeVisible();
+    await expectNoFutureOrganizationLinks(page);
   });
 
   test("owner adds an outside-domain member and member settings stay read-only", async ({
-    browser,
+    organizationScenario,
     page,
   }) => {
-    let expectedOwnerCleanupOrganizations = 0;
-    const memberContext = await browser.newContext();
+    await organizationScenario.preflightLocalUsers([
+      membershipOwner,
+      membershipMember,
+    ]);
+    const owner = await organizationScenario.createLocalUser(
+      page.context(),
+      membershipOwner,
+      "membership owner",
+    );
+    const memberContext = await organizationScenario.createContext(
+      "membership member context",
+    );
     const memberPage = await memberContext.newPage();
-    let owner: LocalAutomationScenarioResponse | undefined;
-    let member: LocalAutomationScenarioResponse | undefined;
+    const member = await organizationScenario.createLocalUser(
+      memberContext,
+      membershipMember,
+      "membership member",
+    );
+    expect(owner.user.id).not.toBe(member.user.id);
 
-    try {
-      owner = await createIsolatedLocalUser(page.context(), {
-        name: "E2E Membership Owner",
-        email: "local-agent+organization-membership-owner@local-agent.test",
-      });
-      member = await createIsolatedLocalUser(memberContext, {
-        name: "E2E Organization Member",
-        email: "local-agent+organization-membership-member@local-agent.test",
-      });
-      expect(owner.user.id).not.toBe(member.user.id);
-      const organization = await createGeneratedOrganization(
-        page.context().request,
-        "E2E Membership Policy",
-      );
-      expectedOwnerCleanupOrganizations = 1;
-      await setGeneratedOrganizationAllowedEmailDomains(
-        page.context().request,
-        organization.id,
-        ["example.com"],
-      );
+    const organization = await organizationScenario.createOrganization(
+      owner,
+      page.context().request,
+      "E2E Membership Policy",
+    );
+    await setGeneratedOrganizationAllowedEmailDomains(
+      page.context().request,
+      organization.id,
+      ["example.com"],
+    );
 
-      await page.goto(`/w/${organization.canonicalKey}/settings/users`);
-      await page.getByRole("button", { name: "Add member" }).click();
-      await page.getByLabel("User ID").fill(member.user.id);
-      await page.getByRole("button", { name: "Add", exact: true }).click();
-      await expect(
-        page.getByText("Email domain outside policy", { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(member.email, { exact: false }),
-      ).toBeVisible();
-      await expect(
-        page.getByText("example.com", { exact: false }),
-      ).toBeVisible();
-      await page.getByRole("button", { name: "Confirm add" }).click();
+    await page.goto(`/w/${organization.canonicalKey}/settings/users`);
+    await waitForAppHydration(page);
+    await page.getByRole("button", { name: "Add member" }).click();
+    await page.getByLabel("User ID").fill(member.user.id);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(
+      page.getByText("Email domain outside policy", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(member.email, { exact: false })).toBeVisible();
+    await expect(page.getByText("example.com", { exact: false })).toBeVisible();
+    await page.getByRole("button", { name: "Confirm add" }).click();
 
-      const memberArticle = page.getByRole("article", {
-        name: "E2E Organization Member workspace member",
-      });
-      await expect(memberArticle).toContainText("Outside domain policy");
-      const roleControl = memberArticle.getByRole("combobox", {
-        name: "Role for E2E Organization Member",
-      });
-      await roleControl.click();
-      await page.getByRole("option", { name: "Administrator" }).click();
-      await expect(page.getByRole("status")).toHaveText("Member role updated.");
-      await expect(roleControl).toContainText("Administrator");
-      await expect(
-        page.getByRole("button", { name: /remove member|delete member/i }),
-      ).toHaveCount(0);
+    const memberArticle = page.getByRole("article", {
+      name: "E2E Organization Member workspace member",
+    });
+    await expect(memberArticle).toContainText("Outside domain policy");
+    const roleControl = memberArticle.getByRole("combobox", {
+      name: "Role for E2E Organization Member",
+    });
+    await roleControl.click();
+    await page.getByRole("option", { name: "Administrator" }).click();
+    await expect(page.getByRole("status")).toHaveText("Member role updated.");
+    await expect(roleControl).toContainText("Administrator");
+    await expect(
+      page.getByRole("button", { name: /remove member|delete member/i }),
+    ).toHaveCount(0);
 
-      // An administrator intentionally has mutation capabilities. Return the
-      // target to the member role before proving the read-only member context.
-      await roleControl.click();
-      await page.getByRole("option", { name: "Member", exact: true }).click();
-      await expect(roleControl).toContainText("Member");
+    // An administrator intentionally has mutation capabilities. Return the
+    // target to the member role before proving the read-only member context.
+    await roleControl.click();
+    await page.getByRole("option", { name: "Member", exact: true }).click();
+    await expect(roleControl).toContainText("Member");
 
-      await memberPage.goto(
-        `/w/${organization.canonicalKey}/settings/workspace`,
-      );
-      await expect(
-        memberPage.getByText("Read-only workspace settings", { exact: true }),
-      ).toBeVisible();
-      await expect(memberPage.getByLabel("Workspace Name")).toBeDisabled();
-      await expect(
-        memberPage.getByRole("button", { name: "Save", exact: true }),
-      ).toHaveCount(0);
-      await expect(
-        memberPage.getByRole("button", { name: "Delete workspace" }),
-      ).toHaveCount(0);
+    await memberPage.goto(`/w/${organization.canonicalKey}/settings/workspace`);
+    await waitForAppHydration(memberPage);
+    await expect(
+      memberPage.getByText("Read-only workspace settings", { exact: true }),
+    ).toBeVisible();
+    await expect(memberPage.getByLabel("Workspace Name")).toBeDisabled();
+    await expect(
+      memberPage.getByRole("button", { name: "Save", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      memberPage.getByRole("button", { name: "Delete workspace" }),
+    ).toHaveCount(0);
 
-      await memberPage.goto(`/w/${organization.canonicalKey}/settings/users`);
-      await expect(
-        memberPage.getByText(
-          "Only workspace administrators and owners can add people or change roles.",
-          { exact: true },
-        ),
-      ).toBeVisible();
-      await expect(
-        memberPage.getByRole("button", { name: "Add member" }),
-      ).toHaveCount(0);
-      await expect(
-        memberPage.getByRole("combobox", {
-          name: "Role for E2E Membership Owner",
-        }),
-      ).toHaveCount(0);
-      await expect(
-        memberPage.getByRole("button", {
-          name: /remove member|delete member/i,
-        }),
-      ).toHaveCount(0);
-    } finally {
-      try {
-        if (member) {
-          await expectCleanupCount(memberContext.request, 0);
-        }
-      } finally {
-        try {
-          await memberContext.close();
-        } finally {
-          if (owner) {
-            await expectCleanupCount(
-              page.context().request,
-              expectedOwnerCleanupOrganizations,
-            );
-          }
-        }
-      }
-    }
+    await memberPage.goto(`/w/${organization.canonicalKey}/settings/users`);
+    await waitForAppHydration(memberPage);
+    await expect(
+      memberPage.getByText(
+        "Only workspace administrators and owners can add people or change roles.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      memberPage.getByRole("button", { name: "Add member" }),
+    ).toHaveCount(0);
+    await expect(memberPage.getByRole("combobox")).toHaveCount(0);
+    await expect(
+      memberPage.getByRole("button", {
+        name: /remove member|delete member/i,
+      }),
+    ).toHaveCount(0);
   });
 
   test("slug collision, suffix-preserving switch, and last workspace guard", async ({
+    organizationScenario,
     page,
   }) => {
-    let localUserCreated = false;
-    let expectedCleanupOrganizations = 0;
+    await organizationScenario.preflightLocalUsers([slugOwner]);
+    const owner = await organizationScenario.createLocalUser(
+      page.context(),
+      slugOwner,
+      "slug owner",
+    );
+    const first = await organizationScenario.createOrganization(
+      owner,
+      page.context().request,
+      "E2E Slug",
+    );
+    const second = await organizationScenario.createOrganization(
+      owner,
+      page.context().request,
+      "E2E-Slug",
+    );
+    expect(first.canonicalKey).toBe("e2e-slug");
+    expect(second.canonicalKey).toBe("e2e-slug-2");
 
-    try {
-      await createIsolatedLocalUser(page.context(), {
-        name: "E2E Slug Owner",
-        email: "local-agent+organization-slug-owner@local-agent.test",
-      });
-      localUserCreated = true;
-      const first = await createGeneratedOrganization(
+    await page.goto("/w/e2e-slug/settings/users");
+    await waitForAppHydration(page);
+    await page
+      .getByRole("button", { name: "Current workspace: E2E Slug" })
+      .click();
+    await page.getByRole("button", { name: "Switch to E2E-Slug" }).click();
+    await expect(page).toHaveURL("/w/e2e-slug-2/settings/users");
+
+    await page.goto(`/w/${second.id}`);
+    await waitForAppHydration(page);
+    await expect(page).toHaveURL("/w/e2e-slug-2/dashboard");
+
+    expect(
+      await organizationScenario.deleteOrganization(
+        owner,
         page.context().request,
-        "E2E Slug",
-      );
-      expectedCleanupOrganizations += 1;
-      const second = await createGeneratedOrganization(
-        page.context().request,
-        "E2E-Slug",
-      );
-      expectedCleanupOrganizations += 1;
-      expect(first.canonicalKey).toBe("e2e-slug");
-      expect(second.canonicalKey).toBe("e2e-slug-2");
-
-      await page.goto("/w/e2e-slug/settings/users");
-      await page
-        .getByRole("button", { name: "Current workspace: E2E Slug" })
-        .click();
-      await page.getByRole("button", { name: "Switch to E2E-Slug" }).click();
-      await expect(page).toHaveURL("/w/e2e-slug-2/settings/users");
-
-      await page.goto(`/w/${second.id}`);
-      await expect(page).toHaveURL("/w/e2e-slug-2/dashboard");
-
-      expect(
-        await deleteGeneratedOrganization(page.context().request, first),
-      ).toBe(first.id);
-      expectedCleanupOrganizations -= 1;
-      await page.goto("/w/e2e-slug-2/settings/workspace");
-      await expect(
-        page.getByRole("heading", { name: "Workspace settings" }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("button", { name: "Delete workspace" }),
-      ).toHaveCount(0);
-    } finally {
-      if (localUserCreated) {
-        await expectCleanupCount(
-          page.context().request,
-          expectedCleanupOrganizations,
-        );
-      }
-    }
+        first,
+      ),
+    ).toBe(first.id);
+    await page.goto("/w/e2e-slug-2/settings/workspace");
+    await waitForAppHydration(page);
+    await expect(
+      page.getByRole("heading", { name: "Workspace settings" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Delete workspace" }),
+    ).toHaveCount(0);
   });
 });

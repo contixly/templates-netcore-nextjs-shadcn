@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { waitForAppHydration } from "./support/app-readiness";
+
 const liveSmokeEnabled = process.env.E2E_LIVE_PROVIDER_SMOKE === "1";
 
 test.use({ screenshot: "off", trace: "off", video: "off" });
@@ -61,6 +63,7 @@ test.describe("live external provider authorization screens", () => {
       );
 
       await page.goto("/auth/login");
+      await waitForAppHydration(page);
       const button = page.getByRole("button", {
         name: `Continue with ${provider.displayName}`,
       });

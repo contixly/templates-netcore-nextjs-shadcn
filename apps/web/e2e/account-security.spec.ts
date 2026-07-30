@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
+import { waitForAppHydration } from "./support/app-readiness";
 import {
   cleanupLocalAutomationUser,
   getGeneratedAccountSessions,
@@ -12,6 +13,7 @@ async function createLocalAccount(
   page: Page,
 ): Promise<ApiResponseOfLocalAutomationScenarioResponse["data"]> {
   await page.goto("/auth/login");
+  await waitForAppHydration(page);
   const scenarioResponse = page.waitForResponse((response) => {
     const request = response.request();
     return (
@@ -62,6 +64,7 @@ test("revoke one invalidates only the selected browser and returns a safe sessio
     }
 
     await page.goto("/user/security");
+    await waitForAppHydration(page);
     await page.getByRole("button", { name: "Revoke session" }).click();
     await expect(page.getByRole("status")).toHaveText("Session revoked.");
 
@@ -91,6 +94,7 @@ test("revoke all others preserves the current browser", async ({
       scenario.password,
     );
     await page.goto("/user/security");
+    await waitForAppHydration(page);
     await page
       .getByRole("button", { name: "Revoke all other sessions" })
       .click();

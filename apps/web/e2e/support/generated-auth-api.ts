@@ -112,6 +112,41 @@ export async function signInLocalAutomationUser(
   return result.data.data;
 }
 
+export async function cleanupExistingLocalAutomationUser(
+  request: APIRequestContext,
+  email: string,
+  password: string,
+) {
+  const client = clientFor(request);
+  const signIn = await signInLocalAutomation({
+    client,
+    body: { email, password },
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!signIn.data) {
+    if (signIn.response?.status === 401) {
+      return { deletedOrganizations: 0, found: false };
+    }
+    throw new Error(
+      `Local preflight sign-in failed with ${signIn.response?.status ?? 0}.`,
+    );
+  }
+
+  const cleanup = await deleteLocalAutomationScenario({
+    client,
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!cleanup.data) {
+    throw new Error(
+      `Local preflight cleanup failed with ${cleanup.response?.status ?? 0}.`,
+    );
+  }
+  return {
+    deletedOrganizations: cleanup.data.data.deletedOrganizations,
+    found: true,
+  };
+}
+
 export async function cleanupLocalAutomationUser(request: APIRequestContext) {
   const client = clientFor(request);
   const result = await deleteLocalAutomationScenario({

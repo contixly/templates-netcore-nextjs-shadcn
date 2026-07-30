@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
+import { waitForAppHydration } from "./support/app-readiness";
 import {
   cleanupLocalAutomationUser,
   getGeneratedAuthSession,
@@ -13,6 +14,7 @@ test("local credentials create persistent independent sessions and cleanup all a
   page,
 }) => {
   await page.goto("/");
+  await waitForAppHydration(page);
   await page.getByRole("link", { name: "Get Started" }).click();
   await expect(page).toHaveURL(/\/auth\/login\?redirect=%2Fdashboard$/);
   await expect(
@@ -56,6 +58,7 @@ test("local credentials create persistent independent sessions and cleanup all a
     scenario.data.password,
   );
   await secondPage.goto("/dashboard");
+  await waitForAppHydration(secondPage);
   await expect(secondPage).toHaveURL(/\/welcome$/);
   const secondSessionId = (await getGeneratedAuthSession(secondContext.request))
     .session?.id;
