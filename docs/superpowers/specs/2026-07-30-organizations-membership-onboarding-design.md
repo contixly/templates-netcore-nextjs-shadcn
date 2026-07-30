@@ -429,6 +429,13 @@ organization-aware:
 - local cleanup returns the real count of deleted sole-member organizations;
 - account deletion, organization cleanup and user deletion share one transaction.
 
+Membership mutations and user lifecycle cleanup use one canonical lock order:
+affected organization rows are locked by ascending ID before user and ordered
+membership/owner rows. Lifecycle discovery is rechecked after those locks; a
+changed organization-membership set rolls back and retries the whole transaction
+up to the bounded application limit, then returns the stable concurrency
+conflict rather than leaking a database deadlock.
+
 This intentionally closes the reference orphan-owner gap and prevents product
 data from surviving local E2E cleanup.
 

@@ -1,4 +1,6 @@
+using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -6,6 +8,7 @@ using Template.Api.Tests.Infrastructure;
 using Template.Application.Accounts;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
+using Template.Application.Organizations;
 using Template.Domain.Authentication;
 using Template.Domain.Organizations;
 using Template.Infrastructure.Identity;
@@ -17,6 +20,9 @@ namespace Template.Api.Tests.Organizations;
 public sealed class OrganizationUserLifecycleTests(
     PostgreSqlContainerFixture postgres)
 {
+    private static readonly TimeSpan LockAcquisitionProbe =
+        TimeSpan.FromMilliseconds(500);
+
     [Fact]
     public async Task Sole_owner_of_shared_organization_must_transfer_ownership()
     {
@@ -164,6 +170,127 @@ public sealed class OrganizationUserLifecycleTests(
         Assert.Equal(2, await fixture.CountMembersAsync(organizationId));
         Assert.Equal(1, await fixture.CountSessionsAsync(owner));
     }
+
+    [Fact]
+    public async Task Account_deletion_racing_add_member_has_stable_outcome()
+    {
+        await using var fixture =
+            await OrganizationUserLifecycleFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("race-owner@local-agent.test");
+        var target = await fixture.CreateUserAsync("race-target@local-agent.test");
+        var organizationId = await fixture.CreateOrganizationAsync(owner);
+        fixture.ArmLockOrderRace();
+
+        var deletion = fixture.DeleteAccountAsync(owner);
+        await fixture.WaitForLifecycleMembershipLockAsync();
+        var addition = fixture.AddMemberAsync(
+            owner,
+            organizationId,
+            target);
+        await fixture.WaitForMutationOrganizationLockOrTimeoutAsync(
+            LockAcquisitionProbe);
+        fixture.ReleaseLifecycleLock();
+
+        var deletionResult = await deletion;
+        var additionResult = await addition;
+
+        Assert.NotEqual(
+            OrganizationFailure.ConcurrencyConflict,
+            additionResult.Failure);
+        if (additionResult.Succeeded)
+        {
+            Assert.Equal(
+                AccountFailure.OrganizationOwnershipTransferRequired,
+                deletionResult.Failure);
+            Assert.True(await fixture.UserExistsAsync(owner));
+            Assert.True(await fixture.OrganizationExistsAsync(organizationId));
+            Assert.Equal(2, await fixture.CountMembersAsync(organizationId));
+        }
+        else
+        {
+            Assert.True(deletionResult.Succeeded);
+            Assert.Equal(OrganizationFailure.NotFound, additionResult.Failure);
+            Assert.False(await fixture.UserExistsAsync(owner));
+            Assert.False(await fixture.OrganizationExistsAsync(organizationId));
+        }
+    }
+
+    [Fact]
+    public async Task Account_deletion_racing_role_change_has_stable_outcome()
+    {
+        await using var fixture =
+            await OrganizationUserLifecycleFixture.CreateAsync(postgres);
+        var targetOwner = await fixture.CreateUserAsync(
+            "role-target@local-agent.test");
+        var actorOwner = await fixture.CreateUserAsync(
+            "role-actor@local-agent.test");
+        var organizationId = await fixture.CreateOrganizationAsync(
+            targetOwner,
+            actorOwner,
+            secondMemberIsOwner: true);
+        var targetMemberId = await fixture.GetMemberIdAsync(
+            organizationId,
+            targetOwner);
+        fixture.ArmLockOrderRace();
+
+        var deletion = fixture.DeleteAccountAsync(targetOwner);
+        await fixture.WaitForLifecycleMembershipLockAsync();
+        var roleChange = fixture.UpdateMemberRoleAsync(
+            actorOwner,
+            organizationId,
+            targetMemberId,
+            OrganizationRole.Member);
+        await fixture.WaitForMutationOrganizationLockOrTimeoutAsync(
+            LockAcquisitionProbe);
+        fixture.ReleaseLifecycleLock();
+
+        var deletionResult = await deletion;
+        var roleChangeResult = await roleChange;
+
+        Assert.True(deletionResult.Succeeded);
+        Assert.NotEqual(
+            OrganizationFailure.ConcurrencyConflict,
+            roleChangeResult.Failure);
+        Assert.True(
+            roleChangeResult.Succeeded ||
+            roleChangeResult.Failure is
+                OrganizationFailure.NotFound or
+                OrganizationFailure.MemberNotFound);
+        Assert.False(await fixture.UserExistsAsync(targetOwner));
+        Assert.True(await fixture.OrganizationExistsAsync(organizationId));
+        Assert.Equal(1, await fixture.CountMembersAsync(organizationId));
+        Assert.Equal(1, await fixture.CountOwnersAsync(organizationId));
+    }
+
+    [Fact]
+    public async Task Simultaneous_account_deletions_use_one_lock_order()
+    {
+        await using var fixture =
+            await OrganizationUserLifecycleFixture.CreateAsync(postgres);
+        var firstOwner = await fixture.CreateUserAsync(
+            "delete-first@local-agent.test");
+        var secondOwner = await fixture.CreateUserAsync(
+            "delete-second@local-agent.test");
+        var organizationId = await fixture.CreateOrganizationAsync(
+            firstOwner,
+            secondOwner,
+            secondMemberIsOwner: true);
+        fixture.ArmLockOrderRace();
+
+        var firstDeletion = fixture.DeleteAccountAsync(firstOwner);
+        await fixture.WaitForLifecycleMembershipLockAsync();
+        var secondDeletion = fixture.DeleteAccountAsync(secondOwner);
+        await fixture.WaitForSecondLifecycleMembershipLockOrTimeoutAsync(
+            LockAcquisitionProbe);
+        fixture.ReleaseLifecycleLock();
+
+        var results = await Task.WhenAll(firstDeletion, secondDeletion);
+
+        Assert.All(results, result => Assert.True(result.Succeeded));
+        Assert.False(await fixture.UserExistsAsync(firstOwner));
+        Assert.False(await fixture.UserExistsAsync(secondOwner));
+        Assert.False(await fixture.OrganizationExistsAsync(organizationId));
+    }
 }
 
 internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
@@ -176,6 +303,7 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
     private readonly string _connectionString;
     private readonly ServiceProvider _services;
     private readonly LifecycleBrowserSessionGateway _sessions;
+    private readonly LifecycleLockOrderBarrier _lockOrderBarrier;
     private readonly Dictionary<UserId, AuthUser> _users = [];
 
     private OrganizationUserLifecycleFixture(
@@ -183,13 +311,15 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
         string databaseName,
         string connectionString,
         ServiceProvider services,
-        LifecycleBrowserSessionGateway sessions)
+        LifecycleBrowserSessionGateway sessions,
+        LifecycleLockOrderBarrier lockOrderBarrier)
     {
         _postgres = postgres;
         _databaseName = databaseName;
         _connectionString = connectionString;
         _services = services;
         _sessions = sessions;
+        _lockOrderBarrier = lockOrderBarrier;
     }
 
     internal static async Task<OrganizationUserLifecycleFixture> CreateAsync(
@@ -205,11 +335,16 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
             })
             .Build();
         var sessions = new LifecycleBrowserSessionGateway();
+        var lockOrderBarrier = new LifecycleLockOrderBarrier();
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<TimeProvider>(
             new LifecycleTimeProvider(Now));
+        services.AddSingleton(lockOrderBarrier);
+        services.AddDbContext<TemplateDbContext>((provider, options) =>
+            options.AddInterceptors(
+                provider.GetRequiredService<LifecycleLockOrderBarrier>()));
         services.AddAuthentication();
         services.AddAuthInfrastructure(
             configuration,
@@ -232,7 +367,8 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
             database.DatabaseName,
             database.ConnectionString,
             provider,
-            sessions);
+            sessions,
+            lockOrderBarrier);
     }
 
     internal async Task<UserId> CreateUserAsync(string email)
@@ -346,6 +482,81 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
             .CleanupAsync(TestContext.Current.CancellationToken);
     }
 
+    internal async Task<OrganizationOperationResult<OrganizationMember>>
+        AddMemberAsync(
+            UserId actorUserId,
+            OrganizationId organizationId,
+            UserId targetUserId)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<
+                Template.Application.Organizations.Ports.IOrganizationStore>()
+            .AddMemberAsync(
+                new AddOrganizationMemberCommand(
+                    actorUserId,
+                    organizationId,
+                    targetUserId,
+                    OrganizationRole.Member,
+                    AcknowledgeDomainRestriction: true),
+                TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<OrganizationOperationResult<OrganizationMember>>
+        UpdateMemberRoleAsync(
+            UserId actorUserId,
+            OrganizationId organizationId,
+            OrganizationMemberId memberId,
+            OrganizationRole role)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<
+                Template.Application.Organizations.Ports.IOrganizationStore>()
+            .UpdateMemberRoleAsync(
+                new UpdateOrganizationMemberRoleCommand(
+                    actorUserId,
+                    organizationId,
+                    memberId,
+                    role),
+                TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<OrganizationMemberId> GetMemberIdAsync(
+        OrganizationId organizationId,
+        UserId userId)
+    {
+        await using var db = CreateDbContext();
+        return new OrganizationMemberId(
+            await db.OrganizationMembers
+                .Where(row =>
+                    row.OrganizationId == organizationId.Value &&
+                    row.UserId == userId.Value)
+                .Select(row => row.Id)
+                .SingleAsync(TestContext.Current.CancellationToken));
+    }
+
+    internal void ArmLockOrderRace() => _lockOrderBarrier.Arm();
+
+    internal Task WaitForLifecycleMembershipLockAsync() =>
+        _lockOrderBarrier.WaitForFirstLifecycleMembershipLockAsync(
+            TestContext.Current.CancellationToken);
+
+    internal Task WaitForMutationOrganizationLockOrTimeoutAsync(
+        TimeSpan timeout) =>
+        _lockOrderBarrier.WaitForMutationOrganizationLockOrTimeoutAsync(
+            timeout,
+            TestContext.Current.CancellationToken);
+
+    internal Task WaitForSecondLifecycleMembershipLockOrTimeoutAsync(
+        TimeSpan timeout) =>
+        _lockOrderBarrier.WaitForSecondLifecycleMembershipLockOrTimeoutAsync(
+            timeout,
+            TestContext.Current.CancellationToken);
+
+    internal void ReleaseLifecycleLock() =>
+        _lockOrderBarrier.ReleaseLifecycleLock();
+
     internal async Task<bool> UserExistsAsync(UserId userId)
     {
         await using var db = CreateDbContext();
@@ -435,4 +646,142 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
     {
         public override DateTimeOffset GetUtcNow() => now;
     }
+}
+
+internal sealed class LifecycleLockOrderBarrier : DbCommandInterceptor
+{
+    private readonly object _sync = new();
+    private TaskCompletionSource _firstLifecycleMembershipLock =
+        CreateSignal();
+    private TaskCompletionSource _secondLifecycleMembershipLock =
+        CreateSignal();
+    private TaskCompletionSource _mutationOrganizationLock =
+        CreateSignal();
+    private TaskCompletionSource _releaseLifecycle = CreateSignal();
+    private bool _armed;
+    private int _lifecycleLockCount;
+
+    internal void Arm()
+    {
+        lock (_sync)
+        {
+            _firstLifecycleMembershipLock = CreateSignal();
+            _secondLifecycleMembershipLock = CreateSignal();
+            _mutationOrganizationLock = CreateSignal();
+            _releaseLifecycle = CreateSignal();
+            _lifecycleLockCount = 0;
+            _armed = true;
+        }
+    }
+
+    internal Task WaitForFirstLifecycleMembershipLockAsync(
+        CancellationToken cancellationToken) =>
+        _firstLifecycleMembershipLock.Task.WaitAsync(cancellationToken);
+
+    internal async Task WaitForMutationOrganizationLockOrTimeoutAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken) =>
+        await WaitForSignalOrTimeoutAsync(
+            _mutationOrganizationLock.Task,
+            timeout,
+            cancellationToken);
+
+    internal async Task WaitForSecondLifecycleMembershipLockOrTimeoutAsync(
+        TimeSpan timeout,
+        CancellationToken cancellationToken) =>
+        await WaitForSignalOrTimeoutAsync(
+            _secondLifecycleMembershipLock.Task,
+            timeout,
+            cancellationToken);
+
+    internal void ReleaseLifecycleLock()
+    {
+        _releaseLifecycle.TrySetResult();
+        lock (_sync)
+        {
+            _armed = false;
+        }
+    }
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsArmed() && IsOrganizationLock(command.CommandText))
+        {
+            _mutationOrganizationLock.TrySetResult();
+        }
+
+        if (IsArmed() && IsLifecycleMembershipLock(command.CommandText))
+        {
+            var count = Interlocked.Increment(ref _lifecycleLockCount);
+            if (count == 1)
+            {
+                lock (_sync)
+                {
+                    _mutationOrganizationLock = CreateSignal();
+                }
+
+                _firstLifecycleMembershipLock.TrySetResult();
+            }
+            else if (count == 2)
+            {
+                _secondLifecycleMembershipLock.TrySetResult();
+            }
+
+            await _releaseLifecycle.Task.WaitAsync(cancellationToken);
+        }
+
+        return await base.ReaderExecutedAsync(
+            command,
+            eventData,
+            result,
+            cancellationToken);
+    }
+
+    private bool IsArmed()
+    {
+        lock (_sync)
+        {
+            return _armed;
+        }
+    }
+
+    private static bool IsLifecycleMembershipLock(string commandText) =>
+        commandText.Contains(
+            "FROM organizations.members\nWHERE user_id =",
+            StringComparison.Ordinal) &&
+        commandText.Contains("FOR UPDATE", StringComparison.Ordinal);
+
+    private static bool IsOrganizationLock(string commandText) =>
+        commandText.Contains(
+            "FROM organizations.organizations",
+            StringComparison.Ordinal) &&
+        commandText.Contains("FOR UPDATE", StringComparison.Ordinal);
+
+    private static async Task WaitForSignalOrTimeoutAsync(
+        Task signal,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        using var timeoutCancellation = CancellationTokenSource
+            .CreateLinkedTokenSource(cancellationToken);
+        timeoutCancellation.CancelAfter(timeout);
+        try
+        {
+            await signal.WaitAsync(timeoutCancellation.Token);
+        }
+        catch (OperationCanceledException)
+            when (!cancellationToken.IsCancellationRequested)
+        {
+            // The competing organization lock is blocked by the canonical
+            // organization-first order. Releasing the lifecycle operation lets
+            // both real requests finish and verifies their stable outcomes.
+        }
+    }
+
+    private static TaskCompletionSource CreateSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

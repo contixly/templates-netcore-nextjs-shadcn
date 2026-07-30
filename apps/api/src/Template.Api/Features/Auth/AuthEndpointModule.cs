@@ -274,6 +274,10 @@ internal sealed class AuthEndpointModule : IEndpointModule
                         StatusCodes.Status409Conflict,
                         ApiProblemCodes
                             .OrganizationOwnershipTransferRequired),
+                AuthFailure.ConcurrencyConflict =>
+                    new ApiProblemException(
+                        StatusCodes.Status409Conflict,
+                        ApiProblemCodes.ConcurrencyConflict),
                 _ => new InvalidOperationException(
                     "Unexpected cleanup failure.")
             };

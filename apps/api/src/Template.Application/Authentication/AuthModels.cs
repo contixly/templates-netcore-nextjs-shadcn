@@ -75,7 +75,8 @@ public enum AuthFailure
     InvalidCredentials,
     SessionRequired,
     LocalUserRequired,
-    OrganizationOwnershipTransferRequired
+    OrganizationOwnershipTransferRequired,
+    ConcurrencyConflict
 }
 
 public sealed record AuthOperationResult<T>(T? Value, AuthFailure? Failure)

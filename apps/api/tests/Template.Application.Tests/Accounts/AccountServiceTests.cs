@@ -488,6 +488,50 @@ public sealed class AccountServiceTests
         Assert.Equal(1, transactions.Executions);
     }
 
+    [Fact]
+    public async Task Lifecycle_membership_drift_retries_the_whole_transaction()
+    {
+        var store = new FakeAccountStore(Account());
+        var lifecycle = new FakeOrganizationUserLifecycleStore
+        {
+            ConcurrencyFailuresRemaining = 1
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(store, lifecycle, transactions);
+
+        var result = await service.DeleteAsync(
+            UserId,
+            "owner@example.test",
+            Ct);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, lifecycle.PreparedUserIds.Count);
+        Assert.Equal(UserId, Assert.Single(store.DeletedUserIds));
+        Assert.Equal(2, transactions.Executions);
+    }
+
+    [Fact]
+    public async Task Repeated_lifecycle_membership_drift_maps_concurrency()
+    {
+        var store = new FakeAccountStore(Account());
+        var lifecycle = new FakeOrganizationUserLifecycleStore
+        {
+            ConcurrencyFailuresRemaining = int.MaxValue
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(store, lifecycle, transactions);
+
+        var result = await service.DeleteAsync(
+            UserId,
+            "owner@example.test",
+            Ct);
+
+        Assert.Equal(AccountFailure.ConcurrencyConflict, result.Failure);
+        Assert.Equal(3, lifecycle.PreparedUserIds.Count);
+        Assert.Empty(store.DeletedUserIds);
+        Assert.Equal(3, transactions.Executions);
+    }
+
     private static AccountService CreateService(
         FakeAccountStore store,
         FakeOrganizationUserLifecycleStore? lifecycle = null,
@@ -612,6 +656,7 @@ public sealed class AccountServiceTests
     private sealed class FakeOrganizationUserLifecycleStore
         : IOrganizationUserLifecycleStore
     {
+        public int ConcurrencyFailuresRemaining { get; set; }
         public OrganizationUserDeletionPreparation Preparation { get; init; } =
             new(DeletedOrganizations: 0, OwnershipTransferRequired: false);
         public List<UserId> PreparedUserIds { get; } = [];
@@ -621,6 +666,11 @@ public sealed class AccountServiceTests
             CancellationToken cancellationToken)
         {
             PreparedUserIds.Add(userId);
+            if (ConcurrencyFailuresRemaining-- > 0)
+            {
+                throw new OrganizationUserLifecycleConcurrencyException();
+            }
+
             return Task.FromResult(Preparation);
         }
     }

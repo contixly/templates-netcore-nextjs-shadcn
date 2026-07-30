@@ -13,6 +13,36 @@ internal sealed class EfOrganizationUserLifecycleStore(TemplateDbContext db)
             UserId userId,
             CancellationToken cancellationToken)
     {
+        var discoveredOrganizationIds = await db.OrganizationMembers
+            .AsNoTracking()
+            .Where(membership => membership.UserId == userId.Value)
+            .OrderBy(membership => membership.OrganizationId)
+            .Select(membership => membership.OrganizationId)
+            .ToArrayAsync(cancellationToken);
+
+        if (discoveredOrganizationIds.Length > 0)
+        {
+            var lockedOrganizations = await db.Organizations
+                .FromSqlInterpolated(
+                    $"""
+                    SELECT *
+                    FROM organizations.organizations
+                    WHERE id = ANY ({discoveredOrganizationIds})
+                    ORDER BY id
+                    FOR UPDATE
+                    """)
+                .AsNoTracking()
+                .ToArrayAsync(cancellationToken);
+            var lockedOrganizationIds = lockedOrganizations
+                .Select(organization => organization.Id)
+                .ToArray();
+            if (!lockedOrganizationIds.SequenceEqual(
+                    discoveredOrganizationIds))
+            {
+                throw new OrganizationUserLifecycleConcurrencyException();
+            }
+        }
+
         var user = await db.Users
             .FromSqlInterpolated(
                 $"""
@@ -41,45 +71,47 @@ internal sealed class EfOrganizationUserLifecycleStore(TemplateDbContext db)
                 """)
             .AsNoTracking()
             .ToArrayAsync(cancellationToken);
-        if (userMemberships.Length == 0)
+        var currentOrganizationIds = userMemberships
+            .Select(membership => membership.OrganizationId)
+            .ToArray();
+        if (!currentOrganizationIds.SequenceEqual(discoveredOrganizationIds))
+        {
+            throw new OrganizationUserLifecycleConcurrencyException();
+        }
+
+        if (currentOrganizationIds.Length == 0)
         {
             return new OrganizationUserDeletionPreparation(
                 DeletedOrganizations: 0,
                 OwnershipTransferRequired: false);
         }
 
-        var classifications = new List<OrganizationClassification>(
-            userMemberships.Length);
-        foreach (var membership in userMemberships)
-        {
-            await db.Organizations
-                .FromSqlInterpolated(
-                    $"""
-                    SELECT *
-                    FROM organizations.organizations
-                    WHERE id = {membership.OrganizationId}
-                    FOR UPDATE
-                    """)
-                .AsNoTracking()
-                .SingleAsync(cancellationToken);
-
-            var affectedMembers = await db.OrganizationMembers
-                .FromSqlInterpolated(
-                    $"""
-                    SELECT *
-                    FROM organizations.members
-                    WHERE organization_id = {membership.OrganizationId}
-                    ORDER BY id
-                    FOR UPDATE
-                    """)
-                .AsNoTracking()
-                .ToArrayAsync(cancellationToken);
-            classifications.Add(new OrganizationClassification(
-                membership.OrganizationId,
-                affectedMembers.Length,
-                membership.Role == "owner",
-                affectedMembers.Count(row => row.Role == "owner")));
-        }
+        var affectedMembers = await db.OrganizationMembers
+            .FromSqlInterpolated(
+                $"""
+                SELECT *
+                FROM organizations.members
+                WHERE organization_id = ANY ({currentOrganizationIds})
+                ORDER BY organization_id, id
+                FOR UPDATE
+                """)
+            .AsNoTracking()
+            .ToArrayAsync(cancellationToken);
+        var membershipsByOrganization = affectedMembers
+            .GroupBy(membership => membership.OrganizationId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+        var classifications = userMemberships
+            .Select(membership =>
+            {
+                var organizationMembers =
+                    membershipsByOrganization[membership.OrganizationId];
+                return new OrganizationClassification(
+                    membership.OrganizationId,
+                    organizationMembers.Length,
+                    membership.Role == "owner",
+                    organizationMembers.Count(row => row.Role == "owner"));
+            })
+            .ToArray();
 
         if (classifications.Any(classification =>
                 classification.MemberCount > 1

@@ -12,3 +12,5 @@ public interface IOrganizationUserLifecycleStore
 public sealed record OrganizationUserDeletionPreparation(
     int DeletedOrganizations,
     bool OwnershipTransferRequired);
+
+public sealed class OrganizationUserLifecycleConcurrencyException : Exception;
