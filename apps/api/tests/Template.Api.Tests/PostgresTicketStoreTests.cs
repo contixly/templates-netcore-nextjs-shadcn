@@ -13,6 +13,7 @@ using Template.Api.Tests.Infrastructure;
 using Template.Domain.Authentication;
 using Template.Infrastructure.Authentication;
 using Template.Infrastructure.Identity;
+using Template.Infrastructure.Organizations;
 using Template.Infrastructure.Persistence;
 
 namespace Template.Api.Tests;
@@ -133,6 +134,56 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             key,
             context,
             TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Renew_preserves_active_organization_outside_the_ticket()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var context = CreateHttpContext(scope.ServiceProvider);
+        var store = scope.ServiceProvider.GetRequiredService<PostgresTicketStore>();
+        var sessionId = Guid.CreateVersion7();
+        var organizationId = Guid.CreateVersion7();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+        db.Organizations.Add(new OrganizationEntity
+        {
+            Id = organizationId,
+            Name = "Ticket Context",
+            Slug = "ticket-context",
+            CreatedAt = _time.GetUtcNow(),
+            UpdatedAt = _time.GetUtcNow()
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        var ticket = CreateTicket(sessionId, _time.GetUtcNow().AddDays(7));
+        var key = await store.StoreAsync(
+            ticket,
+            context,
+            TestContext.Current.CancellationToken);
+        await db.Sessions
+            .Where(row => row.Id == sessionId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    row => row.ActiveOrganizationId,
+                    organizationId),
+                TestContext.Current.CancellationToken);
+
+        await store.RenewAsync(
+            key,
+            CreateTicket(sessionId, _time.GetUtcNow().AddDays(8)),
+            context,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            organizationId,
+            await db.Sessions
+                .Where(row => row.Id == sessionId)
+                .Select(row => row.ActiveOrganizationId)
+                .SingleAsync(TestContext.Current.CancellationToken));
+        Assert.DoesNotContain(
+            ticket.Principal.Claims,
+            claim => claim.Type.Contains(
+                "organization",
+                StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

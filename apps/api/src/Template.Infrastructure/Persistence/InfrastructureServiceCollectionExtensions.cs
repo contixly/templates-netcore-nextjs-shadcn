@@ -11,9 +11,11 @@ using Microsoft.Extensions.Options;
 using Template.Application.Accounts.Ports;
 using Template.Application.Authentication.Ports;
 using Template.Application.Common.Ports;
+using Template.Application.Organizations.Ports;
 using Template.Infrastructure.Accounts;
 using Template.Infrastructure.Authentication;
 using Template.Infrastructure.Identity;
+using Template.Infrastructure.Organizations;
 using AuthenticationDataProtectionOptions =
     Template.Infrastructure.Authentication.DataProtectionOptions;
 
@@ -104,6 +106,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IExternalAccountStore, EfExternalAccountStore>();
         services.AddScoped<IAccountStore, EfAccountStore>();
         services.AddScoped<IAccountSessionStore, EfAccountSessionStore>();
+        services.AddScoped<IOrganizationStore, EfOrganizationStore>();
         services.AddSingleton<
             ILocalAutomationCredentialGenerator,
             CryptographicLocalAutomationCredentialGenerator>();

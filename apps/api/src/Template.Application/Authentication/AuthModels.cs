@@ -1,4 +1,5 @@
 using Template.Domain.Authentication;
+using Template.Domain.Organizations;
 
 namespace Template.Application.Authentication;
 
@@ -15,7 +16,8 @@ public sealed record BrowserSession(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     DateTimeOffset ExpiresAt,
-    string AuthenticationMethod);
+    string AuthenticationMethod,
+    OrganizationId? ActiveOrganizationId = null);
 
 public static class BrowserAuthenticationMethods
 {

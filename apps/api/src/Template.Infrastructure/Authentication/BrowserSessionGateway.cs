@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
 using Template.Domain.Authentication;
+using Template.Domain.Organizations;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Persistence;
 
@@ -163,7 +164,10 @@ internal sealed class BrowserSessionGateway(
             session.CreatedAt,
             session.UpdatedAt,
             session.ExpiresAt,
-            BrowserAuthenticationMethods.Project(session.AuthenticationMethod));
+            BrowserAuthenticationMethods.Project(session.AuthenticationMethod),
+            session.ActiveOrganizationId is null
+                ? null
+                : new OrganizationId(session.ActiveOrganizationId.Value));
 
     private static void AddSessionClaims(
         ClaimsPrincipal principal,
