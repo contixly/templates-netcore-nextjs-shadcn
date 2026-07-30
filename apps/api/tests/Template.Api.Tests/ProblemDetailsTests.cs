@@ -1,5 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Template.Api.Endpoints;
+using Template.Api.Errors;
 using Template.Api.Tests.Infrastructure;
 
 namespace Template.Api.Tests;
@@ -158,6 +165,49 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
         Assert.DoesNotContain("InvalidOperationException", body, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ProblemExceptionCopiesOnlyAllowListedSafeExtensions()
+    {
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+                services.AddSingleton<IEndpointModule, ExtensionProblemModule>()));
+        using var client = isolated.CreateClient(
+            new Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+
+        using var response = await client.GetAsync(
+            "/api/testing/problem-extensions",
+            TestContext.Current.CancellationToken);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        var problem = document.RootElement;
+
+        Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        Assert.Equal(
+            "member_domain_acknowledgement_required",
+            problem.GetProperty("code").GetString());
+        Assert.Equal(
+            "target@example.test",
+            problem.GetProperty("email").GetString());
+        Assert.Equal(
+            "example.test",
+            problem.GetProperty("emailDomain").GetString());
+        Assert.Equal(
+            ["allowed.example"],
+            problem.GetProperty("allowedEmailDomains")
+                .EnumerateArray()
+                .Select(item => item.GetString()!)
+                .ToArray());
+        Assert.False(problem.TryGetProperty("secret", out _));
+        Assert.False(problem.TryGetProperty("nested", out _));
+        Assert.False(problem.TryGetProperty("wrongArray", out _));
+    }
+
     private record ApiProblem(
         string Type,
         string Title,
@@ -177,4 +227,31 @@ public sealed class ProblemDetailsTests(ApiWebApplicationFactory factory)
         string TraceId,
         Dictionary<string, string[]> Errors)
         : ApiProblem(Type, Title, Status, Detail, Instance, Code, TraceId);
+
+    private sealed class ExtensionProblemModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.Root.MapGet(
+                    "/api/testing/problem-extensions",
+                    ThrowExtensionProblem)
+                .AllowAnonymous()
+                .ExcludeFromDescription();
+        }
+
+        private static IResult ThrowExtensionProblem() =>
+            throw new ApiProblemException(
+                StatusCodes.Status409Conflict,
+                "member_domain_acknowledgement_required",
+                new Dictionary<string, object?>
+                {
+                    ["email"] = "target@example.test",
+                    ["emailDomain"] = "example.test",
+                    ["allowedEmailDomains"] =
+                        new[] { "allowed.example" },
+                    ["secret"] = "must-not-leak",
+                    ["nested"] = new { Unsafe = true },
+                    ["wrongArray"] = new[] { 1, 2 }
+                });
+    }
 }

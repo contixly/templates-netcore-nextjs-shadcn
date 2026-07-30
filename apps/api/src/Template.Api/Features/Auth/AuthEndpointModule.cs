@@ -384,7 +384,8 @@ internal sealed class AuthEndpointModule : IEndpointModule
                     state.Session.Id.Value,
                     state.Session.CreatedAt,
                     state.Session.UpdatedAt,
-                    state.Session.ExpiresAt));
+                    state.Session.ExpiresAt,
+                    state.Session.ActiveOrganizationId?.Value));
 
     private static AuthUserResponse Map(AuthUser user) =>
         new(

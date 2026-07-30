@@ -20,7 +20,8 @@ internal sealed record AuthSessionMetadataResponse(
     Guid Id,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    Guid? ActiveOrganizationId);
 
 internal sealed record AuthSessionResponse(
     bool Authenticated,

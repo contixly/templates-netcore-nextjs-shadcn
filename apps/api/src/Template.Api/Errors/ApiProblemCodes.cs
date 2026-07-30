@@ -40,4 +40,23 @@ internal static class ApiProblemCodes
     internal const string ConcurrencyConflict = "concurrency_conflict";
     internal const string OrganizationOwnershipTransferRequired =
         "organization_ownership_transfer_required";
+    internal const string OrganizationNotFound = "organization_not_found";
+    internal const string OrganizationPermissionDenied =
+        "organization_permission_denied";
+    internal const string OrganizationNameConflict =
+        "organization_name_conflict";
+    internal const string OrganizationSlugConflict =
+        "organization_slug_conflict";
+    internal const string LastOrganizationRequired =
+        "last_organization_required";
+    internal const string OrganizationConfirmationMismatch =
+        "organization_confirmation_mismatch";
+    internal const string MemberNotFound = "member_not_found";
+    internal const string TargetUserNotFound = "target_user_not_found";
+    internal const string MemberAlreadyExists = "member_already_exists";
+    internal const string MemberRoleUnchanged = "member_role_unchanged";
+    internal const string RoleAssignmentForbidden =
+        "role_assignment_forbidden";
+    internal const string MemberDomainAcknowledgementRequired =
+        "member_domain_acknowledgement_required";
 }
