@@ -15,7 +15,7 @@ internal sealed class BrowserSessionGateway(
     IHttpContextAccessor httpContextAccessor,
     IUserClaimsPrincipalFactory<ApplicationUser> principalFactory,
     UserManager<ApplicationUser> users,
-    AuthDbContext db,
+    TemplateDbContext db,
     TimeProvider timeProvider)
     : IBrowserSessionGateway
 {

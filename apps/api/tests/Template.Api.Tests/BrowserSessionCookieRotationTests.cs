@@ -52,9 +52,9 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         services.AddSingleton<TimeProvider>(_time);
         services.AddHttpContextAccessor();
         services.AddSingleton(_commandBarrier);
-        services.AddDbContext<AuthDbContext>((provider, options) =>
+        services.AddDbContext<TemplateDbContext>((provider, options) =>
         {
-            AuthDbContext.Configure(options, database.ConnectionString);
+            TemplateDbContext.Configure(options, database.ConnectionString);
             options.AddInterceptors(
                 provider.GetRequiredService<SessionCommandBarrier>());
         });
@@ -76,7 +76,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         _firstUserId = Guid.CreateVersion7();
         _secondUserId = Guid.CreateVersion7();
@@ -309,7 +309,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         string originalSecurityStamp;
         await using (var seedScope = _services.CreateAsyncScope())
         {
-            var db = seedScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var db = seedScope.ServiceProvider.GetRequiredService<TemplateDbContext>();
             var session = await db.Sessions.AsNoTracking().SingleAsync(
                 TestContext.Current.CancellationToken);
             originalTicketKeyHash = session.TicketKeyHash;
@@ -350,11 +350,11 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
         var renewedCookie = AssertSingleLiveSessionCookie(context);
         var renewedAuthentication = await AuthenticateAsync(renewedCookie);
         var originalCookieAfterRenewal = await AuthenticateAsync(originalCookie);
-        var row = await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        var row = await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AsNoTracking()
             .SingleAsync(TestContext.Current.CancellationToken);
         var refreshedStamp = await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Users.AsNoTracking()
             .Where(value => value.Id == _firstUserId)
             .Select(value => value.SecurityStamp)
@@ -497,7 +497,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
     {
         await using var scope = _services.CreateAsyncScope();
         var rows = await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions
             .AsNoTracking()
             .ToListAsync(TestContext.Current.CancellationToken);
@@ -508,7 +508,7 @@ public sealed class BrowserSessionCookieRotationTests(PostgreSqlContainerFixture
     {
         await using var scope = _services.CreateAsyncScope();
         Assert.False(await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions
             .AnyAsync(TestContext.Current.CancellationToken));
     }

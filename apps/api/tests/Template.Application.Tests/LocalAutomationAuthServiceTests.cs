@@ -1,5 +1,6 @@
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 using Template.Domain.Authentication;
 
 namespace Template.Application.Tests;
@@ -146,7 +147,7 @@ public sealed class LocalAutomationAuthServiceTests
         public LocalAutomationCredentials Generate() => _credentials.Dequeue();
     }
 
-    private sealed class CountingUnitOfWork : IAuthenticationUnitOfWork
+    private sealed class CountingUnitOfWork : IApplicationUnitOfWork
     {
         public int Executions { get; private set; }
 

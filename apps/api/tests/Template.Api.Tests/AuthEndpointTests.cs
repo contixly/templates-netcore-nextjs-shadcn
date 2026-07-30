@@ -62,7 +62,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             .ReadFromJsonAsync<LocalAuthTestClient.ScenarioEnvelope>(
                 TestContext.Current.CancellationToken);
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
 
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         Assert.Matches(
@@ -155,7 +155,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             TestContext.Current.CancellationToken);
         await using var scope = factory.Services.CreateAsyncScope();
         var sessionCount = await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions.CountAsync(TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, logout.StatusCode);
@@ -194,7 +194,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             .ReadFromJsonAsync<SessionEnvelope>(
                 TestContext.Current.CancellationToken);
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
 
         Assert.Equal(HttpStatusCode.OK, cleanup.StatusCode);
         Assert.False(firstState!.Data.Authenticated);
@@ -288,7 +288,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
         var problem = await conflict.Content.ReadFromJsonAsync<ApiProblem>(
             TestContext.Current.CancellationToken);
         await using var scope = isolated.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
 
         Assert.Equal(
             [HttpStatusCode.Created, HttpStatusCode.Conflict],
@@ -337,7 +337,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
                 "password",
                 StringComparison.OrdinalIgnoreCase));
         await using var scope = isolated.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
 
         Assert.NotEmpty(passwordError.Value);
         Assert.DoesNotContain(
@@ -402,7 +402,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
         var problem = await response.Content.ReadFromJsonAsync<ApiProblem>(
             TestContext.Current.CancellationToken);
         await using var scope = isolated.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("validation_failed", problem!.Code);
@@ -448,7 +448,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             HttpStatusCode.InternalServerError,
             "internal_error");
         await using var scope = isolated.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
 
         Assert.False(await db.Users.AnyAsync(TestContext.Current.CancellationToken));
         Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
@@ -493,7 +493,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
         Assert.Equal(HttpStatusCode.Created, seeded.StatusCode);
         await using (var seedScope = seedHost.Services.CreateAsyncScope())
         {
-            var seedDb = seedScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var seedDb = seedScope.ServiceProvider.GetRequiredService<TemplateDbContext>();
             await seedDb.Sessions.ExecuteDeleteAsync(TestContext.Current.CancellationToken);
         }
 
@@ -528,7 +528,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
             HttpStatusCode.InternalServerError,
             "internal_error");
         await using var scope = isolated.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
 
         Assert.Equal(1, await db.Users.CountAsync(TestContext.Current.CancellationToken));
         Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
@@ -909,7 +909,7 @@ public sealed class AuthEndpointTests(ApiWebApplicationFactory factory)
                 "__Host-template.session=",
                 StringComparison.Ordinal)));
         await using var scope = failing.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         Assert.False(await db.Users.AnyAsync(TestContext.Current.CancellationToken));
         Assert.False(await db.Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }

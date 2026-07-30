@@ -38,7 +38,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
             "local-agent+account-read@local-agent.test");
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
             await db.Users
                 .Where(user => user.Id == scenario.UserId)
                 .ExecuteUpdateAsync(
@@ -362,7 +362,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
                             }
 
                             var db = context.HttpContext.RequestServices
-                                .GetRequiredService<AuthDbContext>();
+                                .GetRequiredService<TemplateDbContext>();
                             await db.Sessions.ExecuteUpdateAsync(
                                 setters => setters.SetProperty(
                                     session => session.AuthenticationMethod,
@@ -450,7 +450,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
         Assert.Equal("external_connection_required", problem.Code);
 
         await using var scope = configuredFactory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         Assert.Equal(
             ["github", "google", "vk"],
             await db.UserLogins.AsNoTracking()
@@ -517,7 +517,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
                 .GetProperty("provider")
                 .GetString());
         await using var scope = configuredFactory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         Assert.False(await db.UserLogins.AnyAsync(
             login =>
                 login.UserId == scenario.UserId &&
@@ -548,7 +548,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
                             }
 
                             var db = context.HttpContext.RequestServices
-                                .GetRequiredService<AuthDbContext>();
+                                .GetRequiredService<TemplateDbContext>();
                             await db.Sessions.ExecuteUpdateAsync(
                                 setters => setters.SetProperty(
                                     session => session.AuthenticationMethod,
@@ -877,7 +877,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
                 .GetInt32());
         Assert.Equal(HttpStatusCode.OK, account.StatusCode);
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var remaining = await db.Sessions.Where(
                 session => session.UserId == scenario.UserId)
             .ToArrayAsync(TestContext.Current.CancellationToken);
@@ -956,7 +956,7 @@ public sealed class AccountEndpointTests(ApiWebApplicationFactory factory)
                 && value.Contains("expires=", StringComparison.OrdinalIgnoreCase));
         Assert.Equal(HttpStatusCode.Unauthorized, after.StatusCode);
         await using var scope = factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         Assert.False(await db.Users.AnyAsync(
             user => user.Id == scenario.UserId,
             TestContext.Current.CancellationToken));
@@ -1201,7 +1201,7 @@ internal static class AccountEndpointTestSupport
         string subject)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var emailId = await db.UserEmails
             .Where(email => email.UserId == userId && email.IsPrimary)
             .Select(email => email.Id)
@@ -1225,7 +1225,7 @@ internal static class AccountEndpointTestSupport
     {
         await using var scope = services.CreateAsyncScope();
         return await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions
             .Where(session => session.UserId == userId)
             .Select(session => session.Id)
@@ -1235,7 +1235,7 @@ internal static class AccountEndpointTestSupport
     internal static async Task SetSessionMetadataAsync(IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var sessions = await db.Sessions
             .OrderBy(session => session.CreatedAt)
             .ToArrayAsync(TestContext.Current.CancellationToken);
@@ -1261,7 +1261,7 @@ internal static class AccountEndpointTestSupport
         Guid userId)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var created = DateTimeOffset.UtcNow.AddDays(-10);
         db.Sessions.Add(new AuthSessionEntity
         {
@@ -1283,7 +1283,7 @@ internal static class AccountEndpointTestSupport
         int count)
     {
         await using var scope = services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         for (var index = 0; index < count; index++)
         {
             var created = DateTimeOffset.UtcNow.AddMinutes(-index - 1);

@@ -1,6 +1,6 @@
-namespace Template.Application.Authentication.Ports;
+namespace Template.Application.Common.Ports;
 
-public interface IAuthenticationUnitOfWork
+public interface IApplicationUnitOfWork
 {
     Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> action,

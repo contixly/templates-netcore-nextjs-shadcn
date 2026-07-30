@@ -1,10 +1,11 @@
 using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 
 namespace Template.Application.Authentication;
 
 public sealed class BrowserAuthenticationService(
     IBrowserSessionGateway sessions,
-    IAuthenticationUnitOfWork transactions)
+    IApplicationUnitOfWork transactions)
 {
     public async Task<SessionState> GetSessionAsync(CancellationToken cancellationToken)
     {

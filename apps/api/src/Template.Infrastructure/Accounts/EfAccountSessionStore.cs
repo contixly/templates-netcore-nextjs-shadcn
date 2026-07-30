@@ -8,7 +8,7 @@ using Template.Infrastructure.Persistence;
 namespace Template.Infrastructure.Accounts;
 
 internal sealed class EfAccountSessionStore(
-    AuthDbContext db,
+    TemplateDbContext db,
     TimeProvider timeProvider)
     : IAccountSessionStore
 {

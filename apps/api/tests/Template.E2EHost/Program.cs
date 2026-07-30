@@ -28,9 +28,9 @@ await using var postgres = new PostgreSqlBuilder("postgres:18.4")
 await postgres.StartAsync(shutdown.Token);
 
 var connectionString = postgres.GetConnectionString();
-var databaseOptions = new DbContextOptionsBuilder<AuthDbContext>();
-AuthDbContext.Configure(databaseOptions, connectionString);
-await using (var database = new AuthDbContext(databaseOptions.Options))
+var databaseOptions = new DbContextOptionsBuilder<TemplateDbContext>();
+TemplateDbContext.Configure(databaseOptions, connectionString);
+await using (var database = new TemplateDbContext(databaseOptions.Options))
 {
     await database.Database.MigrateAsync(shutdown.Token);
 }

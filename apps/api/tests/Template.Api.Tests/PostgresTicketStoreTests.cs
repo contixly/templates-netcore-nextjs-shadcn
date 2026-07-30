@@ -47,9 +47,9 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         services.AddHttpContextAccessor();
         services.AddApiAuthentication();
         services.AddSingleton(_commandBarrier);
-        services.AddDbContext<AuthDbContext>((provider, options) =>
+        services.AddDbContext<TemplateDbContext>((provider, options) =>
         {
-            AuthDbContext.Configure(options, database.ConnectionString);
+            TemplateDbContext.Configure(options, database.ConnectionString);
             options.AddInterceptors(
                 provider.GetRequiredService<SessionCommandBarrier>());
         });
@@ -57,7 +57,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         _userId = Guid.CreateVersion7();
         var now = _time.GetUtcNow();
@@ -91,7 +91,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             ticket,
             context,
             TestContext.Current.CancellationToken);
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var row = await db.Sessions.SingleAsync(
             TestContext.Current.CancellationToken);
 
@@ -151,7 +151,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             key,
             context,
             TestContext.Current.CancellationToken));
-        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        Assert.False(await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }
 
@@ -175,7 +175,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             BrowserAuthenticationMethods.Local,
             TestContext.Current.CancellationToken);
 
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         db.ChangeTracker.Clear();
         var stored = Assert.Single(await db.Sessions
             .AsNoTracking()
@@ -203,7 +203,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             context,
             TestContext.Current.CancellationToken);
 
-        var row = await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        var row = await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AsNoTracking()
             .SingleAsync(TestContext.Current.CancellationToken);
         var protectedTicket = UnprotectTicket(
@@ -288,7 +288,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             .GetRequiredService<IDataProtectionProvider>()
             .CreateProtector(
                 "Template.Infrastructure.Authentication.PostgresTicketStore.v1");
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var row = await db.Sessions.SingleAsync(
             TestContext.Current.CancellationToken);
         row.ProtectedTicket = protector.Protect(BitConverter.GetBytes(0));
@@ -321,7 +321,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             key,
             context,
             TestContext.Current.CancellationToken));
-        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        Assert.False(await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }
 
@@ -348,7 +348,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             key,
             context,
             TestContext.Current.CancellationToken));
-        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        Assert.False(await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }
 
@@ -375,7 +375,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             key,
             context,
             TestContext.Current.CancellationToken));
-        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        Assert.False(await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }
 
@@ -401,7 +401,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             key,
             context,
             TestContext.Current.CancellationToken));
-        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        Assert.False(await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }
 
@@ -429,7 +429,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
             key,
             context,
             TestContext.Current.CancellationToken));
-        Assert.False(await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        Assert.False(await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }
 
@@ -591,7 +591,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
     private async Task MutateStoredTicketAsync(byte[] protectedTicket)
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var row = await db.Sessions.SingleAsync(
             TestContext.Current.CancellationToken);
         row.ProtectedTicket = protectedTicket;
@@ -603,7 +603,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
         AuthenticationTicket ticket)
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var row = await db.Sessions.SingleAsync(
             TestContext.Current.CancellationToken);
         row.AuthenticationMethod = authenticationMethod;
@@ -616,7 +616,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
     private async Task ReplaceStoredMethodAsync(string authenticationMethod)
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var row = await db.Sessions.SingleAsync(
             TestContext.Current.CancellationToken);
         row.AuthenticationMethod = authenticationMethod;
@@ -680,7 +680,7 @@ public sealed class PostgresTicketStoreTests(PostgreSqlContainerFixture postgres
     {
         await using var scope = _services.CreateAsyncScope();
         Assert.False(await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions
             .AnyAsync(TestContext.Current.CancellationToken));
     }

@@ -100,7 +100,7 @@ public sealed class AuthPersistenceTests(PostgreSqlContainerFixture postgres)
     {
         await using var db = CreateContext();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
-        var unitOfWork = new EfAuthenticationUnitOfWork(db);
+        var unitOfWork = new EfApplicationUnitOfWork(db);
         using var cancellation = new CancellationTokenSource();
         var original = new InvalidOperationException("callback failure");
 
@@ -127,11 +127,11 @@ public sealed class AuthPersistenceTests(PostgreSqlContainerFixture postgres)
         Assert.Empty(db.ChangeTracker.Entries());
     }
 
-    private AuthDbContext CreateContext()
+    private TemplateDbContext CreateContext()
     {
-        var options = new DbContextOptionsBuilder<AuthDbContext>();
-        AuthDbContext.Configure(options, _connectionString);
-        return new AuthDbContext(options.Options);
+        var options = new DbContextOptionsBuilder<TemplateDbContext>();
+        TemplateDbContext.Configure(options, _connectionString);
+        return new TemplateDbContext(options.Options);
     }
 
     public async ValueTask DisposeAsync()

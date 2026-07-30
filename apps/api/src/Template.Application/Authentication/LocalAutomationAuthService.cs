@@ -1,4 +1,5 @@
 using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 
 namespace Template.Application.Authentication;
 
@@ -6,7 +7,7 @@ public sealed class LocalAutomationAuthService(
     ILocalIdentityGateway identities,
     IBrowserSessionGateway sessions,
     ILocalAutomationCredentialGenerator credentialGenerator,
-    IAuthenticationUnitOfWork transactions)
+    IApplicationUnitOfWork transactions)
 {
     public async Task<AuthOperationResult<LocalAutomationScenario>> CreateScenarioAsync(
         CreateLocalScenarioInput input,

@@ -22,7 +22,7 @@ public sealed class ApiWebApplicationFactory(
         (_databaseName, _connectionString) = await postgres.CreateDatabaseAsync(
             TestContext.Current.CancellationToken);
         await using var scope = Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Database.MigrateAsync(TestContext.Current.CancellationToken);
     }
 
@@ -37,7 +37,7 @@ public sealed class ApiWebApplicationFactory(
     public async Task ResetAuthDataAsync(CancellationToken cancellationToken)
     {
         await using var scope = Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         await db.OpenIddictTokens.ExecuteDeleteAsync(cancellationToken);
         await db.UserLogins.ExecuteDeleteAsync(cancellationToken);
         await db.UserEmails.ExecuteDeleteAsync(cancellationToken);

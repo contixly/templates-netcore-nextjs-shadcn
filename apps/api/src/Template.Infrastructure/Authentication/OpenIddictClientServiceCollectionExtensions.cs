@@ -59,7 +59,7 @@ public static class OpenIddictClientServiceCollectionExtensions
             .AddCore(options =>
             {
                 options.UseEntityFrameworkCore()
-                    .UseDbContext<AuthDbContext>();
+                    .UseDbContext<TemplateDbContext>();
             });
 
         openIddict.AddClient(options =>

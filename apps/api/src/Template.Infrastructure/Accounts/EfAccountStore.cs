@@ -10,7 +10,7 @@ using Template.Infrastructure.Persistence;
 namespace Template.Infrastructure.Accounts;
 
 internal sealed class EfAccountStore(
-    AuthDbContext db,
+    TemplateDbContext db,
     TimeProvider timeProvider)
     : IAccountStore
 {

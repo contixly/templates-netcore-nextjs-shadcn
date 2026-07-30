@@ -7,7 +7,7 @@ using Template.Infrastructure.Identity;
 
 namespace Template.Infrastructure.Persistence;
 
-public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
+public sealed class TemplateDbContext(DbContextOptions<TemplateDbContext> options)
     : IdentityUserContext<
         ApplicationUser,
         Guid,

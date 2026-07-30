@@ -1,13 +1,13 @@
 using Template.Application.Accounts.Ports;
 using Template.Application.Authentication;
-using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 using Template.Domain.Accounts;
 
 namespace Template.Application.Accounts;
 
 public sealed class ExternalIdentityService(
     IExternalAccountStore accounts,
-    IAuthenticationUnitOfWork transactions,
+    IApplicationUnitOfWork transactions,
     TimeProvider timeProvider)
 {
     private const int MaximumAttempts = 2;

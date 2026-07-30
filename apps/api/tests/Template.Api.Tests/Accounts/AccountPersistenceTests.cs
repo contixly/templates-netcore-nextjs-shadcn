@@ -324,7 +324,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         await MigrateAsync();
         await using var db = CreateContext();
         var store = new EfExternalAccountStore(db, new FixedTimeProvider(Now));
-        var transactions = new EfAuthenticationUnitOfWork(db);
+        var transactions = new EfApplicationUnitOfWork(db);
         var primaryIdentity = Identity(
             ExternalProvider.Google,
             "google-subject",
@@ -657,11 +657,11 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             new EfExternalAccountStore(secondDb, TimeProvider.System);
         var firstService = new ExternalIdentityService(
             firstStore,
-            new EfAuthenticationUnitOfWork(firstDb),
+            new EfApplicationUnitOfWork(firstDb),
             new FixedTimeProvider(Now));
         var secondService = new ExternalIdentityService(
             secondStore,
-            new EfAuthenticationUnitOfWork(secondDb),
+            new EfApplicationUnitOfWork(secondDb),
             new FixedTimeProvider(Now.AddMinutes(1)));
         var firstIncoming = Identity(
             ExternalProvider.Google,
@@ -1239,13 +1239,13 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
     }
 
-    private AuthDbContext CreateContext() => CreateContext(_connectionString);
+    private TemplateDbContext CreateContext() => CreateContext(_connectionString);
 
-    private static AuthDbContext CreateContext(string connectionString)
+    private static TemplateDbContext CreateContext(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<AuthDbContext>();
-        AuthDbContext.Configure(options, connectionString);
-        return new AuthDbContext(options.Options);
+        var options = new DbContextOptionsBuilder<TemplateDbContext>();
+        TemplateDbContext.Configure(options, connectionString);
+        return new TemplateDbContext(options.Options);
     }
 
     private static ApplicationUser CreateUser(string email) =>
@@ -1263,7 +1263,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         };
 
     private static UserEmailEntity AddEmail(
-        AuthDbContext db,
+        TemplateDbContext db,
         ApplicationUser user,
         string email,
         bool primary)
@@ -1331,7 +1331,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
             imageUrl is null ? null : new Uri(imageUrl));
 
     private static async Task<(ApplicationUser User, UserEmailEntity Primary, UserEmailEntity Secondary)>
-        SeedConnectedUserAsync(AuthDbContext db)
+        SeedConnectedUserAsync(TemplateDbContext db)
     {
         var user = CreateUser($"connected-{Guid.NewGuid():N}@example.test");
         db.Users.Add(user);
@@ -1346,7 +1346,7 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
         return (user, primary, secondary);
     }
 
-    private static async Task AssertUniqueViolationAsync(AuthDbContext db)
+    private static async Task AssertUniqueViolationAsync(TemplateDbContext db)
     {
         var exception = await Assert.ThrowsAsync<DbUpdateException>(() =>
             db.SaveChangesAsync(TestContext.Current.CancellationToken));

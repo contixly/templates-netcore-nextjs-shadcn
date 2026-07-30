@@ -140,7 +140,7 @@ public sealed class BrowserSessionSlidingExpirationTests(
     {
         await using var scope = application.Services.CreateAsyncScope();
         return await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions
             .AsNoTracking()
             .SingleAsync(

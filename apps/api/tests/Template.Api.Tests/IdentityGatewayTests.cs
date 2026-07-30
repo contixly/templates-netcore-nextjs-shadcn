@@ -37,7 +37,7 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Database.MigrateAsync(TestContext.Current.CancellationToken);
     }
 
@@ -66,7 +66,7 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
         var accounts = scope.ServiceProvider.GetRequiredService<IAccountStore>();
         var externalAccounts = scope.ServiceProvider
             .GetRequiredService<IExternalAccountStore>();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var credentials = new LocalAutomationCredentials(
             "Local Account",
             "local-agent+account@local-agent.test",
@@ -101,7 +101,7 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
     {
         await using var scope = _services.CreateAsyncScope();
         var gateway = scope.ServiceProvider.GetRequiredService<ILocalIdentityGateway>();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var credentials = new LocalAutomationCredentials(
             "Local Identity",
             "local-agent+identity@local-agent.test",
@@ -149,7 +149,7 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
     {
         await using var scope = _services.CreateAsyncScope();
         var gateway = scope.ServiceProvider.GetRequiredService<ILocalIdentityGateway>();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var credentials = new LocalAutomationCredentials(
             "Locked User",
             "local-agent+locked@local-agent.test",

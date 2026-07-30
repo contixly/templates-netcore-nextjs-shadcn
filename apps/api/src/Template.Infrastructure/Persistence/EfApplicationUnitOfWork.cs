@@ -1,10 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 
 namespace Template.Infrastructure.Persistence;
 
-internal sealed class EfAuthenticationUnitOfWork(AuthDbContext db)
-    : IAuthenticationUnitOfWork
+internal sealed class EfApplicationUnitOfWork(TemplateDbContext db)
+    : IApplicationUnitOfWork
 {
     public async Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> action,

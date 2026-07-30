@@ -11,8 +11,8 @@ using Template.Infrastructure.Persistence;
 
 namespace Template.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(AuthDbContext))]
-    partial class AuthDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(TemplateDbContext))]
+    partial class TemplateDbContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {

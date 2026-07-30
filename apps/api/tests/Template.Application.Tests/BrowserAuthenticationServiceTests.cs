@@ -1,5 +1,6 @@
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 
 namespace Template.Application.Tests;
 
@@ -50,7 +51,7 @@ public sealed class BrowserAuthenticationServiceTests
             Task.CompletedTask;
     }
 
-    private sealed class InlineUnitOfWork : IAuthenticationUnitOfWork
+    private sealed class InlineUnitOfWork : IApplicationUnitOfWork
     {
         public Task<T> ExecuteAsync<T>(
             Func<CancellationToken, Task<T>> action,

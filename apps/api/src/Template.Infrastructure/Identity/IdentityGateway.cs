@@ -12,7 +12,7 @@ internal sealed class IdentityGateway(
     UserManager<ApplicationUser> users,
     SignInManager<ApplicationUser> signInManager,
     TimeProvider timeProvider,
-    AuthDbContext db)
+    TemplateDbContext db)
     : ILocalIdentityGateway
 {
     public async Task<AuthUser> CreateLocalAsync(

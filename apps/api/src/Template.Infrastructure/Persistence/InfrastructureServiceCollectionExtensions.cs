@@ -10,6 +10,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Template.Application.Accounts.Ports;
 using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 using Template.Infrastructure.Accounts;
 using Template.Infrastructure.Authentication;
 using Template.Infrastructure.Identity;
@@ -25,7 +26,7 @@ public static class InfrastructureServiceCollectionExtensions
         IConfiguration configuration,
         IHostEnvironment environment)
     {
-        services.AddDbContext<AuthDbContext>(options =>
+        services.AddDbContext<TemplateDbContext>(options =>
         {
             var connectionString = configuration.GetConnectionString("Postgres");
             if (string.IsNullOrWhiteSpace(connectionString))
@@ -34,7 +35,7 @@ public static class InfrastructureServiceCollectionExtensions
                     "ConnectionStrings:Postgres is required when authentication persistence is used.");
             }
 
-            AuthDbContext.Configure(options, connectionString);
+            TemplateDbContext.Configure(options, connectionString);
         });
 
         var dataProtectionSection = configuration.GetSection(
@@ -60,7 +61,7 @@ public static class InfrastructureServiceCollectionExtensions
             .AddDataProtection()
             .SetApplicationName(
                 AuthenticationDataProtectionOptions.RequiredApplicationName)
-            .PersistKeysToDbContext<AuthDbContext>();
+            .PersistKeysToDbContext<TemplateDbContext>();
         if (environment.IsProduction())
         {
             services.TryAddSingleton(provider =>
@@ -92,14 +93,14 @@ public static class InfrastructureServiceCollectionExtensions
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
                 options.SignIn.RequireConfirmedEmail = false;
             })
-            .AddEntityFrameworkStores<AuthDbContext>()
+            .AddEntityFrameworkStores<TemplateDbContext>()
             .AddSignInManager();
 
         services.AddScoped<ILocalIdentityGateway, IdentityGateway>();
         services.AddHttpContextAccessor();
         services.AddScoped<IBrowserSessionGateway, BrowserSessionGateway>();
         services.AddSingleton<PostgresTicketStore>();
-        services.AddScoped<IAuthenticationUnitOfWork, EfAuthenticationUnitOfWork>();
+        services.AddScoped<IApplicationUnitOfWork, EfApplicationUnitOfWork>();
         services.AddScoped<IExternalAccountStore, EfExternalAccountStore>();
         services.AddScoped<IAccountStore, EfAccountStore>();
         services.AddScoped<IAccountSessionStore, EfAccountSessionStore>();

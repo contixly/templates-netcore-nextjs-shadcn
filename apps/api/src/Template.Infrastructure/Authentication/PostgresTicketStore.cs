@@ -230,14 +230,14 @@ public sealed class PostgresTicketStore(
         throw new InvalidOperationException(
             "PostgresTicketStore requires the .NET 10 HttpContext overload.");
 
-    private static AuthDbContext GetDb(HttpContext context) =>
-        context.RequestServices.GetRequiredService<AuthDbContext>();
+    private static TemplateDbContext GetDb(HttpContext context) =>
+        context.RequestServices.GetRequiredService<TemplateDbContext>();
 
     private static byte[] HashKey(string key) =>
         SHA256.HashData(Encoding.UTF8.GetBytes(key));
 
     private static Task<int> DeleteIfUnchangedAsync(
-        AuthDbContext db,
+        TemplateDbContext db,
         AuthSessionEntity row,
         CancellationToken cancellationToken) =>
         db.Sessions
