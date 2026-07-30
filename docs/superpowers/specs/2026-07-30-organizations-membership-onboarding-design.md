@@ -1,0 +1,632 @@
+# Итерация 5: organizations, membership и onboarding
+
+**Дата:** 2026-07-30  
+**Статус:** утверждённый дизайн  
+**Ветка:** `codex/iteration-5-organizations-membership`
+
+## 1. Цель
+
+Перенести core workspace behavior из immutable reference `template/` в целевую
+архитектуру ASP.NET Core 10 API + отдельный Next.js UI. ASP.NET Core становится
+единственным владельцем organization/membership данных, правил, authorization и
+REST-контракта. Next.js реализует только UI и обращается к API через generated
+SDK.
+
+Итерация должна дать полностью проверяемый vertical slice: новый пользователь
+проходит zero-organization onboarding, создаёт и выбирает workspace, открывает
+slug/UUID routes, управляет организацией и встроенными membership roles в
+пределах разрешений.
+
+## 2. Изученный контекст
+
+Перед дизайном изучены:
+
+- `AGENTS.md`;
+- `docs/aspnetcore-migration-plan.md`;
+- `docs/api-conventions.md`;
+- `docs/web-conventions.md`;
+- `docs/authentication-persistence-operations.md`;
+- design/implementation документы итераций 3 и 4;
+- текущие `apps/api`, `apps/web`, `contracts/openapi` и test harnesses;
+- Prisma model, organization/session integration, actions, repositories,
+  permissions, validation, UI, messages, documentation, Jest и Playwright в
+  `template/`.
+
+Основные reference-файлы:
+
+- `template/prisma/schema.prisma` — `Session.activeOrganizationId`,
+  `Organization`, `Member`;
+- `template/src/features/organizations/**`;
+- organization-related части `template/src/features/workspaces/**`;
+- `template/src/server/auth/organization-access.ts`;
+- `/dashboard`, `/workspaces`, `/welcome` и
+  `/w/[organizationKey]/**` routes;
+- reference tests под `template/test/features/{organizations,workspaces}`;
+- E2E scenarios `organization-context-routing`, `workspace-onboarding-guard`,
+  `workspace-organization-management`, `workspace-page-fallback` и
+  `workspace-user-management`.
+
+`template/` остаётся read-only. Новая база и Identity store стартуют чистыми;
+перенос старых данных, идентификаторов или сессий не проектируется.
+
+## 3. Scope и dependency gate
+
+### Входит
+
+- Organization persistence и lifecycle;
+- Membership persistence;
+- закрытые роли `owner`, `admin`, `member`;
+- вычисляемая permission matrix;
+- active organization preference текущей persistent browser session;
+- create/list/resolve/update/delete organization;
+- slug или UUID как route key, slug как canonical UI key;
+- allowed email-domain policy;
+- zero-organization onboarding;
+- member directory;
+- direct add существующего пользователя по точному user ID;
+- изменение встроенной membership role;
+- REST/OpenAPI/generated SDK;
+- `/welcome`, `/workspaces`, `/dashboard`, `/w/[organizationKey]/**`;
+- en/ru UI, Jest и Playwright coverage;
+- account/local-automation cleanup integration.
+
+### Не входит
+
+- удаление участника: reference starter surface его намеренно не предоставляет;
+- Invitation, accept/reject/expiry/email delivery;
+- Team, TeamMember и active team;
+- organization или personal API keys и `x-api-key`;
+- произвольные/custom roles;
+- глобальный user directory или user search;
+- полноценный product dashboard и финальная application shell;
+- Redis/cache, background jobs, audit database, Aspire, YARP и deployment;
+- OpenSpec change/spec.
+
+Teams и invitations остаются итерации 6; API keys — итерации 7; dashboard/app
+shell parity — итерации 9. Iteration-6 wording о role changes относится к
+invitation/team collaboration lifecycle; direct membership role update входит в
+итерацию 5 как часть `membership, roles/permissions, users list`.
+
+## 4. Рассмотренные архитектурные варианты
+
+### Вариант A — единый `TemplateDbContext` — выбран
+
+Существующий `AuthDbContext` сначала переименовывается в `TemplateDbContext`
+code-only изменением. До добавления organization model подтверждается отсутствие
+EF model drift. Auth/OpenIddict/Data Protection остаются в schema `auth`, а
+organization rows создаются в schema `organizations`.
+
+Один context обеспечивает одну PostgreSQL transaction boundary для organization,
+owner membership, session preference, local cleanup и hard account deletion.
+Это также создаёт правильную основу для итераций 6–7.
+
+### Вариант B — расширить `AuthDbContext` без переименования
+
+Даёт меньший diff, но закрепляет вводящее в заблуждение имя после появления
+product-domain persistence. Не выбран.
+
+### Вариант C — отдельный `OrganizationDbContext`
+
+Формально отделяет persistence, но усложняет cross-schema FK, active-session
+preference и atomic cleanup. Потребовал бы ручной shared-transaction orchestration
+между contexts. Не выбран.
+
+## 5. Reference correspondence
+
+| Reference | Новый API | Новый UI | Проверка |
+| --- | --- | --- | --- |
+| organization repository + load/create actions | `GET/POST /api/v1/organizations` | `/workspaces` | list, empty, create, slug collision |
+| active organization helpers/action | session active-organization REST | `/dashboard`, switcher | active/fallback/zero-org routing |
+| `OrganizationRouteGuard` | resolve accessible organization by key | `/w/[organizationKey]/**` | slug/UUID, canonical redirect, isolation |
+| update/delete workspace actions | organization PATCH/DELETE | settings workspace | authorization, domains, confirmation |
+| member repository + direct add | members GET/POST | settings users | directory and domain acknowledgement |
+| role policy + update action | member PATCH | role selector | assignment matrix and owner invariant |
+| onboarding guard | organization/session projections | `/welcome` | first-workspace journey |
+
+Reference `/api/v1/organizations/**` route handlers use `x-api-key` and belong to
+iteration 7. Their read DTO meaning informs this contract, but their authentication
+mechanism is not ported now.
+
+## 6. Layer architecture
+
+### Domain
+
+`Template.Domain/Organizations` owns:
+
+- `OrganizationId` and `OrganizationMemberId` value types;
+- `OrganizationSlug` normalization/validation;
+- `OrganizationRole` closed values;
+- `OrganizationPermissionPolicy`;
+- role assignment, self-change and last-owner rules;
+- allowed email-domain normalization and eligibility rules.
+
+Domain has no EF, Identity or HTTP dependency. Organization roles are product
+roles, not ASP.NET Core Identity roles and not persistent session claims.
+
+### Application
+
+`Template.Application/Organizations` contains:
+
+- API-independent models and operation outcomes;
+- `OrganizationService` for list/detail/create/update/delete/context;
+- `OrganizationMembershipService` for list/add/change-role;
+- ports such as `IOrganizationStore` and organization cleanup/session-context
+  operations;
+- explicit actor `UserId` and current `SessionId` inputs.
+
+Application coordinates business rules but does not know DbContext, PostgreSQL,
+HTTP status codes or Problem Details.
+
+### Infrastructure
+
+Infrastructure owns EF entities/configurations, PostgreSQL transactions, row
+locks, bounded uniqueness retries and port implementations. Configuration is
+split into focused classes rather than expanding the DbContext method into one
+large organization mapper.
+
+### Api
+
+A dedicated organization endpoint module uses the existing authenticated
+`/api/v1` route group. It owns strict request DTO validation, Problem Details
+mapping, CSRF metadata, OpenAPI and safe security-event logging.
+
+### Web
+
+Next.js uses only generated SDK functions. Cookie-bearing SSR reads use the
+existing allow-listed server client and
+`X-Template-Session-Renewal: suppress`. Browser writes obtain a new CSRF token
+and use a shared CSRF-first helper. Prisma, Better Auth, Server Actions, raw
+fetch DTO duplication and browser token storage remain prohibited.
+
+## 7. PostgreSQL model
+
+### Context and schemas
+
+- rename `AuthDbContext` and its factory/snapshot references to
+  `TemplateDbContext`;
+- keep EF migration history in `auth.__ef_migrations_history`;
+- retain existing Identity, session, Data Protection and OpenIddict mappings;
+- create product tables in schema `organizations`.
+
+### `organizations.organizations`
+
+- `id uuid` UUIDv7 primary key;
+- `name varchar(50)`;
+- `slug varchar(...)` globally unique, canonical lowercase ASCII;
+- `created_at`, `updated_at` as `timestamp with time zone`;
+- DB checks matching the target length/shape invariants where practical.
+
+No generic metadata column is introduced. The only currently required metadata,
+allowed email domains, receives an explicit relational model. Logo is omitted
+until a concrete upload/URL lifecycle exists.
+
+### `organizations.members`
+
+- UUIDv7 `id` primary key;
+- `organization_id` FK, cascade delete;
+- `user_id` FK to `auth.users`, cascade delete;
+- `role` closed check `owner|admin|member`;
+- `joined_at`, `updated_at`;
+- unique `(organization_id, user_id)`;
+- indexes `(user_id, organization_id)` and
+  `(organization_id, joined_at, id)`.
+
+### `organizations.allowed_email_domains`
+
+- `organization_id` FK, cascade delete;
+- normalized exact `domain`;
+- composite primary key `(organization_id, domain)`;
+- deterministic ordering by domain in projections.
+
+### `auth.sessions`
+
+Add nullable `active_organization_id` with an index and FK to organization
+`ON DELETE SET NULL`. It is a relational preference for one persistent session,
+not part of the protected ticket or principal claims. Ticket renew updates must
+not overwrite it.
+
+## 8. Identifiers, validation and canonical routing
+
+### Organization ID and key
+
+New IDs are UUIDv7. `organizationKey` accepts either canonical UUID text or slug.
+API detail resolution returns `canonicalKey`, which is the slug. UI links prefer
+slug; UUID routes remain valid and redirect to canonical slug routes where the
+reference does so.
+
+A deep link selects its URL organization for the request but never changes the
+session preference. Only an explicit switch mutation updates active context.
+
+### Name
+
+- trim outer whitespace;
+- non-empty, maximum 50 UTF-16 code units to preserve browser/.NET parity;
+- Unicode letters and digits plus ordinary spaces, `-` and `_`;
+- controls, newline-style whitespace and unsupported punctuation are rejected.
+
+This intentionally tightens the reference regex, which admits control
+whitespace through `\s`.
+
+Duplicate names are rejected case-insensitively among organizations accessible
+to the actor, matching reference UX. This is an application rule, not a global
+DB invariant.
+
+### Slug
+
+PATCH slugs trim and lowercase, then require
+`^[a-z0-9]+(?:-[a-z0-9]+)*$`. Generated slugs strip unsupported characters,
+collapse separators, use a 48-character base, fall back to `workspace`, and try
+`-2`, `-3`, etc. Global unique DB authority and five bounded attempts handle
+concurrent create collisions.
+
+### Allowed domains
+
+Each value trims, lowercases, removes at most one leading `@`, validates a DNS-
+like exact domain of at most 253 characters and de-duplicates. Empty collection
+disables the policy. Subdomains do not match unless listed explicitly.
+Changing policy never removes existing members; projections mark out-of-policy
+members.
+
+## 9. Roles and permissions
+
+| Capability | member | admin | owner |
+| --- | --- | --- | --- |
+| Read safe organization/member context | yes | yes | yes |
+| Update organization/settings | no | yes | yes |
+| Direct-add member | no | yes | yes |
+| Assign `member` or `admin` | no | yes | yes |
+| Assign or mutate `owner` | no | no | yes |
+| Delete organization | no | no | yes |
+
+Additional invariants:
+
+- no self-role update;
+- unknown/multiple roles cannot exist in the clean target schema;
+- unchanged role returns conflict;
+- every organization always retains at least one owner;
+- permissions are recomputed from current membership for each operation;
+- UI capabilities are presentation hints, never authorization authority.
+
+## 10. REST contract
+
+All success bodies use `{ "data": ... }`; failures use the established RFC
+Problem Details contract. All routes require `Api.BrowserSession`. Every unsafe
+route requires `X-CSRF-TOKEN`. Responses are `Cache-Control: no-store`.
+
+### Organization endpoints
+
+| Method | Route | Request | Success |
+| --- | --- | --- | --- |
+| GET | `/api/v1/organizations?cursor=&limit=` | query | `200 OrganizationPage` |
+| POST | `/api/v1/organizations` | `{ name }` | `201 OrganizationDetail` |
+| GET | `/api/v1/organizations/by-key/{organizationKey}` | path | `200 OrganizationDetail` |
+| PATCH | `/api/v1/organizations/{organizationId}` | strict non-empty partial body | `200 OrganizationDetail` |
+| DELETE | `/api/v1/organizations/{organizationId}` | `{ confirmationName }` | `200 OrganizationDeletion` |
+| PUT | `/api/v1/auth/session/active-organization` | `{ organizationId }` | `200 ActiveOrganization` |
+
+`GET /api/v1/auth/session` adds nullable `activeOrganizationId` only in the
+authenticated session projection.
+
+### Membership endpoints
+
+| Method | Route | Request | Success |
+| --- | --- | --- | --- |
+| GET | `/api/v1/organizations/{organizationId}/members?cursor=&limit=` | query | `200 OrganizationMemberPage` |
+| POST | `/api/v1/organizations/{organizationId}/members` | `{ userId, role, acknowledgeDomainRestriction? }` | `201 OrganizationMember` |
+| PATCH | `/api/v1/organizations/{organizationId}/members/{memberId}` | `{ role }` | `200 OrganizationMember` |
+
+There is no member DELETE endpoint.
+
+### Projections
+
+Organization summary includes `id`, `name`, `slug`, `canonicalKey`, timestamps,
+`currentRole` and closed server-computed capabilities. Detail additionally
+includes ordered `allowedEmailDomains`.
+
+Member includes `id`, `userId`, safe account name/email/image, one role,
+`joinedAt`, `emailDomain` and `isOutsideAllowedEmailDomains`.
+
+## 11. Pagination and filtering
+
+Both collections use opaque versioned base64url cursors with checksum validation,
+following the existing session-cursor discipline. Clients return cursors
+verbatim and never decode or synthesize them.
+
+- organizations: `(normalizedName ASC, id ASC)`;
+- members: `(joinedAt ASC, id ASC)`;
+- default limit 50;
+- accepted range 1–100;
+- canonical cursor corruption returns `400 invalid_cursor`;
+- no free-text search, role filter or global candidate listing in iteration 5.
+
+The UI renders the first page and explicit continuation/load-more behavior.
+Active organization resolution and current actor context never depend on an item
+being present in the first collection page.
+
+This is an intentional improvement over reference unbounded lists.
+
+## 12. Authorization, errors and disclosure
+
+Missing and foreign organizations share `404 organization_not_found`, preventing
+existence disclosure. The web route can still reproduce the visible reference
+state: zero accessible organizations render onboarding; otherwise an unresolved
+`/w/{key}` renders the protected 403 page.
+
+Stable organization codes include:
+
+- `organization_not_found` — 404;
+- `organization_permission_denied` — 403;
+- `organization_name_conflict` — 409;
+- `organization_slug_conflict` — 409;
+- `last_organization_required` — 409;
+- `organization_confirmation_mismatch` — 400;
+- `member_not_found`, `target_user_not_found` — 404;
+- `member_already_exists`, `member_role_unchanged` — 409;
+- `role_assignment_forbidden` — 403;
+- `member_domain_acknowledgement_required` — 409;
+- `organization_ownership_transfer_required` — 409;
+- existing `invalid_cursor` and `concurrency_conflict`.
+
+The domain-acknowledgement problem may include target email, normalized email
+domain and ordered allowed domains because the actor already holds member-create
+permission and supplied the exact target ID. The UI asks for explicit confirmation
+and repeats the POST with acknowledgement; the first request performs no write.
+
+Logs record operation, outcome, actor user/session ID, organization/member opaque
+IDs and trace ID. They never include names, emails, domains, bodies, cookies,
+credentials or cursor values.
+
+## 13. Transactions and concurrency
+
+### Create
+
+One transaction locks the actor user as the per-actor create serialization point,
+checks case-insensitive accessible-name duplication, chooses/retries the slug,
+creates Organization, creates owner membership and updates the current session
+active organization. Failure rolls everything back.
+
+### Set active
+
+One membership-qualified update changes only the current unexpired session.
+Foreign/non-member organization produces the non-disclosing not-found result.
+
+### Update
+
+Lock organization and actor membership, re-evaluate permission, validate any
+name/slug conflict, replace allowed-domain rows and update the organization in
+one transaction. The global unique index is authoritative for slug races.
+
+### Delete
+
+Lock organization, actor membership and the actor's accessible membership set;
+require owner permission, exact case-sensitive name confirmation and more than
+one accessible organization. Delete cascades members/domains and clears active
+session FKs through `SET NULL`. Dashboard fallback remains deterministic.
+
+### Add member
+
+Lock/recheck actor role and target state. Validate target existence, duplicate
+membership, assignable role and domain policy. The warning response writes
+nothing. An acknowledged request inserts exactly one membership; the unique key
+maps a race to `member_already_exists`.
+
+### Change role
+
+Lock actor, target and the organization owner set. Recompute the assignment
+matrix, block self edits, redundant changes and invalid owner mutation, preserve
+at least one owner, then write atomically.
+
+## 14. Account deletion and local cleanup
+
+Iteration-4 hard account deletion and local automation cleanup must become
+organization-aware:
+
+- organizations in which the user is the only member are deleted;
+- membership is removed when another owner remains;
+- deletion is rejected with `organization_ownership_transfer_required` when the
+  user is sole owner of a multi-member organization;
+- session active-organization references are cleared when access disappears;
+- local cleanup returns the real count of deleted sole-member organizations;
+- account deletion, organization cleanup and user deletion share one transaction.
+
+This intentionally closes the reference orphan-owner gap and prevents product
+data from surviving local E2E cleanup.
+
+## 15. Web behavior
+
+### `/welcome`
+
+A protected zero-organization onboarding surface offers creation and account
+settings. The reference `Review Invitations` action is omitted until iteration 6
+rather than linking to a dead route. A user who already has an accessible
+organization is redirected through `/dashboard` instead of seeing first-workspace
+onboarding again.
+
+### `/workspaces`
+
+Shows accessible organization cards, create action, paging continuation and safe
+loading/error/empty states. Cards link to canonical workspace and settings
+routes. Delete is shown only for an owner with more than one accessible
+organization.
+
+### `/dashboard`
+
+SSR resolves the active organization when still accessible, otherwise the first
+organization in deterministic list order, otherwise redirects to `/welcome`.
+
+### `/w/[organizationKey]`
+
+The root validates REST access and redirects to canonical
+`/w/{slug}/dashboard`. A UUID-compatible link remains valid. Deep-link rendering
+does not update active session context.
+
+The organization dashboard is a minimal organization-aware context page; charts,
+data table and final shell remain iteration 9.
+
+### Settings
+
+- settings root redirects to `/settings/workspace`;
+- workspace page edits name, slug and domains when permitted, otherwise renders
+  read-only values;
+- canonical URL is replaced after slug change;
+- danger control requires owner/delete capability and another accessible org;
+- users page separates the current actor, pages other members, exposes direct
+  add/role controls only when allowed and never renders member removal;
+- roles page documents the three fixed roles without custom-role mutation;
+- invitations, teams and API keys are absent from navigation.
+
+### Switching and mutation recovery
+
+A minimal workspace switcher explicitly updates session preference, then
+preserves known single-key routes such as settings users/workspace/roles.
+Unknown/complex workspace paths fall back to the selected organization dashboard.
+
+Mutation response DTOs are authoritative. If a follow-up refresh fails after a
+successful write, the UI does not report the mutation as failed and never repeats
+it. It retains a conservative confirmed projection and offers a separate
+refresh retry.
+
+## 16. Test-first implementation order
+
+1. Domain tests for slug/domain/role/permission/last-owner rules.
+2. Application tests for organization lifecycle, context and membership.
+3. DbContext code-only rename with no EF model drift.
+4. EF entities/configurations, additive migration and PostgreSQL persistence
+   tests.
+5. Organization-aware account/local cleanup tests and implementation.
+6. API boundary tests, then endpoint implementation.
+7. OpenAPI tests/export and generated SDK regeneration.
+8. Web adapters/components/routes with Jest tests first.
+9. Multi-user deterministic Playwright scenarios.
+10. Durable docs and full acceptance evidence.
+
+Focused tests are run red before production code and green after each slice.
+
+## 17. Test matrix
+
+### Domain/Application
+
+- role matrix and assignability;
+- self edit, owner edit and last-owner invariant;
+- name/slug/domain normalization;
+- deterministic cursor rules;
+- create/update/delete/switch/add/change-role outcomes;
+- account deletion ownership classification.
+
+### Infrastructure
+
+- clean migration shape, constraints, indexes and FKs;
+- atomic create + owner + active session;
+- tenant-qualified reads;
+- cascade and `SET NULL` behavior;
+- slug collision, duplicate member and role/delete races;
+- account/local cleanup transaction and count.
+
+### API
+
+- 401, CSRF, strict JSON and validation;
+- no-store and secure error envelope;
+- missing/foreign indistinguishability;
+- permission matrix and stable problem codes;
+- cursor range/corruption;
+- OpenAPI security, headers, enums, bounds and strict schemas.
+
+### Web/Jest
+
+- server loader allow-list and renewal suppression;
+- zero-org, list/loading/error and canonical routing;
+- form validation and domain acknowledgement;
+- role-aware controls and safe partial-success recovery;
+- switch navigation behavior;
+- en/ru copy.
+
+### Playwright
+
+- zero-org `/dashboard` to `/welcome` while `/workspaces` and `/user/*` remain
+  reachable;
+- first organization creation and `-2` slug collision;
+- active/fallback routing, slug/UUID access and foreign isolation;
+- owner settings update/domain normalization and member read-only behavior;
+- last accessible organization delete protection;
+- direct add with domain acknowledgement;
+- owner role change and member control absence;
+- route-preserving explicit workspace switch;
+- organization-aware local cleanup.
+
+## 18. Acceptance commands
+
+Required completion gates include:
+
+```bash
+dotnet restore Template.sln
+dotnet build Template.sln --no-restore
+dotnet test Template.sln --no-restore
+dotnet format Template.sln --no-restore --verify-no-changes
+```
+
+Also required:
+
+- clean PostgreSQL migration apply;
+- EF `has-pending-model-changes`;
+- non-empty idempotent migration script inspection;
+- exact OpenAPI export twice, stable hash and committed-contract diff;
+- `cd apps/web && npm run api:check`;
+- `npm run boundaries:check`;
+- `npm run format:check`, `npm run lint`, `npm run typecheck`;
+- full Jest;
+- clean production Next.js build and standalone artifact check;
+- deterministic Playwright E2E;
+- production npm and full NuGet vulnerability checks;
+- `git diff --check`;
+- empty working-tree and branch-range diffs for `template/`.
+
+Before Next.js edits, implementation reads the installed Next.js documentation.
+Version-sensitive .NET/EF/Next.js decisions are checked against installed or
+current official documentation rather than memory.
+
+## 19. Durable documentation
+
+The implementation updates:
+
+- `docs/api-conventions.md` — organization REST, authorization, active context,
+  errors and cursor contract;
+- `docs/web-conventions.md` — routing, SSR loading, switcher and mutation recovery;
+- `docs/authentication-persistence-operations.md` — renamed DbContext, migration
+  commands, schemas and cleanup behavior;
+- `docs/aspnetcore-migration-plan.md` — iteration scope/status, correspondence,
+  evidence, intentional differences and next gate.
+
+No durable architecture/security/migration decision remains only in chat or PR
+comments.
+
+## 20. Intentional differences from reference
+
+- single-role checked schema replaces CSV-compatible role parsing;
+- active organization has a real FK and transactional create/context update;
+- missing/foreign API resources share non-disclosing 404;
+- last-organization state conflict uses 409 instead of reference 400;
+- collection APIs are cursor-paginated rather than unbounded;
+- name validation rejects control whitespace;
+- allowed domains use an explicit table instead of generic JSON metadata;
+- account deletion prevents ownerless shared organizations;
+- invitation CTA and routes remain absent until iteration 6;
+- product dashboard/app shell visuals remain iteration 9;
+- RFC Problem Details and generated REST SDK replace Server Actions/Better Auth.
+
+## 21. Delivery and review workflow
+
+Implementation is decomposed among subagents with explicit file ownership and
+parent integration/review. Each subtask follows test-first order; the parent
+runs focused and complete gates and verifies the immutable reference.
+
+After implementation:
+
+1. commit intentional changes and push the branch;
+2. create a ready, non-draft PR;
+3. wait for the repository's automatic review;
+4. inspect every actionable review comment;
+5. reproduce issues with a failing test when applicable, fix, rerun relevant and
+   full gates, commit and push;
+6. repeat review rounds until the reviewer reports no actionable comments;
+7. record final verification and known external gaps without overstating live
+   evidence.
