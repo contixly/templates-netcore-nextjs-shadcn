@@ -112,7 +112,10 @@ export default async function OrganizationWorkspaceSettingsPage({
           <CardContent>
             <OrganizationDeleteDialog
               canDelete
-              organization={organization.data}
+              organization={{
+                id: organization.data.id,
+                name: organization.data.name,
+              }}
             />
           </CardContent>
         </Card>

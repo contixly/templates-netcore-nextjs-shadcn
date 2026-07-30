@@ -524,13 +524,19 @@ The settings parent shell never owns anonymous navigation because doing so can
 race the segment-specific return URL; Workspace, Users, and Roles each own their
 exact protected redirect. Member directory client state keeps ordered server
 pages separate from confirmed mutation overlays. A monotonically increasing
-read generation ignores superseded load-more/refresh responses, a first-page
-refresh preserves already loaded tail pages and their opaque last cursor, and a
-recovery action performs GET only. Confirmed member projections overlay stale
-reads until the component remounts. The workspace list similarly tombstones a
-confirmed deletion so accumulated or refreshed props cannot resurrect it and
-delete eligibility is recomputed immediately. A direct-add domain override is
-offered only for exact HTTP 409
+read generation makes overlays causal: a read begun before a mutation cannot
+retire its projection, while the first successful later read whose page contains
+that member replaces it with authoritative server state. Added-member overlays
+therefore remain only while successful later pages do not contain that member.
+An abort controller plus an explicit supersede settlement releases the older
+mutation callback even if its transport never settles. A first-page refresh
+preserves already loaded tail pages and their opaque last cursor, and a recovery
+action performs GET only. The workspace list similarly tombstones a confirmed
+deletion so accumulated or refreshed props cannot resurrect it and delete
+eligibility is recomputed immediately. Current-actor domain eligibility mirrors
+the domain policy's exact email/domain syntax but serializes only the resulting
+outside-policy boolean. A direct-add domain override is offered only for exact
+HTTP 409
 `member_domain_acknowledgement_required` responses carrying nonempty email,
 email domain, and allowed-domain list metadata.
 

@@ -5,6 +5,7 @@ import { getTranslations } from "next-intl/server";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
+import { evaluateOrganizationEmailDomainEligibility } from "@/src/features/organizations/organization-email-domain-policy";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import type { OrganizationMemberResponse } from "@/src/lib/api/generated/types.gen";
 import { loadOrganizationMembers } from "@/src/lib/api/organizations/server/load-organization-members";
@@ -22,17 +23,8 @@ function compactMember(member: OrganizationMemberResponse) {
     email: member.email,
     role: member.role,
     joinedAt: member.joinedAt,
-    emailDomain: member.emailDomain,
     isOutsideAllowedEmailDomains: member.isOutsideAllowedEmailDomains,
   };
-}
-
-function emailDomain(email: string): string | null {
-  const normalized = email.trim().toLowerCase();
-  const separator = normalized.lastIndexOf("@");
-  return separator > 0 && separator < normalized.length - 1
-    ? normalized.slice(separator + 1)
-    : null;
 }
 
 export default async function OrganizationUsersSettingsPage({
@@ -78,11 +70,10 @@ export default async function OrganizationUsersSettingsPage({
   if (!members.ok) {
     return <OrganizationFailure failure={members.failure} />;
   }
-  const actorEmailDomain = emailDomain(session.data.user.email);
-  const isActorOutsideAllowedEmailDomains =
-    organization.data.allowedEmailDomains.length > 0 &&
-    (actorEmailDomain === null ||
-      !organization.data.allowedEmailDomains.includes(actorEmailDomain));
+  const actorEligibility = evaluateOrganizationEmailDomainEligibility(
+    session.data.user.email,
+    organization.data.allowedEmailDomains,
+  );
 
   return (
     <article className="flex flex-col gap-8">
@@ -96,8 +87,7 @@ export default async function OrganizationUsersSettingsPage({
           name: session.data.user.name,
           email: session.data.user.email,
           role: organization.data.currentRole,
-          emailDomain: actorEmailDomain,
-          isOutsideAllowedEmailDomains: isActorOutsideAllowedEmailDomains,
+          isOutsideAllowedEmailDomains: !actorEligibility.isAllowed,
         }}
         initialPage={{
           items: members.data.items.map(compactMember),

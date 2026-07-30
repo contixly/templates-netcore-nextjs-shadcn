@@ -66,7 +66,6 @@ const currentActor = {
   name: currentMember.name,
   email: currentMember.email,
   role: currentMember.role,
-  emailDomain: currentMember.emailDomain,
   isOutsideAllowedEmailDomains: currentMember.isOutsideAllowedEmailDomains,
 };
 const otherMember = {
@@ -235,6 +234,7 @@ it("loads the next opaque cursor, appends members, and deduplicates ids", async 
       cache: "no-store",
       path: { organizationId: organization.id },
       query: { cursor: "cursor-next" },
+      signal: expect.anything(),
     });
   });
   await waitFor(() => {
@@ -304,6 +304,7 @@ it("retains a confirmed role when refresh fails and retry performs GET only", as
     client: { id: "browser-client" },
     cache: "no-store",
     path: { organizationId: organization.id },
+    signal: expect.anything(),
   });
 });
 
@@ -322,7 +323,7 @@ it("replaces the refreshed first page order, preserves loaded progress, and over
     .mockResolvedValueOnce(memberPageResult([nextMember], "cursor-tail"))
     .mockResolvedValueOnce(
       memberPageResult(
-        [currentMember, nextMember, { ...otherMember, role: "member" }],
+        [currentMember, nextMember],
         "cursor-refreshed-first-page",
       ),
     )
@@ -361,11 +362,12 @@ it("replaces the refreshed first page order, preserves loaded progress, and over
       cache: "no-store",
       path: { organizationId: organization.id },
       query: { cursor: "cursor-tail" },
+      signal: expect.anything(),
     });
   });
 });
 
-it("ignores an older delayed load-more response after mutation refresh wins", async () => {
+it("applies a post-mutation authoritative refresh and ignores an older delayed load-more response", async () => {
   const delayedLoadMore =
     deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
   const mutationRefresh =
@@ -399,6 +401,9 @@ it("ignores an older delayed load-more response after mutation refresh wins", as
   fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
 
   await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(2));
+  expect(
+    (getMembers.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal?.aborted,
+  ).toBe(true);
   await act(async () => {
     mutationRefresh.resolve(
       memberPageResult(
@@ -409,7 +414,7 @@ it("ignores an older delayed load-more response after mutation refresh wins", as
   });
   expect(
     screen.getByRole("combobox", { name: "Role for Other User" }),
-  ).toHaveTextContent("Administrator");
+  ).toHaveTextContent("Member");
 
   await act(async () => {
     delayedLoadMore.resolve(
@@ -425,11 +430,12 @@ it("ignores an older delayed load-more response after mutation refresh wins", as
       cache: "no-store",
       path: { organizationId: organization.id },
       query: { cursor: "cursor-from-refresh" },
+      signal: expect.anything(),
     });
   });
 });
 
-it("keeps the confirmed add projection over a stale refresh projection", async () => {
+it("keeps an added overlay until a later authoritative page contains it, then exposes later server changes", async () => {
   const confirmed = {
     ...otherMember,
     id: "01900000-0000-7000-8000-000000000034",
@@ -439,17 +445,19 @@ it("keeps the confirmed add projection over a stale refresh projection", async (
     role: "admin" as const,
     isOutsideAllowedEmailDomains: false,
   };
+  const authoritative = {
+    ...confirmed,
+    name: "Authoritative Later User",
+    email: "renamed@external.test",
+    role: "owner" as const,
+    isOutsideAllowedEmailDomains: true,
+  };
   addMember.mockResolvedValue({ ok: true, data: confirmed });
-  getMembers.mockResolvedValue(
-    memberPageResult(
-      [
-        currentMember,
-        otherMember,
-        { ...confirmed, name: "Stale Added User", role: "member" },
-      ],
-      null,
-    ),
-  );
+  getMembers
+    .mockResolvedValueOnce(
+      memberPageResult([currentMember, otherMember], "cursor-authoritative"),
+    )
+    .mockResolvedValueOnce(memberPageResult([authoritative], null));
   renderWithMessages(
     <OrganizationMemberDirectory
       currentActor={currentActor}
@@ -467,8 +475,83 @@ it("keeps the confirmed add projection over a stale refresh projection", async (
   fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
   expect(await screen.findByText("Confirmed Added User")).toBeVisible();
-  expect(screen.queryByText("Stale Added User")).not.toBeInTheDocument();
   expect(
     screen.getByRole("combobox", { name: "Role for Confirmed Added User" }),
   ).toHaveTextContent("Administrator");
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+
+  expect(await screen.findByText("Authoritative Later User")).toBeVisible();
+  expect(screen.queryByText("Confirmed Added User")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("combobox", { name: "Role for Authoritative Later User" }),
+  ).toHaveTextContent("Owner");
+  expect(
+    within(
+      screen.getByRole("article", {
+        name: "Authoritative Later User workspace member",
+      }),
+    ).getByText("Outside domain policy"),
+  ).toBeVisible();
+});
+
+it("aborts and unlatches a never-resolving older recovery when a newer mutation recovery supersedes it", async () => {
+  const neverResolvingRefresh =
+    deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
+  const secondMember = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000035",
+    userId: "01900000-0000-7000-8000-000000000025",
+    name: "Second User",
+    email: "second@example.com",
+    isOutsideAllowedEmailDomains: false,
+  };
+  const confirmedFirstRole = { ...otherMember, role: "admin" as const };
+  const confirmedSecondRole = { ...secondMember, role: "admin" as const };
+  updateRole
+    .mockResolvedValueOnce({ ok: true, data: confirmedFirstRole })
+    .mockResolvedValueOnce({ ok: true, data: confirmedSecondRole });
+  getMembers
+    .mockImplementationOnce(() => neverResolvingRefresh.promise as never)
+    .mockResolvedValueOnce(
+      memberPageResult(
+        [currentMember, confirmedFirstRole, confirmedSecondRole],
+        null,
+      ),
+    );
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={{
+        items: [currentMember, otherMember, secondMember],
+        nextCursor: null,
+      }}
+      organization={organization}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(1));
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toBeDisabled();
+
+  fireEvent.click(
+    screen.getByRole("combobox", { name: "Role for Second User" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(2));
+  await waitFor(() => {
+    expect(
+      screen.getByRole("combobox", { name: "Role for Other User" }),
+    ).toBeEnabled();
+  });
+  expect(
+    (getMembers.mock.calls[0]?.[0] as { signal?: AbortSignal }).signal?.aborted,
+  ).toBe(true);
+  expect(updateRole).toHaveBeenCalledTimes(2);
 });

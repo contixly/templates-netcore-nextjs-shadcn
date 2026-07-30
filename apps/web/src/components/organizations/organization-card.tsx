@@ -59,7 +59,7 @@ export function OrganizationCard({
           <OrganizationDeleteDialog
             canDelete
             onDeleted={onDeleted}
-            organization={organization}
+            organization={{ id: organization.id, name: organization.name }}
           />
         ) : null}
         <Button asChild className="w-full sm:flex-1" variant="outline">

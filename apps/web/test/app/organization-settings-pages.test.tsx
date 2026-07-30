@@ -1,5 +1,11 @@
 import { render, screen, within } from "@testing-library/react";
-import { Suspense, type ReactElement } from "react";
+import {
+  Children,
+  isValidElement,
+  Suspense,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
 import SettingsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/page";
 import RolesSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/roles/page";
@@ -12,6 +18,7 @@ import SettingsPage from "@/src/app/(site)/w/[organizationKey]/settings/page";
 import RolesPage from "@/src/app/(site)/w/[organizationKey]/settings/roles/page";
 import UsersPage from "@/src/app/(site)/w/[organizationKey]/settings/users/page";
 import WorkspacePage from "@/src/app/(site)/w/[organizationKey]/settings/workspace/page";
+import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
 import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import type {
@@ -118,6 +125,27 @@ const currentMember = {
   emailDomain: "example.com",
   isOutsideAllowedEmailDomains: false,
 } satisfies OrganizationMemberResponse;
+
+function findElementByType(
+  node: ReactNode,
+  type: ReactElement["type"],
+): ReactElement | null {
+  if (!isValidElement(node)) {
+    return null;
+  }
+  if (node.type === type) {
+    return node;
+  }
+  for (const child of Children.toArray(
+    (node.props as { children?: ReactNode }).children,
+  )) {
+    const match = findElementByType(child, type);
+    if (match) {
+      return match;
+    }
+  }
+  return null;
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -286,7 +314,6 @@ it("serializes compact actor, organization, and member views into the users clie
     name: "Current User",
     email: "current@example.com",
     role: "owner",
-    emailDomain: "example.com",
     isOutsideAllowedEmailDomains: false,
   });
   expect(directory.props.organization).toEqual({
@@ -306,12 +333,91 @@ it("serializes compact actor, organization, and member views into the users clie
         email: currentMember.email,
         role: currentMember.role,
         joinedAt: currentMember.joinedAt,
-        emailDomain: currentMember.emailDomain,
         isOutsideAllowedEmailDomains:
           currentMember.isOutsideAllowedEmailDomains,
       },
     ],
     nextCursor: null,
+  });
+});
+
+it.each([
+  ["first@second@example.com", true],
+  ["person name@example.com", true],
+  ["person@example", true],
+  ["person@-bad.example.com", true],
+  ["person@bad-.example.com", true],
+  [`person@${"a".repeat(64)}.com`, true],
+  [" Person@Example.COM ", false],
+  ["person@sub.example.com", true],
+] as const)(
+  "matches backend actor domain eligibility for %s",
+  async (email, expectedOutsidePolicy) => {
+    loadSession.mockResolvedValue({
+      ok: true,
+      data: {
+        authenticated: true,
+        user: {
+          id: "user-id",
+          name: "Current User",
+          email,
+          emailVerified: true,
+          image: null,
+        },
+        session: {
+          id: "session-id",
+          createdAt: "2026-07-30T10:00:00Z",
+          updatedAt: "2026-07-30T10:00:00Z",
+          expiresAt: "2026-08-01T10:00:00Z",
+          activeOrganizationId: detail.id,
+        },
+      },
+    });
+
+    const users = (await UsersPage({
+      params: Promise.resolve({ organizationKey: "acme" }),
+    })) as ReactElement<{ children: ReactElement[] }>;
+    const directory = users.props.children[1] as ReactElement<{
+      currentActor: Record<string, unknown>;
+    }>;
+
+    expect(directory.props.currentActor).toEqual({
+      userId: "user-id",
+      name: "Current User",
+      email,
+      role: "owner",
+      isOutsideAllowedEmailDomains: expectedOutsidePolicy,
+    });
+    expect(directory.props.currentActor).not.toHaveProperty("emailDomain");
+  },
+);
+
+it("passes only id and name through the workspace delete client boundary", async () => {
+  loadList.mockResolvedValue({
+    ok: true,
+    data: {
+      items: [
+        acme,
+        {
+          ...acme,
+          id: "01900000-0000-7000-8000-000000000099",
+          name: "Other",
+          canonicalKey: "other",
+          slug: "other",
+        },
+      ],
+      nextCursor: null,
+    },
+  });
+
+  const workspace = await WorkspacePage({
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+  const deleteDialog = findElementByType(workspace, OrganizationDeleteDialog);
+
+  expect(deleteDialog?.props).toEqual({
+    canDelete: true,
+    organization: { id: detail.id, name: "Acme" },
   });
 });
 

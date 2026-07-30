@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useReducer, useRef } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { IconAlertTriangle, IconUsers } from "@tabler/icons-react";
 
 import {
@@ -39,7 +39,6 @@ import type { ApiFailure } from "@/src/lib/api/result";
 export type OrganizationMemberView = Pick<
   OrganizationMemberResponse,
   | "email"
-  | "emailDomain"
   | "id"
   | "isOutsideAllowedEmailDomains"
   | "joinedAt"
@@ -58,7 +57,6 @@ export type OrganizationCurrentActorView = Readonly<{
   name: string;
   email: string;
   role: OrganizationRole;
-  emailDomain: string | null;
   isOutsideAllowedEmailDomains: boolean;
 }>;
 
@@ -90,9 +88,14 @@ type ActiveRead = Readonly<{
   action?: ConfirmedAction;
 }>;
 
+type ConfirmedOverlay = Readonly<{
+  member: OrganizationMemberView;
+  confirmedAfterReadId: number;
+}>;
+
 type DirectoryState = Readonly<{
   pages: readonly OrganizationMemberPageView[];
-  confirmedById: ReadonlyMap<string, OrganizationMemberView>;
+  confirmedById: ReadonlyMap<string, ConfirmedOverlay>;
   confirmedOrder: readonly string[];
   activeRead: ActiveRead | null;
   feedback: Feedback;
@@ -100,7 +103,11 @@ type DirectoryState = Readonly<{
 }>;
 
 type DirectoryAction =
-  | Readonly<{ type: "confirm"; member: OrganizationMemberView }>
+  | Readonly<{
+      type: "confirm";
+      member: OrganizationMemberView;
+      confirmedAfterReadId: number;
+    }>
   | Readonly<{ type: "readStarted"; read: ActiveRead }>
   | Readonly<{
       type: "loadMoreSucceeded";
@@ -127,6 +134,13 @@ type DirectoryAction =
       traceId?: string;
     }>;
 
+type ReadCoordinator = Readonly<{
+  id: number;
+  controller: AbortController;
+  superseded: Promise<void>;
+  settleSuperseded: () => void;
+}>;
+
 function memberView(
   member: OrganizationMemberResponse,
 ): OrganizationMemberView {
@@ -137,7 +151,6 @@ function memberView(
     email: member.email,
     role: member.role,
     joinedAt: member.joinedAt,
-    emailDomain: member.emailDomain,
     isOutsideAllowedEmailDomains: member.isOutsideAllowedEmailDomains,
   };
 }
@@ -151,13 +164,53 @@ function pageView(
   };
 }
 
+function reconcileConfirmedOverlays(
+  state: DirectoryState,
+  page: OrganizationMemberPageView,
+  readId: number,
+): Readonly<{
+  confirmedById: ReadonlyMap<string, ConfirmedOverlay>;
+  pages: readonly OrganizationMemberPageView[];
+}> {
+  const authoritativeById = new Map(
+    page.items.map((member) => [member.id, member] as const),
+  );
+  const confirmedById = new Map(state.confirmedById);
+  const retiredById = new Map<string, OrganizationMemberView>();
+
+  for (const [memberId, overlay] of confirmedById) {
+    const authoritative = authoritativeById.get(memberId);
+    if (authoritative && readId > overlay.confirmedAfterReadId) {
+      confirmedById.delete(memberId);
+      retiredById.set(memberId, authoritative);
+    }
+  }
+
+  if (retiredById.size === 0) {
+    return { confirmedById, pages: state.pages };
+  }
+
+  return {
+    confirmedById,
+    pages: state.pages.map((existingPage) => ({
+      ...existingPage,
+      items: existingPage.items.map(
+        (member) => retiredById.get(member.id) ?? member,
+      ),
+    })),
+  };
+}
+
 function directoryReducer(
   state: DirectoryState,
   action: DirectoryAction,
 ): DirectoryState {
   if (action.type === "confirm") {
     const confirmedById = new Map(state.confirmedById);
-    confirmedById.set(action.member.id, action.member);
+    confirmedById.set(action.member.id, {
+      member: action.member,
+      confirmedAfterReadId: action.confirmedAfterReadId,
+    });
     return {
       ...state,
       confirmedById,
@@ -182,20 +235,32 @@ function directoryReducer(
   }
 
   if (action.type === "loadMoreSucceeded") {
+    const reconciled = reconcileConfirmedOverlays(
+      state,
+      action.page,
+      action.readId,
+    );
     return {
       ...state,
-      pages: [...state.pages, action.page],
+      pages: [...reconciled.pages, action.page],
+      confirmedById: reconciled.confirmedById,
       activeRead: null,
     };
   }
 
   if (action.type === "refreshSucceeded") {
+    const reconciled = reconcileConfirmedOverlays(
+      state,
+      action.page,
+      action.readId,
+    );
     return {
       ...state,
       pages:
-        state.pages.length === 0
+        reconciled.pages.length === 0
           ? [action.page]
-          : [action.page, ...state.pages.slice(1)],
+          : [action.page, ...reconciled.pages.slice(1)],
+      confirmedById: reconciled.confirmedById,
       activeRead: null,
       refreshRecovery: null,
       feedback: { kind: "success", message: action.successMessage },
@@ -234,7 +299,9 @@ function orderedVisibleMembers(
     for (const member of page.items) {
       if (!serverIds.has(member.id)) {
         serverIds.add(member.id);
-        orderedServerMembers.push(state.confirmedById.get(member.id) ?? member);
+        orderedServerMembers.push(
+          state.confirmedById.get(member.id)?.member ?? member,
+        );
       }
     }
   }
@@ -242,7 +309,7 @@ function orderedVisibleMembers(
   for (const memberId of state.confirmedOrder) {
     const confirmed = state.confirmedById.get(memberId);
     if (confirmed && !serverIds.has(memberId)) {
-      orderedServerMembers.push(confirmed);
+      orderedServerMembers.push(confirmed.member);
     }
   }
   return orderedServerMembers;
@@ -286,6 +353,19 @@ function formattedDate(value: string, locale: string): string {
       }).format(date);
 }
 
+function createReadCoordinator(id: number): ReadCoordinator {
+  let settleSuperseded = () => {};
+  const superseded = new Promise<void>((resolve) => {
+    settleSuperseded = resolve;
+  });
+  return {
+    id,
+    controller: new AbortController(),
+    superseded,
+    settleSuperseded,
+  };
+}
+
 export function OrganizationMemberDirectory({
   currentActor,
   initialPage,
@@ -300,14 +380,14 @@ export function OrganizationMemberDirectory({
   const locale = useLocale();
   const [state, dispatch] = useReducer(directoryReducer, {
     pages: [initialPage],
-    confirmedById: new Map<string, OrganizationMemberView>(),
+    confirmedById: new Map<string, ConfirmedOverlay>(),
     confirmedOrder: [],
     activeRead: null,
     feedback: null,
     refreshRecovery: null,
   });
   const readGeneration = useRef(0);
-  const activeReadId = useRef<number | null>(null);
+  const activeReadCoordinator = useRef<ReadCoordinator | null>(null);
   const members = orderedVisibleMembers(state);
   const otherMembers = members.filter(
     (member) => member.userId !== currentActor.userId,
@@ -319,8 +399,36 @@ export function OrganizationMemberDirectory({
   const nextCursor = state.pages.at(-1)?.nextCursor ?? null;
   const pendingRead = state.activeRead !== null;
 
+  useEffect(
+    () => () => {
+      const activeRead = activeReadCoordinator.current;
+      activeReadCoordinator.current = null;
+      activeRead?.controller.abort();
+      activeRead?.settleSuperseded();
+    },
+    [],
+  );
+
+  function startRead(
+    kind: ReadKind,
+    action?: ConfirmedAction,
+  ): ReadCoordinator {
+    const supersededRead = activeReadCoordinator.current;
+    supersededRead?.controller.abort();
+    supersededRead?.settleSuperseded();
+
+    const read = createReadCoordinator(++readGeneration.current);
+    activeReadCoordinator.current = read;
+    dispatch({
+      type: "readStarted",
+      read: { id: read.id, kind, ...(action ? { action } : {}) },
+    });
+    return read;
+  }
+
   async function readMembers(
     query: { cursor?: string } | undefined,
+    signal: AbortSignal,
   ): Promise<
     | { ok: true; data: OrganizationMemberPageView }
     | { ok: false; failure: ApiFailure }
@@ -330,6 +438,7 @@ export function OrganizationMemberDirectory({
         client: createBrowserApiClient(),
         cache: "no-store",
         path: { organizationId: organization.id },
+        signal,
         ...(query ? { query } : {}),
       });
       return result.data === undefined
@@ -343,24 +452,50 @@ export function OrganizationMemberDirectory({
     }
   }
 
+  async function finishRead(
+    read: ReadCoordinator,
+    query: { cursor?: string } | undefined,
+  ): Promise<
+    | { ok: true; data: OrganizationMemberPageView }
+    | { ok: false; failure: ApiFailure }
+    | null
+  > {
+    const outcome = await Promise.race([
+      readMembers(query, read.controller.signal).then((result) => ({
+        kind: "completed" as const,
+        result,
+      })),
+      read.superseded.then(() => ({ kind: "superseded" as const })),
+    ]);
+    if (
+      outcome.kind === "superseded" ||
+      activeReadCoordinator.current !== read
+    ) {
+      return null;
+    }
+    activeReadCoordinator.current = null;
+    return outcome.result;
+  }
+
   async function loadMore() {
-    if (!nextCursor || activeReadId.current !== null) {
+    if (!nextCursor || activeReadCoordinator.current !== null) {
       return;
     }
-    const readId = ++readGeneration.current;
-    activeReadId.current = readId;
-    dispatch({ type: "readStarted", read: { id: readId, kind: "loadMore" } });
-    const result = await readMembers({ cursor: nextCursor });
-    if (activeReadId.current !== readId) {
+    const read = startRead("loadMore");
+    const result = await finishRead(read, { cursor: nextCursor });
+    if (!result) {
       return;
     }
-    activeReadId.current = null;
     if (result.ok) {
-      dispatch({ type: "loadMoreSucceeded", readId, page: result.data });
+      dispatch({
+        type: "loadMoreSucceeded",
+        readId: read.id,
+        page: result.data,
+      });
     } else {
       dispatch({
         type: "loadMoreFailed",
-        readId,
+        readId: read.id,
         message: t("loadFailure"),
         traceId: failureTrace(result.failure),
       });
@@ -368,21 +503,15 @@ export function OrganizationMemberDirectory({
   }
 
   async function refreshAfterMutation(action: ConfirmedAction) {
-    const readId = ++readGeneration.current;
-    activeReadId.current = readId;
-    dispatch({
-      type: "readStarted",
-      read: { id: readId, kind: "refresh", action },
-    });
-    const result = await readMembers(undefined);
-    if (activeReadId.current !== readId) {
+    const read = startRead("refresh", action);
+    const result = await finishRead(read, undefined);
+    if (!result) {
       return;
     }
-    activeReadId.current = null;
     if (!result.ok) {
       dispatch({
         type: "refreshFailed",
-        readId,
+        readId: read.id,
         action,
         traceId: failureTrace(result.failure),
       });
@@ -391,7 +520,7 @@ export function OrganizationMemberDirectory({
 
     dispatch({
       type: "refreshSucceeded",
-      readId,
+      readId: read.id,
       page: result.data,
       action,
       successMessage: action === "add" ? t("addSuccess") : t("roleSuccess"),
@@ -402,7 +531,11 @@ export function OrganizationMemberDirectory({
     member: OrganizationMemberResponse,
     action: ConfirmedAction,
   ) {
-    dispatch({ type: "confirm", member: memberView(member) });
+    dispatch({
+      type: "confirm",
+      member: memberView(member),
+      confirmedAfterReadId: readGeneration.current,
+    });
     await refreshAfterMutation(action);
   }
 
