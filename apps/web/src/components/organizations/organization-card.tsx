@@ -2,6 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { IconArrowRight, IconSettings } from "@tabler/icons-react";
 
+import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -16,8 +17,12 @@ import { organizationRoutes } from "@/src/features/organizations/organization-ro
 import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";
 
 export function OrganizationCard({
+  canDelete = false,
   organization,
-}: Readonly<{ organization: OrganizationSummaryResponse }>) {
+}: Readonly<{
+  canDelete?: boolean;
+  organization: OrganizationSummaryResponse;
+}>) {
   const t = useTranslations("organizations.card");
   const roles = useTranslations("organizations.roles");
 
@@ -39,7 +44,10 @@ export function OrganizationCard({
         <span className="text-muted-foreground">{t("slugLabel")}</span>
         <code className="truncate">{organization.slug}</code>
       </CardContent>
-      <CardFooter className="flex flex-col gap-2 sm:flex-row">
+      <CardFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+        {canDelete ? (
+          <OrganizationDeleteDialog canDelete organization={organization} />
+        ) : null}
         <Button asChild className="w-full sm:flex-1" variant="outline">
           <Link
             href={organizationRoutes.settingsWorkspace(

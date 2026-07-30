@@ -39,6 +39,10 @@ const beta = {
   slug: "beta",
   canonicalKey: "beta",
   currentRole: "member",
+  capabilities: {
+    ...capabilities,
+    canDeleteOrganization: false,
+  },
 } satisfies OrganizationSummaryResponse;
 
 it("renders canonical dashboard/settings links without delete controls", () => {
@@ -57,6 +61,25 @@ it("renders canonical dashboard/settings links without delete controls", () => {
   );
   expect(
     within(card).queryByRole("button", { name: /delete/i }),
+  ).not.toBeInTheDocument();
+});
+
+it("offers delete only to capable owners when another workspace is accessible", () => {
+  renderWithMessages(
+    <OrganizationList pages={[{ items: [acme, beta], nextCursor: null }]} />,
+  );
+
+  expect(
+    within(screen.getByRole("article", { name: "Acme workspace" })).getByRole(
+      "button",
+      { name: "Delete workspace" },
+    ),
+  ).toBeVisible();
+  expect(
+    within(screen.getByRole("article", { name: "Beta workspace" })).queryByRole(
+      "button",
+      { name: "Delete workspace" },
+    ),
   ).not.toBeInTheDocument();
 });
 

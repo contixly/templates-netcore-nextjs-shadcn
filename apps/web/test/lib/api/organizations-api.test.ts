@@ -346,3 +346,45 @@ it("does not call a generated mutation when CSRF acquisition fails", async () =>
   });
   expect(mockedCreateOrganization).not.toHaveBeenCalled();
 });
+
+it("preserves only the safe domain-acknowledgement extensions for member confirmation", async () => {
+  mockedGetCsrf.mockResolvedValue({ ok: true, data: "csrf-domain-warning" });
+  mockedAddMember.mockResolvedValue({
+    data: undefined,
+    error: {
+      type: "urn:template:problem:member_domain_acknowledgement_required",
+      title: "Domain acknowledgement required",
+      status: 409,
+      detail: "private domain policy detail",
+      instance: `/api/v1/organizations/${organization.id}/members`,
+      code: "member_domain_acknowledgement_required",
+      traceId: "trace-domain-warning",
+      email: "member@external.test",
+      emailDomain: "external.test",
+      allowedEmailDomains: ["example.test", "team.example.test"],
+      unsafeExtension: "do not expose",
+    },
+    request: new Request("https://example.test"),
+    response: new Response(null, { status: 409 }),
+  } as never);
+
+  const result = await addBrowserOrganizationMember(client, organization.id, {
+    userId: member.userId,
+    role: "member",
+  });
+
+  expect(result).toEqual({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "member_domain_acknowledgement_required",
+      status: 409,
+      traceId: "trace-domain-warning",
+      email: "member@external.test",
+      emailDomain: "external.test",
+      allowedEmailDomains: ["example.test", "team.example.test"],
+    },
+  });
+  expect(JSON.stringify(result)).not.toContain("private domain policy detail");
+  expect(JSON.stringify(result)).not.toContain("unsafeExtension");
+});

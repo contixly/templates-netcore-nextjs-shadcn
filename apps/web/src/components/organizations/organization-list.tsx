@@ -101,7 +101,17 @@ export function OrganizationList({
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 md:grid-cols-2">
         {organizations.map((organization) => (
-          <OrganizationCard key={organization.id} organization={organization} />
+          <OrganizationCard
+            canDelete={
+              organization.capabilities.canDeleteOrganization &&
+              (organizations.some(
+                (candidate) => candidate.id !== organization.id,
+              ) ||
+                nextCursor !== null)
+            }
+            key={organization.id}
+            organization={organization}
+          />
         ))}
       </div>
       {continuationFailure ? (

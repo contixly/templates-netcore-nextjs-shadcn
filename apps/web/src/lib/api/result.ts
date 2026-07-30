@@ -19,6 +19,9 @@ export type ApiFailure =
       code: string;
       status: number;
       traceId?: string;
+      email?: string;
+      emailDomain?: string;
+      allowedEmailDomains?: string[];
     }
   | {
       kind: "network";
