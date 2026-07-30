@@ -174,17 +174,11 @@ internal sealed class EfOrganizationStore(
                                 OrganizationFailure.NotFound);
                         }
 
-                        var normalizedName = command.Name.ToLowerInvariant();
-                        var nameExists = await (
-                            from organization in db.Organizations.AsNoTracking()
-                            join membership in
-                                db.OrganizationMembers.AsNoTracking()
-                                on organization.Id equals membership.OrganizationId
-                            where
-                                membership.UserId == command.ActorUserId.Value &&
-                                organization.Name.ToLower() == normalizedName
-                            select organization.Id)
-                            .AnyAsync(transactionCancellationToken);
+                        var nameExists = await AccessibleNameExistsAsync(
+                            command.ActorUserId.Value,
+                            command.Name,
+                            excludedOrganizationId: null,
+                            transactionCancellationToken);
                         if (nameExists)
                         {
                             return OrganizationOperationResult<
@@ -317,18 +311,11 @@ internal sealed class EfOrganizationStore(
 
                     if (command.Name is not null)
                     {
-                        var normalizedName = command.Name.ToLowerInvariant();
-                        var nameExists = await (
-                            from other in db.Organizations.AsNoTracking()
-                            join membership in
-                                db.OrganizationMembers.AsNoTracking()
-                                on other.Id equals membership.OrganizationId
-                            where
-                                membership.UserId == command.ActorUserId.Value &&
-                                other.Id != command.OrganizationId.Value &&
-                                other.Name.ToLower() == normalizedName
-                            select other.Id)
-                            .AnyAsync(transactionCancellationToken);
+                        var nameExists = await AccessibleNameExistsAsync(
+                            command.ActorUserId.Value,
+                            command.Name,
+                            command.OrganizationId.Value,
+                            transactionCancellationToken);
                         if (nameExists)
                         {
                             return OrganizationOperationResult<
@@ -880,6 +867,38 @@ internal sealed class EfOrganizationStore(
                 """)
             .AsNoTracking()
             .SingleOrDefaultAsync(cancellationToken);
+
+    private Task<bool> AccessibleNameExistsAsync(
+        Guid actorUserId,
+        string name,
+        Guid? excludedOrganizationId,
+        CancellationToken cancellationToken) =>
+        excludedOrganizationId is null
+            ? db.Database.SqlQuery<bool>(
+                    $"""
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM organizations.organizations AS organization
+                        INNER JOIN organizations.members AS membership
+                            ON membership.organization_id = organization.id
+                        WHERE membership.user_id = {actorUserId}
+                          AND lower(organization.name) = lower({name})
+                    ) AS "Value"
+                    """)
+                .SingleAsync(cancellationToken)
+            : db.Database.SqlQuery<bool>(
+                    $"""
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM organizations.organizations AS organization
+                        INNER JOIN organizations.members AS membership
+                            ON membership.organization_id = organization.id
+                        WHERE membership.user_id = {actorUserId}
+                          AND organization.id <> {excludedOrganizationId.Value}
+                          AND lower(organization.name) = lower({name})
+                    ) AS "Value"
+                    """)
+                .SingleAsync(cancellationToken);
 
     private Task<ApplicationUser?> LockUserAsync(
         Guid userId,

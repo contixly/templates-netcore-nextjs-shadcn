@@ -281,6 +281,79 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task Create_uses_postgres_unicode_name_normalization_for_both_operands()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "unicode-create-owner@local-agent.test");
+        await fixture.SeedOrganizationForAsync(
+            actor,
+            "istanbul",
+            "existing-unicode-create",
+            OrganizationRole.Owner);
+        const string unicodeInput = "İSTANBUL";
+        var databaseLower = await fixture.LowerInPostgresAsync(unicodeInput);
+
+        Assert.NotEqual(unicodeInput.ToLowerInvariant(), databaseLower);
+        Assert.Equal(
+            await fixture.LowerInPostgresAsync("istanbul"),
+            databaseLower);
+
+        var result = await fixture.Store.CreateAsync(
+            new CreateOrganizationCommand(
+                actor.UserId,
+                actor.SessionId,
+                unicodeInput),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OrganizationFailure.NameConflict, result.Failure);
+        Assert.Equal(1, await fixture.CountAccessibleOrganizationsAsync(actor));
+    }
+
+    [Fact]
+    public async Task Update_uses_postgres_unicode_name_normalization_for_both_operands()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "unicode-update-owner@local-agent.test");
+        await fixture.SeedOrganizationForAsync(
+            actor,
+            "istanbul",
+            "existing-unicode-update",
+            OrganizationRole.Owner);
+        var target = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Rename Unicode Target",
+            "rename-unicode-target",
+            OrganizationRole.Owner);
+        const string unicodeInput = "İSTANBUL";
+        var databaseLower = await fixture.LowerInPostgresAsync(unicodeInput);
+
+        Assert.NotEqual(unicodeInput.ToLowerInvariant(), databaseLower);
+        Assert.Equal(
+            await fixture.LowerInPostgresAsync("istanbul"),
+            databaseLower);
+
+        var result = await fixture.Store.UpdateAsync(
+            new UpdateOrganizationCommand(
+                actor.UserId,
+                target,
+                unicodeInput,
+                Slug: null,
+                AllowedEmailDomains: null),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OrganizationFailure.NameConflict, result.Failure);
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            "Rename Unicode Target",
+            await db.Organizations
+                .Where(row => row.Id == target.Value)
+                .Select(row => row.Name)
+                .SingleAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Update_replaces_domains_and_checks_permission_before_conflicts()
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
@@ -1016,6 +1089,15 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         return await db.OrganizationMembers.CountAsync(
             row => row.UserId == actor.UserId.Value,
             TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<string> LowerInPostgresAsync(string value)
+    {
+        await using var db = CreateDbContext();
+        return await db.Database
+            .SqlQuery<string>(
+                $"SELECT lower({value}) AS \"Value\"")
+            .SingleAsync(TestContext.Current.CancellationToken);
     }
 
     internal async Task<AuthenticatedSession?> GetCurrentBrowserSessionAsync(
