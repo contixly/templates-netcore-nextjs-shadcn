@@ -7,6 +7,7 @@ import {
   revokeOtherBrowserAccountSessions,
   updateBrowserAccountProfile,
 } from "@/src/lib/api/account/browser/account-mutations";
+import { runCsrfMutation } from "@/src/lib/api/browser/run-csrf-mutation";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";
 import { loadConnections } from "@/src/lib/api/account/server/load-connections";
 import { loadSessions } from "@/src/lib/api/account/server/load-sessions";
@@ -276,6 +277,20 @@ it("does not mutate when obtaining CSRF fails", async () => {
     failure: { kind: "network", code: "api_unavailable" },
   });
   expect(mockedUpdateProfile).not.toHaveBeenCalled();
+});
+
+it("runs the shared CSRF mutation flow with one token and one operation", async () => {
+  mockedGetCsrf.mockResolvedValue({ ok: true, data: "csrf-shared" });
+  const operation = jest.fn().mockResolvedValue(sdkSuccess(account));
+
+  await expect(runCsrfMutation(client, operation)).resolves.toEqual({
+    ok: true,
+    data: account,
+  });
+
+  expect(mockedGetCsrf).toHaveBeenCalledTimes(1);
+  expect(operation).toHaveBeenCalledTimes(1);
+  expect(operation).toHaveBeenCalledWith("csrf-shared");
 });
 
 it("normalizes thrown browser mutation failures", async () => {
