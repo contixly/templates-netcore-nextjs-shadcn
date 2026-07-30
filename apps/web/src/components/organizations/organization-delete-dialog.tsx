@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useRef, useState, type FormEvent } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -40,6 +44,7 @@ export function OrganizationDeleteDialog({
 }>) {
   const t = useTranslations("organizations.settings.deleteDialog");
   const router = useRouter();
+  const interactionReady = useInteractionReady();
   const inputRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
@@ -110,7 +115,12 @@ export function OrganizationDeleteDialog({
   return (
     <Dialog onOpenChange={changeOpen} open={open}>
       <DialogTrigger asChild>
-        <Button type="button" variant="destructive">
+        <Button
+          {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+          disabled={!interactionReady}
+          type="button"
+          variant="destructive"
+        >
           {t("trigger")}
         </Button>
       </DialogTrigger>
@@ -142,8 +152,9 @@ export function OrganizationDeleteDialog({
               {t("confirmationLabel", { name: organization.name })}
             </FieldLabel>
             <Input
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
               autoComplete="off"
-              disabled={pending}
+              disabled={!interactionReady || pending}
               id={`delete-organization-${organization.id}`}
               onChange={(event) => {
                 setConfirmation(event.currentTarget.value);
@@ -171,7 +182,8 @@ export function OrganizationDeleteDialog({
               </Button>
             </DialogClose>
             <Button
-              disabled={!matches || pending}
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+              disabled={!interactionReady || !matches || pending}
               type="submit"
               variant="destructive"
             >

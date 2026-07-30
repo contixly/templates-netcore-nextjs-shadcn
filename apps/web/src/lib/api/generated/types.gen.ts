@@ -664,6 +664,10 @@ export type DeleteAccountErrors = {
      */
     405: ProblemDetails;
     /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
      * Internal Server Error
      */
     500: ProblemDetails;
@@ -1605,6 +1609,10 @@ export type DeleteLocalAutomationScenarioErrors = {
      * Method Not Allowed
      */
     405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
     /**
      * Internal Server Error
      */

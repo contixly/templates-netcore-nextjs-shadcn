@@ -1,7 +1,9 @@
 # Итерация 5: organizations, membership и onboarding
 
-**Дата:** 2026-07-30  
-**Статус:** утверждённый дизайн  
+**Дата:** 2026-07-30
+
+**Статус:** утверждённый дизайн
+
 **Ветка:** `codex/iteration-5-organizations-membership`
 
 ## 1. Цель

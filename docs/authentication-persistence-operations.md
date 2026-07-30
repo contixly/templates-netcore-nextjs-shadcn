@@ -307,7 +307,9 @@ backend is introduced by this iteration.
 
 `/api/health/live` does not touch PostgreSQL, including when the request carries
 a valid session cookie. `/api/health` and `/api/health/ready` require
-connectivity and a queryable `auth.users` relation. Health responses never
+connectivity plus queryable `auth.users` and `organizations.organizations`
+relations. Operators must apply migrations through
+`20260730091827_OrganizationsMembershipOnboarding`. Health responses never
 expose connection strings or schema errors.
 
 Auth responses are never cached. Diagnose failures by stable Problem Details
@@ -316,8 +318,9 @@ backend `detail`.
 
 ## Rollback and production gate
 
-The iteration-3/4 migrations are additive over the clean target schema. Rolling
-application code back may leave the new tables, columns, and indexes unused.
+The iteration-3/4/5 migrations are additive over the clean target schema.
+Rolling application code back may leave the new tables, columns, and indexes
+unused.
 Generated `Down` paths are destructive and restricted to disposable
 Development/Test databases; production rollback uses restore or forward-fix
 procedures and never touches `template/`.

@@ -241,6 +241,14 @@ when obsolete and expose an explicit retry. Route loading, route error,
 not-found, and provider-independent global error each have a separate boundary.
 Status changes use an accessible live region.
 
+Each interactive Client Component boundary keeps its exact first-action control
+disabled until that boundary has hydrated, then publishes
+`data-interaction-ready="true"` (organization shell controls use their
+organization-specific readiness attribute). Playwright waits for that exact
+control's readiness attribute and enabled state before clicking or typing. The
+root `data-app-hydrated` marker is not proof that descendant Client Component
+boundaries are interactive and must not be used to justify an interaction.
+
 ## Local verification
 
 From `apps/web`:

@@ -7,11 +7,14 @@ internal sealed class RequestLoggingMiddleware(
     ILogger<RequestLoggingMiddleware> logger)
 {
     private static readonly EventId CompletionEvent = new(1000, "ApiRequestCompleted");
+    private static readonly object SafePathItemKey = new();
 
     public async Task InvokeAsync(HttpContext context)
     {
         var startedAt = Stopwatch.GetTimestamp();
         var statusCode = StatusCodes.Status200OK;
+        var safePath = ResolveSafePath(context);
+        context.Items[SafePathItemKey] = safePath;
 
         try
         {
@@ -37,11 +40,22 @@ internal sealed class RequestLoggingMiddleware(
                 CompletionEvent,
                 "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms",
                 context.Request.Method,
-                context.Request.Path.Value ?? "/",
+                safePath,
                 statusCode,
                 Math.Round(elapsed, 3));
         }
     }
+
+    internal static string SafePath(HttpContext context) =>
+        context.Items.TryGetValue(SafePathItemKey, out var value) &&
+        value is string safePath
+            ? safePath
+            : ResolveSafePath(context);
+
+    private static string ResolveSafePath(HttpContext context) =>
+        context.GetEndpoint() is RouteEndpoint endpoint
+            ? endpoint.RoutePattern.RawText ?? "/api/{route}"
+            : "/api/{unmatched}";
 
     private static LogLevel ResolveLevel(PathString path, int statusCode)
     {

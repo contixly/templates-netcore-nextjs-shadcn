@@ -212,6 +212,34 @@ it("offers an explicit continuation when the first page is truncated", async () 
   ).toHaveAttribute("href", "/workspaces?cursor=opaque%20cursor");
 });
 
+it.each([
+  ["Manage workspaces", undefined],
+  ["Load more workspaces", "opaque cursor"],
+] as const)(
+  "closes the controlled switcher when %s navigation starts",
+  async (linkName, nextCursor) => {
+    renderWithMessages(
+      <OrganizationSwitcher
+        nextCursor={nextCursor}
+        organizations={organizations}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Current workspace: Old" }),
+    );
+    const link = await screen.findByRole("link", { name: linkName });
+    link.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(link);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Switch workspace" }),
+      ).not.toBeInTheDocument();
+    });
+  },
+);
+
 it("keeps navigation blocked and shows safe failure copy when switching fails", async () => {
   setActive.mockResolvedValue({
     ok: false,

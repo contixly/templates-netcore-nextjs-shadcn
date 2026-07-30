@@ -181,6 +181,42 @@ public sealed class OrganizationConcurrencyTests(
     }
 
     [Fact]
+    public async Task Set_active_and_delete_race_serializes_without_database_failure()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "set-active-delete-race@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Delete Target",
+            "delete-target",
+            OrganizationRole.Owner);
+        await fixture.SeedOrganizationForAsync(
+            owner,
+            "Remaining",
+            "remaining",
+            OrganizationRole.Owner);
+
+        await using var sessionLock =
+            await fixture.LockSessionAsync(owner.SessionId);
+        var selection = fixture.SetActiveOrganizationAsync(owner, target);
+        await fixture.WaitForSessionUpdateLockAsync();
+        var deletion = fixture.DeleteOrganizationAsync(
+            owner,
+            target,
+            "Delete Target");
+        await fixture.WaitForOrganizationLockAsync();
+        await sessionLock.ReleaseAsync();
+
+        var deleted = await deletion;
+        var selected = await selection;
+
+        Assert.True(deleted.Succeeded);
+        Assert.True(selected.Succeeded);
+    }
+
+    [Fact]
     public async Task Acknowledged_duplicate_member_race_inserts_exactly_once()
     {
         await using var fixture =

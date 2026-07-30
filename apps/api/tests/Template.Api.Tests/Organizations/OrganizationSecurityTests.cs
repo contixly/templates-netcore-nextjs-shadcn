@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Template.Api.Observability;
 using Template.Api.Tests.Infrastructure;
 
 namespace Template.Api.Tests.Organizations;
@@ -451,9 +452,17 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             HttpMethod.Post,
             $"/api/v1/organizations/{organizationId:D}/members",
             new { userId = target.UserId, role = "member" });
+        using var detail = await ownerClient.GetAsync(
+            "/api/v1/organizations/by-key/sensitive-organization-name-991",
+            TestContext.Current.CancellationToken);
+        using var fault = await ownerClient.GetAsync(
+            "/api/testing/fault/by-key/sensitive-organization-name-991",
+            TestContext.Current.CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, warning.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
+        Assert.Equal(HttpStatusCode.InternalServerError, fault.StatusCode);
         var events = logs.Logs
             .Where(log =>
                 log.Category ==
@@ -478,6 +487,27 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
         Assert.DoesNotContain("sensitive-domain-992.example", rendered);
         Assert.DoesNotContain("acknowledgeDomainRestriction", rendered);
         Assert.DoesNotContain("__Host-template", rendered);
+
+        var genericRendered = string.Join(
+            Environment.NewLine,
+            logs.Logs
+                .Where(log =>
+                    log.Category.EndsWith(
+                        nameof(RequestLoggingMiddleware),
+                        StringComparison.Ordinal) ||
+                    log.Category.EndsWith(
+                        "ApiExceptionHandler",
+                        StringComparison.Ordinal))
+                .Select(log =>
+                    string.Join(
+                        " ",
+                        new[] { log.Message }.Concat(
+                            log.State.Values.Select(value =>
+                                value?.ToString() ?? string.Empty)))));
+        Assert.DoesNotContain(
+            "sensitive-organization-name-991",
+            genericRendered,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record ForeignCase(

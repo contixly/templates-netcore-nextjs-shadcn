@@ -529,6 +529,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -2585,6 +2595,16 @@
               }
             }
           },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "401": {
             "description": "Unauthorized",
             "content": {
@@ -3727,7 +3747,7 @@
             "description": "Trimmed before use; the trimmed name must contain 1 to 50 Unicode letters, digits, ordinary spaces, hyphens, or underscores.",
             "x-trimmed-min-length": 1,
             "x-trimmed-max-length": 50,
-            "x-trimmed-pattern": "^[\\p{L}\\p{N} _-]+$"
+            "x-trimmed-pattern": "^[\\p{L}\\p{Nd} _-]+$"
           }
         },
         "additionalProperties": false
@@ -4060,7 +4080,7 @@
           "name": {
             "maxLength": 50,
             "minLength": 1,
-            "pattern": "^[\\p{L}\\p{N} _-]+$",
+            "pattern": "^[\\p{L}\\p{Nd} _-]+$",
             "type": "string"
           },
           "slug": {
@@ -4231,7 +4251,7 @@
           "name": {
             "maxLength": 50,
             "minLength": 1,
-            "pattern": "^[\\p{L}\\p{N} _-]+$",
+            "pattern": "^[\\p{L}\\p{Nd} _-]+$",
             "type": "string"
           },
           "slug": {
@@ -4487,7 +4507,7 @@
             "description": "Trimmed before use; the trimmed name must contain 1 to 50 Unicode letters, digits, ordinary spaces, hyphens, or underscores.",
             "x-trimmed-min-length": 1,
             "x-trimmed-max-length": 50,
-            "x-trimmed-pattern": "^[\\p{L}\\p{N} _-]+$"
+            "x-trimmed-pattern": "^[\\p{L}\\p{Nd} _-]+$"
           },
           "slug": {
             "type": [

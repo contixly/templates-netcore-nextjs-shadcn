@@ -3,6 +3,10 @@
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import {
   Select,
@@ -42,6 +46,7 @@ export function OrganizationMemberRoleControl({
 }>) {
   const t = useTranslations("organizations.settings.members");
   const roles = useTranslations("organizations.roles");
+  const interactionReady = useInteractionReady();
   const requestInFlight = useRef(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
@@ -92,7 +97,7 @@ export function OrganizationMemberRoleControl({
   return (
     <div className="flex flex-col items-start gap-2">
       <Select
-        disabled={pending}
+        disabled={!interactionReady || pending}
         onValueChange={(value) => {
           if (value === "member" || value === "admin" || value === "owner") {
             void updateRole(value);
@@ -101,6 +106,7 @@ export function OrganizationMemberRoleControl({
         value={member.role}
       >
         <SelectTrigger
+          {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
           aria-label={t("roleLabel", { name: member.name || member.email })}
           className="w-36"
           size="sm"

@@ -10,7 +10,7 @@ internal sealed class OrganizationContractSchemaTransformer
     : IOpenApiSchemaTransformer
 {
     private const string OrganizationNamePattern =
-        """^[\p{L}\p{N} _-]+$""";
+        """^[\p{L}\p{Nd} _-]+$""";
     private const string OrganizationSlugPattern =
         "^[a-z0-9]+(?:-[a-z0-9]+)*$";
     private const string EmailDomainPattern =

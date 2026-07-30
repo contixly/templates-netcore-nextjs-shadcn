@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
-import { waitForAppHydration } from "./support/app-readiness";
+import { waitForInteraction } from "./support/app-readiness";
 import {
   cleanupLocalAutomationUser,
   getGeneratedAccountSessions,
@@ -13,7 +13,6 @@ async function createLocalAccount(
   page: Page,
 ): Promise<ApiResponseOfLocalAutomationScenarioResponse["data"]> {
   await page.goto("/auth/login");
-  await waitForAppHydration(page);
   const scenarioResponse = page.waitForResponse((response) => {
     const request = response.request();
     return (
@@ -21,9 +20,11 @@ async function createLocalAccount(
       new URL(response.url()).pathname === "/api/local-auth/scenario"
     );
   });
-  await page
-    .getByRole("button", { name: "Create local automation user" })
-    .click();
+  const createUser = page.getByRole("button", {
+    name: "Create local automation user",
+  });
+  await waitForInteraction(createUser);
+  await createUser.click();
   const response = await scenarioResponse;
   expect(response.ok()).toBe(true);
   return (
@@ -64,8 +65,11 @@ test("revoke one invalidates only the selected browser and returns a safe sessio
     }
 
     await page.goto("/user/security");
-    await waitForAppHydration(page);
-    await page.getByRole("button", { name: "Revoke session" }).click();
+    const revokeSession = page.getByRole("button", {
+      name: "Revoke session",
+    });
+    await waitForInteraction(revokeSession);
+    await revokeSession.click();
     await expect(page.getByRole("status")).toHaveText("Session revoked.");
 
     expect((await getGeneratedAuthSession(other.request)).authenticated).toBe(
@@ -94,10 +98,11 @@ test("revoke all others preserves the current browser", async ({
       scenario.password,
     );
     await page.goto("/user/security");
-    await waitForAppHydration(page);
-    await page
-      .getByRole("button", { name: "Revoke all other sessions" })
-      .click();
+    const revokeOthers = page.getByRole("button", {
+      name: "Revoke all other sessions",
+    });
+    await waitForInteraction(revokeOthers);
+    await revokeOthers.click();
     await expect(page.getByRole("status")).toHaveText(
       "1 other session revoked.",
     );

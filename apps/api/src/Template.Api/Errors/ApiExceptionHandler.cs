@@ -58,7 +58,7 @@ internal sealed class ApiExceptionHandler(
                 UnhandledExceptionEvent,
                 "Unhandled API exception {ExceptionType} for {Path} with trace {TraceId}",
                 exception.GetType().FullName ?? exception.GetType().Name,
-                httpContext.Request.Path.Value ?? "/",
+                RequestLoggingMiddleware.SafePath(httpContext),
                 CorrelationIdMiddleware.GetTraceId(httpContext));
         }
         else

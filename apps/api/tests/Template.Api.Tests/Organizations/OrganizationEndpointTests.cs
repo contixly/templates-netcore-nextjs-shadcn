@@ -597,6 +597,35 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             "last_organization_required");
     }
 
+    [Fact]
+    public async Task OrganizationNameRuntimeAcceptsDecimalDigitsButRejectsOtherNumbers()
+    {
+        using var client = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Name Category Owner",
+            "local-agent+organization-name-category@local-agent.test");
+
+        using var decimalDigit =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Workspace ٣");
+        Assert.Equal(HttpStatusCode.Created, decimalDigit.StatusCode);
+
+        foreach (var invalidName in new[] { "Workspace Ⅻ", "Workspace ²" })
+        {
+            using var invalid =
+                await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                    client,
+                    HttpMethod.Post,
+                    "/api/v1/organizations",
+                    new { name = invalidName });
+            await OrganizationEndpointTestSupport.AssertValidationProblemAsync(
+                invalid,
+                "name");
+        }
+    }
+
     private static void AssertOrganizationDetail(
         JsonElement data,
         Guid id,

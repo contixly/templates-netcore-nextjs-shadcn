@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Template.Api.Authentication;
 using Template.Api.Contracts;
 using Template.Api.Endpoints;
@@ -93,6 +94,9 @@ internal sealed class AccountEndpointModule : IEndpointModule
             .RequireApiAntiforgery()
             .Produces<ApiResponse<AccountDeletionResponse>>()
             .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
             .ProducesProtectedApiProblems();
     }
 

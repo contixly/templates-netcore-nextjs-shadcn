@@ -45,7 +45,7 @@ public sealed class ObservabilityTests(ApiWebApplicationFactory factory)
                 out var format) &&
                 Equals(format, "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds} ms"));
         Assert.Equal("client.trace-123", completion.Scope["TraceId"]);
-        Assert.Equal("/api/does-not-exist", completion.State["Path"]);
+        Assert.Equal("/api/{unmatched}", completion.State["Path"]);
         Assert.DoesNotContain("query-value", completion.Message, StringComparison.Ordinal);
     }
 

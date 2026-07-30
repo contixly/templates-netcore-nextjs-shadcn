@@ -1,11 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
-import { waitForAppHydration } from "./support/app-readiness";
+import { waitForInteraction } from "./support/app-readiness";
 import {
   cleanupLocalAutomationUser,
   getGeneratedAuthSession,
-  logoutGeneratedSession,
   signInLocalAutomationUser,
 } from "./support/generated-auth-api";
 
@@ -14,7 +13,6 @@ test("local credentials create persistent independent sessions and cleanup all a
   page,
 }) => {
   await page.goto("/");
-  await waitForAppHydration(page);
   await page.getByRole("link", { name: "Get Started" }).click();
   await expect(page).toHaveURL(/\/auth\/login\?redirect=%2Fdashboard$/);
   await expect(
@@ -28,9 +26,11 @@ test("local credentials create persistent independent sessions and cleanup all a
       new URL(response.url()).pathname === "/api/local-auth/scenario"
     );
   });
-  await page
-    .getByRole("button", { name: "Create local automation user" })
-    .click();
+  const createLocalUser = page.getByRole("button", {
+    name: "Create local automation user",
+  });
+  await waitForInteraction(createLocalUser);
+  await createLocalUser.click();
   const scenario = (await (
     await scenarioResponse
   ).json()) as ApiResponseOfLocalAutomationScenarioResponse;
@@ -58,14 +58,17 @@ test("local credentials create persistent independent sessions and cleanup all a
     scenario.data.password,
   );
   await secondPage.goto("/dashboard");
-  await waitForAppHydration(secondPage);
   await expect(secondPage).toHaveURL(/\/welcome$/);
   const secondSessionId = (await getGeneratedAuthSession(secondContext.request))
     .session?.id;
   expect(secondSessionId).toBeTruthy();
   expect(secondSessionId).not.toBe(firstSessionId);
 
-  await logoutGeneratedSession(page.context().request);
+  await page.goto("/user/profile");
+  const logout = page.getByRole("button", { name: "Log out" });
+  await waitForInteraction(logout);
+  await logout.click();
+  await expect(page).toHaveURL(/\/auth\/login$/);
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/auth\/login\?redirect=%2Fdashboard$/);
   await secondPage.reload();

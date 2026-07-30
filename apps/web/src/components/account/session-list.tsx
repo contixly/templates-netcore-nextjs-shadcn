@@ -3,6 +3,10 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -89,6 +93,7 @@ export function SessionList({
 }: Readonly<{ initialPage: AccountSessionsResponse }>) {
   const t = useTranslations("account.sessions");
   const locale = useLocale();
+  const interactionReady = useInteractionReady();
   const [sessions, setSessions] = useState(initialPage.items);
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -243,7 +248,8 @@ export function SessionList({
         <p className="text-xs text-muted-foreground">{t("listLabel")}</p>
         {hasOtherSession ? (
           <Button
-            disabled={pendingAction !== null}
+            {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+            disabled={!interactionReady || pendingAction !== null}
             onClick={() => void revokeOthers()}
             type="button"
             variant="outline"
@@ -283,7 +289,8 @@ export function SessionList({
             </p>
           ) : null}
           <Button
-            disabled={pendingAction !== null}
+            {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+            disabled={!interactionReady || pendingAction !== null}
             onClick={() =>
               void refreshAfterRevokeOthers(
                 revokeOthersRefreshRecovery.revokedCount,
@@ -376,8 +383,9 @@ export function SessionList({
 
                 {!session.isCurrent ? (
                   <Button
+                    {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
                     aria-label={t("revoke")}
-                    disabled={pendingAction !== null}
+                    disabled={!interactionReady || pendingAction !== null}
                     onClick={() => void revoke(session)}
                     type="button"
                     variant="outline"
@@ -393,7 +401,8 @@ export function SessionList({
 
       {nextCursor ? (
         <Button
-          disabled={pendingAction !== null}
+          {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+          disabled={!interactionReady || pendingAction !== null}
           onClick={() => void loadMore()}
           type="button"
           variant="outline"

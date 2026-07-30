@@ -63,6 +63,9 @@ it("renders canonical dashboard/settings links without delete controls", () => {
     <OrganizationList pages={[{ items: [acme], nextCursor: null }]} />,
   );
 
+  expect(
+    screen.getByRole("button", { name: "Create New Workspace" }),
+  ).toBeVisible();
   const card = screen.getByRole("article", { name: "Acme workspace" });
   expect(within(card).getByText("acme")).toBeVisible();
   expect(

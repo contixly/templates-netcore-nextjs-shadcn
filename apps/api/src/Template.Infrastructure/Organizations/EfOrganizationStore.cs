@@ -492,6 +492,15 @@ internal sealed class EfOrganizationStore(
             return await unitOfWork.ExecuteAsync(
                 async transactionCancellationToken =>
                 {
+                    if (await LockOrganizationAsync(
+                            command.OrganizationId.Value,
+                            transactionCancellationToken) is null)
+                    {
+                        return OrganizationOperationResult<
+                            ActiveOrganization>.Failed(
+                            OrganizationFailure.NotFound);
+                    }
+
                     var now = timeProvider.GetUtcNow();
                     var changed = await db.Sessions
                         .Where(session =>

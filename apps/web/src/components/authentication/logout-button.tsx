@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
 import { logoutBrowserSession } from "@/src/lib/api/auth/browser/logout-browser-session";
@@ -13,6 +17,7 @@ import type { ApiFailure } from "@/src/lib/api/result";
 export function LogoutButton() {
   const router = useRouter();
   const t = useTranslations("auth.logout");
+  const interactionReady = useInteractionReady();
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
 
@@ -43,7 +48,8 @@ export function LogoutButton() {
         </div>
       ) : null}
       <Button
-        disabled={pending}
+        {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+        disabled={!interactionReady || pending}
         onClick={() => void executeLogout()}
         type="button"
         variant="outline"

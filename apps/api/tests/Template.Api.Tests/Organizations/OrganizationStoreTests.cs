@@ -1089,6 +1089,80 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                 TestContext.Current.CancellationToken);
     }
 
+    internal async Task<SessionRowLock> LockSessionAsync(SessionId sessionId)
+    {
+        var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(TestContext.Current.CancellationToken);
+        var transaction = await connection.BeginTransactionAsync(
+            TestContext.Current.CancellationToken);
+        try
+        {
+            await using var command = connection.CreateCommand();
+            command.Transaction = transaction;
+            command.CommandText =
+                """SELECT id FROM auth.sessions WHERE id = @session_id FOR UPDATE""";
+            command.Parameters.AddWithValue("session_id", sessionId.Value);
+            var locked = await command.ExecuteScalarAsync(
+                TestContext.Current.CancellationToken);
+            if (locked is not Guid)
+            {
+                throw new InvalidOperationException(
+                    "The test session row could not be locked.");
+            }
+
+            return new SessionRowLock(connection, transaction);
+        }
+        catch
+        {
+            await transaction.DisposeAsync();
+            await connection.DisposeAsync();
+            throw;
+        }
+    }
+
+    internal Task WaitForSessionUpdateLockAsync() =>
+        WaitForBlockedCommandAsync("UPDATE auth.sessions");
+
+    internal Task WaitForOrganizationLockAsync() =>
+        WaitForBlockedCommandAsync("FROM organizations.organizations");
+
+    private async Task WaitForBlockedCommandAsync(string commandFragment)
+    {
+        var deadline = TimeProvider.System.GetUtcNow().AddSeconds(5);
+        while (TimeProvider.System.GetUtcNow() < deadline)
+        {
+            await using var connection = new NpgsqlConnection(_connectionString);
+            await connection.OpenAsync(TestContext.Current.CancellationToken);
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM pg_stat_activity
+                    WHERE datname = current_database()
+                      AND pid <> pg_backend_pid()
+                      AND wait_event_type = 'Lock'
+                      AND position(@command_fragment in query) > 0
+                )
+                """;
+            command.Parameters.AddWithValue(
+                "command_fragment",
+                commandFragment);
+            if (await command.ExecuteScalarAsync(
+                    TestContext.Current.CancellationToken) is true)
+            {
+                return;
+            }
+
+            await Task.Delay(
+                TimeSpan.FromMilliseconds(10),
+                TestContext.Current.CancellationToken);
+        }
+
+        throw new TimeoutException(
+            $"A blocked PostgreSQL command containing '{commandFragment}' was not observed.");
+    }
+
     internal async Task<int> CountMembershipsAsync(
         OrganizationId organizationId,
         UserId userId)
@@ -1193,6 +1267,22 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                 TestContext.Current.CancellationToken);
     }
 
+    internal async Task<OrganizationOperationResult<ActiveOrganization>>
+        SetActiveOrganizationAsync(
+            OrganizationActor actor,
+            OrganizationId organizationId)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .SetActiveAsync(
+                new SetActiveOrganizationCommand(
+                    actor.UserId,
+                    actor.SessionId,
+                    organizationId),
+                TestContext.Current.CancellationToken);
+    }
+
     internal async Task<OrganizationOperationResult<OrganizationMember>>
         AddMemberAsync(
             OrganizationActor actor,
@@ -1265,6 +1355,28 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
 }
 
 internal sealed record OrganizationActor(UserId UserId, SessionId SessionId);
+
+internal sealed class SessionRowLock(
+    NpgsqlConnection connection,
+    NpgsqlTransaction transaction)
+    : IAsyncDisposable
+{
+    private int _released;
+
+    internal async ValueTask ReleaseAsync()
+    {
+        if (Interlocked.Exchange(ref _released, 1) != 0)
+        {
+            return;
+        }
+
+        await transaction.CommitAsync(TestContext.Current.CancellationToken);
+        await transaction.DisposeAsync();
+        await connection.DisposeAsync();
+    }
+
+    public ValueTask DisposeAsync() => ReleaseAsync();
+}
 
 internal sealed class FixedOrganizationTimeProvider(DateTimeOffset now)
     : TimeProvider

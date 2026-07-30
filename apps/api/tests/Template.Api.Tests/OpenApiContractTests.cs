@@ -144,6 +144,29 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task AccountCleanupOperationsPublishReachableConflictProblems()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        foreach (var operation in new[]
+                 {
+                     paths["/api/v1/account"]!["delete"]!,
+                     paths["/api/local-auth/scenario"]!["delete"]!
+                 })
+        {
+            var conflict = operation["responses"]!["409"];
+            Assert.NotNull(conflict);
+            AssertSchemaReference(
+                conflict,
+                "ProblemDetails");
+        }
+    }
+
+    [Fact]
     public async Task ExternalAndAccountOperationsPublishStableIdsAndCookieBoundaries()
     {
         using var client = factory.CreateApiClient();
@@ -945,6 +968,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             create["properties"]!["name"]!,
             minimum: 1,
             maximum: 50);
+        var organizationNamePattern = create["properties"]!["name"]!
+            ["x-trimmed-pattern"]!.GetValue<string>();
+        Assert.Equal(
+            """^[\p{L}\p{Nd} _-]+$""",
+            organizationNamePattern);
+        Assert.Matches(organizationNamePattern, "Workspace ٣");
+        Assert.DoesNotMatch(organizationNamePattern, "Workspace Ⅻ");
+        Assert.DoesNotMatch(organizationNamePattern, "Workspace ²");
 
         var update = schemas["UpdateOrganizationRequest"]!;
         Assert.Equal(1, update["minProperties"]!.GetValue<int>());

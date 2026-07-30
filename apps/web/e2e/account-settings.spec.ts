@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import type { ApiResponseOfLocalAutomationScenarioResponse } from "@/src/lib/api/generated";
-import { waitForAppHydration } from "./support/app-readiness";
+import { waitForInteraction } from "./support/app-readiness";
 import {
   cleanupLocalAutomationUser,
   createLocalAutomationUser,
@@ -13,7 +13,6 @@ async function createLocalAccount(
   page: Page,
 ): Promise<ApiResponseOfLocalAutomationScenarioResponse["data"]> {
   await page.goto("/auth/login");
-  await waitForAppHydration(page);
   const scenarioResponse = page.waitForResponse((response) => {
     const request = response.request();
     return (
@@ -21,9 +20,11 @@ async function createLocalAccount(
       new URL(response.url()).pathname === "/api/local-auth/scenario"
     );
   });
-  await page
-    .getByRole("button", { name: "Create local automation user" })
-    .click();
+  const createUser = page.getByRole("button", {
+    name: "Create local automation user",
+  });
+  await waitForInteraction(createUser);
+  await createUser.click();
   const response = await scenarioResponse;
   expect(response.ok()).toBe(true);
   return (
@@ -38,13 +39,13 @@ test("account root redirects to a persisted profile update", async ({
 
   try {
     await page.goto("/user");
-    await waitForAppHydration(page);
     await expect(page).toHaveURL(/\/user\/profile$/);
     await expect(
       page.getByRole("heading", { name: "Profile settings" }),
     ).toBeVisible();
 
     const displayName = page.getByRole("textbox", { name: "Display name" });
+    await waitForInteraction(displayName);
     await displayName.fill("Browser Account");
     await page.getByRole("button", { name: "Save profile" }).click();
     await expect(page.getByRole("status")).toHaveText("Profile updated.");
@@ -61,27 +62,26 @@ test("configured external providers are available in login and account states", 
   page,
 }) => {
   await page.goto("/auth/login");
-  await waitForAppHydration(page);
 
   for (const provider of ["Google", "GitHub", "GitLab", "VK", "Yandex"]) {
-    await expect(
-      page.getByRole("button", { name: `Continue with ${provider}` }),
-    ).toBeEnabled();
+    const providerButton = page.getByRole("button", {
+      name: `Continue with ${provider}`,
+    });
+    await waitForInteraction(providerButton);
   }
 
   await createLocalAccount(page);
   try {
     await page.goto("/user/connections");
-    await waitForAppHydration(page);
 
     for (const provider of ["Google", "GitHub", "GitLab", "VK", "Yandex"]) {
       const connection = page.getByRole("article", {
         name: `${provider} connection`,
       });
       await expect(connection).toContainText("Not connected");
-      await expect(
+      await waitForInteraction(
         connection.getByRole("button", { name: `Connect ${provider}` }),
-      ).toBeEnabled();
+      );
       await expect(connection).not.toContainText(
         "Provider configuration is unavailable",
       );
@@ -101,8 +101,11 @@ test("account deletion rejects a mismatched confirmation and does not reuse the 
     expect(oldAccount.id).toBe(scenario.user.id);
 
     await page.goto("/user/danger");
-    await waitForAppHydration(page);
-    await page.getByRole("button", { name: "Delete account" }).click();
+    const deleteAccount = page.getByRole("button", {
+      name: "Delete account",
+    });
+    await waitForInteraction(deleteAccount);
+    await deleteAccount.click();
 
     const confirmation = page.getByRole("textbox", {
       name: `Type ${scenario.email} to confirm`,

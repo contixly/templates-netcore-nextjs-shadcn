@@ -3,6 +3,10 @@
 import { useTranslations } from "next-intl";
 import { useRef, useState, type FormEvent } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -29,6 +33,7 @@ export function DeleteAccountDialog({
 }: Readonly<{ primaryEmail: string }>) {
   const t = useTranslations("account.deleteAccount");
   const danger = useTranslations("account.danger");
+  const interactionReady = useInteractionReady();
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [failure, setFailure] = useState<ApiFailure | null>(null);
@@ -90,7 +95,12 @@ export function DeleteAccountDialog({
   return (
     <Dialog onOpenChange={changeOpen} open={open}>
       <DialogTrigger asChild>
-        <Button type="button" variant="destructive">
+        <Button
+          {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+          disabled={!interactionReady}
+          type="button"
+          variant="destructive"
+        >
           {danger("open")}
         </Button>
       </DialogTrigger>
@@ -123,9 +133,10 @@ export function DeleteAccountDialog({
               {t("confirmationLabel", { email: primaryEmail })}
             </Label>
             <Input
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
               aria-describedby="delete-account-confirmation-hint"
               autoComplete="off"
-              disabled={pending}
+              disabled={!interactionReady || pending}
               id="delete-account-confirmation"
               onChange={(event) => {
                 setConfirmation(event.currentTarget.value);
@@ -166,7 +177,8 @@ export function DeleteAccountDialog({
               </Button>
             </DialogClose>
             <Button
-              disabled={!matches || pending}
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+              disabled={!interactionReady || !matches || pending}
               type="submit"
               variant="destructive"
             >

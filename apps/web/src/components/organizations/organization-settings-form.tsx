@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useRef, useState, type FormEvent } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -78,6 +82,7 @@ export function OrganizationSettingsForm({
 }: Readonly<{ initialOrganization: OrganizationSettingsView }>) {
   const t = useTranslations("organizations.settings.form");
   const router = useRouter();
+  const interactionReady = useInteractionReady();
   const requestInFlight = useRef(false);
   const [organization, setOrganization] = useState(initialOrganization);
   const [name, setName] = useState(initialOrganization.name);
@@ -176,6 +181,7 @@ export function OrganizationSettingsForm({
         organizationRoutes.settingsWorkspace(result.data.canonicalKey),
       );
     }
+    router.refresh();
   }
 
   const failureMessage =
@@ -207,6 +213,7 @@ export function OrganizationSettingsForm({
               {t("nameLabel")}
             </FieldLabel>
             <Input
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
               aria-describedby={`organization-settings-name-hint${
                 validation?.field === "name"
                   ? " organization-settings-name-error"
@@ -214,7 +221,7 @@ export function OrganizationSettingsForm({
               }`}
               aria-invalid={validation?.field === "name" ? true : undefined}
               autoComplete="organization"
-              disabled={!canUpdate || pending}
+              disabled={!interactionReady || !canUpdate || pending}
               id="organization-settings-name"
               maxLength={100}
               onChange={(event) => {
@@ -240,6 +247,7 @@ export function OrganizationSettingsForm({
               {t("slugLabel")}
             </FieldLabel>
             <Input
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
               aria-describedby={`organization-settings-slug-hint${
                 validation?.field === "slug"
                   ? " organization-settings-slug-error"
@@ -247,7 +255,7 @@ export function OrganizationSettingsForm({
               }`}
               aria-invalid={validation?.field === "slug" ? true : undefined}
               autoComplete="off"
-              disabled={!canUpdate || pending}
+              disabled={!interactionReady || !canUpdate || pending}
               id="organization-settings-slug"
               maxLength={128}
               onChange={(event) => {
@@ -273,6 +281,7 @@ export function OrganizationSettingsForm({
               {t("domainsLabel")}
             </FieldLabel>
             <Textarea
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
               aria-describedby={`organization-settings-domains-hint${
                 validation?.field === "domains"
                   ? " organization-settings-domains-error"
@@ -280,7 +289,7 @@ export function OrganizationSettingsForm({
               }`}
               aria-invalid={validation?.field === "domains" ? true : undefined}
               autoComplete="off"
-              disabled={!canUpdate || pending}
+              disabled={!interactionReady || !canUpdate || pending}
               id="organization-settings-domains"
               onChange={(event) => {
                 setDomainsText(event.currentTarget.value);
@@ -324,7 +333,11 @@ export function OrganizationSettingsForm({
         ) : null}
         {canUpdate ? (
           <div className="flex justify-end">
-            <Button disabled={pending} type="submit">
+            <Button
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+              disabled={!interactionReady || pending}
+              type="submit"
+            >
               {pending ? t("saving") : t("save")}
             </Button>
           </div>

@@ -874,9 +874,10 @@ a time; values and authorization query URLs were not printed or written.
 - Full npm development audit remains blocked by the known 26-high upstream
   ESLint/Jest advisory graph; production npm and NuGet vulnerability gates are
   clean.
-- Current readiness probes `auth.users`, not the exact expected migration or
-  Data Protection key table. Relative production certificate-path resolution
-  is not specified; operators should use an explicit mounted path.
+- Current readiness probes the required `auth.users` and
+  `organizations.organizations` relations rather than the exact expected
+  migration or Data Protection key table. Relative production certificate-path
+  resolution is not specified; operators should use an explicit mounted path.
 - The cursor checksum detects format/corruption but is not cryptographic
   tamper authorization. UI recovery after `invalid_cursor` retries the rejected
   cursor instead of refreshing page one.

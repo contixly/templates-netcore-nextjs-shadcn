@@ -205,11 +205,23 @@ export function OrganizationSwitcher({
         ) : null}
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button asChild className="sm:flex-1" variant="outline">
-            <Link href={organizationRoutes.workspaces}>{t("manage")}</Link>
+            <Link
+              href={organizationRoutes.workspaces}
+              onClick={() => setOpen(false)}
+              onNavigate={() => setOpen(false)}
+            >
+              {t("manage")}
+            </Link>
           </Button>
           {nextCursor ? (
             <Button asChild className="sm:flex-1" variant="outline">
-              <Link href={moreHref}>{t("loadMore")}</Link>
+              <Link
+                href={moreHref}
+                onClick={() => setOpen(false)}
+                onNavigate={() => setOpen(false)}
+              >
+                {t("loadMore")}
+              </Link>
             </Button>
           ) : null}
         </div>

@@ -110,7 +110,7 @@ it("previews normalized domains, sends the generated update request, and replace
     );
   });
   expect(replace).toHaveBeenCalledWith("/w/acme-new/settings/workspace");
-  expect(refresh).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
   expect(screen.getByLabelText("Workspace Name")).toHaveValue("Acme Updated");
 });
 
@@ -137,6 +137,7 @@ it("keeps confirmed returned settings when the canonical key is unchanged", asyn
   );
   expect(screen.getByLabelText("Workspace Name")).toHaveValue("Confirmed Name");
   expect(replace).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
 });
 
 it("uses stable localized update errors and exposes only an allowed trace id", async () => {

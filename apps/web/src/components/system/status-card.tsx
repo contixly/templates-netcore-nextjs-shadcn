@@ -1,5 +1,6 @@
 import { useTranslations } from "next-intl";
 
+import { INTERACTION_READY_ATTRIBUTE } from "@/src/components/application/interaction-readiness";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -56,11 +57,13 @@ function failureMessageKey(failure: ApiFailure): FailureMessageKey {
 }
 
 export function StatusCard({
+  interactionReady = true,
   onRetry,
   source,
   state,
 }: Readonly<{
   onRetry?: () => void;
+  interactionReady?: boolean;
   source: SystemStatusSource;
   state: StatusCardState;
 }>) {
@@ -110,7 +113,13 @@ export function StatusCard({
               </p>
             ) : null}
             {onRetry ? (
-              <Button onClick={onRetry} size="sm" variant="outline">
+              <Button
+                {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+                disabled={!interactionReady}
+                onClick={onRetry}
+                size="sm"
+                variant="outline"
+              >
                 {actions("retry")}
               </Button>
             ) : null}

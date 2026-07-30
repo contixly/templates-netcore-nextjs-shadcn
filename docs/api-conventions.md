@@ -79,16 +79,16 @@ timestamps.
 
 The implemented browser authentication surface is:
 
-| Operation                                         | Access and mutation policy                                                                                    |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/auth/capabilities`                   | anonymous, no-store                                                                                           |
-| `GET /api/v1/auth/session`                        | anonymous `200` projection for both authenticated and anonymous state, no-store                               |
-| `GET /api/v1/auth/csrf`                           | anonymous, issues the paired antiforgery cookie/request token, no-store                                       |
-| `POST /api/v1/auth/logout`                        | `Api.BrowserSession` plus CSRF; revokes only the current session                                              |
-| `POST /api/v1/auth/external/{provider}/challenge` | conditional auth by intent plus CSRF; returns an API-issued HTTPS authorization URL for a configured provider |
-| `POST /api/local-auth/scenario`                   | local-only two-part gate, CSRF, 20 requests per IP per minute                                                 |
-| `POST /api/local-auth/sign-in`                    | local-only two-part gate, CSRF, 10 requests per IP per five minutes                                           |
-| `DELETE /api/local-auth/scenario`                 | local-only two-part gate, `Api.BrowserSession`, CSRF; atomically removes the local user and all sessions      |
+| Operation                                         | Access and mutation policy                                                                                                                    |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/auth/capabilities`                   | anonymous, no-store                                                                                                                           |
+| `GET /api/v1/auth/session`                        | anonymous `200` projection for both authenticated and anonymous state, no-store                                                               |
+| `GET /api/v1/auth/csrf`                           | anonymous, issues the paired antiforgery cookie/request token, no-store                                                                       |
+| `POST /api/v1/auth/logout`                        | `Api.BrowserSession` plus CSRF; revokes only the current session                                                                              |
+| `POST /api/v1/auth/external/{provider}/challenge` | conditional auth by intent plus CSRF; returns an API-issued HTTPS authorization URL for a configured provider                                 |
+| `POST /api/local-auth/scenario`                   | local-only two-part gate, CSRF, 20 requests per IP per minute                                                                                 |
+| `POST /api/local-auth/sign-in`                    | local-only two-part gate, CSRF, 10 requests per IP per five minutes                                                                           |
+| `DELETE /api/local-auth/scenario`                 | local-only two-part gate, `Api.BrowserSession`, CSRF; atomic cleanup; `409` when ownership transfer or a stable concurrency retry is required |
 
 Every auth response uses `Cache-Control: no-store`. Local operations are
 available only when the environment is `Development` or `Test` **and**
@@ -195,16 +195,16 @@ iteration.
 All account operations use `Api.BrowserSession`, return `Cache-Control:
 no-store`, and expose only typed `{ "data": ... }` projections:
 
-| Operation                                       | Mutation rule                                                                 |
-| ----------------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/v1/account`                           | current profile, primary/secondary verified emails, id and creation time      |
-| `PATCH /api/v1/account/profile`                 | CSRF; trimmed display name of 2–50 non-control characters                     |
-| `GET /api/v1/account/connections`               | configured providers plus connections whose runtime configuration was removed |
-| `DELETE /api/v1/account/connections/{provider}` | CSRF; atomic, ownership-checked local disconnect                              |
-| `GET /api/v1/account/sessions?cursor=&limit=`   | unexpired sessions; default 20, accepted limit 1–100                          |
-| `DELETE /api/v1/account/sessions/{sessionId}`   | CSRF; ownership-qualified; current session is rejected                        |
-| `DELETE /api/v1/account/sessions/others`        | CSRF; one set-based delete preserving the current persistent id               |
-| `DELETE /api/v1/account`                        | CSRF; strict primary-email confirmation and hard delete                       |
+| Operation                                       | Mutation rule                                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/account`                           | current profile, primary/secondary verified emails, id and creation time                                      |
+| `PATCH /api/v1/account/profile`                 | CSRF; trimmed display name of 2–50 non-control characters                                                     |
+| `GET /api/v1/account/connections`               | configured providers plus connections whose runtime configuration was removed                                 |
+| `DELETE /api/v1/account/connections/{provider}` | CSRF; atomic, ownership-checked local disconnect                                                              |
+| `GET /api/v1/account/sessions?cursor=&limit=`   | unexpired sessions; default 20, accepted limit 1–100                                                          |
+| `DELETE /api/v1/account/sessions/{sessionId}`   | CSRF; ownership-qualified; current session is rejected                                                        |
+| `DELETE /api/v1/account/sessions/others`        | CSRF; one set-based delete preserving the current persistent id                                               |
+| `DELETE /api/v1/account`                        | CSRF; strict primary-email confirmation and hard delete; ownership/concurrency cleanup conflicts return `409` |
 
 The normalized verified-email value is globally unique. A new anonymous
 provider subject links to the owner of a matching primary or secondary
@@ -273,9 +273,12 @@ missing/foreign ids share the same `404`.
 - Health responses expose only `status` and UTC `timestamp`.
 - Healthy responses use `200`; unhealthy readiness uses `503`.
 - Every health response uses `Cache-Control: no-store`.
-- Readiness opens `ConnectionStrings:Postgres` and requires a queryable
-  `auth.users` relation; missing configuration, connectivity, or schema returns
-  unhealthy without exposing database detail.
+- Readiness opens `ConnectionStrings:Postgres` and requires queryable
+  `auth.users` and `organizations.organizations` relations. Operators must
+  apply migrations through
+  `20260730091827_OrganizationsMembershipOnboarding`; missing configuration,
+  connectivity, or either relation returns unhealthy without exposing database
+  detail.
 - The database check is tagged `ready` and never participates in liveness.
 
 `Template.Api` never applies migrations automatically. Operators restore the
@@ -294,10 +297,13 @@ header, Problem Details `traceId`, and the `TraceId` logging scope. The response
 header is restored immediately before headers are sent, so handled exceptions
 that reset the response preserve the same correlation value.
 
-Completion logs contain method, path without query, status, elapsed milliseconds,
-and trace scope. Bodies, query values, cookies, and credential headers are not
-logged. Health completion is `Debug`; normal API success is `Information`; 4xx
-is `Warning`; 5xx is `Error`.
+Completion logs contain method, the matched route template, status, elapsed
+milliseconds, and trace scope. Unmatched API paths use the fixed
+`/api/{unmatched}` fallback, and generic exception logs reuse that safe path.
+Raw paths and route values, including name-derived organization slugs, are never
+logged. Bodies, query values, cookies, and credential headers are not logged.
+Health completion is `Debug`; normal API success is `Information`; 4xx is
+`Warning`; 5xx is `Error`.
 
 OAuth and account security audit events have a separate bounded contract:
 

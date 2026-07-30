@@ -138,6 +138,9 @@ export function OrganizationList({
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <OrganizationCreateDialog />
+      </div>
       <div className="grid gap-4 md:grid-cols-2">
         {organizations.map((organization) => (
           <OrganizationCard
