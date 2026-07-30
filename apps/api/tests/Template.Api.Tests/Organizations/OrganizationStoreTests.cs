@@ -1,6 +1,9 @@
+using System.Data.Common;
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Template.Api.Tests.Infrastructure;
@@ -143,6 +146,59 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task Uuid_shaped_slug_resolution_prefers_an_accessible_id_then_an_accessible_slug()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "uuid-slug-owner@local-agent.test");
+        var foreign = await fixture.CreateUserAndSessionAsync(
+            "uuid-slug-foreign@local-agent.test");
+        var ambiguousKey =
+            Guid.Parse("00000000-0000-0000-0000-000000000041");
+        var idMatch = await fixture.SeedOrganizationForAsync(
+            actor,
+            "ID Match",
+            "id-match",
+            OrganizationRole.Owner,
+            new OrganizationId(ambiguousKey));
+        await fixture.SeedOrganizationForAsync(
+            actor,
+            "Slug Match",
+            ambiguousKey.ToString(),
+            OrganizationRole.Owner);
+        var foreignId = Guid.Parse(
+            "00000000-0000-0000-0000-000000000042");
+        await fixture.SeedOrganizationForAsync(
+            foreign,
+            "Foreign ID",
+            "foreign-id",
+            OrganizationRole.Owner,
+            new OrganizationId(foreignId));
+        var accessibleSlug = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Accessible Slug",
+            foreignId.ToString(),
+            OrganizationRole.Owner);
+
+        var idWins = await fixture.Store.GetByKeyAsync(
+            actor.UserId,
+            ambiguousKey.ToString(),
+            TestContext.Current.CancellationToken);
+        var membershipQualifiedSlug = await fixture.Store.GetByKeyAsync(
+            actor.UserId,
+            foreignId.ToString(),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            idMatch,
+            Assert.IsType<OrganizationDetail>(idWins.Value).Id);
+        Assert.Equal(
+            accessibleSlug,
+            Assert.IsType<OrganizationDetail>(
+                membershipQualifiedSlug.Value).Id);
+    }
+
+    [Fact]
     public async Task Create_uses_slug_suffix_and_rejects_accessible_name_duplicate()
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
@@ -177,6 +233,51 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             await db.OrganizationMembers.CountAsync(
                 row => row.UserId == actor.UserId.Value,
                 TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Name_conflicts_are_culture_independent()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "culture-owner@local-agent.test");
+        await fixture.SeedOrganizationForAsync(
+            actor,
+            "Istanbul",
+            "existing-istanbul",
+            OrganizationRole.Owner);
+        var renameTarget = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Rename Target",
+            "rename-target",
+            OrganizationRole.Owner);
+        var previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+
+            var create = await fixture.Store.CreateAsync(
+                new CreateOrganizationCommand(
+                    actor.UserId,
+                    actor.SessionId,
+                    "ISTANBUL"),
+                TestContext.Current.CancellationToken);
+            var update = await fixture.Store.UpdateAsync(
+                new UpdateOrganizationCommand(
+                    actor.UserId,
+                    renameTarget,
+                    "ISTANBUL",
+                    Slug: null,
+                    AllowedEmailDomains: null),
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(OrganizationFailure.NameConflict, create.Failure);
+            Assert.Equal(OrganizationFailure.NameConflict, update.Failure);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
     }
 
     [Fact]
@@ -603,6 +704,10 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<TimeProvider>(new FixedOrganizationTimeProvider(Now));
+        services.AddSingleton<OrganizationNameConflictBarrier>();
+        services.AddDbContext<TemplateDbContext>((provider, options) =>
+            options.AddInterceptors(
+                provider.GetRequiredService<OrganizationNameConflictBarrier>()));
         services.AddAuthInfrastructure(
             configuration,
             new TestHostEnvironment());
@@ -645,6 +750,11 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
     internal OrganizationActor FirstOwner { get; private set; } = default!;
     internal OrganizationActor SecondOwner { get; private set; } = default!;
     internal OrganizationId TwoOwnerOrganizationId { get; private set; }
+
+    internal void CoordinateConcurrentNameChecks() =>
+        _services
+            .GetRequiredService<OrganizationNameConflictBarrier>()
+            .CoordinateNextPair();
 
     internal TemplateDbContext CreateDbContext()
     {
@@ -843,6 +953,25 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                 TestContext.Current.CancellationToken);
     }
 
+    internal async Task<OrganizationOperationResult<OrganizationDetail>>
+        UpdateOrganizationAsync(
+            OrganizationActor actor,
+            OrganizationId organizationId,
+            string name)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .UpdateAsync(
+                new UpdateOrganizationCommand(
+                    actor.UserId,
+                    organizationId,
+                    name,
+                    Slug: null,
+                    AllowedEmailDomains: null),
+                TestContext.Current.CancellationToken);
+    }
+
     internal async Task<OrganizationOperationResult<OrganizationDeletion>>
         DeleteOrganizationAsync(
             OrganizationActor actor,
@@ -928,4 +1057,59 @@ internal sealed class FixedOrganizationTimeProvider(DateTimeOffset now)
     : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => now;
+}
+
+internal sealed class OrganizationNameConflictBarrier : DbCommandInterceptor
+{
+    private int _enabled;
+    private int _arrived;
+    private TaskCompletionSource _release = NewSignal();
+
+    internal void CoordinateNextPair()
+    {
+        _arrived = 0;
+        _release = NewSignal();
+        Volatile.Write(ref _enabled, 1);
+    }
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (Volatile.Read(ref _enabled) == 0 ||
+            !IsNameConflictQuery(command))
+        {
+            return result;
+        }
+
+        if (Interlocked.Increment(ref _arrived) == 2)
+        {
+            Volatile.Write(ref _enabled, 0);
+            _release.TrySetResult();
+        }
+
+        var timeout = Task.Delay(
+            TimeSpan.FromSeconds(3),
+            cancellationToken);
+        await Task.WhenAny(_release.Task, timeout);
+        Volatile.Write(ref _enabled, 0);
+        _release.TrySetResult();
+        return result;
+    }
+
+    private static bool IsNameConflictQuery(DbCommand command) =>
+        command.CommandText.Contains(
+            "SELECT EXISTS",
+            StringComparison.OrdinalIgnoreCase) &&
+        command.CommandText.Contains(
+            "organizations.members",
+            StringComparison.OrdinalIgnoreCase) &&
+        command.CommandText.Contains(
+            "lower(",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static TaskCompletionSource NewSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 }

@@ -104,9 +104,13 @@ internal sealed class EfOrganizationStore(
         var parsedId = Guid.Empty;
         var isId = Guid.TryParseExact(organizationKey, "D", out parsedId);
         var row = isId
-            ? await query.SingleOrDefaultAsync(
-                value => value.Id == parsedId,
-                cancellationToken)
+            ? await query
+                .Where(value =>
+                    value.Id == parsedId ||
+                    value.Slug == organizationKey)
+                .OrderByDescending(value => value.Id == parsedId)
+                .ThenBy(value => value.Id)
+                .FirstOrDefaultAsync(cancellationToken)
             : await query.SingleOrDefaultAsync(
                 value => value.Slug == organizationKey,
                 cancellationToken);
@@ -170,7 +174,7 @@ internal sealed class EfOrganizationStore(
                                 OrganizationFailure.NotFound);
                         }
 
-                        var normalizedName = command.Name.ToLower();
+                        var normalizedName = command.Name.ToLowerInvariant();
                         var nameExists = await (
                             from organization in db.Organizations.AsNoTracking()
                             join membership in
@@ -281,6 +285,15 @@ internal sealed class EfOrganizationStore(
                             OrganizationFailure.NotFound);
                     }
 
+                    if (await LockUserAsync(
+                            command.ActorUserId.Value,
+                            transactionCancellationToken) is null)
+                    {
+                        return OrganizationOperationResult<
+                            OrganizationDetail>.Failed(
+                            OrganizationFailure.NotFound);
+                    }
+
                     var actor = await LockMembershipAsync(
                         command.OrganizationId.Value,
                         command.ActorUserId.Value,
@@ -304,7 +317,7 @@ internal sealed class EfOrganizationStore(
 
                     if (command.Name is not null)
                     {
-                        var normalizedName = command.Name.ToLower();
+                        var normalizedName = command.Name.ToLowerInvariant();
                         var nameExists = await (
                             from other in db.Organizations.AsNoTracking()
                             join membership in

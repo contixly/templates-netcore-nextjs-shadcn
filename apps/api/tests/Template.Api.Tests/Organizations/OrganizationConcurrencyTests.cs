@@ -75,6 +75,83 @@ public sealed class OrganizationConcurrencyTests(
     }
 
     [Fact]
+    public async Task Concurrent_renames_share_one_case_insensitive_actor_namespace()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "rename-race@local-agent.test");
+        var first = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Rename First",
+            "rename-first",
+            OrganizationRole.Owner);
+        var second = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Rename Second",
+            "rename-second",
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentNameChecks();
+
+        var attempts = await Task.WhenAll(
+            fixture.UpdateOrganizationAsync(actor, first, "Shared Name"),
+            fixture.UpdateOrganizationAsync(actor, second, "sHARED nAME"));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.NameConflict));
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.Organizations.CountAsync(
+                row => row.Name.ToLower() == "shared name",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Update_and_create_share_one_case_insensitive_actor_namespace()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "update-create-race@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Update Target",
+            "update-target",
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentNameChecks();
+
+        var update = fixture.UpdateOrganizationAsync(
+            actor,
+            target,
+            "Shared Name");
+        var create = fixture.CreateOrganizationAsync(
+            actor,
+            "sHARED nAME");
+        await Task.WhenAll(update, create);
+
+        var attempts = new[]
+        {
+            await update,
+            await create
+        };
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.NameConflict));
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.Organizations.CountAsync(
+                row => row.Name.ToLower() == "shared name",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task Concurrent_deletes_preserve_one_accessible_organization()
     {
         await using var fixture =
