@@ -106,7 +106,7 @@
 - Consumes: the current EF model and `ExecuteAsync<T>(Func<CancellationToken,Task<T>>, CancellationToken)` behavior.
 - Produces: `TemplateDbContext`, `TemplateDbContextFactory`, `IApplicationUnitOfWork`, and `EfApplicationUnitOfWork` with unchanged database model and transaction semantics.
 
-- [ ] **Step 1: Capture the pre-rename model baseline**
+- [x] **Step 1: Capture the pre-rename model baseline**
 
 Run:
 
@@ -122,7 +122,7 @@ sha256sum apps/api/src/Template.Infrastructure/Persistence/Migrations/AuthDbCont
 
 Expected: no pending model changes; retain the printed snapshot hash in the task notes.
 
-- [ ] **Step 2: Write the failing architecture assertion**
+- [x] **Step 2: Write the failing architecture assertion**
 
 Add a test that loads the Infrastructure assembly and requires the generalized context name:
 
@@ -141,7 +141,7 @@ public void Persistence_context_is_named_for_the_whole_template()
 }
 ```
 
-- [ ] **Step 3: Run the assertion and observe RED**
+- [x] **Step 3: Run the assertion and observe RED**
 
 Run:
 
@@ -152,7 +152,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: compilation fails because `TemplateDbContext` does not exist.
 
-- [ ] **Step 4: Perform the code-only rename**
+- [x] **Step 4: Perform the code-only rename**
 
 Move the five files, rename their types/constructors/namespaces, update migration designer `[DbContext]` attributes, service registration, Data Protection/Identity/OpenIddict generics, tests, and E2E host. The transaction port must be exactly:
 
@@ -169,7 +169,7 @@ public interface IApplicationUnitOfWork
 
 Do not add organization entities in this task.
 
-- [ ] **Step 5: Prove the rename is model-neutral**
+- [x] **Step 5: Prove the rename is model-neutral**
 
 Run:
 
@@ -186,7 +186,7 @@ rg 'AuthDbContext|IAuthenticationUnitOfWork|EfAuthenticationUnitOfWork' apps/api
 
 Expected: build/test pass, no pending changes, and `rg` returns no source hit.
 
-- [ ] **Step 6: Commit the neutral generalization**
+- [x] **Step 6: Commit the neutral generalization**
 
 ```bash
 git add apps/api
@@ -210,7 +210,7 @@ git commit -m "refactor: generalize application persistence context"
 - Consumes: `UserId` value conventions and no infrastructure dependencies.
 - Produces: parseable UUID IDs; `OrganizationSlug.TryCreate`, `OrganizationSlug.GenerateBase`; closed role values; `OrganizationCapabilities`; role assignment predicates; email-domain normalization/eligibility.
 
-- [ ] **Step 1: Write failing domain tests**
+- [x] **Step 1: Write failing domain tests**
 
 Cover exact behavior with assertions such as:
 
@@ -250,7 +250,7 @@ public void Allowed_domains_are_exact_normalized_and_deduplicated()
 
 Also assert name-independent slug max-base length 48, UUID round-trip, member assigns no role, owner assigns all roles, self edit is false, redundant change is false, owner count cannot reach zero, empty domain list disables restrictions, and invalid email produces `EmailDomain = null`.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests.csproj \
@@ -259,7 +259,7 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Expected: compilation fails for missing organization domain types.
 
-- [ ] **Step 3: Implement the closed values and policies**
+- [x] **Step 3: Implement the closed values and policies**
 
 Use readonly record structs. The role surface must be closed and string-backed:
 
@@ -307,7 +307,7 @@ public sealed record OrganizationCapabilities(
     bool CanUpdateMemberRoles);
 ```
 
-- [ ] **Step 4: Run focused and full Application tests**
+- [x] **Step 4: Run focused and full Application tests**
 
 ```bash
 dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests.csproj \
@@ -317,7 +317,7 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Expected: all pass.
 
-- [ ] **Step 5: Commit the domain policy**
+- [x] **Step 5: Commit the domain policy**
 
 ```bash
 git add apps/api/src/Template.Domain/Organizations \
@@ -344,7 +344,7 @@ git commit -m "feat: define organization domain policies"
 - Consumes: Task 2 domain types and `UserId`/`SessionId`.
 - Produces: application commands/projections, `OrganizationFailure`, opaque page cursors, `OrganizationService`, `OrganizationMembershipService`, and atomic store port signatures used by Infrastructure/API.
 
-- [ ] **Step 1: Define failing service tests with an in-memory fake port**
+- [x] **Step 1: Define failing service tests with an in-memory fake port**
 
 The tests must prove input normalization occurs before the store, invalid cursors never call the store, outside-domain add surfaces the acknowledgement result, and every command passes actor/session IDs. Example:
 
@@ -388,7 +388,7 @@ public async Task Invalid_member_cursor_is_rejected_without_store_access()
 }
 ```
 
-- [ ] **Step 2: Run the Application organization tests and observe RED**
+- [x] **Step 2: Run the Application organization tests and observe RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests.csproj \
@@ -397,7 +397,7 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Expected: compilation fails because application organization files are absent.
 
-- [ ] **Step 3: Implement coherent application models and ports**
+- [x] **Step 3: Implement coherent application models and ports**
 
 Use these stable result shapes:
 
@@ -572,14 +572,14 @@ public sealed record UpdateOrganizationMemberRoleCommand(
     OrganizationRole Role);
 ```
 
-- [ ] **Step 4: Implement the canonical cursor codec**
+- [x] **Step 4: Implement the canonical cursor codec**
 
 Use a version byte, typed payload, SHA-256-derived four-byte checksum, and
 base64url. Organization cursor encodes normalized name + UUID; member cursor
 encodes UTC ticks + UUID. Reject padding, non-canonical re-encoding, invalid UTF-8,
 wrong version/type/checksum, empty names, non-UTC ticks, and extra bytes.
 
-- [ ] **Step 5: Implement minimal Application orchestration**
+- [x] **Step 5: Implement minimal Application orchestration**
 
 - `OrganizationService`: list, get-by-key, create, update, delete, set-active.
 - `OrganizationMembershipService`: list, add, update-role.
@@ -588,7 +588,7 @@ wrong version/type/checksum, empty names, non-UTC ticks, and extra bytes.
 - encode returned continuation keys only after successful store pages;
 - never translate to HTTP status codes.
 
-- [ ] **Step 6: Run all Application tests**
+- [x] **Step 6: Run all Application tests**
 
 ```bash
 dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests.csproj --no-restore
@@ -596,7 +596,7 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Expected: all existing and organization tests pass.
 
-- [ ] **Step 7: Commit the Application surface**
+- [x] **Step 7: Commit the Application surface**
 
 ```bash
 git add apps/api/src/Template.Application apps/api/tests/Template.Application.Tests/Organizations
@@ -624,7 +624,7 @@ git commit -m "feat: add organization application services"
 - Consumes: Task 1 context name and Task 2 IDs/roles.
 - Produces: schemas/tables/constraints/indexes and nullable session active-organization FK required by `EfOrganizationStore`.
 
-- [ ] **Step 1: Write failing PostgreSQL model tests**
+- [x] **Step 1: Write failing PostgreSQL model tests**
 
 Using the migrated Testcontainers database, query `information_schema` and
 `pg_catalog` to assert:
@@ -644,7 +644,7 @@ Assert.True(await HasCheckContainingAsync(
 Also test active preference becomes null after organization deletion and deleting
 an Identity user cascades its membership.
 
-- [ ] **Step 2: Run the model tests and observe RED**
+- [x] **Step 2: Run the model tests and observe RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -653,7 +653,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: assertions fail because schema/tables/column do not exist.
 
-- [ ] **Step 3: Add entities and focused EF configurations**
+- [x] **Step 3: Add entities and focused EF configurations**
 
 Map exact tables and constraints from the design. The session relation must be:
 
@@ -672,7 +672,7 @@ entity.HasIndex(value => value.ActiveOrganizationId)
 Keep `TemplateDbContext` default schema `auth`; each organization configuration
 must explicitly call `ToTable(..., "organizations")`.
 
-- [ ] **Step 4: Generate and inspect one additive migration**
+- [x] **Step 4: Generate and inspect one additive migration**
 
 ```bash
 dotnet ef migrations add OrganizationsMembershipOnboarding \
@@ -686,7 +686,7 @@ Inspect `Up` and `Down`. `Up` must create schema/tables/checks/indexes and the
 session FK; it must not drop or rename an existing auth/OpenIddict/Data Protection
 object. `Down` must remove only iteration-5 additions.
 
-- [ ] **Step 5: Run clean migration and model-drift tests**
+- [x] **Step 5: Run clean migration and model-drift tests**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -704,7 +704,7 @@ test -s /tmp/template-iteration5-idempotent.sql
 
 Expected: focused tests pass, no pending changes, script is non-empty.
 
-- [ ] **Step 6: Commit the additive schema**
+- [x] **Step 6: Commit the additive schema**
 
 ```bash
 git add apps/api/src/Template.Infrastructure apps/api/tests/Template.Api.Tests \
@@ -728,7 +728,7 @@ git commit -m "feat: add organization persistence schema"
 - Consumes: `IOrganizationStore`, EF model, `IApplicationUnitOfWork`, Domain policies.
 - Produces: tenant-qualified page/detail reads and all seven atomic organization/member writes.
 
-- [ ] **Step 1: Write failing atomic behavior tests**
+- [x] **Step 1: Write failing atomic behavior tests**
 
 Create helpers that seed Identity users and sessions, then assert:
 
@@ -785,7 +785,7 @@ creates independent DbContexts for concurrency, and deletes its database on
 dispose. `CreateWithTwoOwnersAsync` seeds one organization with two owner
 memberships and separate actor sessions.
 
-- [ ] **Step 2: Run store tests and observe RED**
+- [x] **Step 2: Run store tests and observe RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -794,14 +794,14 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: DI/type failures because the store is absent.
 
-- [ ] **Step 3: Implement tenant-qualified reads**
+- [x] **Step 3: Implement tenant-qualified reads**
 
 Every organization read joins `organizations.members` on `ActorUserId`. Detail
 accepts slug or parsed UUID but never falls back to an unqualified organization
 query. Member list first verifies actor membership and then returns only rows from
 the same organization. Use `AsNoTracking()` and select only projection columns.
 
-- [ ] **Step 4: Implement atomic writes with locks and bounded retries**
+- [x] **Step 4: Implement atomic writes with locks and bounded retries**
 
 Use explicit transactions and `FOR UPDATE` locks for organization/actor/target/
 owners. Create retries PostgreSQL `UniqueViolation` for the slug at most five
@@ -809,14 +809,14 @@ times. Update maps the global slug unique violation. Add member maps the composi
 unique violation. Role update reuses `OrganizationPermissionPolicy` after locks.
 Delete rechecks actor accessible count under the transaction.
 
-- [ ] **Step 5: Project active organization through browser sessions**
+- [x] **Step 5: Project active organization through browser sessions**
 
 Extend `BrowserSession` with `OrganizationId? ActiveOrganizationId`; map the EF
 column in `BrowserSessionGateway.GetCurrentAsync`, `SignInAsync`, and
 `RenewCurrentAsync`. New sessions start with null. Ticket serialization remains
 unchanged and contains no organization claim.
 
-- [ ] **Step 6: Run focused store, ticket, and full .NET tests**
+- [x] **Step 6: Run focused store, ticket, and full .NET tests**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -826,7 +826,7 @@ dotnet test Template.sln --no-restore
 
 Expected: all pass with no flaky concurrency failure.
 
-- [ ] **Step 7: Commit the persistence behavior**
+- [x] **Step 7: Commit the persistence behavior**
 
 ```bash
 git add apps/api/src/Template.Application/Authentication/AuthModels.cs \
@@ -857,7 +857,7 @@ git commit -m "feat: implement atomic organization persistence"
 - Consumes: `IOrganizationUserLifecycleStore.PrepareDeletionAsync(UserId, CancellationToken)` and `IApplicationUnitOfWork`.
 - Produces: atomic user deletion policy, real local cleanup organization count, and `organization_ownership_transfer_required` failure.
 
-- [ ] **Step 1: Write failing cleanup classification tests**
+- [x] **Step 1: Write failing cleanup classification tests**
 
 Assert these exact cases:
 
@@ -903,7 +903,7 @@ organizations; and cleanup of a plain local user still returns zero.
 the exact seed/query methods used above against one migrated disposable
 PostgreSQL database.
 
-- [ ] **Step 2: Run focused cleanup tests and observe RED**
+- [x] **Step 2: Run focused cleanup tests and observe RED**
 
 ```bash
 dotnet test Template.sln --no-restore \
@@ -913,7 +913,7 @@ dotnet test Template.sln --no-restore \
 Expected: current deletion leaves organization cleanup unclassified and returns
 zero.
 
-- [ ] **Step 3: Implement analyze-before-mutate lifecycle cleanup**
+- [x] **Step 3: Implement analyze-before-mutate lifecycle cleanup**
 
 Inside the current transaction, lock every organization membership for the user
 and each affected owner set. First classify all rows. If any multi-member
@@ -922,7 +922,7 @@ write. Otherwise delete only single-member organizations and let user deletion
 cascade remaining memberships. Clear session active preferences for memberships
 that disappear.
 
-- [ ] **Step 4: Wrap account deletion in the generalized unit of work**
+- [x] **Step 4: Wrap account deletion in the generalized unit of work**
 
 `AccountService.DeleteAsync` must validate email first, then call
 `IApplicationUnitOfWork.ExecuteAsync`, run lifecycle preparation, and call an
@@ -930,7 +930,7 @@ that disappear.
 transaction instead of opening a nested one. Map the lifecycle result to
 `AccountFailure.OrganizationOwnershipTransferRequired`.
 
-- [ ] **Step 5: Reuse the same lifecycle port from local cleanup**
+- [x] **Step 5: Reuse the same lifecycle port from local cleanup**
 
 Inside the existing cleanup unit of work, prepare organization deletion before
 Identity deletion and return:
@@ -945,7 +945,7 @@ A transfer-required local cleanup returns
 `409 organization_ownership_transfer_required` Problem Details code, and
 performs no partial delete.
 
-- [ ] **Step 6: Run focused and full .NET tests**
+- [x] **Step 6: Run focused and full .NET tests**
 
 ```bash
 dotnet test Template.sln --no-restore \
@@ -955,7 +955,7 @@ dotnet test Template.sln --no-restore
 
 Expected: all pass.
 
-- [ ] **Step 7: Commit cleanup integration**
+- [x] **Step 7: Commit cleanup integration**
 
 ```bash
 git add apps/api
@@ -1002,7 +1002,7 @@ PATCH  /api/v1/organizations/{organizationId}/members/{memberId}
 
 There is no member DELETE endpoint.
 
-- [ ] **Step 1: Write failing HTTP boundary tests**
+- [x] **Step 1: Write failing HTTP boundary tests**
 
 For every operation cover anonymous 401, authenticated success, and no-store.
 For every mutation cover missing/wrong CSRF, strict non-JSON/malformed/unknown
@@ -1027,7 +1027,7 @@ Assert domain acknowledgement is 409 with `email`, `emailDomain`, and
 `allowedEmailDomains` extensions; retry with acknowledgement creates exactly one
 member. Assert safe logs omit seeded names/emails/domains.
 
-- [ ] **Step 2: Run endpoint tests and observe RED**
+- [x] **Step 2: Run endpoint tests and observe RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -1036,7 +1036,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: 404/missing types because organization endpoints are not mapped.
 
-- [ ] **Step 3: Define strict request/response contracts**
+- [x] **Step 3: Define strict request/response contracts**
 
 All request records use `[JsonUnmappedMemberHandling(Disallow)]`. Use nullable
 properties plus explicit API validation so empty PATCH is rejected. Define
@@ -1060,21 +1060,21 @@ internal sealed class ApiProblemException(
 
 Copy only allow-listed primitive/string-array extensions into Problem Details.
 
-- [ ] **Step 4: Map endpoints with established metadata**
+- [x] **Step 4: Map endpoints with established metadata**
 
 Use the inherited browser-session group. Add `RequireApiAntiforgery()` to POST,
 PATCH, PUT, DELETE. Use `ApiJsonRequestReader` for required bodies. Validate name,
 slug, UUIDs, limit `1..100`, and non-empty PATCH at HTTP boundary. Map application
 failures only to the stable codes/statuses in the design.
 
-- [ ] **Step 5: Extend current auth session projection**
+- [x] **Step 5: Extend current auth session projection**
 
 Add `Guid? ActiveOrganizationId` to authenticated session metadata/response and
 map it from `BrowserSession.ActiveOrganizationId`; anonymous response remains
 nullable and safe. The PUT operation gets current session ID through
 `IBrowserSessionGateway` and passes it explicitly to `OrganizationService`.
 
-- [ ] **Step 6: Run endpoint, Problem Details, auth, and full API tests**
+- [x] **Step 6: Run endpoint, Problem Details, auth, and full API tests**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -1084,7 +1084,7 @@ dotnet test Template.sln --no-restore
 
 Expected: all pass; existing auth session clients tolerate the additive field.
 
-- [ ] **Step 7: Commit the REST boundary**
+- [x] **Step 7: Commit the REST boundary**
 
 ```bash
 git add apps/api
@@ -1109,7 +1109,7 @@ git commit -m "feat: expose organization browser REST API"
 - Consumes: named Task 7 operations and contracts.
 - Produces: exact cookie/CSRF/security/error/pagination schema and generated SDK functions with those operation names.
 
-- [ ] **Step 1: Write failing OpenAPI assertions**
+- [x] **Step 1: Write failing OpenAPI assertions**
 
 Assert all nine operations exist, cookie security is mandatory, mutations require
 `X-CSRF-TOKEN`, role strings are enums, strict bodies disallow additional
@@ -1123,7 +1123,7 @@ AssertStringEnum(roleSchema, "member", "admin", "owner");
 AssertPagination(getOrganizations, minimum: 1, maximum: 100, defaultValue: 50);
 ```
 
-- [ ] **Step 2: Run OpenAPI tests and observe RED**
+- [x] **Step 2: Run OpenAPI tests and observe RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -1132,7 +1132,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: missing organization schema constraints/codes.
 
-- [ ] **Step 3: Implement focused transformers**
+- [x] **Step 3: Implement focused transformers**
 
 Register separate schema and operation transformers. Remove organization-specific
 logic from the existing account transformer. Add only stable organization codes
@@ -1140,7 +1140,7 @@ to the global Problem Details enum. Publish trimmed constraints with existing
 `x-trimmed-*` conventions when raw JSON Schema length would reject accepted
 padding.
 
-- [ ] **Step 4: Export the exact contract twice and compare**
+- [x] **Step 4: Export the exact contract twice and compare**
 
 ```bash
 dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore \
@@ -1154,7 +1154,7 @@ diff -u /tmp/iteration5-openapi-a.sha /tmp/iteration5-openapi-b.sha
 
 Expected: hashes are identical.
 
-- [ ] **Step 5: Regenerate and test the SDK**
+- [x] **Step 5: Regenerate and test the SDK**
 
 ```bash
 cd apps/web
@@ -1166,7 +1166,7 @@ npm test -- --runInBand test/contracts/generated-sdk.test.ts
 The generated test must import and assert function existence for all nine
 operation names. Never hand-edit generated files.
 
-- [ ] **Step 6: Commit contract and SDK**
+- [x] **Step 6: Commit contract and SDK**
 
 ```bash
 git add apps/api/src/Template.Api/OpenApi apps/api/tests/Template.Api.Tests/OpenApiContractTests.cs \
@@ -1197,7 +1197,7 @@ git commit -m "feat: publish organization OpenAPI contract"
 - Consumes: generated SDK Task 8 and existing server/browser clients.
 - Produces: typed route builders, REST-only SSR loaders, shared CSRF helper, and all browser organization mutations.
 
-- [ ] **Step 1: Read the installed Next.js 16.2.11 documentation before edits**
+- [x] **Step 1: Read the installed Next.js 16.2.11 documentation before edits**
 
 ```bash
 sed -n '1,240p' apps/web/node_modules/next/dist/docs/01-app/01-getting-started/05-server-and-client-components.md
@@ -1211,7 +1211,7 @@ sed -n '1,220p' apps/web/node_modules/next/dist/docs/01-app/03-api-reference/03-
 Record only installed-version facts used by the implementation in the commit
 notes; do not add a documentation dump to the repository.
 
-- [ ] **Step 2: Write failing route and adapter tests**
+- [x] **Step 2: Write failing route and adapter tests**
 
 Assert route encoding and switch preservation:
 
@@ -1229,7 +1229,7 @@ Mock generated operations and assert SSR loaders add only forwarded cookie,
 correlation ID, `cache: "no-store"`, and renewal suppression. Assert every
 browser mutation calls `getAuthCsrfToken` once and generated SDK once.
 
-- [ ] **Step 3: Run focused Jest and observe RED**
+- [x] **Step 3: Run focused Jest and observe RED**
 
 ```bash
 cd apps/web
@@ -1241,13 +1241,13 @@ npm test -- --runInBand \
 
 Expected: module-not-found failures.
 
-- [ ] **Step 4: Implement typed routes and switch resolver**
+- [x] **Step 4: Implement typed routes and switch resolver**
 
 Expose `/welcome`, `/workspaces`, workspace root/dashboard, and settings
 workspace/users/roles. Preserve only those registered single-key route suffixes;
 all other workspace paths fall back to dashboard.
 
-- [ ] **Step 5: Extract the shared CSRF mutation runner**
+- [x] **Step 5: Extract the shared CSRF mutation runner**
 
 Move the generic request-token/error-normalization flow out of account-specific
 code without changing account behavior. The helper signature is:
@@ -1261,7 +1261,7 @@ export async function runCsrfMutation<T>(
 
 Reuse it from account and organization mutations.
 
-- [ ] **Step 6: Implement generated-only organization loaders/adapters**
+- [x] **Step 6: Implement generated-only organization loaders/adapters**
 
 SSR detail/list/members loaders use isolated clients and suppress renewal.
 Browser adapters cover create, update, delete, set-active, add-member, and
@@ -1275,7 +1275,7 @@ headers: {
 }
 ```
 
-- [ ] **Step 7: Run focused and full web boundary tests**
+- [x] **Step 7: Run focused and full web boundary tests**
 
 ```bash
 npm test -- --runInBand \
@@ -1288,7 +1288,7 @@ npm run boundaries:check
 
 Expected: pass; no raw organization `fetch` or handwritten transport type.
 
-- [ ] **Step 8: Commit the web data boundary**
+- [x] **Step 8: Commit the web data boundary**
 
 ```bash
 git add apps/web/src/features apps/web/src/lib/api apps/web/test
@@ -1323,7 +1323,7 @@ git commit -m "feat: add organization web API adapters"
 - Consumes: Task 9 loaders/mutations/routes.
 - Produces: zero-org onboarding, paged workspace list/create, active/fallback dashboard resolver, canonical route guard, and explicit switch UI.
 
-- [ ] **Step 1: Write failing UI/route tests**
+- [x] **Step 1: Write failing UI/route tests**
 
 Mock loaders and Next navigation. Assert:
 
@@ -1339,7 +1339,7 @@ Also assert existing-org `/welcome` redirects through `/dashboard`, zero-org
 falls back to first page item, UUID root canonicalizes, list exposes load-more,
 create uses returned canonical key, and switch mutation precedes navigation.
 
-- [ ] **Step 2: Run focused Jest and observe RED**
+- [x] **Step 2: Run focused Jest and observe RED**
 
 ```bash
 cd apps/web
@@ -1352,21 +1352,21 @@ npm test -- --runInBand \
 
 Expected: missing components/routes.
 
-- [ ] **Step 3: Implement fixed en/ru messages and onboarding/create**
+- [x] **Step 3: Implement fixed en/ru messages and onboarding/create**
 
 Use the existing locale catalogue registry. Validate the trimmed name on the
 client with the same 1–50 UTF-16 and character policy, but display API validation
 as authoritative. On create success navigate to the returned
 `/w/{canonicalKey}/dashboard` and refresh.
 
-- [ ] **Step 4: Implement paged list/cards and safe failure states**
+- [x] **Step 4: Implement paged list/cards and safe failure states**
 
 Cards show name/slug and links to dashboard/settings. Delete controls are not
 added in this task. Append pages by sending the server cursor verbatim and
 de-duplicate organization IDs. Never display raw API detail; show stable localized
 copy plus trace ID when present.
 
-- [ ] **Step 5: Implement server route resolution**
+- [x] **Step 5: Implement server route resolution**
 
 - `/dashboard`: active detail when accessible, otherwise first list item,
   otherwise `/welcome`.
@@ -1377,14 +1377,14 @@ copy plus trace ID when present.
 
 Do not mutate active context during a deep-link read.
 
-- [ ] **Step 6: Implement the minimal explicit switcher**
+- [x] **Step 6: Implement the minimal explicit switcher**
 
 Render in `SiteHeader` only for authenticated organization-aware pages. On
 selection, call set-active, then route via the switch resolver and refresh. Load
 additional organization pages explicitly rather than silently truncating the
 switcher.
 
-- [ ] **Step 7: Run focused and full web tests**
+- [x] **Step 7: Run focused and full web tests**
 
 ```bash
 npm test -- --runInBand \
@@ -1399,7 +1399,7 @@ npm run typecheck
 
 Expected: pass.
 
-- [ ] **Step 8: Commit onboarding and routing UI**
+- [x] **Step 8: Commit onboarding and routing UI**
 
 ```bash
 git add apps/web
@@ -1430,7 +1430,7 @@ git commit -m "feat: add organization onboarding and routing"
 - Consumes: detail/member loaders, capabilities, and browser mutations.
 - Produces: role-aware settings, delete, direct-add/domain acknowledgement, role update, and fixed-role explanation pages.
 
-- [ ] **Step 1: Write failing settings/member tests**
+- [x] **Step 1: Write failing settings/member tests**
 
 Assert owner/admin/member presentation separately:
 
@@ -1448,7 +1448,7 @@ opens a confirmation view and confirm retries once with acknowledgement; a
 successful mutation followed by failed refresh retains confirmed state and shows
 refresh retry without repeating mutation.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -1462,13 +1462,13 @@ npm test -- --runInBand \
 
 Expected: missing components/routes.
 
-- [ ] **Step 3: Implement settings layout/navigation and access guard**
+- [x] **Step 3: Implement settings layout/navigation and access guard**
 
 Expose only Workspace, Users, and Roles. Settings root resolves/canonicalizes the
 organization and redirects to workspace settings. Do not render Teams,
 Invitations, or API Keys links.
 
-- [ ] **Step 4: Implement update and delete flows**
+- [x] **Step 4: Implement update and delete flows**
 
 Update form accepts name, slug, and newline/comma domains, normalizes only for
 client preview, sends the generated request, and replaces the route with the
@@ -1476,13 +1476,13 @@ returned canonical key. Member role sees read-only fields. Delete requires exact
 name; server capability and API remain authoritative; success navigates to
 `/workspaces`.
 
-- [ ] **Step 5: Implement member directory and paging**
+- [x] **Step 5: Implement member directory and paging**
 
 Show current actor separately, other members ordered as returned, outside-domain
 summary/badges, explicit load-more, and no removal control. Use server-provided
 capabilities plus per-row assignable roles for presentation.
 
-- [ ] **Step 6: Implement direct add and role update recovery**
+- [x] **Step 6: Implement direct add and role update recovery**
 
 Direct add accepts exact UUID user ID and role. On
 `member_domain_acknowledgement_required`, show the allow-list/email warning and
@@ -1490,7 +1490,7 @@ retry only after explicit confirmation. Apply confirmed returned member/role
 projection immediately. If a subsequent reload fails, show a separate retry that
 calls only GET.
 
-- [ ] **Step 7: Run full web quality gates**
+- [x] **Step 7: Run full web quality gates**
 
 ```bash
 npm run format:check
@@ -1506,7 +1506,7 @@ test -f .next/standalone/server.js
 
 Expected: all pass and standalone server exists.
 
-- [ ] **Step 8: Commit settings/member UI**
+- [x] **Step 8: Commit settings/member UI**
 
 ```bash
 git add apps/web
@@ -1529,7 +1529,7 @@ git commit -m "feat: add organization settings and member management"
 - Consumes: complete API/UI slice and local automation auth.
 - Produces: deterministic browser evidence using generated SDK-only setup/cleanup helpers.
 
-- [ ] **Step 1: Add failing Playwright scenarios**
+- [x] **Step 1: Add failing Playwright scenarios**
 
 Create one serial-safe file with isolated users and `try/finally` cleanup. Cover:
 
@@ -1567,7 +1567,7 @@ settings and no add/role/remove controls. The third test creates names
 slug dashboard, and verifies the destructive control is absent when only one
 accessible organization would remain.
 
-- [ ] **Step 2: Run the new E2E file and observe RED**
+- [x] **Step 2: Run the new E2E file and observe RED**
 
 ```bash
 cd apps/web
@@ -1577,19 +1577,19 @@ npm run e2e -- organizations.spec.ts
 Expected: the earliest unimplemented orchestration/helper assertion fails for
 the intended reason; do not weaken assertions.
 
-- [ ] **Step 3: Implement generated-only E2E helpers**
+- [x] **Step 3: Implement generated-only E2E helpers**
 
 Use generated SDK operations for API-level setup where UI setup would obscure the
 scenario. Never import raw request DTOs or call `fetch`. Keep each browser context
 with its own cookie jar and CSRF flow.
 
-- [ ] **Step 4: Harden E2E host cleanup and readiness**
+- [x] **Step 4: Harden E2E host cleanup and readiness**
 
 Ensure the host migrates `TemplateDbContext`, reset deletes organization rows in
 FK-safe order, and local cleanup can remove sole-member orgs. Readiness must query
 both `auth.users` and `organizations.organizations` without exposing schema detail.
 
-- [ ] **Step 5: Run focused and complete E2E**
+- [x] **Step 5: Run focused and complete E2E**
 
 ```bash
 npm run e2e -- organizations.spec.ts
@@ -1599,7 +1599,7 @@ npm run e2e
 Expected: all deterministic tests pass; opt-in live OAuth tests remain skipped
 according to their existing gate.
 
-- [ ] **Step 6: Commit full-stack acceptance**
+- [x] **Step 6: Commit full-stack acceptance**
 
 ```bash
 git add apps/web/e2e apps/web/playwright.config.ts \
@@ -1610,6 +1610,12 @@ git commit -m "test: cover organization full-stack workflows"
 ---
 
 ### Task 13: Durable Documentation and Complete Verification
+
+**Completion evidence (2026-07-30):** final observed counts/results are recorded
+in `docs/aspnetcore-migration-plan.md` under **Acceptance evidence: итерация 5**;
+all Task 13 mandatory gates passed, except that the separately recorded full
+development audit remains the known 26-high tooling-only advisory graph while
+the required production audit is clean.
 
 **Files:**
 - Modify: `docs/api-conventions.md`
@@ -1622,7 +1628,7 @@ git commit -m "test: cover organization full-stack workflows"
 - Consumes: verified implementation and exact observed command output.
 - Produces: iteration-5 status, scope, correspondence, operational commands, acceptance evidence, intentional differences, and iteration-6 gate.
 
-- [ ] **Step 1: Update durable decisions before claiming completion**
+- [x] **Step 1: Update durable decisions before claiming completion**
 
 Document exact REST paths, role matrix, non-disclosing access, cursors, active
 session FK, transaction rules, account cleanup, SSR renewal suppression, mutation
@@ -1637,7 +1643,7 @@ In the migration plan:
 - record the omitted invitation CTA and strengthened target differences;
 - add exact test counts and command results, not expected values.
 
-- [ ] **Step 2: Run the mandatory .NET and EF gates**
+- [x] **Step 2: Run the mandatory .NET and EF gates**
 
 ```bash
 dotnet restore Template.sln
@@ -1659,7 +1665,7 @@ dotnet list Template.sln package --vulnerable --include-transitive
 Record exact project/test totals, warnings/errors, script bytes, and vulnerability
 result.
 
-- [ ] **Step 3: Run deterministic contract gates**
+- [x] **Step 3: Run deterministic contract gates**
 
 ```bash
 dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore \
@@ -1675,7 +1681,7 @@ npm run api:check
 
 Record the common hash.
 
-- [ ] **Step 4: Run clean web, security, build, and E2E gates**
+- [x] **Step 4: Run clean web, security, build, and E2E gates**
 
 ```bash
 cd apps/web
@@ -1698,7 +1704,7 @@ continues to show the already-documented tooling-only advisory graph, record the
 current exact result separately without claiming it clean; production audit must
 be clean.
 
-- [ ] **Step 5: Run repository and immutable-reference guards**
+- [x] **Step 5: Run repository and immutable-reference guards**
 
 ```bash
 cd /Users/kroniak/Workspaces/github/contixly/templates/netcore-nextjs-shadcn
@@ -1710,7 +1716,7 @@ git status --short -- template/
 
 Expected: all guards pass and no reference path is changed.
 
-- [ ] **Step 6: Self-review and commit documentation/evidence**
+- [x] **Step 6: Self-review and commit documentation/evidence**
 
 ```bash
 npx --prefix apps/web prettier --check \

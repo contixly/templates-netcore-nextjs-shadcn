@@ -907,21 +907,26 @@ immutable reference прошли.
 
 ### Reference → API → UI → test mapping
 
-| Reference                                                             | Новый API                                                                     | Новый UI                                                               | Test/evidence                                                                             |
-| --------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `template/src/features/organizations`, workspace repositories/actions | `/api/v1/organizations`, detail-by-key, update/delete, active-session context | `/welcome`, `/workspaces`, `/dashboard`, `/w/[organizationKey]/**`     | organization Application/API tests; `organization-routing`; Playwright onboarding/routing |
-| reference organization access guard and active-organization helper    | `GET .../by-key/{key}`, `PUT /api/v1/auth/session/active-organization`        | canonical UUID→slug guard and explicit header switcher                 | API isolation/context tests; route/switcher Jest; organization E2E                        |
-| workspace update/delete actions                                       | `PATCH`/`DELETE /api/v1/organizations/{id}`                                   | workspace settings and exact-name delete dialog                        | persistence/concurrency/API tests; settings Jest; E2E last-workspace guard                |
-| membership role/update actions                                        | member list, direct-add and role `PATCH` endpoints                            | Users/roles settings, domain acknowledgement and read-only member view | membership/security tests; member Jest; multi-user E2E                                    |
-| onboarding guard                                                      | paged accessible organization projection                                      | zero-org `/welcome` and first-workspace create                         | route/component Jest and zero-org Playwright scenario                                     |
+| Reference                                                             | Новый API                                                                                                                     | Новый UI                                                               | Test/evidence                                                                             |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `template/src/features/organizations`, workspace repositories/actions | `/api/v1/organizations`, detail-by-key, update/delete, active-session context                                                 | `/welcome`, `/workspaces`, `/dashboard`, `/w/[organizationKey]/**`     | organization Application/API tests; `organization-routing`; Playwright onboarding/routing |
+| reference organization access guard and active-organization helper    | `POST /organizations` atomically creates/sets context; `GET .../by-key/{key}`, `PUT /api/v1/auth/session/active-organization` | canonical UUID→slug guard and explicit header switcher                 | API isolation/context tests; route/switcher Jest; organization E2E                        |
+| workspace update/delete actions                                       | `PATCH`/`DELETE /api/v1/organizations/{id}`                                                                                   | workspace settings and exact-name delete dialog                        | persistence/concurrency/API tests; settings Jest; E2E last-workspace guard                |
+| membership role/update actions                                        | member list, direct-add and role `PATCH` endpoints                                                                            | Users/roles settings, domain acknowledgement and read-only member view | membership/security tests; member Jest; multi-user E2E                                    |
+| onboarding guard                                                      | paged accessible organization projection                                                                                      | zero-org `/welcome` and first-workspace create                         | route/component Jest and zero-org Playwright scenario                                     |
 
 ### Delivered contract, boundaries, and intentional differences
 
 Organizations have UUID IDs and canonical slugs; slug or UUID routes resolve to
 canonical slug UI routes. The active organization is a nullable FK-backed
-preference on the persistent `auth.sessions` row, not a ticket claim, and only
-an explicit set-active mutation changes it. Owner/admin/member is a closed role
-matrix: owner has all organization/membership mutations, admin may update and
+preference on the persistent `auth.sessions` row, not a ticket claim. `POST
+/api/v1/organizations` atomically creates the organization and owner membership
+and sets the actor's current session preference; `PUT
+/api/v1/auth/session/active-organization` explicitly changes that preference
+for an existing accessible organization. `DELETE /organizations/{id}` may clear
+session preferences that reference the deleted organization through the FK
+`SET NULL`; organization `PATCH` and membership mutations do not change active
+context. Owner/admin/member is a closed role matrix: owner has all organization/membership mutations, admin may update and
 assign member/admin roles, and member is read-only; self edits, admin-to-owner
 mutation and loss of the last owner are blocked. Missing and foreign resources
 share non-disclosing results. Organization and member lists use opaque
