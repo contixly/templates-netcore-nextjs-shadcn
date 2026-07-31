@@ -127,6 +127,38 @@ it("uses the explicit current context when it is not in the first page", async (
   ).toHaveAttribute("aria-current", "true");
 });
 
+it("replaces a stale same-id list entry with the authoritative current detail", async () => {
+  renderWithMessages(
+    <OrganizationSwitcher
+      currentOrganization={{
+        id: "old-id",
+        name: "Renamed Workspace",
+        canonicalKey: "old",
+      }}
+      organizations={organizations}
+    />,
+  );
+
+  const trigger = screen.getByRole("button", {
+    name: "Current workspace: Renamed Workspace",
+  });
+  expect(
+    screen.queryByRole("button", { name: "Current workspace: Old" }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(trigger);
+
+  expect(
+    await screen.findByRole("button", {
+      name: "Switch to Renamed Workspace",
+    }),
+  ).toHaveAttribute("aria-current", "true");
+  expect(
+    screen.queryByRole("button", { name: "Switch to Old" }),
+  ).not.toBeInTheDocument();
+  expect(screen.getAllByRole("listitem")).toHaveLength(2);
+});
+
 it("preserves the full accessible name while constraining long labels", () => {
   const longName = "A".repeat(50);
   pathname.mockReturnValue("/w/long/dashboard");

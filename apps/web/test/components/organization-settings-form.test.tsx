@@ -234,6 +234,43 @@ it("keeps save as a stable no-op when normalized settings are unchanged", () => 
   expect(updateOrganization).not.toHaveBeenCalled();
 });
 
+it("treats reordered allowed domains as unchanged and excludes them from a name-only update", async () => {
+  const organizationWithDomains = {
+    ...ownerOrganization,
+    allowedEmailDomains: ["a.com", "b.com"],
+  };
+  updateOrganization.mockResolvedValue({
+    ok: true,
+    data: {
+      ...organizationWithDomains,
+      name: "Name After Reorder",
+    },
+  });
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={organizationWithDomains} />,
+  );
+
+  fireEvent.change(screen.getByLabelText("Allowed Email Domains"), {
+    target: { value: "b.com, a.com" },
+  });
+
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(updateOrganization).not.toHaveBeenCalled();
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Name After Reorder" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenCalledWith(
+      { id: "browser-client" },
+      ownerOrganization.id,
+      { name: "Name After Reorder" },
+    );
+  });
+});
+
 it("uses stable localized update errors and exposes only an allowed trace id", async () => {
   updateOrganization.mockResolvedValue({
     ok: false,

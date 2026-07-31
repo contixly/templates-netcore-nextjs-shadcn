@@ -86,10 +86,11 @@ function sameDomains(
   current: readonly string[],
   baseline: readonly string[],
 ): boolean {
-  return (
-    current.length === baseline.length &&
-    current.every((domain, index) => domain === baseline[index])
-  );
+  if (current.length !== baseline.length) {
+    return false;
+  }
+  const baselineDomains = new Set(baseline);
+  return current.every((domain) => baselineDomains.has(domain));
 }
 
 function dirtyUpdateRequest(

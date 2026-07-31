@@ -8,6 +8,7 @@ import {
   OrganizationAddMemberDialog,
   type OrganizationRole,
 } from "@/src/components/organizations/organization-add-member-dialog";
+import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
 import { OrganizationMemberRoleControl } from "@/src/components/organizations/organization-member-role-control";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Badge } from "@/src/components/ui/badge";
@@ -378,6 +379,7 @@ export function OrganizationMemberDirectory({
   const t = useTranslations("organizations.settings.members");
   const roles = useTranslations("organizations.roles");
   const locale = useLocale();
+  const interactionReady = useOrganizationControlInteractionReady();
   const [state, dispatch] = useReducer(directoryReducer, {
     pages: [initialPage],
     confirmedById: new Map<string, ConfirmedOverlay>(),
@@ -478,7 +480,11 @@ export function OrganizationMemberDirectory({
   }
 
   async function loadMore() {
-    if (!nextCursor || activeReadCoordinator.current !== null) {
+    if (
+      !interactionReady ||
+      !nextCursor ||
+      activeReadCoordinator.current !== null
+    ) {
       return;
     }
     const read = startRead("loadMore");
@@ -707,7 +713,10 @@ export function OrganizationMemberDirectory({
           {nextCursor ? (
             <div className="flex justify-center">
               <Button
-                disabled={pendingRead}
+                data-organization-control-interaction-ready={
+                  interactionReady ? "true" : undefined
+                }
+                disabled={!interactionReady || pendingRead}
                 onClick={() => void loadMore()}
                 type="button"
                 variant="outline"

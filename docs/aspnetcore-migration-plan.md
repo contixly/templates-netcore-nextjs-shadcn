@@ -1,8 +1,9 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 5 — organizations, membership и onboarding (завершена
-2026-07-31; deterministic acceptance и automatic-review loop пройдены; ready PR
+**Текущая итерация:** 5 — organizations, membership и onboarding
+(функциональный scope реализован; automatic-review round 5 переоткрыт,
+локальные исправления проверены, controller push/re-review ожидаются; ready PR
 #6 открыт и не смержен).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
@@ -191,7 +192,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(завершена 2026-07-31; PR открыт и не смержен)**
+### Итерация 5 — Organizations, membership и onboarding **(функциональный scope реализован; automatic-review round 5 переоткрыт; PR открыт и не смержен)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -1118,11 +1119,10 @@ Automatic Codex review round 4 completed in issue comment
 “Codex Review: Didn't find any major issues. Hooray!”. GitHub returned 13/13
 review threads resolved and 0 unresolved. At that round-4 observation, PR #6
 was open, ready rather than draft, mergeable, and not merged, and its head
-matched the reviewed implementation commit. This subsequent documentation-only
-evidence commit may sit on top after the controller pushes it and will then be
-automatically re-reviewed by the controller. The iteration-5 implementation and
-Task 14 review loop are complete, but this does not claim that the PR has been
-merged.
+matched the reviewed implementation commit. The later documentation-only head
+was automatically re-reviewed and produced the three actionable round-5
+findings recorded below, so this remains a historical clean observation rather
+than the current Task 14 closure.
 
 Evidence carried by the reviewed implementation head:
 
@@ -1141,11 +1141,43 @@ Evidence carried by the reviewed implementation head:
 | package audits                                                       | PASS; no vulnerable NuGet packages and `npm audit --omit=dev` reports 0 production vulnerabilities; full development audit remains 26 high only |
 | immutable reference                                                  | PASS; working-tree and reviewed-range `template/` diffs plus `git status --short -- template/` are empty                                        |
 
-**Next product gate:** iteration 6 may start only as its own planned vertical
-slice for Teams and invitations: define invitation security/expiry,
-accept/reject lifecycle, team membership, notifications/email boundary, and
-E2E coverage. It must not add Teams/Invitations/API Keys/dashboard work under
-iteration 5.
+### PR #6 auto-review round 5 local fix verification 2026-07-31
+
+Automatic review of documentation head
+`66d8f7cbcc552cfedd2afc1eb45c3c9e39103abc` found three actionable P2 web
+regressions. Each was reproduced test-first and repaired without changing the
+REST contract, API, database, authentication, generated client, or immutable
+reference:
+
+- allowed-domain dirty comparison now uses normalized unordered-set semantics;
+  a reorder is a no-op and is excluded from a name-only PATCH, while a real
+  addition/removal remains dirty;
+- the routed organization detail replaces a stale same-id switcher summary
+  while list order and the off-page prepend behavior remain intact;
+- member-directory continuation follows the exact organization-control
+  hydration boundary and cannot accept a server/pre-hydration click.
+
+This is local fixer evidence only. The controller still owns commit push,
+round-5 thread replies/resolution, and the next automatic review; no round-5
+clean state is claimed here.
+
+| Command / gate                                                       | Observed result                                                                                                                                                      |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| three focused Jest RED regressions                                   | Expected FAIL; 3/3 suites failed at the intended assertions, 3 failed and 34 passed of 37 tests                                                                      |
+| focused settings/switcher/member-directory GREEN                     | PASS; 3/3 suites, 37/37 tests, including reorder/no-transport, name-only PATCH, stale same-id detail replacement, and server/client readiness plus opaque cursor GET |
+| `dotnet restore/build/test/format`                                   | PASS; build 0 warnings/errors; Application 179/179, API 417/417, total 596/596; format clean                                                                         |
+| production audit, generated SDK, boundaries, format, lint, typecheck | PASS; 0 production vulnerabilities; generated client deterministic/current; boundary harness 3/3; all format/lint/type gates clean                                   |
+| `npm test -- --runInBand`                                            | PASS; 51/51 suites, 337/337 tests, 0 snapshots                                                                                                                       |
+| clean production build and standalone guard                          | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                            |
+| default full 5-worker E2E                                            | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                      |
+| whitespace, generated metadata, and immutable-reference guards       | PASS; `git diff --check`, generated OpenAPI/SDK diff, working-tree and `origin/main...HEAD` `template/` diffs, status, and untracked-reference guards clean          |
+
+**Next product gate:** iteration 6 remains blocked until Task 14 receives a
+fresh clean automatic review with no unresolved actionable threads. After that,
+iteration 6 may start only as its own planned vertical slice for Teams and
+invitations: define invitation security/expiry, accept/reject lifecycle, team
+membership, notifications/email boundary, and E2E coverage. It must not add
+Teams/Invitations/API Keys/dashboard work under iteration 5.
 
 ## 9. Правило обновления этого документа
 

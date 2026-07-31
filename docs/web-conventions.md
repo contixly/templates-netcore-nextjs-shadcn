@@ -323,8 +323,10 @@ The header's route-owned parallel switcher slot calls set-active before routing;
 it preserves known one-key settings routes and otherwise goes to the selected
 dashboard. It may skip set-active for the routed selection only when that id also
 equals the session's active preference, so an explicit deep-linked selection
-persists for later `/dashboard`. A slug update replaces the browser URL with the
-returned canonical key.
+persists for later `/dashboard`. The independently loaded routed detail is
+authoritative for its organization id: it replaces a same-id first-page summary
+without changing list order, or is prepended when that id is absent. A slug
+update replaces the browser URL with the returned canonical key.
 
 Lists return opaque server cursors unchanged, explicitly load more, and
 de-duplicate ids. Workspace browser accumulation keeps prior pages and the last
@@ -336,9 +338,13 @@ hydration readiness marker.
 Workspace settings reject exact normalized D-format UUID-shaped slugs before
 transport. They compare normalized inputs with the latest confirmed detail and
 send the exact generated PATCH request containing only dirty name, slug, and/or
-allowed-domain fields. A normalized no-change form keeps Save disabled; a
-successful response replaces both visible inputs and the dirty comparison
-baseline, preventing stale administrators from overwriting unrelated fields.
+allowed-domain fields. Allowed domains have set semantics: normalized,
+de-duplicated values are compared without regard to order, so reordering alone
+neither enables Save nor adds a stale domain collection to an unrelated PATCH. A
+real set addition or removal remains dirty. A normalized no-change form keeps
+Save disabled; a successful response replaces both visible inputs and the dirty
+comparison baseline, preventing stale administrators from overwriting unrelated
+fields.
 
 Mutation responses are immediately authoritative. A successful write followed
 by a failed refresh remains a confirmed partial success: the UI keeps a
@@ -346,7 +352,10 @@ conservative projection and offers a GET-only refresh retry, never repeats the
 mutation. Direct member add exposes an outside-domain confirmation only for the
 typed 409 acknowledgement problem; the initial request has no write. Directory
 state also keeps the current actor separate and never renders member removal
-controls.
+controls. Member-directory continuation is an exact first-action organization
+control: its server HTML is disabled, and it becomes enabled only after that
+Client Component boundary publishes
+`data-organization-control-interaction-ready="true"`.
 
 The account-deletion dialog keeps generic safe copy for unknown failures, but
 maps the exact typed `organization_ownership_transfer_required` Problem Details

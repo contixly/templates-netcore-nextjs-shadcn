@@ -62,13 +62,21 @@ export function OrganizationSwitcher({
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const key = routeKey(pathname);
-  const options =
-    currentOrganization &&
-    !organizations.some(
+  const currentOrganizationIsListed =
+    currentOrganization !== null &&
+    currentOrganization !== undefined &&
+    organizations.some(
       (organization) => organization.id === currentOrganization.id,
-    )
-      ? [currentOrganization, ...organizations]
-      : organizations;
+    );
+  const options = currentOrganization
+    ? currentOrganizationIsListed
+      ? organizations.map((organization) =>
+          organization.id === currentOrganization.id
+            ? currentOrganization
+            : organization,
+        )
+      : [currentOrganization, ...organizations]
+    : organizations;
 
   if (!key || options.length === 0) {
     return null;

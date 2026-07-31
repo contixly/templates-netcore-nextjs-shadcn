@@ -1818,7 +1818,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [x] **Step 5: Commit, push, and repeat review rounds**
+- [ ] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1831,13 +1831,13 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [x] **Step 6: Record the final clean review state**
+- [ ] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
 changed, and verify the ready PR remains mergeable with required checks passing.
 
-Observed closure on 2026-07-31:
+Historical round-4 observation on 2026-07-31 (superseded by round 5):
 
 - Final branch review and both immutable-reference guards were clean before the
   controller pushed the iteration branch.
@@ -1860,3 +1860,12 @@ Observed closure on 2026-07-31:
   reviewed implementation head after the controller pushes it; the controller
   will then run the automatic review again. No amended/future commit hash is
   claimed here.
+
+Round 5 reopened Task 14 after automatic review of documentation head
+`66d8f7cbcc552cfedd2afc1eb45c3c9e39103abc` produced three actionable P2 web
+findings. The local fixer reproduced and repaired unordered allowed-domain dirty
+comparison, stale same-id switcher detail reconciliation, and member-directory
+hydration readiness. Focused and full acceptance evidence is recorded in
+`docs/aspnetcore-migration-plan.md`. Step 5 remains controller-owned until the
+fix commit is pushed and the three threads are resolved; Step 6 requires a new
+automatic-review result and therefore is not yet complete.

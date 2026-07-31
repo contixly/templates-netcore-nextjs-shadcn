@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 
 import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
 import {
@@ -17,7 +18,10 @@ import type {
   OrganizationMemberPageResponse,
   OrganizationMemberResponse,
 } from "@/src/lib/api/generated/types.gen";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
+
+const organizationControlReadyAttribute =
+  "data-organization-control-interaction-ready";
 
 jest.mock("@/src/lib/api/browser/client", () => ({
   createBrowserApiClient: () => ({ id: "browser-client" }),
@@ -244,6 +248,51 @@ it("loads the next opaque cursor, appends members, and deduplicates ids", async 
   expect(
     screen.queryByRole("button", { name: "Load more members" }),
   ).not.toBeInTheDocument();
+});
+
+it("keeps member pagination unavailable in server HTML until its boundary hydrates", async () => {
+  getMembers.mockResolvedValue(memberPageResult([], null));
+  const directory = (
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={initialPage}
+      organization={organization}
+    />
+  );
+  const serverMarkup = renderToString(withMessages(directory));
+  const serverDocument = new DOMParser().parseFromString(
+    serverMarkup,
+    "text/html",
+  );
+  const serverLoadMore = Array.from(
+    serverDocument.querySelectorAll("button"),
+  ).find((button) => button.textContent?.includes("Load more members"));
+
+  expect(serverLoadMore?.hasAttribute("disabled")).toBe(true);
+  expect(serverLoadMore?.getAttribute(organizationControlReadyAttribute)).toBe(
+    null,
+  );
+
+  renderWithMessages(directory);
+  const loadMore = screen.getByRole("button", {
+    name: "Load more members",
+  });
+  await waitFor(() => {
+    expect(loadMore).toHaveAttribute(organizationControlReadyAttribute, "true");
+  });
+  expect(loadMore).toBeEnabled();
+
+  fireEvent.click(loadMore);
+
+  await waitFor(() => {
+    expect(getMembers).toHaveBeenCalledWith({
+      client: { id: "browser-client" },
+      cache: "no-store",
+      path: { organizationId: organization.id },
+      query: { cursor: "cursor-next" },
+      signal: expect.anything(),
+    });
+  });
 });
 
 it("retains a confirmed role when refresh fails and retry performs GET only", async () => {
