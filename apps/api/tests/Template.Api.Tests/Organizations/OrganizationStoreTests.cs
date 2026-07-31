@@ -1534,6 +1534,17 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
             .GetRequiredService<OrganizationSlugSelectionBarrier>()
             .WereTwoSelectionsCoordinated;
 
+    internal void CoordinateConcurrentSlugSelectionWaves(
+        params int[] expectedArrivals) =>
+        _services
+            .GetRequiredService<OrganizationSlugSelectionBarrier>()
+            .CoordinateWaves(expectedArrivals);
+
+    internal bool ConcurrentSlugSelectionWavesWereCoordinated =>
+        _services
+            .GetRequiredService<OrganizationSlugSelectionBarrier>()
+            .WereAllWavesCoordinated;
+
     internal void CoordinateConcurrentMemberLists() =>
         _services
             .GetRequiredService<OrganizationMemberListBarrier>()
@@ -2100,6 +2111,15 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
             .SingleAsync(TestContext.Current.CancellationToken);
     }
 
+    internal async Task<int> NameAdvisoryLockKeyAsync(string value)
+    {
+        await using var db = CreateDbContext();
+        return await db.Database
+            .SqlQuery<int>(
+                $"SELECT hashtext(lower({value})) AS \"Value\"")
+            .SingleAsync(TestContext.Current.CancellationToken);
+    }
+
     internal async Task<AuthenticatedSession?> GetCurrentBrowserSessionAsync(
         OrganizationActor actor)
     {
@@ -2364,19 +2384,44 @@ internal sealed class OrganizationNameConflictBarrier : DbCommandInterceptor
 
 internal sealed class OrganizationSlugSelectionBarrier : DbCommandInterceptor
 {
+    private static readonly TimeSpan CoordinationTimeout =
+        TimeSpan.FromSeconds(10);
+    private readonly object _sync = new();
     private int _enabled;
-    private int _arrived;
+    private int[] _expectedArrivals = [];
+    private int _wave;
+    private int _waveArrivals;
+    private int _totalArrivals;
     private TaskCompletionSource _release = NewSignal();
 
-    internal void CoordinateNextPair()
+    internal void CoordinateNextPair() => CoordinateWaves(2);
+
+    internal void CoordinateWaves(params int[] expectedArrivals)
     {
-        _arrived = 0;
-        _release = NewSignal();
-        Volatile.Write(ref _enabled, 1);
+        ArgumentNullException.ThrowIfNull(expectedArrivals);
+        if (expectedArrivals.Length == 0 ||
+            expectedArrivals.Any(expected => expected < 1))
+        {
+            throw new ArgumentOutOfRangeException(nameof(expectedArrivals));
+        }
+
+        lock (_sync)
+        {
+            _expectedArrivals = [.. expectedArrivals];
+            _wave = 0;
+            _waveArrivals = 0;
+            _totalArrivals = 0;
+            _release = NewSignal();
+            Volatile.Write(ref _enabled, 1);
+        }
     }
 
     internal bool WereTwoSelectionsCoordinated =>
-        Volatile.Read(ref _arrived) == 2;
+        Volatile.Read(ref _totalArrivals) == 2 && WereAllWavesCoordinated;
+
+    internal bool WereAllWavesCoordinated =>
+        Volatile.Read(ref _enabled) == 0 &&
+        Volatile.Read(ref _wave) == _expectedArrivals.Length;
 
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(
         DbCommand command,
@@ -2390,18 +2435,34 @@ internal sealed class OrganizationSlugSelectionBarrier : DbCommandInterceptor
             return result;
         }
 
-        if (Interlocked.Increment(ref _arrived) == 2)
+        Task release;
+        lock (_sync)
         {
-            Volatile.Write(ref _enabled, 0);
-            _release.TrySetResult();
+            if (Volatile.Read(ref _enabled) == 0)
+            {
+                return result;
+            }
+
+            release = _release.Task;
+            _waveArrivals++;
+            _totalArrivals++;
+            if (_waveArrivals == _expectedArrivals[_wave])
+            {
+                _release.TrySetResult();
+                _wave++;
+                _waveArrivals = 0;
+                if (_wave == _expectedArrivals.Length)
+                {
+                    Volatile.Write(ref _enabled, 0);
+                }
+                else
+                {
+                    _release = NewSignal();
+                }
+            }
         }
 
-        var timeout = Task.Delay(
-            TimeSpan.FromSeconds(3),
-            cancellationToken);
-        await Task.WhenAny(_release.Task, timeout);
-        Volatile.Write(ref _enabled, 0);
-        _release.TrySetResult();
+        await release.WaitAsync(CoordinationTimeout, cancellationToken);
         return result;
     }
 

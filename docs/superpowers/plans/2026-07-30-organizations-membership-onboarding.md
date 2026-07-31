@@ -2184,3 +2184,18 @@ production implementation produced targeted GREEN **1/1**, switcher GREEN
 **20/20**, and the related four-suite focus **60/60**. The two production checks
 remain defense in depth. Controller-owned push/thread/fresh-review work remains
 pending.
+
+Round 20 reopens Task 14 after automatic review of implementation head
+`22046a9842b0e860654aa74e413a52db43e75958` identified actionable P2 thread
+`PRRT_kwDOThDXX86Vjow1` (REST comment `3693889574`): five retries can be spent
+losing the five readable slug candidates, leaving no selection that can observe
+`base-5` and choose the already-designed UUID fallback. A strict real-PostgreSQL
+regression coordinates six disjoint actors through exact selection waves
+**6, 5, 4, 3, 2** without sleeps. Under the old bound it failed with exactly one
+`SlugConflict`; the bounded budget is now explicitly one more than the five
+readable candidates. All six operations succeed with five readable slugs and
+one operation-owned UUID fallback while pair and sequential fallback behavior
+remain intact. Exact full gate evidence is recorded in the migration plan and
+ignored round-20 report. Task 14 Steps 5–6 remain pending: the controller owns
+push, thread reply/resolution and a fresh automatic review. No future clean
+result or future reviewed hash is claimed.

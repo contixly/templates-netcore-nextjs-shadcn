@@ -292,8 +292,12 @@ base, fall back to `workspace`, prefix a UUID-shaped base with `workspace-`, and
 preserve the readable `base`, `base-2`, …, `base-5` candidates. When all five
 already exist, create uses a collision-resistant lowercase 32-hex organization-ID
 suffix and truncates the base as needed to keep the complete slug at most 64
-characters. Existing candidates do not consume the separate five-attempt budget
-for global-unique-index races.
+characters. Existing candidates do not consume the global-unique-index race
+budget. The bounded budget permits six selections—one more than the five
+readable candidates—so an operation that loses every readable unique-index race
+can reselect after `base-5` commits and choose its own UUID fallback. Exhausting
+that final attempt retains the existing slug-conflict outcome; other conflict,
+cancellation, and concurrency behavior is unchanged.
 
 ### Allowed domains
 

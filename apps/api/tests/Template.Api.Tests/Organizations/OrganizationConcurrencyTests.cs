@@ -86,6 +86,106 @@ public sealed class OrganizationConcurrencyTests(
     }
 
     [Fact]
+    public async Task Six_disjoint_slug_racers_reach_the_collision_resistant_fallback()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var names = new[]
+        {
+            "Six Way Race",
+            "Six-Way Race",
+            "Six_Way Race",
+            "Six - Way Race",
+            "Six _ Way Race",
+            "Six -_ Way Race"
+        };
+        var actors = new List<OrganizationActor>();
+        foreach (var index in Enumerable.Range(1, names.Length))
+        {
+            actors.Add(await fixture.CreateUserAndSessionAsync(
+                $"slug-six-way-{index}@local-agent.test"));
+        }
+
+        Assert.All(names, name => Assert.True(
+            OrganizationNamePolicy.TryNormalize(name, out _)));
+        Assert.Equal(
+            names.Length,
+            names.Select(name => name.ToLowerInvariant()).Distinct().Count());
+        var slugBases = names.Select(OrganizationSlug.GenerateBase).ToArray();
+        Assert.All(slugBases, slugBase => Assert.Equal("six-way-race", slugBase));
+        var nameLockKeys = new List<int>();
+        foreach (var name in names)
+        {
+            nameLockKeys.Add(await fixture.NameAdvisoryLockKeyAsync(name));
+        }
+
+        Assert.Equal(nameLockKeys.Count, nameLockKeys.Distinct().Count());
+        fixture.CoordinateConcurrentSlugSelectionWaves(6, 5, 4, 3, 2);
+
+        var attempts = await Task.WhenAll(actors.Select((actor, index) =>
+            fixture.CreateOrganizationAsync(actor, names[index])));
+
+        Assert.True(fixture.ConcurrentSlugSelectionWavesWereCoordinated);
+        Assert.All(attempts, result => Assert.True(result.Succeeded));
+        var details = attempts
+            .Select(result => Assert.IsType<OrganizationDetail>(result.Value))
+            .ToArray();
+        var readable = new[]
+        {
+            "six-way-race",
+            "six-way-race-2",
+            "six-way-race-3",
+            "six-way-race-4",
+            "six-way-race-5"
+        };
+        Assert.Equal(
+            readable,
+            details
+                .Select(detail => detail.Slug.Value)
+                .Where(readable.Contains)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+        var fallback = Assert.Single(
+            details,
+            detail => !readable.Contains(detail.Slug.Value));
+        Assert.Equal(
+            $"six-way-race-{fallback.Id.Value:N}",
+            fallback.Slug.Value);
+        Assert.Equal(
+            details.Length,
+            details.Select(detail => detail.Slug.Value).Distinct().Count());
+        Assert.All(details, detail =>
+        {
+            Assert.True(
+                OrganizationSlug.TryCreate(detail.Slug.Value, out var canonical));
+            Assert.Equal(detail.Slug, canonical);
+            Assert.InRange(detail.Slug.Value.Length, 1, 64);
+        });
+
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            actors.Count,
+            await db.Organizations.CountAsync(
+                TestContext.Current.CancellationToken));
+        foreach (var (actor, index) in actors.Select((actor, index) =>
+                     (actor, index)))
+        {
+            var membership = await db.OrganizationMembers
+                .Where(row => row.UserId == actor.UserId.Value)
+                .Select(row => new { row.OrganizationId, row.Role })
+                .SingleAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(details[index].Id.Value, membership.OrganizationId);
+            Assert.Equal(OrganizationRole.Owner.Value, membership.Role);
+            Assert.Equal(
+                details[index].Id.Value,
+                await db.Sessions
+                    .Where(row => row.Id == actor.SessionId.Value)
+                    .Select(row => row.ActiveOrganizationId)
+                    .SingleAsync(TestContext.Current.CancellationToken));
+        }
+    }
+
+    [Fact]
     public async Task Same_actor_create_race_is_idempotent_at_the_name_boundary()
     {
         await using var fixture =

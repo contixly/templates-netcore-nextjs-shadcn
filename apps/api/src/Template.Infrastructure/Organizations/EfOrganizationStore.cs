@@ -18,7 +18,8 @@ internal sealed class EfOrganizationStore(
     : IOrganizationStore
 {
     private const int MaximumReadableSlugCandidates = 5;
-    private const int MaximumSlugRaceAttempts = 5;
+    private const int MaximumSlugRaceAttempts =
+        MaximumReadableSlugCandidates + 1;
     private const int MaximumSlugLength = 64;
     private const int OrganizationNameAdvisoryLockNamespace = 1_330_792_270;
 

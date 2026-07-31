@@ -480,7 +480,12 @@ Generated create slugs preserve the readable `base`, `base-2`, …, `base-5`
 sequence. If all five are occupied, a truncated base plus the new public
 organization UUID in lowercase 32-hex form supplies a collision-resistant
 candidate within the 64-character slug limit. Pre-existing readable candidates
-do not consume the separate five retries reserved for global unique-index races.
+do not consume the global unique-index race budget. That budget is bounded to
+one more selection than the five readable candidates: after an operation loses
+races for all five readable values, its sixth transaction observes those rows
+and selects its own UUID fallback. A unique violation on that final attempt
+still maps to `organization_slug_conflict`; name conflicts and PostgreSQL
+serialization/deadlock mappings are unchanged.
 
 `UpdateOrganizationRequest.allowedEmailDomains` accepts at most 100 raw JSON
 array items, inclusive. The endpoint checks this before normalization and

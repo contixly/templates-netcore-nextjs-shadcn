@@ -195,7 +195,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(round 14 historical clean; round 15 local fix pending push/re-review)**
+### Итерация 5 — Organizations, membership и onboarding **(round 14 historical clean; round 20 local fix pending push/re-review)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -2141,6 +2141,60 @@ switcher/slot/routing/navigation focus was **4/4 suites, 60/60 tests**. Queue
 clearing plus generation-checked drain remain defense in depth. No API, contract,
 generated client, package, database, cookie/security boundary, or production web
 behavior changed.
+
+### PR #6 auto-review round 20 local fix verification 2026-08-01
+
+Automatic review of implementation head
+`22046a9842b0e860654aa74e413a52db43e75958` produced actionable P2 thread
+`PRRT_kwDOThDXX86Vjow1` (REST comment `3693889574`): an operation can lose the
+global slug unique-index race for each readable candidate `base` through
+`base-5`, spend the existing five-attempt budget, and return
+`organization_slug_conflict` without ever reselecting the available UUID
+fallback.
+
+The real-PostgreSQL regression uses six disjoint actors and six distinct valid
+names. It explicitly proves that all six names generate `six-way-race` while
+their PostgreSQL `hashtext(lower(name))` advisory keys are distinct. The extended
+slug-selection interceptor retains the existing pair mode and accepts an exact
+wave plan. It releases only after **6, 5, 4, 3, 2** selections have completed,
+respectively; an unmet wave times out as a test failure rather than silently
+releasing, and no scheduling sleep chooses a winner. This forces one readable
+winner and one fewer survivor at every unique-index race.
+
+Strict RED preceded the production edit. The focused test failed **0/1** after
+all five waves were observed: five operations succeeded and exactly one returned
+`SlugConflict`. Production now defines the bounded race-attempt budget as
+`MaximumReadableSlugCandidates + 1`. The sixth transaction starts only after the
+final `base-5` unique-index loser is released by the winner's commit, observes all
+five readable rows and selects its new organization ID's lowercase 32-hex
+fallback. There is no unbounded loop. A final unique violation still maps to
+`organization_slug_conflict`; name-conflict returns, cancellation propagation,
+and PostgreSQL serialization/deadlock mapping remain unchanged.
+
+Focused GREEN passed the new six-way test **1/1**; sequential fallback, existing
+pair suffix and six-way behavior passed **3/3**; full real-store/concurrency focus
+passed **46/46**. The six results contain exactly the five readable slugs plus
+`six-way-race-{organizationId:N}`. Every slug is canonical, unique and at most 64
+characters; the database contains six organizations, and every actor has exactly
+one owner membership plus a session active-organization FK to its own result.
+
+| Round-20 local gate | Observed result |
+| --- | --- |
+| deterministic real-PostgreSQL RED | Expected FAIL; **0/1**, exact waves 6/5/4/3/2 completed, five successes and exactly one `SlugConflict` |
+| focused/store GREEN | PASS; six-way **1/1**, sequential fallback + pair + six-way **3/3**, full organization store/concurrency **46/46** |
+| `dotnet restore/build/test/format` | PASS; restore current; build 0 warnings/errors; Application **174/174**, API **457/457**, total **631/631**; format clean |
+| EF model/script | PASS; no pending `TemplateDbContext` changes; idempotent SQL **23,431 bytes**, covering actor-list index inspected |
+| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
+| deterministic OpenAPI / SDK | PASS; two actual exports (second forced), common unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated REST SDK 4 files deterministic/current; no contract/generated diff |
+| web boundaries/static/Jest | PASS; boundaries **3/3**, format/lint/Next typegen/TypeScript clean; Jest **51/51 suites, 382/382 tests**, 0 snapshots |
+| clean production build | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present |
+| dependency security | production npm audit PASS with 0 vulnerabilities; full development audit retains one high `brace-expansion` toolchain advisory and no production finding |
+| Playwright | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed** |
+| repository/reference guards | PASS; whitespace, contract/generated drift and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged; no OpenSpec artifact |
+
+This is local fix evidence only. The controller owns push, review-thread
+reply/resolution and a fresh automatic review. No future clean round-20 result or
+future reviewed hash is claimed.
 
 ## 9. Правило обновления этого документа
 
