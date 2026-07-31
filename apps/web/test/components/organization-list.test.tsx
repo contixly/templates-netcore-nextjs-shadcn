@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 
 import { OrganizationList } from "@/src/components/organizations/organization-list";
@@ -60,9 +66,25 @@ const beta = {
   },
 } satisfies OrganizationSummaryResponse;
 
+const gamma = {
+  ...beta,
+  id: "01900000-0000-7000-8000-000000000012",
+  name: "Gamma",
+  slug: "gamma",
+  canonicalKey: "gamma",
+} satisfies OrganizationSummaryResponse;
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
 
 it("renders canonical dashboard/settings links without delete controls", () => {
   renderWithMessages(
@@ -208,12 +230,175 @@ it("appends generated pages and lets each incoming duplicate replace its older e
   ).not.toBeInTheDocument();
 });
 
-it("lets refreshed entries replace identity, role, and permission controls while retaining local tail pages", () => {
+it("drops inaccessible first-page rows when the mounted list receives an authoritative refresh", () => {
   const view = renderWithMessages(
     <OrganizationList
       initialPage={{ items: [acme, beta], nextCursor: null }}
     />,
   );
+
+  view.rerender(
+    withMessages(
+      <OrganizationList
+        initialPage={{
+          items: [{ ...acme, name: "Authoritative Acme" }],
+          nextCursor: null,
+        }}
+      />,
+    ),
+  );
+
+  expect(
+    screen.getByRole("article", { name: "Authoritative Acme workspace" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("article", { name: "Acme workspace" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("article", { name: "Beta workspace" }),
+  ).not.toBeInTheDocument();
+});
+
+it("reconciles the authoritative first page while retaining only loaded continuation rows", async () => {
+  getOrganizationPages.mockResolvedValue({
+    data: { data: { items: [gamma], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getOrganizations>>);
+  const view = renderWithMessages(
+    <OrganizationList
+      initialPage={{ items: [acme, beta], nextCursor: "opaque-next" }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Load more workspaces" }));
+  await screen.findByRole("article", { name: "Gamma workspace" });
+
+  view.rerender(
+    withMessages(
+      <OrganizationList
+        initialPage={{
+          items: [{ ...acme, name: "Authoritative Acme" }],
+          nextCursor: "fresh-first-page-cursor",
+        }}
+      />,
+    ),
+  );
+
+  expect(
+    screen.getByRole("article", { name: "Authoritative Acme workspace" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("article", { name: "Beta workspace" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("article", { name: "Gamma workspace" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Load more workspaces" }),
+  ).not.toBeInTheDocument();
+});
+
+it("stops treating a continuation row as a tail after an authoritative first page adopts it", async () => {
+  getOrganizationPages.mockResolvedValue({
+    data: { data: { items: [beta], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getOrganizations>>);
+  const view = renderWithMessages(
+    <OrganizationList
+      initialPage={{ items: [acme], nextCursor: "opaque-next" }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Load more workspaces" }));
+  await screen.findByRole("article", { name: "Beta workspace" });
+
+  view.rerender(
+    withMessages(
+      <OrganizationList
+        initialPage={{
+          items: [{ ...beta, name: "Authoritative Beta" }],
+          nextCursor: null,
+        }}
+      />,
+    ),
+  );
+  await waitFor(() => {
+    expect(
+      screen.queryByRole("article", { name: "Acme workspace" }),
+    ).not.toBeInTheDocument();
+  });
+  expect(
+    screen.getByRole("article", { name: "Authoritative Beta workspace" }),
+  ).toBeVisible();
+
+  view.rerender(
+    withMessages(
+      <OrganizationList initialPage={{ items: [], nextCursor: null }} />,
+    ),
+  );
+
+  expect(
+    screen.queryByRole("article", { name: "Authoritative Beta workspace" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "No workspaces yet" }),
+  ).toBeVisible();
+});
+
+it("does not restore tail provenance when a delayed continuation resolves after page one adopts its row", async () => {
+  const delayedContinuation =
+    deferred<Awaited<ReturnType<typeof getOrganizations>>>();
+  getOrganizationPages.mockImplementation(
+    () => delayedContinuation.promise as never,
+  );
+  const view = renderWithMessages(
+    <OrganizationList
+      initialPage={{ items: [acme], nextCursor: "opaque-next" }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more workspaces" }));
+  await waitFor(() => expect(getOrganizationPages).toHaveBeenCalledTimes(1));
+  view.rerender(
+    withMessages(
+      <OrganizationList initialPage={{ items: [beta], nextCursor: null }} />,
+    ),
+  );
+  await waitFor(() => {
+    expect(
+      screen.queryByRole("article", { name: "Acme workspace" }),
+    ).not.toBeInTheDocument();
+  });
+  expect(screen.getByRole("article", { name: "Beta workspace" })).toBeVisible();
+
+  await act(async () => {
+    delayedContinuation.resolve({
+      data: { data: { items: [beta], nextCursor: null } },
+    } as Awaited<ReturnType<typeof getOrganizations>>);
+  });
+  expect(screen.getByRole("article", { name: "Beta workspace" })).toBeVisible();
+
+  view.rerender(
+    withMessages(
+      <OrganizationList initialPage={{ items: [], nextCursor: null }} />,
+    ),
+  );
+
+  expect(
+    screen.queryByRole("article", { name: "Beta workspace" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "No workspaces yet" }),
+  ).toBeVisible();
+});
+
+it("lets refreshed entries replace identity, role, and permission controls while retaining local tail pages", async () => {
+  getOrganizationPages.mockResolvedValue({
+    data: { data: { items: [beta], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getOrganizations>>);
+  const view = renderWithMessages(
+    <OrganizationList
+      initialPage={{ items: [acme], nextCursor: "opaque-next" }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Load more workspaces" }));
+  await screen.findByRole("article", { name: "Beta workspace" });
   expect(
     within(screen.getByRole("article", { name: "Acme workspace" })).getByRole(
       "button",

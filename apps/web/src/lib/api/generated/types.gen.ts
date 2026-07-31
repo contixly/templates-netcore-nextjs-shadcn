@@ -1035,7 +1035,7 @@ export type GetOrganizationsData = {
     path?: never;
     query?: {
         /**
-         * Opaque versioned cursor returned by the preceding page.
+         * Opaque versioned cursor returned by the preceding page. Organizations are ordered by the actor membership's immutable joinedAt and membership id.
          */
         cursor?: string;
         limit?: number;
@@ -1334,7 +1334,7 @@ export type GetOrganizationMembersData = {
     };
     query?: {
         /**
-         * Opaque versioned cursor returned by the preceding page.
+         * Opaque versioned cursor returned by the preceding page. Members are ordered by immutable joinedAt and member id.
          */
         cursor?: string;
         limit?: number;

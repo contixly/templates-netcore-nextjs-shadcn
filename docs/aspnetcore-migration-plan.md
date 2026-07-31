@@ -1343,7 +1343,37 @@ acknowledgement or graph metadata.
 | development-only npm audit                   | KNOWN; `npm ci` reports the documented 26 high tooling-only advisories while the production audit remains clean                                                                                     |
 | immutable reference and repository guards    | PASS after evidence update; working-tree/range/status/untracked `template/` guards and `git diff --check` clean                                                                                     |
 
-**Next product gate:** the round-10 iteration-5 review gate temporarily blocks
+### PR #6 auto-review round 11 local fix verification 2026-07-31
+
+The two confirmed pagination findings are repaired as one cross-stack contract
+change. Mounted `/workspaces` state now tracks exact continuation-row
+provenance: a refreshed first page replaces former first-page rows, preserves
+only still-known tail rows and confirmed local mutation overlays, and removes
+tail provenance when an authoritative first page adopts that row. A delayed
+continuation cannot restore provenance for an id in the currently committed
+first page, regardless of reducer action order.
+
+Actor organization keysets no longer depend on mutable organization names.
+Application, EF, the typed/checksummed cursor, OpenAPI, generated client, and
+durable design now agree on the immutable actor membership edge
+`(membership.joinedAt ASC, membership.id ASC)`. Organization-list and
+member-list cursor kinds remain distinct, and the immutable organization-list
+layout does not reuse the legacy mutable-name discriminator. The additive
+`OrganizationActorListMembershipCursorIndex` migration supplies
+`(user_id, joined_at, id)` without weakening the existing membership uniqueness
+or lookup indexes.
+
+| Round-11 local gate                | Observed result                                                                                                                                                                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| client reconciliation RED          | Expected FAIL; 3 new cases retained inaccessible former first-page rows, retained a displaced first row beside a real continuation, and failed to reclassify a tail row adopted by page one; 10 existing cases passed                                   |
+| Application/store/API/contract RED | Expected FAIL; legacy name cursor reached the store; rename omitted the continuation row; newly granted access behind the old name cursor was omitted; the real API returned an empty continuation; migration index was absent; OpenAPI wording drifted |
+| focused organization GREEN         | PASS; Application organization tests 66/66, API/integration organization tests 107/107, and focused organization/generated-client Jest 31/31                                                                                                            |
+| .NET restore/build/test/format     | PASS; build 0 warnings/errors; Application 174/174, API 432/432, total 606/606; format clean                                                                                                                                                            |
+| EF model and migration artifact    | PASS; no pending model changes; idempotent `/tmp/template-pr6-round11.sql` is 23,431 bytes and contains `ix_members_user_id_joined_at_id`                                                                                                               |
+| OpenAPI and generated SDK          | PASS; two deterministic exports SHA-256 `df1de15b2dd76006af6a57b5b01f0690634677e374e47248bd0f422b4d0b1064`; generated SDK deterministic/current                                                                                                         |
+| web static gates                   | PASS; boundaries 3/3, Prettier, ESLint, and Next type generation/TypeScript clean                                                                                                                                                                       |
+
+**Next product gate:** the round-11 iteration-5 review gate temporarily blocks
 iteration 6 until the controller observes a new clean automatic review.
 Teams and invitations remain outside this change and may begin only as their own
 planned vertical slice covering invitation security/expiry, accept/reject

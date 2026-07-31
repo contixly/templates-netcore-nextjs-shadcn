@@ -33,11 +33,19 @@ public sealed class OrganizationPersistenceModelTests(PostgreSqlContainerFixture
         Assert.Equal(
             "SET NULL",
             await ReadDeleteRuleAsync("auth", "sessions", "active_organization_id"));
-        Assert.True(await HasUniqueIndexAsync(
+        Assert.True(await HasIndexAsync(
             "organizations",
             "members",
+            isUnique: true,
             "organization_id",
             "user_id"));
+        Assert.True(await HasIndexAsync(
+            "organizations",
+            "members",
+            isUnique: false,
+            "user_id",
+            "joined_at",
+            "id"));
         Assert.True(await HasCheckContainingAsync(
             "organizations",
             "members",
@@ -211,9 +219,10 @@ public sealed class OrganizationPersistenceModelTests(PostgreSqlContainerFixture
             TestContext.Current.CancellationToken);
     }
 
-    private async Task<bool> HasUniqueIndexAsync(
+    private async Task<bool> HasIndexAsync(
         string schema,
         string table,
+        bool isUnique,
         params string[] columns)
     {
         await using var connection = await OpenConnectionAsync();
@@ -228,7 +237,7 @@ public sealed class OrganizationPersistenceModelTests(PostgreSqlContainerFixture
                     ON namespace.oid = relation.relnamespace
                 WHERE namespace.nspname = @schema
                   AND relation.relname = @table
-                  AND index.indisunique
+                  AND index.indisunique = @isUnique
                   AND (
                       SELECT array_agg(
                           attribute.attname::text
@@ -242,6 +251,7 @@ public sealed class OrganizationPersistenceModelTests(PostgreSqlContainerFixture
             """;
         command.Parameters.AddWithValue("schema", schema);
         command.Parameters.AddWithValue("table", table);
+        command.Parameters.AddWithValue("isUnique", isUnique);
         command.Parameters.AddWithValue("columns", columns);
         return (bool)(await command.ExecuteScalarAsync(
             TestContext.Current.CancellationToken))!;

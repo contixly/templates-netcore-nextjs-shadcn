@@ -33,6 +33,7 @@ export type OrganizationListPage = Readonly<{
 
 type OrganizationListState = Readonly<{
   accumulated: readonly OrganizationListItem[];
+  continuationIds: ReadonlySet<string>;
   deletedIds: ReadonlySet<string>;
   loadedContinuation: boolean;
   nextCursor: string | null;
@@ -92,6 +93,7 @@ function appendAuthoritativeOrganizations(
 function authoritativeFirstOrganizations(
   accumulated: readonly OrganizationListItem[],
   incoming: readonly OrganizationListItem[],
+  continuationIds: ReadonlySet<string>,
 ): OrganizationListItem[] {
   const authoritative = latestUniqueOrganizations(incoming);
   const authoritativeIds = new Set(
@@ -100,7 +102,9 @@ function authoritativeFirstOrganizations(
   return [
     ...authoritative,
     ...accumulated.filter(
-      (organization) => !authoritativeIds.has(organization.id),
+      (organization) =>
+        continuationIds.has(organization.id) &&
+        !authoritativeIds.has(organization.id),
     ),
   ];
 }
@@ -130,11 +134,14 @@ function organizationListReducer(
   if (action.type === "delete") {
     const deletedIds = new Set(state.deletedIds);
     deletedIds.add(action.organizationId);
+    const continuationIds = new Set(state.continuationIds);
+    continuationIds.delete(action.organizationId);
     return {
       ...state,
       accumulated: state.accumulated.filter(
         (organization) => organization.id !== action.organizationId,
       ),
+      continuationIds,
       deletedIds,
     };
   }
@@ -156,12 +163,23 @@ function organizationListReducer(
   }
 
   if (action.type === "serverReconciled") {
+    const authoritativeIds = new Set(
+      action.page.items.map((organization) => organization.id),
+    );
     return {
       ...state,
       accumulated: authoritativeFirstOrganizations(
         state.accumulated,
         action.page.items,
+        state.continuationIds,
       ).filter((organization) => !state.deletedIds.has(organization.id)),
+      continuationIds: new Set(
+        [...state.continuationIds].filter(
+          (organizationId) =>
+            !authoritativeIds.has(organizationId) &&
+            !state.deletedIds.has(organizationId),
+        ),
+      ),
       serverPage: action.page,
       ...(!state.loadedContinuation
         ? { nextCursor: action.page.nextCursor }
@@ -169,6 +187,18 @@ function organizationListReducer(
     };
   }
 
+  const continuationIds = new Set(state.continuationIds);
+  const authoritativeIds = new Set(
+    state.serverPage.items.map((organization) => organization.id),
+  );
+  for (const organization of action.page.items) {
+    if (
+      !authoritativeIds.has(organization.id) &&
+      !state.deletedIds.has(organization.id)
+    ) {
+      continuationIds.add(organization.id);
+    }
+  }
   return {
     ...state,
     accumulated: appendAuthoritativeOrganizations(
@@ -176,6 +206,7 @@ function organizationListReducer(
       action.page.items,
     ).filter((organization) => !state.deletedIds.has(organization.id)),
     continuationFailure: undefined,
+    continuationIds,
     loadedContinuation: true,
     nextCursor: action.page.nextCursor,
     pending: false,
@@ -213,6 +244,7 @@ export function OrganizationList({
   const [apiClient] = useState(() => createBrowserApiClient());
   const [state, dispatch] = useReducer(organizationListReducer, {
     accumulated: initialPage.items,
+    continuationIds: new Set<string>(),
     deletedIds: new Set<string>(),
     loadedContinuation: false,
     nextCursor: initialPage.nextCursor,
@@ -222,7 +254,11 @@ export function OrganizationList({
   const serverPageChanged = state.serverPage !== initialPage;
   const organizations = (
     serverPageChanged
-      ? authoritativeFirstOrganizations(state.accumulated, initialPage.items)
+      ? authoritativeFirstOrganizations(
+          state.accumulated,
+          initialPage.items,
+          state.continuationIds,
+        )
       : state.accumulated
   ).filter((organization) => !state.deletedIds.has(organization.id));
   const nextCursor = state.loadedContinuation

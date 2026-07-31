@@ -14,12 +14,12 @@ public sealed class OrganizationService(IOrganizationStore organizations)
     {
         ValidateLimit(limit);
 
-        OrganizationCursorPosition? after = null;
+        OrganizationListCursorPosition? after = null;
         if (cursor is not null)
         {
             if (!OrganizationCursor.TryDecode(
                     cursor,
-                    out OrganizationCursorPosition decoded))
+                    out OrganizationListCursorPosition decoded))
             {
                 return OrganizationOperationResult<OrganizationPage>.Failed(
                     OrganizationFailure.InvalidCursor);

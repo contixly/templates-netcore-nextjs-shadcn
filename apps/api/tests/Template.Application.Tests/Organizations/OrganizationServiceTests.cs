@@ -1,3 +1,6 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
+using System.Text;
 using Template.Application.Organizations;
 using Template.Application.Organizations.Ports;
 using Template.Domain.Authentication;
@@ -73,18 +76,38 @@ public sealed class OrganizationServiceTests
     }
 
     [Fact]
+    public async Task Six_byte_legacy_mutable_name_cursor_is_rejected_without_store_access()
+    {
+        var store = new RecordingOrganizationStore();
+        var service = new OrganizationService(store);
+
+        var result = await service.ListAsync(
+            new UserId(ActorId),
+            CreateLegacyOrganizationCursor("planet", OrganizationId),
+            50,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OrganizationFailure.InvalidCursor, result.Failure);
+        Assert.Equal(0, store.ListCalls);
+    }
+
+    [Fact]
     public async Task List_decodes_input_and_encodes_the_store_continuation()
     {
         var actor = new UserId(ActorId);
-        var after = new OrganizationCursorPosition("ACME TEAM", OrganizationId);
-        var next = new OrganizationCursorPosition(
-            "BETA TEAM",
-            new OrganizationId(Guid.Parse("00000000-0000-0000-0000-000000000011")));
+        var after = new OrganizationListCursorPosition(
+            DateTimeOffset.Parse("2026-07-30T10:00:00Z"),
+            new OrganizationMemberId(
+                Guid.Parse("00000000-0000-0000-0000-000000000021")));
+        var next = new OrganizationListCursorPosition(
+            DateTimeOffset.Parse("2026-07-30T11:00:00Z"),
+            new OrganizationMemberId(
+                Guid.Parse("00000000-0000-0000-0000-000000000022")));
         var store = new RecordingOrganizationStore
         {
             ListResult = new OrganizationStorePage<
                 OrganizationSummary,
-                OrganizationCursorPosition>([], next)
+                OrganizationListCursorPosition>([], next)
         };
         var service = new OrganizationService(store);
 
@@ -101,7 +124,7 @@ public sealed class OrganizationServiceTests
         Assert.NotNull(result.Value!.NextCursor);
         Assert.True(OrganizationCursor.TryDecode(
             result.Value.NextCursor,
-            out OrganizationCursorPosition decoded));
+            out OrganizationListCursorPosition decoded));
         Assert.Equal(next, decoded);
     }
 
@@ -129,6 +152,31 @@ public sealed class OrganizationServiceTests
 
         Assert.Equal(new UserId(ActorId), store.LastGetActor);
         Assert.Equal("acme-team", store.LastGetKey);
+    }
+
+    private static string CreateLegacyOrganizationCursor(
+        string normalizedName,
+        OrganizationId organizationId)
+    {
+        var name = Encoding.UTF8.GetBytes(normalizedName);
+        var payload = new byte[4 + name.Length + 16];
+        payload[0] = 1;
+        payload[1] = 1;
+        BinaryPrimitives.WriteUInt16BigEndian(
+            payload.AsSpan(2, sizeof(ushort)),
+            checked((ushort)name.Length));
+        name.CopyTo(payload, 4);
+        organizationId.Value.TryWriteBytes(
+            payload.AsSpan(4 + name.Length, 16),
+            bigEndian: true,
+            out _);
+        var signed = new byte[payload.Length + 4];
+        payload.CopyTo(signed, 0);
+        SHA256.HashData(payload)[..4].CopyTo(signed, payload.Length);
+        return Convert.ToBase64String(signed)
+            .TrimEnd('=')
+            .Replace('+', '-')
+            .Replace('/', '_');
     }
 
     [Fact]
@@ -246,7 +294,7 @@ internal sealed class RecordingOrganizationStore : IOrganizationStore
     public OrganizationOperationResult<OrganizationDetail> CreateResult { get; set; } =
         OrganizationOperationResult<OrganizationDetail>.Failed(OrganizationFailure.NotFound);
 
-    public OrganizationStorePage<OrganizationSummary, OrganizationCursorPosition> ListResult
+    public OrganizationStorePage<OrganizationSummary, OrganizationListCursorPosition> ListResult
     { get; set; } = new([], null);
 
     public OrganizationStorePage<OrganizationMember, OrganizationMemberCursorPosition>
@@ -263,7 +311,7 @@ internal sealed class RecordingOrganizationStore : IOrganizationStore
     public int UpdateCalls { get; private set; }
     public int ListMemberCalls { get; private set; }
     public UserId? LastListActor { get; private set; }
-    public OrganizationCursorPosition? LastListAfter { get; private set; }
+    public OrganizationListCursorPosition? LastListAfter { get; private set; }
     public int? LastListLimit { get; private set; }
     public UserId? LastGetActor { get; private set; }
     public string? LastGetKey { get; private set; }
@@ -278,10 +326,10 @@ internal sealed class RecordingOrganizationStore : IOrganizationStore
     public AddOrganizationMemberCommand? LastAddMember { get; private set; }
     public UpdateOrganizationMemberRoleCommand? LastUpdateRole { get; private set; }
 
-    public Task<OrganizationStorePage<OrganizationSummary, OrganizationCursorPosition>>
+    public Task<OrganizationStorePage<OrganizationSummary, OrganizationListCursorPosition>>
         ListAsync(
             UserId actorUserId,
-            OrganizationCursorPosition? after,
+            OrganizationListCursorPosition? after,
             int limit,
             CancellationToken cancellationToken)
     {

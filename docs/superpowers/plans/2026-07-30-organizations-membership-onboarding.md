@@ -483,9 +483,9 @@ public sealed record OrganizationDomainAcknowledgement(
     string? EmailDomain,
     IReadOnlyList<string> AllowedEmailDomains);
 
-public sealed record OrganizationCursorPosition(
-    string NormalizedName,
-    OrganizationId Id);
+public sealed record OrganizationListCursorPosition(
+    DateTimeOffset MembershipJoinedAt,
+    OrganizationMemberId MembershipId);
 
 public sealed record OrganizationMemberCursorPosition(
     DateTimeOffset JoinedAt,
@@ -507,8 +507,8 @@ The persistence ports must expose these exact use-case operations:
 ```csharp
 public interface IOrganizationStore
 {
-    Task<OrganizationStorePage<OrganizationSummary, OrganizationCursorPosition>>
-        ListAsync(UserId actorUserId, OrganizationCursorPosition? after, int limit,
+    Task<OrganizationStorePage<OrganizationSummary, OrganizationListCursorPosition>>
+        ListAsync(UserId actorUserId, OrganizationListCursorPosition? after, int limit,
             CancellationToken cancellationToken);
     Task<OrganizationOperationResult<OrganizationDetail>> GetByKeyAsync(
         UserId actorUserId, string organizationKey, CancellationToken cancellationToken);
@@ -580,10 +580,13 @@ public sealed record UpdateOrganizationMemberRoleCommand(
 
 - [x] **Step 4: Implement the canonical cursor codec**
 
-Use a version byte, typed payload, SHA-256-derived four-byte checksum, and
-base64url. Organization cursor encodes normalized name + UUID; member cursor
-encodes UTC ticks + UUID. Reject padding, non-canonical re-encoding, invalid UTF-8,
-wrong version/type/checksum, empty names, non-UTC ticks, and extra bytes.
+Use a version byte, distinct typed payloads, SHA-256-derived four-byte checksum,
+and base64url. Both organization-list and member-list cursors encode immutable
+membership UTC ticks + membership UUID. The immutable organization-list layout
+uses a kind distinct from both the legacy mutable-name layout and the
+member-list kind. Reject legacy layouts, padding, non-canonical re-encoding,
+wrong version/type/checksum, out-of-range ticks, non-UTC encode inputs, and
+extra bytes.
 
 - [x] **Step 5: Implement minimal Application orchestration**
 
@@ -643,8 +646,12 @@ Assert.Equal(
     await ReadTablesAsync("organizations"));
 Assert.Equal("SET NULL", await ReadDeleteRuleAsync(
     "auth", "sessions", "active_organization_id"));
-Assert.True(await HasUniqueIndexAsync(
-    "organizations", "members", "organization_id", "user_id"));
+Assert.True(await HasIndexAsync(
+    "organizations", "members", isUnique: true,
+    "organization_id", "user_id"));
+Assert.True(await HasIndexAsync(
+    "organizations", "members", isUnique: false,
+    "user_id", "joined_at", "id"));
 Assert.True(await HasCheckContainingAsync(
     "organizations", "members", "role", "owner", "admin", "member"));
 ```

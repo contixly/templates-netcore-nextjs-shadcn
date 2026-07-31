@@ -210,7 +210,7 @@ until a concrete upload/URL lifecycle exists.
 - `role` closed check `owner|admin|member`;
 - `joined_at`, `updated_at`;
 - unique `(organization_id, user_id)`;
-- indexes `(user_id, organization_id)` and
+- indexes `(user_id, organization_id)`, `(user_id, joined_at, id)`, and
   `(organization_id, joined_at, id)`.
 
 ### `organizations.allowed_email_domains`
@@ -358,16 +358,18 @@ Both collections use opaque versioned base64url cursors with checksum validation
 following the existing session-cursor discipline. Clients return cursors
 verbatim and never decode or synthesize them.
 
-- organizations: `(normalizedName ASC, id ASC)`;
-- members: `(joinedAt ASC, id ASC)`;
+- organizations: the actor's immutable membership edge
+  `(membership.joinedAt ASC, membership.id ASC)`;
+- members: `(member.joinedAt ASC, member.id ASC)`;
 - default limit 50;
 - accepted range 1–100;
 - canonical cursor corruption returns `400 invalid_cursor`;
-- after checksum/UTF-8 verification, an organization cursor's decoded
-  `normalizedName` must itself satisfy the shared runtime 1–50 UTF-16
-  organization-name Rune policy and contain no outer whitespace; NUL/control,
-  unsupported-symbol, empty, and overlength positions are `invalid_cursor`
-  before persistence;
+- the immutable organization-list timestamp payload uses a cursor kind distinct
+  from both the legacy mutable-name layout and the member-list layout, even
+  though the two current positions contain UTC ticks plus a membership UUID;
+  legacy layouts, wrong kind/version, noncanonical base64url, corrupt checksum,
+  out-of-range ticks, non-UTC encode inputs, and extra bytes are rejected before
+  persistence;
 - no free-text search, role filter or global candidate listing in iteration 5.
 
 The UI renders the first page and explicit continuation/load-more behavior.
@@ -608,9 +610,15 @@ generated organizations GET operation with the last opaque cursor; the URL does
 not advance or accumulate cursor state. Old `?cursor=` bookmarks redirect to the
 canonical route and therefore restart from page one. Client state appends in API
 order, de-duplicates ids, supports an arbitrary practical number of sequential
-clicks, and keeps its one cookie jar. A failed continuation does not discard
-successful pages or advance the cursor: stable localized failure copy and the
-same ready retry remain available.
+clicks, and keeps its one cookie jar. It records continuation-row ids as page
+provenance. An authoritative first-page refresh replaces every former
+first-page row, retaining only still-known continuation rows plus confirmed
+local mutation overlays; a continuation row adopted by a later first page loses
+tail provenance. A delayed continuation cannot restore provenance for an id in
+the currently committed authoritative first page, so reconciliation remains
+deterministic whichever reducer action lands first. A failed continuation does
+not discard successful pages or advance the cursor: stable localized failure
+copy and the same ready retry remain available.
 
 Mutation response DTOs are authoritative. If a follow-up refresh fails after a
 successful write, the UI does not report the mutation as failed and never repeats

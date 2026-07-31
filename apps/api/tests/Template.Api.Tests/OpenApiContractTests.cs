@@ -1128,7 +1128,11 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 "GetOrganizations"),
             minimum: 1,
             maximum: 100,
-            defaultValue: 50);
+            defaultValue: 50,
+            cursorDescription:
+                "Opaque versioned cursor returned by the preceding page. " +
+                "Organizations are ordered by the actor membership's immutable " +
+                "joinedAt and membership id.");
         AssertPagination(
             AssertOperation(
                 document,
@@ -1137,7 +1141,10 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 "GetOrganizationMembers"),
             minimum: 1,
             maximum: 100,
-            defaultValue: 50);
+            defaultValue: 50,
+            cursorDescription:
+                "Opaque versioned cursor returned by the preceding page. " +
+                "Members are ordered by immutable joinedAt and member id.");
 
         foreach (var (path, method, parameterName) in new[]
                  {
@@ -1600,7 +1607,8 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         JsonNode operation,
         int minimum,
         int maximum,
-        int defaultValue)
+        int defaultValue,
+        string cursorDescription)
     {
         var parameters = operation["parameters"]!.AsArray();
         var limit = Assert.Single(
@@ -1617,6 +1625,9 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             parameter => parameter!["name"]!.GetValue<string>() == "cursor");
         Assert.NotEqual(true, cursor!["required"]?.GetValue<bool>());
         Assert.Equal("string", cursor["schema"]!["type"]!.GetValue<string>());
+        Assert.Equal(
+            cursorDescription,
+            cursor["schema"]!["description"]!.GetValue<string>());
     }
 
     private static void AssertTrimmedString(

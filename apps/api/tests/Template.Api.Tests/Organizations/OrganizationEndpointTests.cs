@@ -163,6 +163,92 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Organization_cursor_remains_complete_when_a_later_page_is_renamed()
+    {
+        using var client = factory.CreateApiClient();
+        var actor = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Pagination Owner",
+            "local-agent+organization-pagination@local-agent.test");
+        using var alphaCreate =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Alpha");
+        using var bravoCreate =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Bravo");
+        using var zuluCreate =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Zulu");
+        var alphaId = (await OrganizationEndpointTestSupport.ReadDataAsync(alphaCreate))
+            .GetProperty("id")
+            .GetGuid();
+        var bravoId = (await OrganizationEndpointTestSupport.ReadDataAsync(bravoCreate))
+            .GetProperty("id")
+            .GetGuid();
+        var zuluId = (await OrganizationEndpointTestSupport.ReadDataAsync(zuluCreate))
+            .GetProperty("id")
+            .GetGuid();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+            foreach (var (organizationId, joinedAt) in new[]
+                     {
+                         (alphaId, DateTimeOffset.Parse("2026-07-30T10:00:00Z")),
+                         (bravoId, DateTimeOffset.Parse("2026-07-30T11:00:00Z")),
+                         (zuluId, DateTimeOffset.Parse("2026-07-30T12:00:00Z"))
+                     })
+            {
+                await db.OrganizationMembers
+                    .Where(member =>
+                        member.OrganizationId == organizationId &&
+                        member.UserId == actor.UserId)
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(
+                            member => member.JoinedAt,
+                            joinedAt),
+                        TestContext.Current.CancellationToken);
+            }
+        }
+
+        using var firstResponse = await client.GetAsync(
+            "/api/v1/organizations?limit=2",
+            TestContext.Current.CancellationToken);
+        var first = await OrganizationEndpointTestSupport.ReadDataAsync(firstResponse);
+        var cursor = first.GetProperty("nextCursor").GetString();
+        using var rename = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            client,
+            HttpMethod.Patch,
+            $"/api/v1/organizations/{zuluId:D}",
+            new { name = "Aardvark" });
+        using var secondResponse = await client.GetAsync(
+            $"/api/v1/organizations?limit=2&cursor={Uri.EscapeDataString(cursor!)}",
+            TestContext.Current.CancellationToken);
+        var second = await OrganizationEndpointTestSupport.ReadDataAsync(secondResponse);
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Equal([alphaId, bravoId], first.GetProperty("items")
+            .EnumerateArray()
+            .Select(item => item.GetProperty("id").GetGuid()));
+        Assert.NotNull(cursor);
+        Assert.Equal(HttpStatusCode.OK, rename.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        var continuation = Assert.Single(second.GetProperty("items").EnumerateArray());
+        Assert.Equal(zuluId, continuation.GetProperty("id").GetGuid());
+        Assert.Equal("Aardvark", continuation.GetProperty("name").GetString());
+        Assert.Equal(JsonValueKind.Null, second.GetProperty("nextCursor").ValueKind);
+        OrganizationEndpointTestSupport.AssertNoStore(
+            alphaCreate,
+            bravoCreate,
+            zuluCreate,
+            firstResponse,
+            rename,
+            secondResponse);
+    }
+
+    [Fact]
     public async Task MembershipLifecycleReturnsClosedSafeMemberProjection()
     {
         using var ownerClient = factory.CreateApiClient();
@@ -724,14 +810,14 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
 
         public Task<OrganizationStorePage<
             OrganizationSummary,
-            OrganizationCursorPosition>> ListAsync(
+            OrganizationListCursorPosition>> ListAsync(
             UserId actorUserId,
-            OrganizationCursorPosition? after,
+            OrganizationListCursorPosition? after,
             int limit,
             CancellationToken cancellationToken) =>
             Task.FromResult(new OrganizationStorePage<
                 OrganizationSummary,
-                OrganizationCursorPosition>([], null));
+                OrganizationListCursorPosition>([], null));
 
         public Task<OrganizationOperationResult<OrganizationDetail>>
             GetByKeyAsync(

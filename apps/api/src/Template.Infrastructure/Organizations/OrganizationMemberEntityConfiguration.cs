@@ -36,6 +36,13 @@ public sealed class OrganizationMemberEntityConfiguration
             .HasDatabaseName("ix_members_user_id_organization_id");
         entity.HasIndex(value => new
         {
+            value.UserId,
+            value.JoinedAt,
+            value.Id
+        })
+            .HasDatabaseName("ix_members_user_id_joined_at_id");
+        entity.HasIndex(value => new
+        {
             value.OrganizationId,
             value.JoinedAt,
             value.Id

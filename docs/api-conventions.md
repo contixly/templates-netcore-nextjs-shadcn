@@ -425,14 +425,15 @@ namespaces. User-supplied UUID-shaped slugs are rejected after trim/lowercase
 normalization, and a UUID-shaped name-derived base is deterministically prefixed
 with `workspace-`. A UUID key resolves only by organization id; a non-UUID key
 resolves only by slug. Returned `canonicalKey` is always the slug. Organization
-pages sort by `(normalizedName ASC, id ASC)` and member pages by
-`(joinedAt ASC, id ASC)`; both use opaque versioned base64url checksum cursors,
-default `50`, range `1..100`. Clients return `nextCursor` verbatim and never
-construct it. A checksum-valid organization cursor is accepted only when its
-decoded normalized-name position satisfies the same 1–50 UTF-16-code-unit,
-Unicode-letter/decimal-digit plus ordinary space/hyphen/underscore policy as a
-runtime organization name and has no outer whitespace. Empty, control,
-unsupported-symbol, and overlength positions return `400 invalid_cursor`
+pages sort by the actor's immutable membership edge
+`(membership.joinedAt ASC, membership.id ASC)` and member pages by
+`(member.joinedAt ASC, member.id ASC)`; the covering actor-list index is
+`(user_id, joined_at, id)`. Both use opaque typed, versioned base64url checksum
+cursors, default `50`, range `1..100`; the immutable organization-list layout
+uses a discriminator distinct from both the legacy mutable-name layout and the
+member-list layout. Clients return `nextCursor` verbatim and never construct it.
+Legacy layouts, wrong cursor kind/version, noncanonical base64url, corrupt
+checksum, out-of-range UTC ticks, and extra bytes return `400 invalid_cursor`
 before any PostgreSQL query.
 
 Generated create slugs preserve the readable `base`, `base-2`, …, `base-5`

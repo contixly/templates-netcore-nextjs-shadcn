@@ -119,7 +119,7 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
-    public async Task Organization_pages_are_tenant_qualified_and_ordered_by_name_then_id()
+    public async Task Organization_pages_are_tenant_qualified_and_ordered_by_membership_edge()
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
         var actor = await fixture.CreateUserAndSessionAsync(
@@ -137,19 +137,28 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             "alpha",
             "alpha-one",
             OrganizationRole.Member,
-            alpha1);
+            alpha1,
+            new OrganizationMemberId(
+                Guid.Parse("00000000-0000-0000-0000-000000000021")),
+            DateTimeOffset.Parse("2026-07-30T10:00:00Z"));
         await fixture.SeedOrganizationForAsync(
             actor,
             "Alpha",
             "alpha-two",
             OrganizationRole.Admin,
-            alpha2);
+            alpha2,
+            new OrganizationMemberId(
+                Guid.Parse("00000000-0000-0000-0000-000000000022")),
+            DateTimeOffset.Parse("2026-07-30T10:00:00Z"));
         await fixture.SeedOrganizationForAsync(
             actor,
             "Bravo",
             "bravo",
             OrganizationRole.Owner,
-            bravo);
+            bravo,
+            new OrganizationMemberId(
+                Guid.Parse("00000000-0000-0000-0000-000000000023")),
+            DateTimeOffset.Parse("2026-07-30T11:00:00Z"));
         var hidden = await fixture.SeedOrganizationForAsync(
             foreign,
             "Aardvark",
@@ -163,7 +172,7 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             TestContext.Current.CancellationToken);
         var second = await fixture.Store.ListAsync(
             actor.UserId,
-            Assert.IsType<OrganizationCursorPosition>(first.Next),
+            Assert.IsType<OrganizationListCursorPosition>(first.Next),
             limit: 2,
             TestContext.Current.CancellationToken);
 
@@ -184,6 +193,159 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             TestContext.Current.CancellationToken);
         Assert.Equal(OrganizationFailure.NotFound, bySlug.Failure);
         Assert.Equal(OrganizationFailure.NotFound, byId.Failure);
+    }
+
+    [Fact]
+    public async Task Organization_continuation_neither_omits_nor_duplicates_after_rename()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "rename-page-owner@local-agent.test");
+        var alpha = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Alpha",
+            "rename-page-alpha",
+            OrganizationRole.Owner,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T10:00:00Z"));
+        var bravo = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Bravo",
+            "rename-page-bravo",
+            OrganizationRole.Owner,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T11:00:00Z"));
+        var zulu = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Zulu",
+            "rename-page-zulu",
+            OrganizationRole.Owner,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T12:00:00Z"));
+
+        var first = await fixture.Store.ListAsync(
+            actor.UserId,
+            after: null,
+            limit: 2,
+            TestContext.Current.CancellationToken);
+        var renamed = await fixture.Store.UpdateAsync(
+            new UpdateOrganizationCommand(
+                actor.UserId,
+                zulu,
+                "Aardvark",
+                Slug: null,
+                AllowedEmailDomains: null),
+            TestContext.Current.CancellationToken);
+        var second = await fixture.Store.ListAsync(
+            actor.UserId,
+            Assert.IsType<OrganizationListCursorPosition>(first.Next),
+            limit: 2,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(renamed.Succeeded);
+        Assert.Equal([alpha, bravo], first.Items.Select(item => item.Id));
+        Assert.Equal([zulu], second.Items.Select(item => item.Id));
+        Assert.Equal(
+            3,
+            first.Items.Concat(second.Items).Select(item => item.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Organization_continuation_does_not_repeat_an_earlier_renamed_row()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "rename-earlier-page-owner@local-agent.test");
+        var alpha = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Alpha",
+            "rename-earlier-alpha",
+            OrganizationRole.Owner,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T10:00:00Z"));
+        var bravo = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Bravo",
+            "rename-earlier-bravo",
+            OrganizationRole.Owner,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T11:00:00Z"));
+        var charlie = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Charlie",
+            "rename-earlier-charlie",
+            OrganizationRole.Owner,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T12:00:00Z"));
+
+        var first = await fixture.Store.ListAsync(
+            actor.UserId,
+            after: null,
+            limit: 2,
+            TestContext.Current.CancellationToken);
+        var renamed = await fixture.Store.UpdateAsync(
+            new UpdateOrganizationCommand(
+                actor.UserId,
+                alpha,
+                "Zulu",
+                Slug: null,
+                AllowedEmailDomains: null),
+            TestContext.Current.CancellationToken);
+        var second = await fixture.Store.ListAsync(
+            actor.UserId,
+            Assert.IsType<OrganizationListCursorPosition>(first.Next),
+            limit: 2,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(renamed.Succeeded);
+        Assert.Equal([alpha, bravo], first.Items.Select(item => item.Id));
+        Assert.Equal([charlie], second.Items.Select(item => item.Id));
+        Assert.Equal(
+            3,
+            first.Items.Concat(second.Items).Select(item => item.Id).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Membership_granted_after_an_issued_cursor_appears_in_continuation()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "new-membership-page-reader@local-agent.test");
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "new-membership-page-owner@local-agent.test");
+        var bravo = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Bravo",
+            "new-membership-bravo",
+            OrganizationRole.Member,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T10:00:00Z"));
+        var charlie = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Charlie",
+            "new-membership-charlie",
+            OrganizationRole.Member,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T11:00:00Z"));
+        var oldOrganization = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Aardvark",
+            "new-membership-aardvark",
+            OrganizationRole.Owner,
+            joinedAt: DateTimeOffset.Parse("2026-07-29T09:00:00Z"));
+
+        var first = await fixture.Store.ListAsync(
+            actor.UserId,
+            after: null,
+            limit: 1,
+            TestContext.Current.CancellationToken);
+        await fixture.AddMembershipAsync(
+            oldOrganization,
+            actor,
+            OrganizationRole.Member,
+            joinedAt: DateTimeOffset.Parse("2026-07-30T12:00:00Z"));
+        var second = await fixture.Store.ListAsync(
+            actor.UserId,
+            Assert.IsType<OrganizationListCursorPosition>(first.Next),
+            limit: 10,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([bravo], first.Items.Select(item => item.Id));
+        Assert.Equal(
+            [charlie, oldOrganization],
+            second.Items.Select(item => item.Id));
     }
 
     [Fact]

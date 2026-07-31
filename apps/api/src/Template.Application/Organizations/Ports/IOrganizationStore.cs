@@ -5,10 +5,10 @@ namespace Template.Application.Organizations.Ports;
 
 public interface IOrganizationStore
 {
-    Task<OrganizationStorePage<OrganizationSummary, OrganizationCursorPosition>>
+    Task<OrganizationStorePage<OrganizationSummary, OrganizationListCursorPosition>>
         ListAsync(
             UserId actorUserId,
-            OrganizationCursorPosition? after,
+            OrganizationListCursorPosition? after,
             int limit,
             CancellationToken cancellationToken);
 

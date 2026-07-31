@@ -62,7 +62,14 @@ internal sealed class OrganizationContractOperationTransformer
         if (operation.OperationId is "GetOrganizations" or
             "GetOrganizationMembers")
         {
-            ApplyPaginationContract(operation);
+            ApplyPaginationContract(
+                operation,
+                operation.OperationId == "GetOrganizations"
+                    ? "Opaque versioned cursor returned by the preceding page. " +
+                      "Organizations are ordered by the actor membership's immutable " +
+                      "joinedAt and membership id."
+                    : "Opaque versioned cursor returned by the preceding page. " +
+                      "Members are ordered by immutable joinedAt and member id.");
             ApplyBadRequestVariants(operation, context.Document!);
         }
 
@@ -220,7 +227,9 @@ internal sealed class OrganizationContractOperationTransformer
             "is always the preferred slug.";
     }
 
-    private static void ApplyPaginationContract(OpenApiOperation operation)
+    private static void ApplyPaginationContract(
+        OpenApiOperation operation,
+        string cursorDescription)
     {
         var limit = operation.Parameters?.SingleOrDefault(
             parameter => string.Equals(
@@ -246,8 +255,7 @@ internal sealed class OrganizationContractOperationTransformer
         {
             cursorSchema.Type = JsonSchemaType.String;
             cursorSchema.Format = null;
-            cursorSchema.Description =
-                "Opaque versioned cursor returned by the preceding page.";
+            cursorSchema.Description = cursorDescription;
         }
     }
 

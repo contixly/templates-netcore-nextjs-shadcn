@@ -23,10 +23,10 @@ internal sealed class EfOrganizationStore(
     private const int OrganizationNameAdvisoryLockNamespace = 1_330_792_270;
 
     public async Task<
-        OrganizationStorePage<OrganizationSummary, OrganizationCursorPosition>>
+        OrganizationStorePage<OrganizationSummary, OrganizationListCursorPosition>>
         ListAsync(
             UserId actorUserId,
-            OrganizationCursorPosition? after,
+            OrganizationListCursorPosition? after,
             int limit,
             CancellationToken cancellationToken)
     {
@@ -43,22 +43,22 @@ internal sealed class EfOrganizationStore(
                 organization.Slug,
                 organization.CreatedAt,
                 organization.UpdatedAt,
+                MembershipId = membership.Id,
+                MembershipJoinedAt = membership.JoinedAt,
                 membership.Role
             };
 
         if (after is not null)
         {
             query = query.Where(row =>
-                string.Compare(
-                    row.NormalizedName,
-                    after.NormalizedName) > 0 ||
-                (row.NormalizedName == after.NormalizedName &&
-                 row.Id.CompareTo(after.Id.Value) > 0));
+                row.MembershipJoinedAt > after.MembershipJoinedAt ||
+                (row.MembershipJoinedAt == after.MembershipJoinedAt &&
+                 row.MembershipId.CompareTo(after.MembershipId.Value) > 0));
         }
 
         var rows = await query
-            .OrderBy(row => row.NormalizedName)
-            .ThenBy(row => row.Id)
+            .OrderBy(row => row.MembershipJoinedAt)
+            .ThenBy(row => row.MembershipId)
             .Take(limit + 1)
             .ToListAsync(cancellationToken);
         var hasMore = rows.Count > limit;
@@ -74,13 +74,13 @@ internal sealed class EfOrganizationStore(
                 row.Role)))
             .ToArray();
         var next = hasMore
-            ? new OrganizationCursorPosition(
-                pageRows[^1].NormalizedName,
-                new OrganizationId(pageRows[^1].Id))
+            ? new OrganizationListCursorPosition(
+                pageRows[^1].MembershipJoinedAt,
+                new OrganizationMemberId(pageRows[^1].MembershipId))
             : null;
         return new OrganizationStorePage<
             OrganizationSummary,
-            OrganizationCursorPosition>(items, next);
+            OrganizationListCursorPosition>(items, next);
     }
 
     public async Task<OrganizationOperationResult<OrganizationDetail>>

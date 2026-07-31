@@ -89,9 +89,9 @@ public sealed record OrganizationDomainAcknowledgement(
     string? EmailDomain,
     IReadOnlyList<string> AllowedEmailDomains);
 
-public sealed record OrganizationCursorPosition(
-    string NormalizedName,
-    OrganizationId Id);
+public sealed record OrganizationListCursorPosition(
+    DateTimeOffset MembershipJoinedAt,
+    OrganizationMemberId MembershipId);
 
 public sealed record OrganizationMemberCursorPosition(
     DateTimeOffset JoinedAt,

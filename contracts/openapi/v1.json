@@ -1241,7 +1241,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "description": "Opaque versioned cursor returned by the preceding page."
+              "description": "Opaque versioned cursor returned by the preceding page. Organizations are ordered by the actor membership's immutable joinedAt and membership id."
             }
           },
           {
@@ -1921,7 +1921,7 @@
             "in": "query",
             "schema": {
               "type": "string",
-              "description": "Opaque versioned cursor returned by the preceding page."
+              "description": "Opaque versioned cursor returned by the preceding page. Members are ordered by immutable joinedAt and member id."
             }
           },
           {
