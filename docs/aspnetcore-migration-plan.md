@@ -192,7 +192,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(функциональный scope реализован; automatic-review round 5 переоткрыт; PR открыт и не смержен)**
+### Итерация 5 — Organizations, membership и onboarding **(функциональный scope реализован; automatic-review round 8 переоткрыт; PR открыт и не смержен)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -905,10 +905,12 @@ console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
 
 ## Acceptance evidence: итерация 5
 
-**Состояние:** итерация и Task 14 automatic-review loop завершены 2026-07-31
-после всех нижеследующих gates и чистого review round 4. Новый код и
-документация находятся вне `template/`; обе проверки immutable reference
-прошли. Ready PR #6 остаётся открытым и не смержен.
+**Состояние:** функциональный scope итерации реализован, но Task 14
+automatic-review loop снова открыт после двух actionable P2 findings round 8.
+Новый код и документация находятся вне `template/`; Ready PR #6 остаётся
+открытым и не смержен. Чистое состояние round 4 является историческим и не
+распространяется на последующие implementation heads; новый clean-review result
+пока не заявляется.
 
 ### Reference → API → UI → test mapping
 
@@ -1239,6 +1241,45 @@ web-only fix.
 | clean production build and standalone guard        | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                    |
 | default full 5-worker E2E                          | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                              |
 | whitespace and immutable-reference guards          | PASS; `git diff --check`, working-tree and `origin/main...HEAD` `template/` diffs, status, and untracked-reference guards clean              |
+
+### PR #6 auto-review round 8 local fix verification 2026-07-31
+
+Automatic review of implementation head
+`9ad0f656da4558dc197781a2500005e9febd7359` found two actionable P2
+findings. Both were reproduced test-first and repaired inside iteration-5
+scope:
+
+- create and name-changing update now acquire one transaction-scoped,
+  namespaced PostgreSQL advisory lock from the exact
+  `hashtext(lower(candidateName))` key before the actor-accessible conflict
+  query. Different actors who share both affected organizations can no longer
+  concurrently commit the same case-insensitive name; hash collisions only
+  serialize, the exact query remains authoritative, and disjoint actors may
+  still retain globally duplicated names;
+- workspace settings now enforce at most 100 distinct normalized domains at the
+  field boundary with localized en/ru guidance and no transport. The client
+  counts after trim/lowercase/leading-`@` normalization and de-duplication,
+  accepts exactly 100 generated-array items even when more than 100 raw tokens
+  collapse to that set, while the API independently retains the exact raw JSON
+  `maxItems: 100` boundary.
+
+This is local fixer evidence only. The controller still owns commit push,
+round-8 thread replies/resolution, and the next automatic review; Task 14
+remains reopened and no round-8 clean state is claimed here.
+
+| Command / gate                              | Observed result                                                                                                                                                                                                                       |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused PostgreSQL RED                      | Expected FAIL; both different-actor shared-organization renames succeeded and the assertion expected exactly one success                                                                                                              |
+| focused client RED                          | Expected FAIL; oversized distinct normalized domains reached transport, no localized field alert appeared; suite 1 failed/16 passed                                                                                                   |
+| focused PostgreSQL/client GREEN             | PASS; shared-actor regression 1/1; full `OrganizationConcurrencyTests` 12/12, including a separately coordinated real slug unique-index retry and disjoint same-name create; settings 17/17 with exact 100 acceptance/101 rejection   |
+| `dotnet restore/build/test/format`          | PASS; restore current; build 0 warnings/errors; Application 179/179, API 421/421, total 600/600; format clean                                                                                                                         |
+| EF and NuGet gates                          | PASS; no pending model changes; pure idempotent `--output` artifact `/tmp/template-pr6-round8.sql` 22,767 bytes; no vulnerable direct/transitive NuGet packages in all 7 projects                                                     |
+| two OpenAPI exports and generated SDK       | PASS; contract unchanged and deterministic SHA-256 `212ed49adaa1a95d42fd407c89a14c3e08dff58cda6324a50ce2a22f6aed8251`; generated SDK 4 files deterministic/current                                                                    |
+| web static gates and audits                 | PASS; boundary harness 3/3, web/docs formatting, lint and typecheck clean; production npm audit 0; development-only audit remains the documented 26 high, 0 other severities                                                          |
+| `npm test -- --runInBand`                   | PASS; 51/51 suites, 344/344 tests, 0 snapshots                                                                                                                                                                                        |
+| clean production build and standalone guard | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                                                                             |
+| default full 5-worker E2E                   | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                                                       |
+| repository and immutable-reference guards   | PASS; `git diff --check`, generated OpenAPI/SDK diff, working-tree and `origin/main...HEAD` `template/` diffs, status, and untracked-reference guards clean after this evidence update; no contract/schema/reference artifact changed |
 
 **Next product gate:** iteration 6 remains blocked until Task 14 receives a
 fresh clean automatic review with no unresolved actionable threads. After that,

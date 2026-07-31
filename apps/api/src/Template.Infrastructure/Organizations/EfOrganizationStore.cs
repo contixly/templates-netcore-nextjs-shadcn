@@ -20,6 +20,7 @@ internal sealed class EfOrganizationStore(
     private const int MaximumReadableSlugCandidates = 5;
     private const int MaximumSlugRaceAttempts = 5;
     private const int MaximumSlugLength = 64;
+    private const int OrganizationNameAdvisoryLockNamespace = 1_330_792_270;
 
     public async Task<
         OrganizationStorePage<OrganizationSummary, OrganizationCursorPosition>>
@@ -190,6 +191,9 @@ internal sealed class EfOrganizationStore(
                                 OrganizationFailure.NotFound);
                         }
 
+                        await AcquireNameNamespaceLockAsync(
+                            command.Name,
+                            transactionCancellationToken);
                         var nameExists = await AccessibleNameExistsAsync(
                             command.ActorUserId.Value,
                             command.Name,
@@ -350,6 +354,9 @@ internal sealed class EfOrganizationStore(
 
                     if (command.Name is not null)
                     {
+                        await AcquireNameNamespaceLockAsync(
+                            command.Name,
+                            transactionCancellationToken);
                         var nameExists = await AccessibleNameExistsAsync(
                             command.ActorUserId.Value,
                             command.Name,
@@ -1006,6 +1013,19 @@ internal sealed class EfOrganizationStore(
                     ) AS "Value"
                     """)
                 .SingleAsync(cancellationToken);
+
+    private async Task AcquireNameNamespaceLockAsync(
+        string name,
+        CancellationToken cancellationToken)
+    {
+        await db.Database.ExecuteSqlAsync(
+            $"""
+             SELECT pg_advisory_xact_lock(
+                 {OrganizationNameAdvisoryLockNamespace},
+                 hashtext(lower({name})))
+             """,
+            cancellationToken);
+    }
 
     private Task<ApplicationUser?> LockUserAsync(
         Guid userId,

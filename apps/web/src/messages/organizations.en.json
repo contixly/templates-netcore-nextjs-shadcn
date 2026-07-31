@@ -100,7 +100,8 @@
         "nameRequired": "Enter a workspace name.",
         "nameInvalid": "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
         "slugInvalid": "Use 1–64 lowercase letters or numbers separated by single hyphens.",
-        "domainsInvalid": "Enter valid exact email domains such as example.com."
+        "domainsInvalid": "Enter valid exact email domains such as example.com.",
+        "domainsTooMany": "Use no more than 100 distinct email domains."
       },
       "failures": {
         "nameConflict": "Choose a different workspace name.",

@@ -32,6 +32,7 @@ const supportedOrganizationName = /^[\p{L}\p{Nd} _-]+$/u;
 const supportedOrganizationSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const uuidShapedOrganizationSlug =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const maximumAllowedEmailDomains = 100;
 const supportedEmailDomain =
   /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
@@ -201,6 +202,13 @@ export function OrganizationSettingsForm({
       setValidation({
         field: "domains",
         message: t("validation.domainsInvalid"),
+      });
+      return;
+    }
+    if (parsedDomains.domains.length > maximumAllowedEmailDomains) {
+      setValidation({
+        field: "domains",
+        message: t("validation.domainsTooMany"),
       });
       return;
     }

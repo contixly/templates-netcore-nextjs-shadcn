@@ -471,6 +471,20 @@ accessible set, requires another accessible organization, and relies on the FK
 state. Unique indexes are authoritative for slug/member races and classified
 results are retried only where the persistence operation specifies it.
 
+Create and name-changing update also serialize the candidate normalized-name
+decision with a transaction-scoped two-key PostgreSQL advisory lock before the
+actor-accessible conflict query. The reserved first key namespaces organization
+name decisions; the second uses `hashtext(lower(candidateName))`, exactly
+matching the database normalization used by the equality query. Every path
+takes at most one name lock after its authorization row locks, so the lock order
+is stable and the lock is released by transaction commit/rollback, including
+cancellation. Hash collisions may conservatively serialize different names but
+cannot create a false conflict because the exact actor-scoped query remains
+authoritative. Consequently two actors whose accessible sets are disjoint may
+still own the same case-insensitive name, while different actors who share the
+affected organizations cannot concurrently commit two claims that sequential
+execution would reject.
+
 Set-active performs one membership-qualified update and does not take an
 exclusive organization `FOR UPDATE` lock, so concurrent selections and
 nonmember attempts do not serialize through an organization row. The exact

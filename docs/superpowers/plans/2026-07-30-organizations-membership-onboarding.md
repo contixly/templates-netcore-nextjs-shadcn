@@ -1887,3 +1887,13 @@ loaded continuation progress and its last cursor, active generated reads, and
 GET-only recovery state. Step 5 remains controller-owned until the round-7 fix
 is pushed and its thread is resolved; Step 6 still requires a fresh automatic
 review result and no round-7 clean state is claimed here.
+
+Round 8 reopened Task 14 after automatic review of implementation head
+`9ad0f656da4558dc197781a2500005e9febd7359` produced two actionable P2
+findings. The local fixer serialized
+same-normalized-name claims across different shared actors with a
+transaction-scoped PostgreSQL advisory namespace and added the client-side
+100-distinct-domain field boundary after normalization/de-duplication. Step 5
+remains controller-owned until the round-8 fix is pushed and both threads are
+resolved; Step 6 still requires a fresh automatic review result and no round-8
+clean state is claimed here.

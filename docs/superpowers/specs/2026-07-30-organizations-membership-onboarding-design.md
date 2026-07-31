@@ -252,7 +252,17 @@ whitespace through `\s`.
 
 Duplicate names are rejected case-insensitively among organizations accessible
 to the actor, matching reference UX. This is an application rule, not a global
-DB invariant.
+DB invariant. Create and name-changing update take the same transaction-scoped,
+two-key PostgreSQL advisory lock before the actor-scoped conflict query. The
+first key is reserved for organization-name decisions; the second is
+`hashtext(lower(candidateName))`, using the exact PostgreSQL normalization that
+the conflict query compares. This serializes concurrent claims of one normalized
+name even when different actors share the affected organizations. A hash
+collision can only serialize unrelated names: the exact query remains
+authoritative and therefore cannot reject globally duplicated names belonging
+to disjoint actors. Each operation takes at most one such advisory lock after
+its authorization row locks, always in the same order, and the lock follows
+transaction commit, rollback, timeout, and cancellation automatically.
 
 ### Slug
 
@@ -524,6 +534,10 @@ data table and final shell remain iteration 9.
 - workspace PATCH sends only normalized fields that differ from the latest
   confirmed detail response; an unchanged form is a disabled no-op, and every
   successful response replaces the comparison baseline;
+- the settings client applies the inclusive 100-domain maximum after
+  normalization and de-duplication; 101 distinct domains render a localized
+  field error before transport, while exactly 100 distinct generated-array
+  items remain valid even when they came from more than 100 raw tokens;
 - a mounted form takes update permission from the latest incoming RSC projection,
   so demotion revokes controls and submit immediately while local dirty values
   and the latest mutation-confirmed field baseline remain intact;
@@ -653,6 +667,8 @@ Focused tests are run red before production code and green after each slice.
 - tenant-qualified reads;
 - cascade and `SET NULL` behavior;
 - slug collision, duplicate member and role/delete races;
+- same-name create/update races, including different actors who share both
+  affected organizations, while disjoint actors may retain duplicate names;
 - sixth-and-later shared generated-slug collisions, including non-ASCII names;
 - account/local cleanup transaction and count.
 
@@ -671,7 +687,8 @@ Focused tests are run red before production code and green after each slice.
 
 - server loader allow-list and renewal suppression;
 - zero-org, list/loading/error and canonical routing;
-- form validation and domain acknowledgement;
+- form validation, exact normalized-domain 100 acceptance/101 rejection, and
+  domain acknowledgement;
 - role-aware controls and safe partial-success recovery;
 - switch navigation behavior;
 - en/ru copy.

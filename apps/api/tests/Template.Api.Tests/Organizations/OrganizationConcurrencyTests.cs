@@ -26,7 +26,7 @@ public sealed class OrganizationConcurrencyTests(
     }
 
     [Fact]
-    public async Task Slug_unique_race_retries_with_a_suffix()
+    public async Task Disjoint_actors_may_create_the_same_case_insensitive_name()
     {
         await using var fixture =
             await OrganizationStoreFixture.CreateAsync(postgres);
@@ -42,6 +42,37 @@ public sealed class OrganizationConcurrencyTests(
         Assert.All(attempts, result => Assert.True(result.Succeeded));
         Assert.Equal(
             ["collision", "collision-2"],
+            attempts
+                .Select(result => Assert.IsType<OrganizationDetail>(result.Value)
+                    .Slug.Value)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            2,
+            await db.Organizations.CountAsync(
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Slug_unique_race_retries_with_a_suffix()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var first = await fixture.CreateUserAndSessionAsync(
+            "slug-retry-first@local-agent.test");
+        var second = await fixture.CreateUserAndSessionAsync(
+            "slug-retry-second@local-agent.test");
+        fixture.CoordinateConcurrentSlugSelections();
+
+        var attempts = await Task.WhenAll(
+            fixture.CreateOrganizationAsync(first, "Slug Race"),
+            fixture.CreateOrganizationAsync(second, "Slug-Race"));
+
+        Assert.True(fixture.ConcurrentSlugSelectionsWereCoordinated);
+        Assert.All(attempts, result => Assert.True(result.Succeeded));
+        Assert.Equal(
+            ["slug-race", "slug-race-2"],
             attempts
                 .Select(result => Assert.IsType<OrganizationDetail>(result.Value)
                     .Slug.Value)
@@ -107,6 +138,58 @@ public sealed class OrganizationConcurrencyTests(
             1,
             await db.Organizations.CountAsync(
                 row => row.Name.ToLower() == "shared name",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Concurrent_renames_by_different_shared_actors_serialize_the_name_namespace()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var firstActor = await fixture.CreateUserAndSessionAsync(
+            "shared-name-first@local-agent.test");
+        var secondActor = await fixture.CreateUserAndSessionAsync(
+            "shared-name-second@local-agent.test");
+        var first = await fixture.SeedOrganizationForAsync(
+            firstActor,
+            "Shared First",
+            "shared-first",
+            OrganizationRole.Owner);
+        var second = await fixture.SeedOrganizationForAsync(
+            secondActor,
+            "Shared Second",
+            "shared-second",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            first,
+            secondActor,
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            second,
+            firstActor,
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentNameChecks();
+
+        var attempts = await Task.WhenAll(
+            fixture.UpdateOrganizationAsync(
+                firstActor,
+                first,
+                "Shared Across Actors"),
+            fixture.UpdateOrganizationAsync(
+                secondActor,
+                second,
+                "sHARED aCROSS aCTORS"));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.NameConflict));
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.Organizations.CountAsync(
+                row => row.Name.ToLower() == "shared across actors",
                 TestContext.Current.CancellationToken));
     }
 

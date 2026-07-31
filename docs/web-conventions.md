@@ -340,14 +340,19 @@ transport. They compare normalized inputs with the latest confirmed detail and
 send the exact generated PATCH request containing only dirty name, slug, and/or
 allowed-domain fields. Allowed domains have set semantics: normalized,
 de-duplicated values are compared without regard to order, so reordering alone
-neither enables Save nor adds a stale domain collection to an unrelated PATCH. A
-real set addition or removal remains dirty. A normalized no-change form keeps
-Save disabled; a successful response replaces both visible inputs and the dirty
-comparison baseline, preventing stale administrators from overwriting unrelated
-fields. On a later RSC projection, update capability is taken immediately from
-the latest server prop so demotion disables every field, removes Save, and
-blocks forced submit without overwriting a local draft or its latest
-mutation-confirmed comparison baseline.
+neither enables Save nor adds a stale domain collection to an unrelated PATCH.
+The settings form applies the contract maximum after this normalization and
+de-duplication: 101 distinct valid domains produce a localized field error and
+no transport, while more than 100 raw comma/newline tokens that collapse to at
+most 100 distinct generated-array items remain valid. The API independently
+retains its authoritative raw JSON `maxItems: 100` boundary. A real set addition
+or removal remains dirty. A normalized no-change form keeps Save disabled; a
+successful response replaces both visible inputs and the dirty comparison
+baseline, preventing stale administrators from overwriting unrelated fields. On
+a later RSC projection, update capability is taken immediately from the latest
+server prop so demotion disables every field, removes Save, and blocks forced
+submit without overwriting a local draft or its latest mutation-confirmed
+comparison baseline.
 
 Mutation responses are immediately authoritative. A successful write followed
 by a failed refresh remains a confirmed partial success: the UI keeps a

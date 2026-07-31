@@ -324,6 +324,67 @@ it("treats reordered allowed domains as unchanged and excludes them from a name-
   });
 });
 
+it("rejects more than 100 distinct normalized domains at the field boundary without transport", async () => {
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+  const domains = screen.getByLabelText("Allowed Email Domains");
+
+  fireEvent.change(domains, {
+    target: {
+      value: Array.from(
+        { length: 101 },
+        (_, index) => `domain-${index}.example.com`,
+      ).join(", "),
+    },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Use no more than 100 distinct email domains.",
+  );
+  expect(domains).toHaveAttribute("aria-invalid", "true");
+  expect(domains.closest('[data-slot="field"]')).toHaveAttribute(
+    "data-invalid",
+    "true",
+  );
+  expect(updateOrganization).not.toHaveBeenCalled();
+});
+
+it("accepts exactly 100 distinct normalized domains after raw-token de-duplication", async () => {
+  const normalizedDomains = Array.from(
+    { length: 100 },
+    (_, index) => `domain-${index}.example.com`,
+  );
+  updateOrganization.mockResolvedValue({
+    ok: true,
+    data: {
+      ...ownerOrganization,
+      allowedEmailDomains: normalizedDomains,
+    },
+  });
+  renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+
+  fireEvent.change(screen.getByLabelText("Allowed Email Domains"), {
+    target: {
+      value: normalizedDomains
+        .flatMap((domain) => [domain.toUpperCase(), `@${domain}`])
+        .join(", "),
+    },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenCalledWith(
+      { id: "browser-client" },
+      ownerOrganization.id,
+      { allowedEmailDomains: normalizedDomains },
+    );
+  });
+});
+
 it("uses stable localized update errors and exposes only an allowed trace id", async () => {
   updateOrganization.mockResolvedValue({
     ok: false,

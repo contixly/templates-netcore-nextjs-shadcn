@@ -1079,11 +1079,13 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<TimeProvider>(new FixedOrganizationTimeProvider(Now));
         services.AddSingleton<OrganizationNameConflictBarrier>();
+        services.AddSingleton<OrganizationSlugSelectionBarrier>();
         services.AddSingleton<OrganizationMemberListBarrier>();
         services.AddSingleton<OrganizationSetActiveFailureInterceptor>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
             options.AddInterceptors(
                 provider.GetRequiredService<OrganizationNameConflictBarrier>(),
+                provider.GetRequiredService<OrganizationSlugSelectionBarrier>(),
                 provider.GetRequiredService<OrganizationMemberListBarrier>(),
                 provider.GetRequiredService<
                     OrganizationSetActiveFailureInterceptor>()));
@@ -1134,6 +1136,16 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         _services
             .GetRequiredService<OrganizationNameConflictBarrier>()
             .CoordinateNextPair();
+
+    internal void CoordinateConcurrentSlugSelections() =>
+        _services
+            .GetRequiredService<OrganizationSlugSelectionBarrier>()
+            .CoordinateNextPair();
+
+    internal bool ConcurrentSlugSelectionsWereCoordinated =>
+        _services
+            .GetRequiredService<OrganizationSlugSelectionBarrier>()
+            .WereTwoSelectionsCoordinated;
 
     internal void CoordinateConcurrentMemberLists() =>
         _services
@@ -1760,6 +1772,64 @@ internal sealed class OrganizationNameConflictBarrier : DbCommandInterceptor
             StringComparison.OrdinalIgnoreCase) &&
         command.CommandText.Contains(
             "lower(",
+            StringComparison.OrdinalIgnoreCase);
+
+    private static TaskCompletionSource NewSignal() =>
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+internal sealed class OrganizationSlugSelectionBarrier : DbCommandInterceptor
+{
+    private int _enabled;
+    private int _arrived;
+    private TaskCompletionSource _release = NewSignal();
+
+    internal void CoordinateNextPair()
+    {
+        _arrived = 0;
+        _release = NewSignal();
+        Volatile.Write(ref _enabled, 1);
+    }
+
+    internal bool WereTwoSelectionsCoordinated =>
+        Volatile.Read(ref _arrived) == 2;
+
+    public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+        DbCommand command,
+        CommandExecutedEventData eventData,
+        DbDataReader result,
+        CancellationToken cancellationToken = default)
+    {
+        if (Volatile.Read(ref _enabled) == 0 ||
+            !IsSlugSelectionQuery(command))
+        {
+            return result;
+        }
+
+        if (Interlocked.Increment(ref _arrived) == 2)
+        {
+            Volatile.Write(ref _enabled, 0);
+            _release.TrySetResult();
+        }
+
+        var timeout = Task.Delay(
+            TimeSpan.FromSeconds(3),
+            cancellationToken);
+        await Task.WhenAny(_release.Task, timeout);
+        Volatile.Write(ref _enabled, 0);
+        _release.TrySetResult();
+        return result;
+    }
+
+    private static bool IsSlugSelectionQuery(DbCommand command) =>
+        command.CommandText.Contains(
+            "SELECT o.slug",
+            StringComparison.OrdinalIgnoreCase) &&
+        command.CommandText.Contains(
+            "FROM organizations.organizations AS o",
+            StringComparison.OrdinalIgnoreCase) &&
+        command.CommandText.Contains(
+            "ANY",
             StringComparison.OrdinalIgnoreCase);
 
     private static TaskCompletionSource NewSignal() =>
