@@ -599,15 +599,21 @@ therefore remain only while successful later pages do not contain that member.
 An abort controller plus an explicit supersede settlement releases the older
 mutation callback even if its transport never settles. A first-page refresh
 preserves already loaded tail pages and their opaque last cursor, and a recovery
-action performs GET only. The workspace list similarly tombstones a confirmed
-deletion so accumulated or refreshed props cannot resurrect it and delete
-eligibility is recomputed immediately. Refreshed/generated incoming list entries
-replace older duplicates by id—including name, slug, role, and capabilities—
-while confirmed deletion tombstones and locally accumulated tail entries absent
-from the refreshed first page remain in force. Current-actor domain eligibility
-mirrors the domain policy's exact email/domain syntax but serializes only the
-resulting outside-policy boolean. A direct-add domain override is offered only
-for exact HTTP 409
+action performs GET only. A later RSC member page immediately replaces only
+server page zero and is then committed through the reducer; loaded tail pages
+and their last opaque cursor, confirmed overlays/order, active read coordination
+and generation, feedback, and GET-only recovery remain in force. Because the RSC
+page has unknown mutation causality, it never retires a confirmed overlay; only
+the existing successful generated read that began after the mutation may do so.
+The workspace list similarly tombstones a confirmed deletion so accumulated or
+refreshed props cannot resurrect it and delete eligibility is recomputed
+immediately. Refreshed/generated incoming list entries replace older duplicates
+by id—including name, slug, role, and capabilities—while confirmed deletion
+tombstones and locally accumulated tail entries absent from the refreshed first
+page remain in force. Current-actor domain eligibility mirrors the domain
+policy's exact email/domain syntax but serializes only the resulting
+outside-policy boolean. A direct-add domain override is offered only for exact
+HTTP 409
 `member_domain_acknowledgement_required` responses carrying nonempty email, an
 explicit nullable email-domain field, and a nonempty allowed-domain list.
 Explicit null renders localized unknown-domain copy; omitted, blank, or

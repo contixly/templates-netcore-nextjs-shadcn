@@ -1211,6 +1211,35 @@ clean state is claimed here.
 | default full 5-worker E2E                   | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                                                        |
 | repository and immutable-reference guards   | PASS; docs/code whitespace, generated SDK metadata, working-tree/range/status/untracked `template/` guards clean                                                                                                                       |
 
+### PR #6 auto-review round 7 local fix verification 2026-07-31
+
+Automatic review of implementation head
+`3730de44a5964199fdd7140b8cc406abe439430d` found one actionable P2 web
+finding. It was reproduced test-first and repaired inside iteration-5 scope. A
+later mounted member-directory RSC page now immediately replaces only server
+page zero and is then committed to reducer state. Loaded continuation pages and
+their last opaque cursor, confirmed mutation overlays/order, active generated
+reads, feedback, and GET-only recovery state remain in force. The
+unknown-causality RSC projection cannot retire a confirmed overlay; the existing
+causally later successful generated member GET remains authoritative.
+
+This is local fixer evidence only. The controller still owns commit push,
+round-7 thread reply/resolution, and the next automatic review; no round-7 clean
+state is claimed here. No .NET, API/OpenAPI, generated SDK, schema, database, or
+reference behavior changed, so the mandatory .NET gates were not rerun for this
+web-only fix.
+
+| Command / gate                                     | Observed result                                                                                                                              |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused member-directory RED                       | Expected FAIL; 1/1 suite failed, 2/12 tests failed because later `initialPage` identity/role/order was ignored; the 10 existing tests passed |
+| focused member-directory GREEN                     | PASS; 1/1 suite, 12/12 tests, including active continuation/cursor and active mutation-overlay reconciliation                                |
+| boundaries, generated SDK, format, lint, typecheck | PASS; boundary harness 3/3, generated SDK 4 files deterministic/current, formatting/lint/types clean                                         |
+| production npm audit                               | PASS; 0 production vulnerabilities                                                                                                           |
+| `npm test -- --runInBand`                          | PASS; 51/51 suites, 342/342 tests, 0 snapshots                                                                                               |
+| clean production build and standalone guard        | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                    |
+| default full 5-worker E2E                          | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                              |
+| whitespace and immutable-reference guards          | PASS; `git diff --check`, working-tree and `origin/main...HEAD` `template/` diffs, status, and untracked-reference guards clean              |
+
 **Next product gate:** iteration 6 remains blocked until Task 14 receives a
 fresh clean automatic review with no unresolved actionable threads. After that,
 iteration 6 may start only as its own planned vertical slice for Teams and

@@ -96,6 +96,7 @@ type ConfirmedOverlay = Readonly<{
 
 type DirectoryState = Readonly<{
   pages: readonly OrganizationMemberPageView[];
+  serverPage: OrganizationMemberPageView;
   confirmedById: ReadonlyMap<string, ConfirmedOverlay>;
   confirmedOrder: readonly string[];
   activeRead: ActiveRead | null;
@@ -104,6 +105,7 @@ type DirectoryState = Readonly<{
 }>;
 
 type DirectoryAction =
+  | Readonly<{ type: "serverReconciled"; page: OrganizationMemberPageView }>
   | Readonly<{
       type: "confirm";
       member: OrganizationMemberView;
@@ -165,6 +167,13 @@ function pageView(
   };
 }
 
+function replaceFirstPage(
+  pages: readonly OrganizationMemberPageView[],
+  incoming: OrganizationMemberPageView,
+): readonly OrganizationMemberPageView[] {
+  return pages.length === 0 ? [incoming] : [incoming, ...pages.slice(1)];
+}
+
 function reconcileConfirmedOverlays(
   state: DirectoryState,
   page: OrganizationMemberPageView,
@@ -206,6 +215,14 @@ function directoryReducer(
   state: DirectoryState,
   action: DirectoryAction,
 ): DirectoryState {
+  if (action.type === "serverReconciled") {
+    return {
+      ...state,
+      pages: replaceFirstPage(state.pages, action.page),
+      serverPage: action.page,
+    };
+  }
+
   if (action.type === "confirm") {
     const confirmedById = new Map(state.confirmedById);
     confirmedById.set(action.member.id, {
@@ -257,10 +274,7 @@ function directoryReducer(
     );
     return {
       ...state,
-      pages:
-        reconciled.pages.length === 0
-          ? [action.page]
-          : [action.page, ...reconciled.pages.slice(1)],
+      pages: replaceFirstPage(reconciled.pages, action.page),
       confirmedById: reconciled.confirmedById,
       activeRead: null,
       refreshRecovery: null,
@@ -382,6 +396,7 @@ export function OrganizationMemberDirectory({
   const interactionReady = useOrganizationControlInteractionReady();
   const [state, dispatch] = useReducer(directoryReducer, {
     pages: [initialPage],
+    serverPage: initialPage,
     confirmedById: new Map<string, ConfirmedOverlay>(),
     confirmedOrder: [],
     activeRead: null,
@@ -390,7 +405,11 @@ export function OrganizationMemberDirectory({
   });
   const readGeneration = useRef(0);
   const activeReadCoordinator = useRef<ReadCoordinator | null>(null);
-  const members = orderedVisibleMembers(state);
+  const serverPageChanged = state.serverPage !== initialPage;
+  const visibleState = serverPageChanged
+    ? { ...state, pages: replaceFirstPage(state.pages, initialPage) }
+    : state;
+  const members = orderedVisibleMembers(visibleState);
   const otherMembers = members.filter(
     (member) => member.userId !== currentActor.userId,
   );
@@ -398,8 +417,15 @@ export function OrganizationMemberDirectory({
     otherMembers.filter((member) => member.isOutsideAllowedEmailDomains)
       .length + (currentActor.isOutsideAllowedEmailDomains ? 1 : 0);
   const actorAssignableRoles = assignableRolesFor(organization);
-  const nextCursor = state.pages.at(-1)?.nextCursor ?? null;
+  const nextCursor = visibleState.pages.at(-1)?.nextCursor ?? null;
   const pendingRead = state.activeRead !== null;
+
+  useEffect(() => {
+    if (state.serverPage === initialPage) {
+      return;
+    }
+    dispatch({ type: "serverReconciled", page: initialPage });
+  }, [initialPage, state.serverPage]);
 
   useEffect(
     () => () => {

@@ -358,9 +358,14 @@ generated `emailDomain` metadata remains `string | null`: explicit null renders
 the fixed localized unknown-domain fallback and still permits the one confirmed
 retry, while an omitted, blank, or wrong-typed value fails closed. Directory
 state also keeps the current actor separate and never renders member removal
-controls. Member-directory continuation is an exact first-action organization
-control: its server HTML is disabled, and it becomes enabled only after that
-Client Component boundary publishes
+controls. A later RSC `initialPage` immediately replaces only member-directory
+server page zero; locally loaded continuation pages and their final cursor,
+confirmed mutation overlays/order, active generated reads, feedback, and
+GET-only recovery survive. The RSC projection has no read generation and cannot
+retire an overlay; a causally later successful generated member GET remains the
+only authority that can retire it. Member-directory continuation is an exact
+first-action organization control: its server HTML is disabled, and it becomes
+enabled only after that Client Component boundary publishes
 `data-organization-control-interaction-ready="true"`.
 
 The account-deletion dialog keeps generic safe copy for unknown failures, but

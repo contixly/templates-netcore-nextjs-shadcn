@@ -250,6 +250,114 @@ it("loads the next opaque cursor, appends members, and deduplicates ids", async 
   ).not.toBeInTheDocument();
 });
 
+it("reconciles a refreshed first page while preserving an active continuation and its loaded tail cursor", async () => {
+  const tailMember = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000032",
+    userId: "01900000-0000-7000-8000-000000000022",
+    name: "Tail User",
+    email: "tail@example.com",
+    isOutsideAllowedEmailDomains: false,
+  };
+  const pendingMember = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000033",
+    userId: "01900000-0000-7000-8000-000000000023",
+    name: "Pending Tail User",
+    email: "pending-tail@example.com",
+    isOutsideAllowedEmailDomains: false,
+  };
+  const freshFirstMember = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000034",
+    userId: "01900000-0000-7000-8000-000000000024",
+    name: "Fresh First User",
+    email: "fresh-first@example.com",
+    isOutsideAllowedEmailDomains: false,
+  };
+  const refreshedMember = {
+    ...otherMember,
+    name: "Refreshed Other User",
+    email: "refreshed-other@example.com",
+    role: "admin" as const,
+    isOutsideAllowedEmailDomains: false,
+  };
+  const pendingContinuation =
+    deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
+  getMembers
+    .mockResolvedValueOnce(
+      memberPageResult([otherMember, tailMember], "cursor-loaded-tail"),
+    )
+    .mockImplementationOnce(() => pendingContinuation.promise as never)
+    .mockResolvedValueOnce(memberPageResult([], null));
+  const view = renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={initialPage}
+      organization={organization}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  expect(await screen.findByText("Tail User")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(2));
+  expect(
+    screen.getByRole("button", { name: "Loading members" }),
+  ).toBeDisabled();
+
+  view.rerender(
+    withMessages(
+      <OrganizationMemberDirectory
+        currentActor={currentActor}
+        initialPage={{
+          items: [currentMember, freshFirstMember, refreshedMember],
+          nextCursor: "cursor-incoming-first",
+        }}
+        organization={organization}
+      />,
+    ),
+  );
+
+  const refreshedRows = within(
+    screen.getByRole("region", { name: "Other members" }),
+  ).getAllByRole("article");
+  expect(refreshedRows[0]).toHaveTextContent("Fresh First User");
+  expect(refreshedRows[1]).toHaveTextContent("Refreshed Other User");
+  expect(refreshedRows[2]).toHaveTextContent("Tail User");
+  expect(
+    screen.getByRole("combobox", { name: "Role for Refreshed Other User" }),
+  ).toHaveTextContent("Administrator");
+  expect(
+    screen.queryByRole("article", { name: "Other User workspace member" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Loading members" }),
+  ).toBeDisabled();
+
+  await act(async () => {
+    pendingContinuation.resolve(
+      memberPageResult([pendingMember], "cursor-after-active-read"),
+    );
+  });
+
+  expect(await screen.findByText("Pending Tail User")).toBeVisible();
+  expect(screen.getByText("Refreshed Other User")).toBeVisible();
+  expect(screen.queryByText("Other User")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => {
+    expect(getMembers).toHaveBeenNthCalledWith(3, {
+      client: { id: "browser-client" },
+      cache: "no-store",
+      path: { organizationId: organization.id },
+      query: { cursor: "cursor-after-active-read" },
+      signal: expect.anything(),
+    });
+  });
+});
+
 it("keeps member pagination unavailable in server HTML until its boundary hydrates", async () => {
   getMembers.mockResolvedValue(memberPageResult([], null));
   const directory = (
@@ -354,6 +462,121 @@ it("retains a confirmed role when refresh fails and retry performs GET only", as
     cache: "no-store",
     path: { organizationId: organization.id },
     signal: expect.anything(),
+  });
+});
+
+it("keeps a confirmed role overlay and active mutation refresh across later server-page props", async () => {
+  const confirmed = { ...otherMember, role: "admin" as const };
+  const freshServerMember = {
+    ...otherMember,
+    id: "01900000-0000-7000-8000-000000000036",
+    userId: "01900000-0000-7000-8000-000000000026",
+    name: "Fresh Server User",
+    email: "fresh-server@example.com",
+    isOutsideAllowedEmailDomains: false,
+  };
+  const staleServerMember = {
+    ...otherMember,
+    name: "Stale Server User",
+    email: "stale-server@example.com",
+  };
+  const authoritative = {
+    ...confirmed,
+    name: "Authoritative Other User",
+    email: "authoritative@example.com",
+    role: "owner" as const,
+    isOutsideAllowedEmailDomains: false,
+  };
+  const mutationRefresh =
+    deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
+  updateRole.mockResolvedValue({ ok: true, data: confirmed });
+  getMembers.mockImplementationOnce(() => mutationRefresh.promise as never);
+  const view = renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={{ ...initialPage, nextCursor: null }}
+      organization={organization}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(1));
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toHaveTextContent("Administrator");
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toBeDisabled();
+
+  view.rerender(
+    withMessages(
+      <OrganizationMemberDirectory
+        currentActor={currentActor}
+        initialPage={{
+          items: [currentMember, freshServerMember, staleServerMember],
+          nextCursor: null,
+        }}
+        organization={organization}
+      />,
+    ),
+  );
+
+  const staleProjectionRows = within(
+    screen.getByRole("region", { name: "Other members" }),
+  ).getAllByRole("article");
+  expect(staleProjectionRows[0]).toHaveTextContent("Fresh Server User");
+  expect(staleProjectionRows[1]).toHaveTextContent("Other User");
+  expect(screen.queryByText("Stale Server User")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toHaveTextContent("Administrator");
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toBeDisabled();
+
+  view.rerender(
+    withMessages(
+      <OrganizationMemberDirectory
+        currentActor={currentActor}
+        initialPage={{
+          items: [currentMember, freshServerMember],
+          nextCursor: null,
+        }}
+        organization={organization}
+      />,
+    ),
+  );
+
+  const overlayRows = within(
+    screen.getByRole("region", { name: "Other members" }),
+  ).getAllByRole("article");
+  expect(overlayRows[0]).toHaveTextContent("Fresh Server User");
+  expect(overlayRows[1]).toHaveTextContent("Other User");
+  expect(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  ).toBeDisabled();
+
+  await act(async () => {
+    mutationRefresh.resolve(
+      memberPageResult([currentMember, authoritative, freshServerMember], null),
+    );
+  });
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Member role updated.",
+  );
+  expect(screen.getByText("Authoritative Other User")).toBeVisible();
+  expect(screen.queryByText("Other User")).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(
+      screen.getByRole("combobox", {
+        name: "Role for Authoritative Other User",
+      }),
+    ).toBeEnabled();
   });
 });
 

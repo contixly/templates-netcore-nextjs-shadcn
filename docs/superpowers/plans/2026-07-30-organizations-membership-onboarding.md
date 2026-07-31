@@ -1878,3 +1878,12 @@ bound, and sixth-and-later generated-slug collisions. Step 5 remains
 controller-owned until the round-6 fix is pushed and all four threads are
 resolved; Step 6 still requires a fresh automatic-review result and no clean
 state is claimed here.
+
+Round 7 reopened Task 14 after automatic review of implementation head
+`3730de44a5964199fdd7140b8cc406abe439430d` produced one actionable P2 web
+finding. The local fixer reproduced and repaired mounted member-directory RSC
+first-page reconciliation while retaining confirmed mutation overlays/order,
+loaded continuation progress and its last cursor, active generated reads, and
+GET-only recovery state. Step 5 remains controller-owned until the round-7 fix
+is pushed and its thread is resolved; Step 6 still requires a fresh automatic
+review result and no round-7 clean state is claimed here.
