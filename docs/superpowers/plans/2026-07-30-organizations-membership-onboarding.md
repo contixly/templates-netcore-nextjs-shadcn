@@ -1825,7 +1825,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [ ] **Step 5: Commit, push, and repeat review rounds**
+- [x] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1838,7 +1838,7 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [ ] **Step 6: Record the final clean review state**
+- [x] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
@@ -1980,6 +1980,36 @@ manual JSON and validation rejections through one central organization audit
 executor after actor resolution, logs only stable outcomes plus safe route UUIDs,
 rethrows unchanged, and leaves Application success/business failures on their
 existing exactly-once audit path. Exact RED/GREEN and acceptance evidence is in
-`docs/aspnetcore-migration-plan.md`. Step 5 remains controller-owned until this
-local commit is pushed and the round-13 thread is resolved; Step 6 requires a
-fresh automatic-review result, so no round-13 clean state is claimed here.
+`docs/aspnetcore-migration-plan.md`. At that historical round-13 observation,
+Step 5 still required push/thread resolution and Step 6 a fresh automatic review.
+
+Round 14 completed Task 14 Steps 5 and 6 for implementation head
+`a59cda75d5040e151f965094e4dcdcf2669b04f0`. The round-13 audit thread
+`PRRT_kwDOThDXX86VeaSr` (REST comment `3691882986`) was replied to and resolved.
+Automatic review round 14 issue comment `5146005055`, created
+`2026-07-31T18:03:41Z`, reported no major issues for `a59cda75d5`; the
+thread-aware snapshot showed **27/27 resolved and 0 unresolved**. PR #6 is OPEN,
+ready (`isDraft=false`), MERGEABLE with `mergeStateStatus=CLEAN`, not merged,
+and has no configured checks.
+
+Final controller-observed acceptance for that implementation head is recorded in
+`docs/aspnetcore-migration-plan.md`: restore current; build 0 warnings/errors;
+Application 174/174, API 443/443, **617/617** total, 0 skipped/failed; format
+clean; no EF model drift and 23,431-byte idempotent SQL containing
+`ix_members_user_id_joined_at_id`; no vulnerable NuGet packages in seven
+projects; deterministic/current OpenAPI/generated SDK SHA-256
+`df1de15b2dd76006af6a57b5b01f0690634677e374e47248bd0f422b4d0b1064`; web
+boundaries 3/3 and Prettier/ESLint/Next typegen/TypeScript clean; production npm
+audit 0 vulnerabilities; Jest 51/51 suites and 348/348 tests; Next.js 16.2.11
+19/19 generation units with standalone server; Playwright 14 passed, 5 opt-in
+live-provider skipped, 0 failed; and 26 high/0 critical development-only
+toolchain findings while production is clean. Repository/OpenAPI/generated and
+working-tree/status/untracked/range `template/` guards were clean; `template/`
+remains unchanged. The live-provider smoke remains opt-in and was not exercised.
+
+Iteration 6 is unblocked, but Teams and Invitations remain a separate planned
+slice. API Keys, product dashboard, proxy/deployment and Aspire remain later/out
+of scope. This documentation-only closure records observed implementation/review
+facts only: it claims neither its own future hash nor its own review result.
+After push, controller PR verification and re-review occur without another
+tracked edit.
