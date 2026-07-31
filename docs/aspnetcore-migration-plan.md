@@ -3,9 +3,11 @@
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 5 — organizations, membership и onboarding
 (round 14 остаётся историческим clean-наблюдением для implementation head
-`a59cda75d5040e151f965094e4dcdcf2669b04f0`; automatic-review round 15 открыл
-actionable wrong-resource UI finding, локальный fix ожидает controller push,
-thread resolution и свежий automatic review; Task 14 Steps 5–6 снова pending).
+`a59cda75d5040e151f965094e4dcdcf2669b04f0`; automatic-review round 16 для
+round-15 implementation head `b05aee4c6a027211983b5f812027ab287609a442`
+открыл actionable P1 client identity-boundary finding; локальный round-16 fix
+ожидает controller push, thread resolution и свежий automatic review; Task 14
+Steps 5–6 остаются pending).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -1675,6 +1677,158 @@ isolation all pass.
 Round 14 remains historical clean evidence only. Task 14 Steps 5–6 are reopened:
 the controller owns push, thread reply/resolution and the next automatic review.
 No clean round-15 review state is claimed locally.
+
+### PR #6 auto-review round 16 local fix verification 2026-07-31
+
+Automatic review of round-15 implementation head
+`b05aee4c6a027211983b5f812027ab287609a442` produced actionable P1 thread
+`PRRT_kwDOThDXX86VhAm7`. A slug can be released and reused, so a later RSC
+projection of the same settings pathname can resolve organization B while React
+preserves an unkeyed organization-A client instance. On the users page this
+mixed identity included reducer pages/tails, feedback, refresh recovery,
+confirmed overlays, active member-GET coordination and the nested direct-add
+domain acknowledgement. An acknowledgement challenged by A could therefore be
+confirmed after the props changed to B. The directly analogous workspace delete
+dialog was also unkeyed and could retain A's confirmation and pending destructive
+identity under B.
+
+The durable client rule is now route-family-wide: stateful organization-owned
+settings boundaries use the resolved immutable organization UUID as React
+identity; the mutable slug/pathname is navigation input only. The users page
+keys `OrganizationMemberDirectory`, and the workspace page keys
+`OrganizationDeleteDialog`, both by `organization.data.id`. Different-id
+replacement remounts all nested state. In particular, the directory's existing
+unmount cleanup aborts the active A member GET and resolves its superseded race
+so it cannot update B. B's first newly initiated GET and add-member call use only
+B's id, and no B request can include `acknowledgeDomainRestriction: true` until
+B has returned its own acknowledgement challenge. Same-id RSC refresh keeps the
+directory instance, preserving the loaded tail, confirmed overlay, feedback,
+domain acknowledgement and active-read coordination while reconciling the
+incoming first page.
+
+The focused page regression was written and run before either production key:
+
+```bash
+cd apps/web
+npm test -- --runInBand test/app/organization-settings-pages.test.tsx
+```
+
+Expected RED: **1/1 suite failed, 4 failed / 22 passed**. Both server-rendered
+client elements had a `null` key; A's active GET signal remained un-aborted after
+the A→B projection; and A's open pending delete dialog remained mounted with its
+confirmation under B. After the two immutable-id keys, the same command passed
+**1/1 suite, 26/26 tests**, 0 snapshots. The audit found no other directly
+analogous stateful boundary in this settings route family: the form already had
+the immutable-id key, the roles page is static, and settings navigation owns no
+organization read/mutation state.
+
+| Round-16 local gate                                           | Observed result                                                                                              |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| focused real-page boundary GREEN                              | PASS; 1/1 suite, **26/26 tests**, 0 snapshots                                                                |
+| `npm run format:check` / `npm run lint` / `npm run typecheck` | PASS; Prettier, ESLint, Next typegen and TypeScript clean                                                    |
+| `npm run boundaries:check`                                    | PASS; boundary harness **3/3** and source scan clean                                                         |
+| `npm run api:check`                                           | PASS; generated REST SDK 4 files deterministic/current; OpenAPI/generated diff empty                         |
+| full Jest                                                     | PASS; **51/51 suites, 361/361 tests**, 0 snapshots                                                           |
+| production build and standalone                               | PASS; Next.js 16.2.11, **19/19** generation units, `.next/standalone/server.js` present                      |
+| `npm run audit:prod`                                          | PASS; 0 production vulnerabilities                                                                           |
+| .NET/OpenAPI/EF gates                                         | Not rerun: this is a web/docs-only identity-boundary fix with no API, contract, generated, EF or .NET change |
+| repository and immutable-reference guards                     | PASS; generated diff and working-tree/status/untracked/range `template/` guards clean                        |
+
+Independent local review fix 1/5 then identified two asynchronous lifetime
+gaps beyond rendered-state remounting. First, A add/role controls awaited their
+mutation and invoked the old directory callback even after keyed deletion; that
+callback confirmed into the obsolete reducer and started a brand-new member GET
+with A's id after B was already mounted. Second, a successful pending A deletion
+continued through `router.replace("/workspaces")` and `router.refresh()` after B
+replaced the dialog. The initial regression covered a settled A acknowledgement
+and a late delete failure, so neither success continuation was exercised.
+
+Strict focused RED preceded lifecycle production edits:
+
+```bash
+cd apps/web
+npm test -- --runInBand test/app/organization-settings-pages.test.tsx
+```
+
+Result: expected **FAIL**, 1/1 suite failed, **3 failed / 26 passed**. Pending A
+add and role successes each emitted one post-replacement member GET with A's UUID;
+pending A delete success invoked `router.replace("/workspaces")`. The directory,
+add dialog, role control and delete dialog now use the already-characterized
+insertion-effect permanent-attachment lifetime. Actual keyed deletion invalidates
+the marker synchronously, whereas React Activity hiding does not run insertion
+cleanup. Every awaited mutation/read checks attachment before state/ref writes,
+directory confirmation or a follow-up GET. Delete checks before `onDeleted` and
+again after that awaited callback before router effects. Focused GREEN is **1/1
+suite, 29/29 tests**; the affected page/add/directory/delete focus is **4/4
+suites, 56/56 tests**. Existing same-id, visible and Activity-preserved semantics
+remain active rather than treating temporary hiding as permanent deletion.
+
+| Round-16 fix 1/5 local gate                                   | Observed result                                                                                     |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| strict focused RED                                            | Expected FAIL; 1/1 suite, **3 failed / 26 passed**                                                  |
+| focused real-page boundary GREEN                              | PASS; 1/1 suite, **29/29 tests**, 0 snapshots                                                       |
+| affected page/add/directory/delete focus                      | PASS; **4/4 suites, 56/56 tests**, 0 snapshots                                                      |
+| `npm run format:check` / `npm run lint` / `npm run typecheck` | PASS; Prettier, ESLint, Next typegen and TypeScript clean                                           |
+| `npm run boundaries:check`                                    | PASS; boundary harness **3/3** and source scan clean                                                |
+| `npm run api:check`                                           | PASS; generated REST SDK 4 files deterministic/current; OpenAPI/generated diff empty                |
+| full Jest                                                     | PASS; **51/51 suites, 364/364 tests**, 0 snapshots                                                  |
+| production build and standalone                               | PASS; Next.js 16.2.11, **19/19** generation units, `.next/standalone/server.js` present             |
+| `npm run audit:prod`                                          | PASS; 0 production vulnerabilities                                                                  |
+| .NET/OpenAPI/EF gates                                         | Not rerun: this is a web/docs-only lifetime fix with no API, contract, generated, EF or .NET change |
+| repository and immutable-reference guards                     | PASS; generated diff and working-tree/status/untracked/range `template/` guards clean               |
+
+Scoped re-review fix 2/5 then separated leaf-control lifetime from the live
+immutable directory identity. A same-id capability refresh can remove an add or
+role control without deleting the keyed directory. Fix 1 returned from the leaf
+before its successful mutation reached `onMemberConfirmed`, so the committed
+change produced neither a confirmed overlay nor the canonical directory GET.
+Separately, Activity hide ran the directory's passive read cleanup before a
+hidden mutation could start a new recovery GET. Later hidden keyed A→B deletion
+ran insertion cleanup but only flipped attachment, leaving that post-hide A read
+un-aborted and its superseded race unsettled.
+
+The real-page regressions again ran before production edits:
+
+```bash
+cd apps/web
+npm test -- --runInBand test/app/organization-settings-pages.test.tsx
+```
+
+Expected RED was **1/1 suite failed, 3 failed / 29 passed** (32 total). Both
+unresolved successful same-id capability-removal cases emitted zero member GETs,
+and the installed React Activity hidden-mutation recovery signal remained live
+after hidden keyed replacement. Successful add/role leaves now invoke their
+captured parent even if a same-id projection removed only that leaf, while all
+leaf-local state/ref writes stay attachment-guarded. The directory's own
+attachment check remains the immutable-identity authority, so the original
+different-id late completions remain inert. Directory read cleanup is now one
+idempotent helper used from passive Activity cleanup and insertion keyed-deletion
+cleanup. Hidden same-id completion can create recovery after passive disconnection;
+actual later deletion still aborts the controller and settles the superseded race.
+
+Focused GREEN is **1/1 suite, 32/32 tests**; the affected
+page/add/directory/delete focus is **4/4 suites, 59/59 tests**. The original
+visible A→B late add/role/delete regressions, normal same-id reconciliation and
+installed Activity behavior all remain covered.
+
+| Round-16 fix 2/5 local gate                                   | Observed result                                                                                     |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| strict focused RED                                            | Expected FAIL; 1/1 suite, **3 failed / 29 passed**                                                  |
+| focused real-page boundary GREEN                              | PASS; 1/1 suite, **32/32 tests**, 0 snapshots                                                       |
+| affected page/add/directory/delete focus                      | PASS; **4/4 suites, 59/59 tests**, 0 snapshots                                                      |
+| `npm run format:check` / `npm run lint` / `npm run typecheck` | PASS; Prettier, ESLint, Next typegen and TypeScript clean                                           |
+| `npm run boundaries:check`                                    | PASS; boundary harness **3/3** and source scan clean                                                |
+| `npm run api:check`                                           | PASS; generated REST SDK 4 files deterministic/current; OpenAPI/generated diff empty                |
+| full Jest                                                     | PASS; **51/51 suites, 367/367 tests**, 0 snapshots                                                  |
+| production build and standalone                               | PASS; Next.js 16.2.11, **19/19** generation units, `.next/standalone/server.js` present             |
+| `npm run audit:prod`                                          | PASS; 0 production vulnerabilities                                                                  |
+| .NET/OpenAPI/EF gates                                         | Not rerun: this is a web/docs-only lifetime fix with no API, contract, generated, EF or .NET change |
+| repository and immutable-reference guards                     | PASS; generated diff and working-tree/status/untracked/range `template/` guards clean               |
+
+Round 14 remains historical clean evidence only. This local fix does not claim a
+future clean review or its own future hash. Task 14 Steps 5–6 remain pending: the
+controller owns commit push, round-16 thread reply/resolution and a fresh
+automatic review.
 
 ## 9. Правило обновления этого документа
 

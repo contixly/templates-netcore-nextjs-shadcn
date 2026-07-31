@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useRef, useState, type FormEvent } from "react";
+import { useInsertionEffect, useRef, useState, type FormEvent } from "react";
 import { IconUserPlus } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -77,6 +77,7 @@ export function OrganizationAddMemberDialog({
   const t = useTranslations("organizations.settings.addMemberDialog");
   const roles = useTranslations("organizations.roles");
   const interactionReady = useOrganizationControlInteractionReady();
+  const attached = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
@@ -91,6 +92,13 @@ export function OrganizationAddMemberDialog({
   );
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
+
+  useInsertionEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+    };
+  }, []);
 
   if (assignableRoles.length === 0) {
     return null;
@@ -141,8 +149,10 @@ export function OrganizationAddMemberDialog({
           : {}),
       },
     );
-
     if (!result.ok) {
+      if (!attached.current) {
+        return;
+      }
       requestInFlight.current = false;
       setPending(false);
       if (
@@ -172,16 +182,23 @@ export function OrganizationAddMemberDialog({
       return;
     }
 
-    setAcknowledgement(null);
+    if (attached.current) {
+      setAcknowledgement(null);
+    }
     try {
       await onMemberConfirmed(result.data);
+      if (!attached.current) {
+        return;
+      }
       setOpen(false);
       setUserId("");
       setRole(assignableRoles[0] ?? "member");
       clearFeedback();
     } finally {
-      requestInFlight.current = false;
-      setPending(false);
+      if (attached.current) {
+        requestInFlight.current = false;
+        setPending(false);
+      }
     }
   }
 

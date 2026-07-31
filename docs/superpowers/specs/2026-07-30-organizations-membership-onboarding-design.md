@@ -578,6 +578,43 @@ data table and final shell remain iteration 9.
   synchronously remounts local baseline, inputs, feedback and pending identity,
   while a same-id projection preserves mounted dirty/confirmed state and applies
   the latest capability;
+- every stateful organization-owned client boundary rendered by this settings
+  server-route family uses the resolved immutable organization id as its React
+  identity whenever retained state can coordinate reads or mutations. A mutable,
+  releasable slug/pathname is navigation input, never a client-state identity;
+  same-id RSC refreshes preserve the established local semantics instead of
+  remounting merely because serialized props changed;
+- the users page keys `OrganizationMemberDirectory` by that id. A different-id
+  projection remounts reducer pages/tails, feedback, refresh recovery, confirmed
+  overlays and the nested direct-add domain acknowledgement; the existing
+  directory unmount cleanup aborts and supersedes its active GET before the new
+  instance can issue organization-B transport. A same-id projection continues
+  to reconcile its authoritative first page while preserving loaded progress,
+  overlays and active-read coordination;
+- the directly analogous `OrganizationDeleteDialog` on workspace settings is
+  keyed by the same id, so confirmation text and pending destructive identity
+  cannot be retained when one pathname is re-resolved from organization A to B.
+  The settings form was already keyed; the fixed roles page and settings
+  navigation own no analogous organization mutation/read state;
+- key replacement also invalidates asynchronous continuations, not only rendered
+  state. The directory, add-member control, role control and delete dialog each
+  own a permanent-attachment marker whose insertion-effect cleanup runs for
+  actual keyed deletion but not temporary React Activity hiding. Add/role leaves
+  guard only their own post-await state/ref writes: a successful authorized
+  mutation still reaches the captured directory confirmation when a same-id
+  capability refresh removes that leaf. The directory's attachment is the
+  immutable-identity authority that either publishes the confirmed overlay and
+  canonical GET or makes a different-id completion inert. Delete checks its own
+  attachment before `onDeleted` and again after that awaited callback before
+  router replacement/refresh;
+- member-directory read detachment is one idempotent operation used by both
+  passive Activity cleanup and insertion keyed-deletion cleanup. Hiding aborts
+  the read active at hide time while preserving the directory's attachment, so
+  a valid hidden same-id mutation may still confirm and start recovery. If that
+  hidden recovery read is followed by keyed A→B deletion, insertion cleanup
+  aborts it and resolves its superseded race even though passive cleanup already
+  ran. Visible, same-id and Activity-preserved completion semantics remain
+  active without allowing an old organization read to outlive deletion;
 - each form instance owns separate attachment and visibility lifecycles. An
   insertion-effect cleanup invalidates the attachment marker during actual
   keyed deletion before replacement layout work, and every completed mutation

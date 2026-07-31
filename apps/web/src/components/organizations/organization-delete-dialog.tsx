@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useRef, useState, type FormEvent } from "react";
+import { useInsertionEffect, useRef, useState, type FormEvent } from "react";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
@@ -45,6 +45,7 @@ export function OrganizationDeleteDialog({
   const t = useTranslations("organizations.settings.deleteDialog");
   const router = useRouter();
   const interactionReady = useInteractionReady();
+  const attached = useRef(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
@@ -52,6 +53,13 @@ export function OrganizationDeleteDialog({
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
   const matches = confirmation === organization.name;
+
+  useInsertionEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+    };
+  }, []);
 
   if (!canDelete) {
     return null;
@@ -82,6 +90,9 @@ export function OrganizationDeleteDialog({
       organization.id,
       { confirmationName: confirmation },
     );
+    if (!attached.current) {
+      return;
+    }
     requestInFlight.current = false;
     setPending(false);
 
@@ -96,6 +107,9 @@ export function OrganizationDeleteDialog({
 
     setOpen(false);
     await onDeleted?.(organization.id);
+    if (!attached.current) {
+      return;
+    }
     router.replace(organizationRoutes.workspaces);
     router.refresh();
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useInsertionEffect, useRef, useState } from "react";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
@@ -47,9 +47,17 @@ export function OrganizationMemberRoleControl({
   const t = useTranslations("organizations.settings.members");
   const roles = useTranslations("organizations.roles");
   const interactionReady = useInteractionReady();
+  const attached = useRef(true);
   const requestInFlight = useRef(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
+
+  useInsertionEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+    };
+  }, []);
 
   async function updateRole(nextRole: OrganizationRole) {
     if (
@@ -70,6 +78,9 @@ export function OrganizationMemberRoleControl({
       { role: nextRole },
     );
     if (!result.ok) {
+      if (!attached.current) {
+        return;
+      }
       requestInFlight.current = false;
       setPending(false);
       setFailure(result.failure);
@@ -79,8 +90,10 @@ export function OrganizationMemberRoleControl({
     try {
       await onMemberConfirmed(result.data);
     } finally {
-      requestInFlight.current = false;
-      setPending(false);
+      if (attached.current) {
+        requestInFlight.current = false;
+        setPending(false);
+      }
     }
   }
 

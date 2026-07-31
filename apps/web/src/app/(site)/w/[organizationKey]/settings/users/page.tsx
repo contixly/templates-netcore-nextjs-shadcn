@@ -82,6 +82,7 @@ export default async function OrganizationUsersSettingsPage({
         <p className="text-sm text-muted-foreground">{t("description")}</p>
       </header>
       <OrganizationMemberDirectory
+        key={organization.data.id}
         currentActor={{
           userId: session.data.user.id,
           name: session.data.user.name,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useReducer, useRef } from "react";
+import { useEffect, useInsertionEffect, useReducer, useRef } from "react";
 import { IconAlertTriangle, IconUsers } from "@tabler/icons-react";
 
 import {
@@ -381,6 +381,13 @@ function createReadCoordinator(id: number): ReadCoordinator {
   };
 }
 
+function detachActiveRead(activeReadRef: { current: ReadCoordinator | null }) {
+  const activeRead = activeReadRef.current;
+  activeReadRef.current = null;
+  activeRead?.controller.abort();
+  activeRead?.settleSuperseded();
+}
+
 export function OrganizationMemberDirectory({
   currentActor,
   initialPage,
@@ -403,6 +410,7 @@ export function OrganizationMemberDirectory({
     feedback: null,
     refreshRecovery: null,
   });
+  const attached = useRef(true);
   const readGeneration = useRef(0);
   const activeReadCoordinator = useRef<ReadCoordinator | null>(null);
   const serverPageChanged = state.serverPage !== initialPage;
@@ -420,6 +428,14 @@ export function OrganizationMemberDirectory({
   const nextCursor = visibleState.pages.at(-1)?.nextCursor ?? null;
   const pendingRead = state.activeRead !== null;
 
+  useInsertionEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+      detachActiveRead(activeReadCoordinator);
+    };
+  }, []);
+
   useEffect(() => {
     if (state.serverPage === initialPage) {
       return;
@@ -429,10 +445,7 @@ export function OrganizationMemberDirectory({
 
   useEffect(
     () => () => {
-      const activeRead = activeReadCoordinator.current;
-      activeReadCoordinator.current = null;
-      activeRead?.controller.abort();
-      activeRead?.settleSuperseded();
+      detachActiveRead(activeReadCoordinator);
     },
     [],
   );
@@ -441,9 +454,7 @@ export function OrganizationMemberDirectory({
     kind: ReadKind,
     action?: ConfirmedAction,
   ): ReadCoordinator {
-    const supersededRead = activeReadCoordinator.current;
-    supersededRead?.controller.abort();
-    supersededRead?.settleSuperseded();
+    detachActiveRead(activeReadCoordinator);
 
     const read = createReadCoordinator(++readGeneration.current);
     activeReadCoordinator.current = read;
@@ -496,6 +507,7 @@ export function OrganizationMemberDirectory({
       read.superseded.then(() => ({ kind: "superseded" as const })),
     ]);
     if (
+      !attached.current ||
       outcome.kind === "superseded" ||
       activeReadCoordinator.current !== read
     ) {
@@ -507,6 +519,7 @@ export function OrganizationMemberDirectory({
 
   async function loadMore() {
     if (
+      !attached.current ||
       !interactionReady ||
       !nextCursor ||
       activeReadCoordinator.current !== null
@@ -515,7 +528,7 @@ export function OrganizationMemberDirectory({
     }
     const read = startRead("loadMore");
     const result = await finishRead(read, { cursor: nextCursor });
-    if (!result) {
+    if (!attached.current || !result) {
       return;
     }
     if (result.ok) {
@@ -535,9 +548,12 @@ export function OrganizationMemberDirectory({
   }
 
   async function refreshAfterMutation(action: ConfirmedAction) {
+    if (!attached.current) {
+      return;
+    }
     const read = startRead("refresh", action);
     const result = await finishRead(read, undefined);
-    if (!result) {
+    if (!attached.current || !result) {
       return;
     }
     if (!result.ok) {
@@ -563,6 +579,9 @@ export function OrganizationMemberDirectory({
     member: OrganizationMemberResponse,
     action: ConfirmedAction,
   ) {
+    if (!attached.current) {
+      return;
+    }
     dispatch({
       type: "confirm",
       member: memberView(member),

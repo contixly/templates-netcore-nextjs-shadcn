@@ -2038,3 +2038,70 @@ acceptance evidence is recorded in
 local round-15 commit is pushed and thread `PRRT_kwDOThDXX86VgCIZ` is resolved;
 Step 6 requires a fresh automatic review, so no round-15 clean state is claimed
 here.
+
+Round 16 reopened Task 14 after automatic review of round-15 implementation head
+`b05aee4c6a027211983b5f812027ab287609a442` identified actionable P1 thread
+`PRRT_kwDOThDXX86VhAm7`. The mutable same-path identity risk also applied to the
+unkeyed users directory: reducer pages/tails, feedback, confirmed overlays,
+active GET coordination and the nested direct-add domain acknowledgement could
+survive while the slug resolved from organization A to B. The directly analogous
+workspace delete dialog could likewise retain A's confirmation and pending
+destructive identity under B.
+
+The strict page-boundary RED ran before production edits and failed **4/26**
+tests (**22 passed**) for the intended reasons: both client element keys were
+`null`, A's active member GET was not aborted across A→B reuse, and A's pending
+delete dialog remained mounted under B. The minimal repair keys both
+`OrganizationMemberDirectory` and `OrganizationDeleteDialog` by the resolved
+immutable organization id. Focused GREEN is **26/26**. The regression preserves
+same-id RSC reconciliation of member tails, overlays, feedback, acknowledgement
+and active-read coordination; different-id replacement resets all A-local state,
+aborts/supersedes A's GET, requires B's own acknowledgement challenge before a
+B `acknowledgeDomainRestriction: true`, and sends new GET/add transport only
+with B's id. The workspace form was already keyed; fixed roles and navigation
+contain no directly analogous organization mutation/read state.
+
+Exact round-16 gates are recorded in `docs/aspnetcore-migration-plan.md`. This
+local fix claims no future clean review or hash. Task 14 Steps 5–6 remain pending:
+the controller owns commit push, thread reply/resolution and a fresh automatic
+review.
+
+Independent round-16 local review fix 1/5 found two post-unmount continuation
+gaps in the initial keyed repair. A pending A add or role mutation could resolve
+after B replaced the directory, invoke the old shared confirmation callback and
+start a new member GET with A's id. A pending successful A deletion could
+likewise call `router.replace("/workspaces")` and `router.refresh()` after B
+replaced the dialog. Strict real-page RED, before lifecycle production edits,
+failed **3/29** tests (**26 passed**): both add and role cases emitted a fresh A
+GET, and late delete success navigated the B page.
+
+The directory, add dialog, role control and delete dialog now share the
+established insertion-effect permanent-attachment lifetime. Actual keyed
+deletion invalidates each instance synchronously; temporary React Activity
+hiding does not. Every post-transport continuation exits before state/ref writes,
+directory confirmation/follow-up GET, `onDeleted`, or router effects when its
+instance is obsolete; delete checks again after an awaited `onDeleted`. Focused
+GREEN is **29/29**, and the four affected page/component suites pass **56/56**,
+preserving normal same-id and visible behavior. Final gates and the unchanged
+controller-owned pending steps are recorded in the migration evidence.
+
+Scoped round-16 re-review fix 2/5 distinguished the immutable directory lifetime
+from its capability-controlled leaves. Fix 1's leaf attachment checks suppressed
+valid success reconciliation when a same-id RSC refresh removed only the pending
+add/role control; because the directory stayed live, it should still receive the
+confirmation and perform its canonical GET. Re-review also found that Activity
+passive cleanup could run before a hidden mutation created its recovery GET, so
+later hidden keyed deletion flipped attachment without aborting or settling that
+new read.
+
+Strict real-page RED preceded production edits and failed **3/32** tests (**29
+passed**): unresolved add and role successes after same-id capability removal
+each produced zero canonical GETs, while a hidden mutation's live recovery signal
+was not aborted by keyed replacement. Add/role leaves now guard their own local
+state but always offer success to the captured parent; the directory attachment
+remains the immutable-identity authority. One idempotent read-detach helper is
+used by passive Activity cleanup and insertion keyed-deletion cleanup. Focused
+GREEN is **32/32**, and the affected four-suite focus is **59/59**. This preserves
+the original visible A→B isolation, same-id reconciliation, hidden completion,
+and late-delete protections. Final gates and controller-owned pending work are
+recorded in the migration evidence.
