@@ -1825,7 +1825,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [ ] **Step 5: Commit, push, and repeat review rounds**
+- [x] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1838,7 +1838,7 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [ ] **Step 6: Record the final clean review state**
+- [x] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
@@ -1931,3 +1931,44 @@ advisory namespace, and preserves `member_already_exists` as the non-disclosing
 add outcome. Step 5 is controller-owned until this local fix is pushed and its
 thread resolved; Step 6 requires a new automatic-review result, so no round-10
 clean state is claimed here.
+
+Round 11 of implementation head `686fb8f5a9f77e0a832b7cb31d546835da1988f8`
+produced two actionable P2 findings: mounted `/workspaces` retained rows omitted
+by authoritative first-page refresh, and mutable-name organization pagination
+could omit/duplicate rows across rename. Fix commit
+`deb208fc8393fef5cd9adb2fca961c15137ec338` established exact continuation
+provenance plus authoritative first-page replacement (a delayed response cannot
+resurrect provenance), and immutable actor-membership keyset ordering
+`(membership.JoinedAt ASC, membership.Id ASC)`. Its opaque checksummed
+organization-list cursor uses kind/discriminator 3, distinct from legacy kind 1
+and member-list kind 2, and rejects the exact six-byte legacy collision. The
+additive EF index is `(user_id, joined_at, id)`. Both round-11 GitHub threads
+were replied to and resolved.
+
+Round 12 automatically reviewed `deb208fc83`. GitHub issue comment
+`5145006747` at `2026-07-31T16:13:09Z` reported no major issues; the
+thread-aware snapshot showed **26/26 resolved and 0 unresolved**. PR #6 is
+OPEN, ready (`isDraft=false`), MERGEABLE with `mergeStateStatus=CLEAN`, not
+merged, and has no configured checks (`gh pr checks 6`). The final acceptance
+for that implementation head passed: restore current; build 0 warnings/errors;
+Application 174/174 and API 432/432 (**606/606** total), 0 skipped/failed;
+format clean; no EF pending model changes and a 23,431-byte idempotent SQL
+artifact containing `ix_members_user_id_joined_at_id`; no vulnerable NuGet
+packages in seven projects; deterministic/current OpenAPI/generated client
+SHA-256 `df1de15b2dd76006af6a57b5b01f0690634677e374e47248bd0f422b4d0b1064`;
+boundary harness 3/3, Prettier, ESLint, Next typegen/TypeScript, and production
+npm audit clean; Jest 51/51 suites and 348/348 tests; Next.js 16.2.11 build
+with 19/19 generation units and standalone server; 5-worker Playwright 14
+passed, 5 opt-in live-provider tests skipped, 0 failed. The live-provider smoke
+was not exercised in deterministic acceptance. The full development audit
+remains known 26 high, 0 critical in the tooling/dev graph, while production is
+clean. `git diff --check`, OpenAPI/generated drift, and working-tree/status/
+untracked `template/` guards were clean; `template/` is unchanged.
+
+Steps 5 and 6 are complete for this observed implementation/review state.
+Iteration 6 is no longer blocked by iteration 5, but Teams and invitations
+remain outside PR #6 and must start as a separate planned vertical slice. API
+Keys/product dashboard/proxy/deployment/Aspire remain later/out of scope. This
+documentation-only closure claims neither its own commit hash nor a review result
+for itself; after its controller push, final PR verification occurs without
+another tracked documentation edit.

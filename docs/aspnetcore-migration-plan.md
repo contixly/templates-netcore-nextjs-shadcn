@@ -2,9 +2,9 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 5 — organizations, membership и onboarding
-(функциональный scope реализован; automatic-review round 10 переоткрыт,
-локальные исправления проверены, controller push/re-review ожидаются; ready PR
-#6 открыт и не смержен).
+(завершена для наблюдаемого implementation head
+`deb208fc8393fef5cd9adb2fca961c15137ec338`: automatic-review round 12 чистый;
+ready PR #6 открыт, ready, mergeable и не смержен).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -192,7 +192,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(реализация завершена; automatic-review round 10 локально исправлен, re-review ожидается; Ready PR #6 открыт и не смержен)**
+### Итерация 5 — Organizations, membership и onboarding **(завершена для наблюдаемого implementation head `deb208fc8393fef5cd9adb2fca961c15137ec338`; automatic-review round 12 чистый; ready PR #6 открыт и не смержен)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -283,15 +283,15 @@ callbacks проверены fake-provider integration tests; live успешн�
 
 ## 8. Журнал выполнения
 
-| Итерация                                           | Состояние | Примечание                                                                                                                                                                                                               |
-| -------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                            |
-| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                      |
-| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                      |
-| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                |
-| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                 |
-| 5 — organizations, membership и onboarding         | Завершена | REST/OpenAPI/SDK, EF schema, persistent active context, role-aware workspace UI и deterministic multi-user acceptance приняты; Teams/Invitations — iteration 6, API keys — iteration 7, product dashboard — iteration 9. |
-| 6–12                                               | Не начаты | Следующий dependency gate — Teams и invitations; API keys и `x-api-key` остаются итерацией 7.                                                                                                                            |
+| Итерация                                           | Состояние | Примечание                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                                                                                                                                                                                                             |
+| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                                                                                                                                                                                                       |
+| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                                       |
+| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                                                 |
+| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                                                  |
+| 5 — organizations, membership и onboarding         | Завершена | Наблюдаемый implementation head `deb208fc8393fef5cd9adb2fca961c15137ec338` принят: REST/OpenAPI/SDK, EF schema, persistent active context, role-aware workspace UI и deterministic multi-user acceptance; automatic-review round 12 чистый, 26/26 threads resolved; PR #6 открыт, ready, mergeable, не смержен. Teams/Invitations — iteration 6, API keys — iteration 7, product dashboard — iteration 9. |
+| 6–12                                               | Не начаты | Iteration 6 больше не блокируется iteration 5, но Teams и invitations начинаются только как отдельный planned vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                                                 |
 
 ## Acceptance evidence: итерация 1
 
@@ -906,13 +906,16 @@ console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
 ## Acceptance evidence: итерация 5
 
 **Состояние:** функциональный scope итерации и Task 14 automatic-review loop
-завершены для implementation head
-`9508a0be5b0c546a592775bf553110f751821040`. Automatic review round 9 не
-нашёл новых замечаний, все предыдущие review threads resolved. Новый код и
-документация находятся вне `template/`; Ready PR #6 остаётся открытым и не
-смержен. Следующий documentation-only commit фиксирует эту наблюдаемую closure
-и будет отдельно отправлен controller-ом на automatic re-review; его будущий
-hash и результат здесь не заявляются.
+завершены для наблюдаемого implementation head
+`deb208fc8393fef5cd9adb2fca961c15137ec338`. Automatic review round 12
+(комментарий `5145006747`) не нашёл major issues; thread-aware snapshot
+зафиксировал 26/26 resolved и 0 unresolved review threads. Новый код и
+документация находятся вне `template/`; PR #6 остаётся ready, OPEN, MERGEABLE,
+не смержен, а `gh pr checks 6` не сообщает configured checks. Этот
+documentation-only closure фиксирует наблюдаемое состояние implementation/review,
+но не заявляет hash или automatic-review result для самого closure commit: после
+controller push final PR verification выполняется без ещё одного tracked
+documentation edit.
 
 ### Reference → API → UI → test mapping
 
@@ -1373,13 +1376,54 @@ or lookup indexes.
 | OpenAPI and generated SDK          | PASS; two deterministic exports SHA-256 `df1de15b2dd76006af6a57b5b01f0690634677e374e47248bd0f422b4d0b1064`; generated SDK deterministic/current                                                                                                         |
 | web static gates                   | PASS; boundaries 3/3, Prettier, ESLint, and Next type generation/TypeScript clean                                                                                                                                                                       |
 
-**Next product gate:** the round-11 iteration-5 review gate temporarily blocks
-iteration 6 until the controller observes a new clean automatic review.
-Teams and invitations remain outside this change and may begin only as their own
-planned vertical slice covering invitation security/expiry, accept/reject
-lifecycle, team membership, notifications/email boundary, and E2E coverage.
-Teams/Invitations/API Keys/dashboard work must not be added retroactively under
-iteration 5.
+### PR #6 automatic-review round 12 clean closure 2026-07-31
+
+Automatic review round 11 of implementation head
+`686fb8f5a9f77e0a832b7cb31d546835da1988f8` produced two actionable P2 findings:
+mounted `/workspaces` retained rows omitted by an authoritative first-page
+refresh, and a mutable-name organization keyset could omit or duplicate rows
+across rename. Both GitHub review threads were replied to and resolved.
+
+Fix commit `deb208fc8393fef5cd9adb2fca961c15137ec338` records exact
+continuation provenance and authoritative first-page replacement, so a delayed
+response cannot resurrect retired provenance. It moves the organization-list
+keyset to immutable actor membership `(membership.JoinedAt ASC, membership.Id
+ASC)`, with an opaque checksummed organization-list cursor using
+kind/discriminator 3; this remains distinct from legacy kind 1 and member-list
+kind 2, including rejection of the exact six-byte legacy collision. The
+additive EF index is `(user_id, joined_at, id)`.
+
+Automatic review round 12 reviewed `deb208fc83`: GitHub issue comment
+`5145006747`, created `2026-07-31T16:13:09Z`, reported no major issues. The
+thread-aware snapshot then recorded **26/26 review threads resolved, 0
+unresolved**. PR #6 remains OPEN, ready (`isDraft=false`), MERGEABLE, with
+`mergeStateStatus=CLEAN`, and is not merged. `gh pr checks 6` reports no
+configured checks.
+
+| Final implementation gate                                     | Observed result                                                                                                                                                |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                 | PASS; current.                                                                                                                                                 |
+| `dotnet build Template.sln --no-restore`                      | PASS; 0 warnings, 0 errors.                                                                                                                                    |
+| `dotnet test Template.sln --no-restore`                       | PASS; Application 174/174, API 432/432, total **606/606**; 0 skipped, 0 failed.                                                                                |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; clean.                                                                                                                                                   |
+| EF model and migration artifact                               | PASS; no pending model changes; idempotent SQL 23,431 bytes and contains `ix_members_user_id_joined_at_id`.                                                    |
+| NuGet vulnerability gate                                      | PASS; no vulnerable packages in all 7 projects.                                                                                                                |
+| OpenAPI and generated SDK                                     | PASS; double export deterministic/current, SHA-256 `df1de15b2dd76006af6a57b5b01f0690634677e374e47248bd0f422b4d0b1064`; generated client current/deterministic. |
+| Web static and production-audit gates                         | PASS; boundary harness 3/3; Prettier, ESLint, Next typegen/TypeScript clean; `npm audit --omit=dev` reports 0 vulnerabilities.                                 |
+| Jest                                                          | PASS; **51/51 suites, 348/348 tests**, 0 snapshots.                                                                                                            |
+| Production build and standalone                               | PASS; Next.js 16.2.11, 19/19 generation units, standalone server present.                                                                                      |
+| Default 5-worker E2E                                          | PASS; **14 passed, 5 opt-in live-provider tests skipped, 0 failed**. Live-provider smoke remains opt-in and was not exercised in deterministic acceptance.     |
+| Full development audit                                        | KNOWN; 26 high, 0 critical in the tooling/dev graph; production audit is clean.                                                                                |
+| Repository, generated, and immutable-reference guards         | PASS; `git diff --check`, OpenAPI/generated drift, working-tree/status/untracked `template/` guards all clean; `template/` unchanged.                          |
+
+Iteration 5 is complete for this observed implementation/review state.
+Iteration 6 is no longer blocked by iteration 5, but Teams and invitations
+remain outside PR #6 and must begin as a separate planned vertical slice. API
+Keys/product dashboard/proxy/deployment/Aspire remain later and out of scope.
+
+This documentation-only closure records the observed clean implementation
+state, not a hash or review result for itself. After the controller pushes it,
+final PR verification must occur without another tracked documentation edit.
 
 ## 9. Правило обновления этого документа
 
