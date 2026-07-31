@@ -712,7 +712,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "GetOrganizationByKey",
                 SuccessStatus = "200",
                 Envelope = "ApiResponseOfOrganizationDetailResponse",
-                ProblemStatuses = new[] { "401", "404", "405", "500" },
+                ProblemStatuses = new[] { "401", "404", "405", "409", "500" },
                 Mutation = false,
                 BadRequestIsUnion = false
             },

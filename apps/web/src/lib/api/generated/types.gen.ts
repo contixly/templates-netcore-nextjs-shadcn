@@ -1146,6 +1146,10 @@ export type GetOrganizationByKeyErrors = {
      */
     405: ProblemDetails;
     /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
      * Internal Server Error
      */
     500: ProblemDetails;

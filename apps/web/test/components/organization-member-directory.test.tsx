@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { Activity } from "react";
 import { renderToString } from "react-dom/server";
 
 import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
@@ -89,7 +90,7 @@ const initialPage = {
 } satisfies OrganizationMemberPageResponse;
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  jest.resetAllMocks();
 });
 
 function deferred<T>() {
@@ -403,6 +404,46 @@ it("keeps member pagination unavailable in server HTML until its boundary hydrat
   });
 });
 
+it("cancels an Activity-hidden load-more read and restores a usable continuation on reveal", async () => {
+  const pendingContinuation =
+    deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
+  getMembers
+    .mockImplementationOnce(() => pendingContinuation.promise as never)
+    .mockResolvedValueOnce(memberPageResult([], null));
+  const directory = (
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={initialPage}
+      organization={organization}
+    />
+  );
+  const view = renderWithMessages(
+    <Activity mode="visible">{directory}</Activity>,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(1));
+  const hiddenSignal = (
+    getMembers.mock.calls[0]?.[0] as { signal: AbortSignal }
+  ).signal;
+  expect(hiddenSignal.aborted).toBe(false);
+
+  view.rerender(withMessages(<Activity mode="hidden">{directory}</Activity>));
+  await waitFor(() => expect(hiddenSignal.aborted).toBe(true));
+
+  view.rerender(withMessages(<Activity mode="visible">{directory}</Activity>));
+  const retryLoadMore = await screen.findByRole("button", {
+    name: "Load more members",
+  });
+  await waitFor(() => expect(retryLoadMore).toBeEnabled());
+  expect(
+    screen.queryByText("Members could not be loaded."),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(retryLoadMore);
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(2));
+});
+
 it("retains a confirmed role when refresh fails and retry performs GET only", async () => {
   const confirmed = { ...otherMember, role: "admin" as const };
   updateRole.mockResolvedValue({ ok: true, data: confirmed });
@@ -463,6 +504,63 @@ it("retains a confirmed role when refresh fails and retry performs GET only", as
     path: { organizationId: organization.id },
     signal: expect.anything(),
   });
+});
+
+it("cancels an Activity-hidden recovery read and keeps its GET-only retry usable", async () => {
+  const confirmed = { ...otherMember, role: "admin" as const };
+  const pendingRecovery =
+    deferred<Awaited<ReturnType<typeof getOrganizationMembers>>>();
+  updateRole.mockResolvedValue({ ok: true, data: confirmed });
+  getMembers
+    .mockResolvedValueOnce({
+      error: {
+        code: "internal_error",
+        traceId: "trace-hidden-recovery",
+      },
+      response: { status: 500 } as Response,
+    } as Awaited<ReturnType<typeof getOrganizationMembers>>)
+    .mockImplementationOnce(() => pendingRecovery.promise as never)
+    .mockResolvedValueOnce(memberPageResult([currentMember, confirmed], null));
+  const directory = (
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={{ ...initialPage, nextCursor: null }}
+      organization={organization}
+    />
+  );
+  const view = renderWithMessages(
+    <Activity mode="visible">{directory}</Activity>,
+  );
+
+  fireEvent.click(
+    screen.getByRole("combobox", { name: "Role for Other User" }),
+  );
+  fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
+  const retry = await screen.findByRole("button", {
+    name: "Retry member directory refresh",
+  });
+  fireEvent.click(retry);
+  await waitFor(() => expect(getMembers).toHaveBeenCalledTimes(2));
+  const hiddenSignal = (
+    getMembers.mock.calls[1]?.[0] as { signal: AbortSignal }
+  ).signal;
+  expect(hiddenSignal.aborted).toBe(false);
+
+  view.rerender(withMessages(<Activity mode="hidden">{directory}</Activity>));
+  await waitFor(() => expect(hiddenSignal.aborted).toBe(true));
+
+  view.rerender(withMessages(<Activity mode="visible">{directory}</Activity>));
+  const revealedRetry = await screen.findByRole("button", {
+    name: "Retry member directory refresh",
+  });
+  await waitFor(() => expect(revealedRetry).toBeEnabled());
+  fireEvent.click(revealedRetry);
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Member role updated.",
+  );
+  expect(getMembers).toHaveBeenCalledTimes(3);
+  expect(updateRole).toHaveBeenCalledTimes(1);
 });
 
 it("keeps a confirmed role overlay and active mutation refresh across later server-page props", async () => {

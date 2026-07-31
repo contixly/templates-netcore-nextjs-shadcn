@@ -2105,3 +2105,33 @@ GREEN is **32/32**, and the affected four-suite focus is **59/59**. This preserv
 the original visible A→B isolation, same-id reconciliation, hidden completion,
 and late-delete protections. Final gates and controller-owned pending work are
 recorded in the migration evidence.
+
+Round 17 reopened Task 14 after automatic review of implementation head
+`f2812f72d591419af4d998af644c7aa960016ccf` produced five actionable P2
+threads. The strict test-first local repair now validates raw organization keys
+after actor resolution without store reach or disclosure; separates create
+dialog deletion from Activity hiding and defers only one hidden-success refresh;
+clears the matching Activity-cancelled directory read without failure feedback;
+publishes the existing detail `409 concurrency_conflict` in OpenAPI and the
+generated SDK; and raw-binds both pagination limits so malformed/overflow/range
+validation occurs inside the actor-aware audit boundary while the public schema
+remains an optional bounded integer. Exact RED/GREEN and full acceptance
+evidence are recorded in `docs/aspnetcore-migration-plan.md` and the ignored
+round-17 report. Task 14 Steps 5–6 remain pending: the controller owns push,
+thread reply/resolution and a fresh automatic review. This local fix claims no
+future clean review or future reviewed hash.
+
+Independent round-17 local review fix 1/5 found that .NET 10
+`Guid.TryParseExact(value, "D")` accepts leading/trailing whitespace, so the
+first key boundary still allowed `%20UUID%20` through Application/persistence
+despite the anchored OpenAPI pattern. A strict authenticated endpoint/probe RED
+preceded production edits and failed 0/1 with expected 404, actual 500 after
+store reach; canonical uppercase UUID remained a passing 1/1 baseline. UUID
+acceptance now additionally round-trips the parsed `D` rendering and compares
+the original with ordinal-ignore-case semantics. Published hex casing remains
+valid, while leading, trailing, space-wrapped and tab-wrapped spellings receive
+the non-disclosing 404, one safe actor/session audit, no raw key log and zero
+store calls. Focused GREEN is 3/3. Exact full gate evidence is recorded in the
+migration plan and ignored fix report. Controller-owned push, thread resolution
+and fresh automatic review remain pending; no future clean result/hash is
+claimed.

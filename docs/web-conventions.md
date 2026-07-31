@@ -335,6 +335,14 @@ duplicate over its older entry while preserving local tail entries and confirmed
 deletion tombstones. The load-more control uses its organization-boundary
 hydration readiness marker.
 
+Organization creation uses two lifecycle signals. Insertion cleanup marks
+permanent deletion, making any later transport completion inert. Layout cleanup
+records React Activity hiding without destroying the instance: a hidden
+completion settles local request/pending state, suppresses stale push, and on
+success queues only one refresh for the originating surface. Reveal drains that
+refresh exactly once. Visible completion still performs canonical push plus
+refresh, including under StrictMode replay.
+
 Workspace settings reject exact normalized D-format UUID-shaped slugs before
 transport. They compare normalized inputs with the latest confirmed detail and
 send the exact generated PATCH request containing only dirty name, slug, and/or
@@ -389,6 +397,14 @@ only authority that can retire it. Member-directory continuation is an exact
 first-action organization control: its server HTML is disabled, and it becomes
 enabled only after that Client Component boundary publishes
 `data-organization-control-interaction-ready="true"`.
+
+Activity cleanup of a pending directory load-more or GET-only recovery read
+aborts/supersedes the coordinator and dispatches a matching read-generation
+cancellation. The reducer clears only that `activeRead`, preserves confirmed
+state/recovery, and produces no failure feedback, so reveal exposes a usable
+continuation/retry. A newer read cannot be cleared by older cleanup, and actual
+keyed deletion remains reducer-inert while its insertion cleanup still aborts
+any read created after the earlier hide.
 
 The account-deletion dialog keeps generic safe copy for unknown failures, but
 maps the exact typed `organization_ownership_transfer_required` Problem Details

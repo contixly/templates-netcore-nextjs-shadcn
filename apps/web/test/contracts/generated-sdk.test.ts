@@ -97,7 +97,7 @@ describe("generated system status SDK", () => {
     const expected = {
       GetOrganizationsErrors: [400, 401, 405, 500],
       CreateOrganizationErrors: [400, 401, 405, 409, 500],
-      GetOrganizationByKeyErrors: [401, 404, 405, 500],
+      GetOrganizationByKeyErrors: [401, 404, 405, 409, 500],
       UpdateOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
       DeleteOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
       SetActiveOrganizationErrors: [400, 401, 404, 405, 409, 500],

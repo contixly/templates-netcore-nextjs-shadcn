@@ -19,7 +19,7 @@ internal sealed class OrganizationContractOperationTransformer
         {
             ["GetOrganizations"] = [400, 401, 405, 500],
             ["CreateOrganization"] = [400, 401, 405, 409, 500],
-            ["GetOrganizationByKey"] = [401, 404, 405, 500],
+            ["GetOrganizationByKey"] = [401, 404, 405, 409, 500],
             ["UpdateOrganization"] = [400, 401, 403, 404, 405, 409, 500],
             ["DeleteOrganization"] = [400, 401, 403, 404, 405, 409, 500],
             ["SetActiveOrganization"] = [400, 401, 404, 405, 409, 500],

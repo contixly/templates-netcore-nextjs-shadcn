@@ -1,4 +1,5 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { Activity, StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
@@ -22,6 +23,31 @@ jest.mock("@/src/lib/api/organizations/browser/organization-mutations", () => ({
 }));
 
 const createOrganization = jest.mocked(createBrowserOrganization);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+const createdOrganization = {
+  id: "01900000-0000-7000-8000-000000000010",
+  name: "Acme Team",
+  slug: "acme-team",
+  canonicalKey: "acme-team",
+  createdAt: "2026-07-30T10:00:00Z",
+  updatedAt: "2026-07-30T10:00:00Z",
+  currentRole: "owner" as const,
+  capabilities: {
+    canUpdateOrganization: true,
+    canDeleteOrganization: true,
+    canAddMembers: true,
+    canUpdateMemberRoles: true,
+  },
+  allowedEmailDomains: [],
+};
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -118,24 +144,13 @@ it("keeps the Field disabled marker in sync while creation is pending", async ()
 it("uses the returned canonical key and refreshes after successful creation", async () => {
   createOrganization.mockResolvedValue({
     ok: true,
-    data: {
-      id: "01900000-0000-7000-8000-000000000010",
-      name: "Acme Team",
-      slug: "acme-team",
-      canonicalKey: "acme-team",
-      createdAt: "2026-07-30T10:00:00Z",
-      updatedAt: "2026-07-30T10:00:00Z",
-      currentRole: "owner",
-      capabilities: {
-        canUpdateOrganization: true,
-        canDeleteOrganization: true,
-        canAddMembers: true,
-        canUpdateMemberRoles: true,
-      },
-      allowedEmailDomains: [],
-    },
+    data: createdOrganization,
   });
-  renderWithMessages(<OrganizationOnboarding />);
+  renderWithMessages(
+    <StrictMode>
+      <OrganizationOnboarding />
+    </StrictMode>,
+  );
 
   fireEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
   fireEvent.change(
@@ -152,6 +167,68 @@ it("uses the returned canonical key and refreshes after successful creation", as
     expect(push).toHaveBeenCalledWith("/w/acme-team/dashboard");
     expect(refresh).toHaveBeenCalledTimes(1);
   });
+});
+
+it("suppresses a successful create continuation after permanent deletion", async () => {
+  const pendingCreate =
+    deferred<Awaited<ReturnType<typeof createBrowserOrganization>>>();
+  createOrganization.mockReturnValue(pendingCreate.promise);
+  const view = renderWithMessages(<OrganizationOnboarding />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
+  fireEvent.change(
+    await screen.findByRole("textbox", { name: "Workspace name" }),
+    { target: { value: "Acme Team" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(createOrganization).toHaveBeenCalledTimes(1));
+
+  view.unmount();
+  await act(async () => {
+    pendingCreate.resolve({ ok: true, data: createdOrganization });
+    await pendingCreate.promise;
+  });
+
+  expect(push).not.toHaveBeenCalled();
+  expect(refresh).not.toHaveBeenCalled();
+});
+
+it("settles an Activity-hidden create and defers one refresh without stale navigation", async () => {
+  const pendingCreate =
+    deferred<Awaited<ReturnType<typeof createBrowserOrganization>>>();
+  createOrganization.mockReturnValue(pendingCreate.promise);
+  const onboarding = <OrganizationOnboarding />;
+  const view = renderWithMessages(
+    <Activity mode="visible">{onboarding}</Activity>,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Create Workspace" }));
+  fireEvent.change(
+    await screen.findByRole("textbox", { name: "Workspace name" }),
+    { target: { value: "Acme Team" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  await waitFor(() => expect(createOrganization).toHaveBeenCalledTimes(1));
+
+  view.rerender(withMessages(<Activity mode="hidden">{onboarding}</Activity>));
+  await act(async () => {
+    pendingCreate.resolve({ ok: true, data: createdOrganization });
+    await pendingCreate.promise;
+  });
+  expect(push).not.toHaveBeenCalled();
+  expect(refresh).not.toHaveBeenCalled();
+
+  view.rerender(withMessages(<Activity mode="visible">{onboarding}</Activity>));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Create Workspace" }),
+  ).toBeEnabled();
+  expect(push).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
+
+  view.rerender(withMessages(<Activity mode="hidden">{onboarding}</Activity>));
+  view.rerender(withMessages(<Activity mode="visible">{onboarding}</Activity>));
+  expect(refresh).toHaveBeenCalledTimes(1);
 });
 
 it("shows stable API failure copy and trace without raw problem codes", async () => {

@@ -135,7 +135,8 @@ type DirectoryAction =
       readId: number;
       action: ConfirmedAction;
       traceId?: string;
-    }>;
+    }>
+  | Readonly<{ type: "readCancelled"; readId: number }>;
 
 type ReadCoordinator = Readonly<{
   id: number;
@@ -250,6 +251,10 @@ function directoryReducer(
 
   if (state.activeRead?.id !== action.readId) {
     return state;
+  }
+
+  if (action.type === "readCancelled") {
+    return { ...state, activeRead: null };
   }
 
   if (action.type === "loadMoreSucceeded") {
@@ -445,7 +450,11 @@ export function OrganizationMemberDirectory({
 
   useEffect(
     () => () => {
+      const activeRead = activeReadCoordinator.current;
       detachActiveRead(activeReadCoordinator);
+      if (activeRead) {
+        dispatch({ type: "readCancelled", readId: activeRead.id });
+      }
     },
     [],
   );

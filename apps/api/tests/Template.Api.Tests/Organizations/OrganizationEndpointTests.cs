@@ -439,6 +439,40 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task OrganizationDetailMapsStoreConcurrencyConflictToThePublishedProblem()
+    {
+        var store = new ConcurrencyOrganizationDetailStore();
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IOrganizationStore>();
+                services.AddSingleton<IOrganizationStore>(store);
+            }));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Concurrency Detail Owner",
+            "local-agent+concurrency-detail-owner@local-agent.test");
+
+        using var response = await client.GetAsync(
+            "/api/v1/organizations/by-key/concurrency-detail",
+            TestContext.Current.CancellationToken);
+
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            response,
+            HttpStatusCode.Conflict,
+            "concurrency_conflict");
+        Assert.Equal(1, store.GetByKeyCalls);
+        OrganizationEndpointTestSupport.AssertNoStore(response);
+    }
+
+    [Fact]
     public async Task OrganizationPatchRejectsASlugOver64CharactersAtTheHttpBoundary()
     {
         using var client = factory.CreateApiClient();
@@ -882,6 +916,75 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
                         OrganizationMemberCursorPosition>>.Failed(
                             OrganizationFailure.NotFound));
         }
+
+        public Task<OrganizationOperationResult<OrganizationMember>>
+            AddMemberAsync(
+                AddOrganizationMemberCommand command,
+                CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<OrganizationMember>>
+            UpdateMemberRoleAsync(
+                UpdateOrganizationMemberRoleCommand command,
+                CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class ConcurrencyOrganizationDetailStore : IOrganizationStore
+    {
+        public int GetByKeyCalls { get; private set; }
+
+        public Task<OrganizationStorePage<
+            OrganizationSummary,
+            OrganizationListCursorPosition>> ListAsync(
+            UserId actorUserId,
+            OrganizationListCursorPosition? after,
+            int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<OrganizationDetail>>
+            GetByKeyAsync(
+                UserId actorUserId,
+                string organizationKey,
+                CancellationToken cancellationToken)
+        {
+            GetByKeyCalls++;
+            return Task.FromResult(
+                OrganizationOperationResult<OrganizationDetail>.Failed(
+                    OrganizationFailure.ConcurrencyConflict));
+        }
+
+        public Task<OrganizationOperationResult<OrganizationDetail>> CreateAsync(
+            CreateOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<OrganizationDetail>> UpdateAsync(
+            UpdateOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<OrganizationDeletion>> DeleteAsync(
+            DeleteOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<ActiveOrganization>> SetActiveAsync(
+            SetActiveOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<OrganizationOperationResult<
+            OrganizationStorePage<
+                OrganizationMember,
+                OrganizationMemberCursorPosition>>> ListMembersAsync(
+            UserId actorUserId,
+            OrganizationId organizationId,
+            OrganizationMemberCursorPosition? after,
+            int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
 
         public Task<OrganizationOperationResult<OrganizationMember>>
             AddMemberAsync(

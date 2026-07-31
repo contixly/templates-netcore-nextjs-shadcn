@@ -437,7 +437,17 @@ namespaces. User-supplied UUID-shaped slugs are rejected after trim/lowercase
 normalization, and a UUID-shaped name-derived base is deterministically prefixed
 with `workspace-`. A UUID key resolves only by organization id; a non-UUID key
 resolves only by slug. Returned `canonicalKey` is always the slug. Organization
-pages sort by the actor's immutable membership edge
+detail accepts its route key as raw text, then—after actor resolution and inside
+the organization audit boundary—requires a canonical `D` UUID or canonical
+`OrganizationSlug`. UUID acceptance requires both exact-format parsing and an
+ordinal-ignore-case comparison with the parsed value's `D` rendering: published
+upper/lower ASCII hex casing remains valid, while surrounding whitespace or any
+other normalized spelling is rejected. Invalid text returns the same
+non-disclosing `404 organization_not_found`, is never logged, and never reaches
+Application or persistence. The runtime detail concurrency outcome is `409
+concurrency_conflict`, and that response is part of the exact OpenAPI operation
+and generated SDK error union. Organization pages sort by the actor's immutable
+membership edge
 `(membership.joinedAt ASC, membership.id ASC)` and member pages by
 `(member.joinedAt ASC, member.id ASC)`; the covering actor-list index is
 `(user_id, joined_at, id)`. Both use opaque typed, versioned base64url checksum
@@ -447,6 +457,16 @@ member-list layout. Clients return `nextCursor` verbatim and never construct it.
 Legacy layouts, wrong cursor kind/version, noncanonical base64url, corrupt
 checksum, out-of-range UTC ticks, and extra bytes return `400 invalid_cursor`
 before any PostgreSQL query.
+
+Both organization list operations bind the raw optional `limit` query text so
+Minimal API conversion cannot bypass actor resolution or operation auditing.
+They parse it inside the actor-aware audit boundary with invariant integer
+semantics. Malformed, overflowing, zero, and values above `100` return
+`400 validation_failed`, emit one safe audit with only actor/session and the
+applicable opaque organization id, and do not call Application/persistence.
+Anonymous requests remain authentication-first and non-audited. The public
+OpenAPI parameter remains optional `integer`/`int32`, minimum `1`, maximum
+`100`, default `50`; raw string binding is only an internal boundary technique.
 
 Generated create slugs preserve the readable `base`, `base-2`, …, `base-5`
 sequence. If all five are occupied, a truncated base plus the new public

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Template.Api.Authentication;
@@ -50,6 +51,9 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                 GetOrganizationByKeyAsync)
             .WithName("GetOrganizationByKey")
             .Produces<ApiResponse<OrganizationDetailResponse>>()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
             .ProducesProtectedApiProblems();
 
         context.VersionedApi.MapPatch(
@@ -134,7 +138,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
     private static async Task<IResult> ListOrganizationsAsync(
         string? cursor,
-        int? limit,
+        string? limit,
         OrganizationService organizations,
         IBrowserSessionGateway browserSessions,
         ILogger<OrganizationEndpointModule> logger,
@@ -241,9 +245,14 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
+        var key = await AuditBoundaryAsync(
+            () => Task.FromResult(ValidateOrganizationKey(organizationKey)),
+            "organization_get",
+            actor,
+            logger);
         var result = await organizations.GetByKeyAsync(
             actor.UserId,
-            organizationKey,
+            key,
             cancellationToken);
         var detail = RequireSuccess(
             result,
@@ -498,7 +507,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
     private static async Task<IResult> ListOrganizationMembersAsync(
         string organizationId,
         string? cursor,
-        int? limit,
+        string? limit,
         OrganizationMembershipService memberships,
         IBrowserSessionGateway browserSessions,
         ILogger<OrganizationEndpointModule> logger,
@@ -696,7 +705,8 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             throw;
         }
         catch (ApiProblemException problem)
-            when (problem.Code == ApiProblemCodes.InvalidRequest)
+            when (problem.Code is ApiProblemCodes.InvalidRequest or
+                ApiProblemCodes.OrganizationNotFound)
         {
             WriteBoundaryAudit(
                 operation,
@@ -938,6 +948,24 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         return new OrganizationId(id);
     }
 
+    private static string ValidateOrganizationKey(string value)
+    {
+        if ((Guid.TryParseExact(value, "D", out var id) &&
+             string.Equals(
+                 value,
+                 id.ToString("D"),
+                 StringComparison.OrdinalIgnoreCase)) ||
+            (OrganizationSlug.TryCreate(value, out var slug) &&
+             string.Equals(value, slug.Value, StringComparison.Ordinal)))
+        {
+            return value;
+        }
+
+        throw new ApiProblemException(
+            StatusCodes.Status404NotFound,
+            ApiProblemCodes.OrganizationNotFound);
+    }
+
     private static OrganizationMemberId ValidateMemberId(string value)
     {
         if (!Guid.TryParseExact(value, "D", out var id) || id == Guid.Empty)
@@ -950,10 +978,19 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         return new OrganizationMemberId(id);
     }
 
-    private static int ValidateLimit(int? value)
+    private static int ValidateLimit(string? value)
     {
-        var limit = value ?? DefaultPageLimit;
-        if (limit is < MinimumPageLimit or > MaximumPageLimit)
+        if (value is null)
+        {
+            return DefaultPageLimit;
+        }
+
+        if (!int.TryParse(
+                value,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var limit)
+            || limit is < MinimumPageLimit or > MaximumPageLimit)
         {
             throw Validation(
                 "limit",

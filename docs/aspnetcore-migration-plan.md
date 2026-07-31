@@ -1830,6 +1830,133 @@ future clean review or its own future hash. Task 14 Steps 5–6 remain pending: 
 controller owns commit push, round-16 thread reply/resolution and a fresh
 automatic review.
 
+### PR #6 auto-review round 17 local fix verification 2026-07-31
+
+Automatic review of implementation head
+`f2812f72d591419af4d998af644c7aa960016ccf` produced five actionable P2
+threads: invalid detail keys reaching PostgreSQL
+(`PRRT_kwDOThDXX86ViC51`, comment `3693280575`); stale create navigation from an
+inactive route (`PRRT_kwDOThDXX86ViC55`, `3693280581`); Activity-aborted member
+reads leaving reducer pending (`PRRT_kwDOThDXX86ViC5-`, `3693280586`); the detail
+runtime `409` missing from OpenAPI (`PRRT_kwDOThDXX86ViC6C`, `3693280594`); and
+typed pagination binding bypassing actor-aware audit
+(`PRRT_kwDOThDXX86ViC6F`, `3693280600`).
+
+The HTTP boundary now resolves the actor before validating a raw detail key as
+an unchanged canonical `D` UUID or canonical `OrganizationSlug`. Invalid text,
+including an exact decoded NUL injected through the real TestServer endpoint
+pipeline, produces the existing non-disclosing `404 organization_not_found`,
+one safe `organization_get` actor/session audit, no raw key log, and no store
+call. Both list endpoints similarly accept raw optional limit text and parse it
+inside their existing actor-aware audit boundaries. Malformed, overflowing,
+zero and over-100 values are uniform `400 validation_failed` attempts with one
+safe audit and no Application/store call; anonymous requests remain
+authentication-first. The OpenAPI transformer preserves the public optional
+`integer`/`int32`, minimum `1`, maximum `100`, default `50` parameter.
+
+The create dialog now separates insertion-effect permanent attachment from
+layout Activity visibility. Actual deletion makes late completion inert. An
+attached hidden completion settles its request lock and local state, suppresses
+stale push, and queues only one refresh on hidden success; reveal drains it once.
+Visible and StrictMode completion still push and refresh normally. Member
+directory Activity cleanup aborts/supersedes the current coordinator and
+dispatches its exact read generation. The reducer clears only the matching
+`activeRead`, retains recovery/confirmed state, emits no failure feedback, and
+cannot clear a newer read; keyed deletion remains reducer-inert. Finally, detail
+concurrency conflict is now explicit endpoint metadata and part of the exact
+OpenAPI response set and generated `GetOrganizationByKeyErrors` union.
+
+Strict RED was observed before each corresponding production edit:
+
+| Finding | RED command and observed failure |
+| ------- | -------------------------------- |
+| detail key | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter 'FullyQualifiedName~InvalidOrganizationKeysAreNonDisclosingAuditedAndNeverReachTheStore'` — expected 404, actual 500 after the boundary probe store was reached; 0/1 passed |
+| create lifecycle | `cd apps/web && npm test -- --runInBand test/components/organization-onboarding.test.tsx` — **2 failed / 7 passed** because permanent deletion and Activity hiding both still invoked stale `router.push` |
+| directory lifecycle | `cd apps/web && npm test -- --runInBand test/components/organization-member-directory.test.tsx -t 'Activity-hidden'` — **2/2 failed** because reveal retained disabled `Loading members` / `Refreshing member directory` state |
+| detail 409 contract | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-build --filter 'FullyQualifiedName~OrganizationOperationsPublishStableIdsCookieCsrfAndExactResponses'` failed with expected `409`, actual next status `500`; `cd apps/web && npm test -- --runInBand test/contracts/generated-sdk.test.ts` failed **1/7** because `GetOrganizationByKeyErrors` omitted `409`; the new runtime agreement test already passed 1/1 and proved HTTP maps the store conflict to `409 concurrency_conflict` |
+| raw pagination audit | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter 'FullyQualifiedName~RouteQueryAndCursorRejectionsAuditOnlySafeOpaqueIdentifiers'` — expected `validation_failed`, actual framework `invalid_request` before the operation audit; 0/1 passed. The expanded anonymous auth-first matrix already passed 11/11 |
+
+Focused GREEN after the minimal repairs: detail-key **1/1**; onboarding
+StrictMode/deletion/Activity **9/9**; Activity directory focus **2/2** and the
+directory/settings lifecycle regression **46/46**; runtime plus exact OpenAPI
+detail-409 agreement **2/2** and generated SDK **7/7**; pagination/audit,
+auth-first and bounded OpenAPI focus **13/13**.
+
+| Round-17 local gate | Observed result |
+| ------------------- | --------------- |
+| `dotnet restore Template.sln` | PASS; all seven projects current |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
+| `dotnet test Template.sln --no-restore` | PASS; Application **174/174**, API **447/447**, total **621/621** |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required |
+| EF model/script | PASS; no pending `TemplateDbContext` model changes; idempotent script **23,431 bytes** |
+| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
+| deterministic OpenAPI export | PASS twice, 0 warnings/errors; common SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4` |
+| OpenAPI/generated SDK | PASS; deterministic/current 4-file generation; intentional diff is one `409 ProblemDetails` response (**+10** JSON lines) and one generated `409` error member (**+4** TypeScript lines) |
+| web boundaries/static | PASS; boundary harness **3/3**, Prettier, ESLint, Next typegen and TypeScript clean |
+| full Jest | PASS; **51/51 suites, 371/371 tests**, 0 snapshots |
+| clean production build | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present |
+| dependency security | production npm audit PASS with 0 vulnerabilities; full development audit reports one high `brace-expansion` toolchain advisory and no production finding |
+| Playwright | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed** |
+| repository/reference guards | PASS; `git diff --check`, generated drift, and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged |
+
+This is local fix evidence only. The controller still owns push, all five thread
+replies/resolution and a fresh automatic review. No future clean round-17 review
+or future reviewed hash is claimed.
+
+### PR #6 auto-review round 17 fix 1/5 verification 2026-08-01
+
+Independent local review of
+`f2812f72d591419af4d998af644c7aa960016ccf..813476a681741e155ed0bd6ad2a6c94e321ae11f`
+found that .NET 10 `Guid.TryParseExact(value, "D")` accepts surrounding
+whitespace. The first round-17 boundary therefore treated an encoded
+`%20{existing-uuid}%20` as canonical, reached Application/persistence and could
+return 200, contradicting both the anchored OpenAPI UUID pattern and the durable
+no-store rule.
+
+The authenticated endpoint regression uses the existing throwing/counting
+boundary-probe store and covers leading space, trailing space, wrapped spaces
+and wrapped tabs. Before production edits, the exact command
+
+```bash
+dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
+  --no-restore \
+  --filter 'FullyQualifiedName~WhitespaceWrappedOrganizationUuidKeysAreAuditedAndNeverReachTheStore'
+```
+
+failed **0/1** for the intended reason: expected 404, actual 500 after store
+reach. A separate real authenticated lookup using uppercase canonical UUID hex
+passed **1/1** before the repair, preserving the published case-insensitive
+hex-casing contract.
+
+UUID validation now requires exact `D` parsing plus ordinal-ignore-case equality
+between the original route text and the parsed UUID's `D` rendering. Canonical
+upper/lower hex remains accepted; normalization beyond casing, including all
+surrounding whitespace, is rejected inside the existing actor-aware audited
+boundary. Every rejected case returns `404 organization_not_found`, emits
+exactly one safe `organization_get` event with actor/session and null opaque
+resource IDs, excludes raw/encoded key text from configured logs, and leaves the
+probe store at zero calls. The slug branch and valid slug/UUID lookup semantics
+are unchanged.
+
+Focused GREEN combined the whitespace regression, uppercase canonical lookup
+and the original NUL/dot-marker rejection: **3/3 passed**.
+
+| Round-17 fix 1/5 local gate | Observed result |
+| --------------------------- | --------------- |
+| `dotnet restore Template.sln` | PASS; all seven projects current |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
+| `dotnet test Template.sln --no-restore` | PASS; Application **174/174**, API **449/449**, total **623/623** |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required |
+| EF model/script | PASS; no pending `TemplateDbContext` changes; idempotent script **23,431 bytes** |
+| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
+| deterministic OpenAPI / SDK | PASS; two exports, common unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated REST SDK deterministic/current with no diff |
+| web gates | Not rerun beyond `npm run api:check`: this focused amendment changes no web source, package, schema or generated artifact; round-17 full web/Jest/build/audit/E2E evidence remains applicable |
+| repository/reference guards | PASS; whitespace, contract/generated drift, and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged |
+
+This amendment fixes the sole Important local-review finding. Controller-owned
+push, review-thread work and a fresh automatic review remain pending; no future
+clean result or future reviewed hash is claimed.
+
 ## 9. Правило обновления этого документа
 
 Перед стартом очередной итерации уточняются только её scope, зависимости, risks и acceptance criteria. Изменение порядка или архитектурных решений фиксируется здесь отдельной записью с причиной; незавершённые задачи не «перепрыгивают» в следующую итерацию без явного решения.

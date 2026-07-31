@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useRef, useState, type FormEvent } from "react";
+import {
+  useInsertionEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { IconPlus } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -43,12 +49,32 @@ export function OrganizationCreateDialog({
   const onboarding = useTranslations("organizations.onboarding");
   const router = useRouter();
   const interactionReady = useOrganizationControlInteractionReady();
+  const attached = useRef(true);
+  const visible = useRef(true);
+  const queuedRouterEffects = useRef<(() => void) | null>(null);
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [validation, setValidation] = useState<string | null>(null);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
+
+  useInsertionEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    visible.current = true;
+    const routerEffects = queuedRouterEffects.current;
+    queuedRouterEffects.current = null;
+    routerEffects?.();
+    return () => {
+      visible.current = false;
+    };
+  }, []);
 
   function changeOpen(nextOpen: boolean) {
     if (requestInFlight.current) {
@@ -89,6 +115,9 @@ export function OrganizationCreateDialog({
     const result = await createBrowserOrganization(createBrowserApiClient(), {
       name: normalizedName,
     });
+    if (!attached.current) {
+      return;
+    }
     requestInFlight.current = false;
     setPending(false);
 
@@ -98,6 +127,10 @@ export function OrganizationCreateDialog({
     }
 
     setOpen(false);
+    if (!visible.current) {
+      queuedRouterEffects.current = () => router.refresh();
+      return;
+    }
     router.push(organizationRoutes.dashboard(result.data.canonicalKey));
     router.refresh();
   }

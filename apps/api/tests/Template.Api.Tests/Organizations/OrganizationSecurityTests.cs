@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,7 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
         new()
         {
             { "GET", "/api/v1/organizations", false },
+            { "GET", "/api/v1/organizations?limit=not-a-number", false },
             { "POST", "/api/v1/organizations", true },
             {
                 "GET",
@@ -57,6 +59,11 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             {
                 "GET",
                 "/api/v1/organizations/0198a7ac-d0f8-7832-b711-211f56c57701/members",
+                false
+            },
+            {
+                "GET",
+                "/api/v1/organizations/0198a7ac-d0f8-7832-b711-211f56c57701/members?limit=999999999999999999999999999999",
                 false
             },
             {
@@ -206,6 +213,169 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             log => RenderedLog(log).Contains(
                 sensitiveToken,
                 StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task InvalidOrganizationKeysAreNonDisclosingAuditedAndNeverReachTheStore()
+    {
+        var (isolated, client, store, actor, sessionId, logs) =
+            await CreateBoundaryProbeAsync();
+        await using (isolated)
+        using (client)
+        {
+            using var signIn = await LocalAuthTestClient.SignInAsync(
+                client,
+                actor.Email,
+                actor.Password);
+            Assert.Equal(HttpStatusCode.OK, signIn.StatusCode);
+            var sessionCookie = signIn.Headers.GetValues("Set-Cookie")
+                .Single(value => value.StartsWith(
+                    "__Host-template.session=",
+                    StringComparison.Ordinal));
+            var cookiePair = sessionCookie[..sessionCookie.IndexOf(';')];
+            sessionId = await ReadSessionIdAsync(client);
+
+            logs.Clear();
+            var nulContext = await isolated.Server.SendAsync(
+                http =>
+                {
+                    http.Request.Method = HttpMethod.Get.Method;
+                    http.Request.Scheme = "https";
+                    http.Request.Host = new HostString("localhost");
+                    http.Request.Path =
+                        new PathString("/api/v1/organizations/by-key/\0");
+                    http.Request.Headers.Cookie = cookiePair;
+                },
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(StatusCodes.Status404NotFound, nulContext.Response.StatusCode);
+            AssertSingleOrganizationAudit(
+                logs,
+                "organization_get",
+                "organization_not_found",
+                actor.UserId,
+                sessionId,
+                organizationId: null,
+                memberId: null);
+            Assert.DoesNotContain('\0', RenderedLogs(logs));
+
+            logs.Clear();
+            const string invalidMarker = "round17-sensitive.invalid";
+            using var markerResponse = await client.GetAsync(
+                $"/api/v1/organizations/by-key/{invalidMarker}",
+                TestContext.Current.CancellationToken);
+
+            await OrganizationEndpointTestSupport.AssertProblemAsync(
+                markerResponse,
+                HttpStatusCode.NotFound,
+                "organization_not_found");
+            OrganizationEndpointTestSupport.AssertNoStore(markerResponse);
+            AssertSingleOrganizationAudit(
+                logs,
+                "organization_get",
+                "organization_not_found",
+                actor.UserId,
+                sessionId,
+                organizationId: null,
+                memberId: null);
+            Assert.DoesNotContain(
+                invalidMarker,
+                RenderedLogs(logs),
+                StringComparison.OrdinalIgnoreCase);
+
+            Assert.Equal(0, store.CallCount);
+        }
+    }
+
+    [Fact]
+    public async Task WhitespaceWrappedOrganizationUuidKeysAreAuditedAndNeverReachTheStore()
+    {
+        var organizationId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57701");
+        var canonicalKey = organizationId.ToString("D");
+        var encodedKeys = new[]
+        {
+            $"%20{canonicalKey}",
+            $"{canonicalKey}%20",
+            $"%20{canonicalKey}%20",
+            $"%09{canonicalKey}%09"
+        };
+        var (isolated, client, store, actor, sessionId, logs) =
+            await CreateBoundaryProbeAsync();
+        await using (isolated)
+        using (client)
+        {
+            foreach (var encodedKey in encodedKeys)
+            {
+                logs.Clear();
+                using var response = await client.GetAsync(
+                    $"/api/v1/organizations/by-key/{encodedKey}",
+                    TestContext.Current.CancellationToken);
+
+                await OrganizationEndpointTestSupport.AssertProblemAsync(
+                    response,
+                    HttpStatusCode.NotFound,
+                    "organization_not_found");
+                OrganizationEndpointTestSupport.AssertNoStore(response);
+                AssertSingleOrganizationAudit(
+                    logs,
+                    "organization_get",
+                    "organization_not_found",
+                    actor.UserId,
+                    sessionId,
+                    organizationId: null,
+                    memberId: null);
+                var rendered = RenderedLogs(logs);
+                Assert.DoesNotContain(
+                    canonicalKey,
+                    rendered,
+                    StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain(
+                    encodedKey,
+                    rendered,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            Assert.Equal(0, store.CallCount);
+        }
+    }
+
+    [Fact]
+    public async Task CanonicalOrganizationUuidKeysAcceptPublishedHexCasing()
+    {
+        using var client = factory.CreateApiClient();
+        var actor = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Canonical UUID Owner",
+            $"local-agent+canonical-uuid-{Guid.NewGuid():N}@local-agent.test");
+        var sessionId = await ReadSessionIdAsync(client);
+        using var created =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Canonical UUID Workspace");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(created))
+            .GetProperty("id")
+            .GetGuid();
+        var uppercaseKey = organizationId.ToString("D").ToUpperInvariant();
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+
+        using var response = await client.GetAsync(
+            $"/api/v1/organizations/by-key/{uppercaseKey}",
+            TestContext.Current.CancellationToken);
+        var data = await OrganizationEndpointTestSupport.ReadDataAsync(response);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(organizationId, data.GetProperty("id").GetGuid());
+        OrganizationEndpointTestSupport.AssertNoStore(response);
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_get",
+            "succeeded",
+            actor.UserId,
+            sessionId,
+            organizationId,
+            memberId: null);
     }
 
     [Fact]
@@ -453,12 +623,66 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
                 RequiresCsrf: false),
             new BoundaryCase(
                 HttpMethod.Get,
+                "/api/v1/organizations?limit=101",
+                "organization_list",
+                Body: null,
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=101",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                "/api/v1/organizations?limit=not-a-number",
+                "organization_list",
+                Body: null,
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=not-a-number",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                "/api/v1/organizations?limit=999999999999999999999999999999",
+                "organization_list",
+                Body: null,
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=999999999999999999999999999999",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                $"/api/v1/organizations/{organizationId:D}/members?limit=0",
+                "organization_members_list",
+                Body: null,
+                ExpectedOrganizationId: organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=0",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
                 $"/api/v1/organizations/{organizationId:D}/members?limit=101",
                 "organization_members_list",
                 Body: null,
                 ExpectedOrganizationId: organizationId,
                 ExpectedMemberId: null,
                 SensitiveToken: "limit=101",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                $"/api/v1/organizations/{organizationId:D}/members?limit=not-a-number",
+                "organization_members_list",
+                Body: null,
+                ExpectedOrganizationId: organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=not-a-number",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                $"/api/v1/organizations/{organizationId:D}/members?limit=999999999999999999999999999999",
+                "organization_members_list",
+                Body: null,
+                ExpectedOrganizationId: organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=999999999999999999999999999999",
                 RequiresCsrf: false),
             new BoundaryCase(
                 HttpMethod.Get,

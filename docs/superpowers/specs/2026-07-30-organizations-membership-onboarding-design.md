@@ -427,6 +427,22 @@ double audit for successful and business-failure outcomes. Authentication and
 antiforgery failures that happen before actor resolution are not represented as
 organization operation attempts.
 
+Organization detail keys and list limits are intentionally accepted as raw HTTP
+text only so the framework cannot reject them before the actor-aware audit
+boundary. After actor resolution, detail accepts only a canonical `D` UUID or
+canonical `OrganizationSlug`. A parsed UUID must also equal its `D` rendering
+with ordinal-ignore-case comparison, preserving the published upper/lower hex
+casing while rejecting surrounding whitespace and every normalized spelling;
+all other text maps to the existing
+non-disclosing `404 organization_not_found`, emits exactly one safe
+`organization_get` audit, and never reaches Application or persistence. Both
+list endpoints parse `limit` inside that same boundary with invariant integer
+semantics, default `50`, and range `1..100`. Malformed, overflowing, zero and
+over-limit values are `400 validation_failed`, are never logged, and never
+reach Application or persistence. Despite raw internal binding, OpenAPI keeps
+the public optional `integer`/`int32` pagination contract with minimum `1`,
+maximum `100`, and default `50`.
+
 ## 13. Transactions and concurrency
 
 ### Create
@@ -454,6 +470,9 @@ exclusive locks from one repeatable-read snapshot. Concurrent detail reads
 progress together, and a concurrent update yields a wholly pre-update or
 post-update projection rather than mixed identity/domain state. Existing
 transaction nesting is reused rather than opening a nested transaction.
+Serialization/deadlock exhaustion maps through `ConcurrencyConflict` to the
+published `409 concurrency_conflict`; the exact OpenAPI response set and
+generated `GetOrganizationByKeyErrors` union include that runtime outcome.
 
 ### List members
 
@@ -540,6 +559,14 @@ loading/error/empty states. Cards link to canonical workspace and settings
 routes. Delete is shown only for an owner with more than one accessible
 organization.
 
+The shared create dialog uses separate permanent-attachment and Activity
+visibility lifecycles. Actual deletion makes a post-transport completion fully
+inert. An attached Activity-hidden completion settles local pending/request
+state but never performs stale global navigation; hidden success closes the
+dialog and queues only one origin-surface refresh, drained exactly once on
+reveal. A visible current completion retains canonical push plus refresh, and
+StrictMode replay does not invalidate the live instance.
+
 ### `/dashboard`
 
 SSR resolves the active organization when still accessible, otherwise the first
@@ -609,12 +636,16 @@ data table and final shell remain iteration 9.
   router replacement/refresh;
 - member-directory read detachment is one idempotent operation used by both
   passive Activity cleanup and insertion keyed-deletion cleanup. Hiding aborts
-  the read active at hide time while preserving the directory's attachment, so
-  a valid hidden same-id mutation may still confirm and start recovery. If that
-  hidden recovery read is followed by keyed A→B deletion, insertion cleanup
-  aborts it and resolves its superseded race even though passive cleanup already
-  ran. Visible, same-id and Activity-preserved completion semantics remain
-  active without allowing an old organization read to outlive deletion;
+  the read active at hide time and dispatches a generation-matched cancellation
+  that clears reducer `activeRead` without failure feedback or disturbing a
+  newer read. Reveal therefore restores a usable load-more or GET-only recovery
+  control. The directory attachment remains live, so a valid hidden same-id
+  mutation may still confirm and start recovery. If that hidden recovery read
+  is followed by keyed A→B deletion, insertion cleanup aborts it and resolves
+  its superseded race even though passive cleanup already ran; actual deletion
+  dispatches no stale reducer work. Visible, same-id and Activity-preserved
+  completion semantics remain active without allowing an old organization read
+  to outlive deletion;
 - each form instance owns separate attachment and visibility lifecycles. An
   insertion-effect cleanup invalidates the attachment marker during actual
   keyed deletion before replacement layout work, and every completed mutation
