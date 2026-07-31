@@ -94,6 +94,7 @@
 ### Task 1: Generalize the Persistence and Transaction Boundary
 
 **Files:**
+
 - Move: `apps/api/src/Template.Infrastructure/Persistence/AuthDbContext.cs` → `apps/api/src/Template.Infrastructure/Persistence/TemplateDbContext.cs`
 - Move: `apps/api/src/Template.Infrastructure/Persistence/AuthDbContextFactory.cs` → `apps/api/src/Template.Infrastructure/Persistence/TemplateDbContextFactory.cs`
 - Move: `apps/api/src/Template.Infrastructure/Persistence/EfAuthenticationUnitOfWork.cs` → `apps/api/src/Template.Infrastructure/Persistence/EfApplicationUnitOfWork.cs`
@@ -103,6 +104,7 @@
 - Test: `apps/api/tests/Template.Api.Tests/ArchitectureBoundaryTests.cs`
 
 **Interfaces:**
+
 - Consumes: the current EF model and `ExecuteAsync<T>(Func<CancellationToken,Task<T>>, CancellationToken)` behavior.
 - Produces: `TemplateDbContext`, `TemplateDbContextFactory`, `IApplicationUnitOfWork`, and `EfApplicationUnitOfWork` with unchanged database model and transaction semantics.
 
@@ -198,6 +200,7 @@ git commit -m "refactor: generalize application persistence context"
 ### Task 2: Organization Domain Values and Permission Policy
 
 **Files:**
+
 - Create: `apps/api/src/Template.Domain/Organizations/OrganizationId.cs`
 - Create: `apps/api/src/Template.Domain/Organizations/OrganizationMemberId.cs`
 - Create: `apps/api/src/Template.Domain/Organizations/OrganizationSlug.cs`
@@ -207,6 +210,7 @@ git commit -m "refactor: generalize application persistence context"
 - Create: `apps/api/tests/Template.Application.Tests/Organizations/OrganizationDomainTests.cs`
 
 **Interfaces:**
+
 - Consumes: `UserId` value conventions and no infrastructure dependencies.
 - Produces: parseable UUID IDs; `OrganizationSlug.TryCreate`, `OrganizationSlug.GenerateBase`; closed role values; `OrganizationCapabilities`; role assignment predicates; email-domain normalization/eligibility.
 
@@ -330,6 +334,7 @@ git commit -m "feat: define organization domain policies"
 ### Task 3: Application Services, Outcomes, and Cursor Contract
 
 **Files:**
+
 - Create: `apps/api/src/Template.Application/Organizations/OrganizationModels.cs`
 - Create: `apps/api/src/Template.Application/Organizations/OrganizationCursor.cs`
 - Create: `apps/api/src/Template.Application/Organizations/Ports/IOrganizationStore.cs`
@@ -341,6 +346,7 @@ git commit -m "feat: define organization domain policies"
 - Create: `apps/api/tests/Template.Application.Tests/Organizations/OrganizationCursorTests.cs`
 
 **Interfaces:**
+
 - Consumes: Task 2 domain types and `UserId`/`SessionId`.
 - Produces: application commands/projections, `OrganizationFailure`, opaque page cursors, `OrganizationService`, `OrganizationMembershipService`, and atomic store port signatures used by Infrastructure/API.
 
@@ -608,6 +614,7 @@ git commit -m "feat: add organization application services"
 ### Task 4: EF Organization Model and Additive Migration
 
 **Files:**
+
 - Create: `apps/api/src/Template.Infrastructure/Organizations/OrganizationEntity.cs`
 - Create: `apps/api/src/Template.Infrastructure/Organizations/OrganizationMemberEntity.cs`
 - Create: `apps/api/src/Template.Infrastructure/Organizations/OrganizationAllowedEmailDomainEntity.cs`
@@ -621,6 +628,7 @@ git commit -m "feat: add organization application services"
 - Modify: `apps/api/tests/Template.E2EHost/Program.cs`
 
 **Interfaces:**
+
 - Consumes: Task 1 context name and Task 2 IDs/roles.
 - Produces: schemas/tables/constraints/indexes and nullable session active-organization FK required by `EfOrganizationStore`.
 
@@ -717,6 +725,7 @@ git commit -m "feat: add organization persistence schema"
 ### Task 5: Atomic EF Organization and Membership Store
 
 **Files:**
+
 - Create: `apps/api/src/Template.Infrastructure/Organizations/EfOrganizationStore.cs`
 - Modify: `apps/api/src/Template.Infrastructure/Persistence/InfrastructureServiceCollectionExtensions.cs`
 - Modify: `apps/api/src/Template.Infrastructure/Authentication/BrowserSessionGateway.cs`
@@ -725,6 +734,7 @@ git commit -m "feat: add organization persistence schema"
 - Create: `apps/api/tests/Template.Api.Tests/Organizations/OrganizationConcurrencyTests.cs`
 
 **Interfaces:**
+
 - Consumes: `IOrganizationStore`, EF model, `IApplicationUnitOfWork`, Domain policies.
 - Produces: tenant-qualified page/detail reads and all seven atomic organization/member writes.
 
@@ -839,6 +849,7 @@ git commit -m "feat: implement atomic organization persistence"
 ### Task 6: Organization-Aware Account and Local Automation Cleanup
 
 **Files:**
+
 - Create: `apps/api/src/Template.Infrastructure/Organizations/EfOrganizationUserLifecycleStore.cs`
 - Modify: `apps/api/src/Template.Application/Accounts/AccountService.cs`
 - Modify: `apps/api/src/Template.Application/Accounts/AccountModels.cs`
@@ -854,6 +865,7 @@ git commit -m "feat: implement atomic organization persistence"
 - Create: `apps/api/tests/Template.Api.Tests/Organizations/OrganizationUserLifecycleTests.cs`
 
 **Interfaces:**
+
 - Consumes: `IOrganizationUserLifecycleStore.PrepareDeletionAsync(UserId, CancellationToken)` and `IApplicationUnitOfWork`.
 - Produces: atomic user deletion policy, real local cleanup organization count, and `organization_ownership_transfer_required` failure.
 
@@ -967,6 +979,7 @@ git commit -m "feat: protect organization ownership during account deletion"
 ### Task 7: Organization REST Boundary, Security, and Problem Details
 
 **Files:**
+
 - Create: `apps/api/src/Template.Api/Features/Organizations/OrganizationContracts.cs`
 - Create: `apps/api/src/Template.Api/Features/Organizations/OrganizationEndpointModule.cs`
 - Create: `apps/api/src/Template.Api/Features/Organizations/OrganizationSecurityEvents.cs`
@@ -983,6 +996,7 @@ git commit -m "feat: protect organization ownership during account deletion"
 - Modify: `apps/api/tests/Template.Api.Tests/ProblemDetailsTests.cs`
 
 **Interfaces:**
+
 - Consumes: Task 3 services and Task 5/6 outcomes.
 - Produces: named operations `GetOrganizations`, `CreateOrganization`, `GetOrganizationByKey`, `UpdateOrganization`, `DeleteOrganization`, `SetActiveOrganization`, `GetOrganizationMembers`, `AddOrganizationMember`, `UpdateOrganizationMemberRole`.
 
@@ -1096,6 +1110,7 @@ git commit -m "feat: expose organization browser REST API"
 ### Task 8: OpenAPI Contract and Generated TypeScript SDK
 
 **Files:**
+
 - Create: `apps/api/src/Template.Api/OpenApi/OrganizationContractSchemaTransformer.cs`
 - Create: `apps/api/src/Template.Api/OpenApi/OrganizationContractOperationTransformer.cs`
 - Modify: `apps/api/src/Template.Api/OpenApi/OpenApiServiceCollectionExtensions.cs`
@@ -1106,6 +1121,7 @@ git commit -m "feat: expose organization browser REST API"
 - Modify: `apps/web/test/contracts/generated-sdk.test.ts`
 
 **Interfaces:**
+
 - Consumes: named Task 7 operations and contracts.
 - Produces: exact cookie/CSRF/security/error/pagination schema and generated SDK functions with those operation names.
 
@@ -1179,6 +1195,7 @@ git commit -m "feat: publish organization OpenAPI contract"
 ### Task 9: Web API Adapters and Organization Route Resolution
 
 **Files:**
+
 - Create: `apps/web/src/features/organizations/organization-routes.ts`
 - Create: `apps/web/src/features/organizations/organization-switch-navigation.ts`
 - Create: `apps/web/src/lib/api/browser/run-csrf-mutation.ts`
@@ -1194,6 +1211,7 @@ git commit -m "feat: publish organization OpenAPI contract"
 - Modify: `apps/web/test/lib/api/account-api.test.ts`
 
 **Interfaces:**
+
 - Consumes: generated SDK Task 8 and existing server/browser clients.
 - Produces: typed route builders, REST-only SSR loaders, shared CSRF helper, and all browser organization mutations.
 
@@ -1216,10 +1234,12 @@ notes; do not add a documentation dump to the repository.
 Assert route encoding and switch preservation:
 
 ```ts
-expect(organizationRoutes.dashboard("acme team")).toBe("/w/acme%20team/dashboard");
-expect(
-  resolveOrganizationSwitchHref("/w/old/settings/users", "new"),
-).toBe("/w/new/settings/users");
+expect(organizationRoutes.dashboard("acme team")).toBe(
+  "/w/acme%20team/dashboard",
+);
+expect(resolveOrganizationSwitchHref("/w/old/settings/users", "new")).toBe(
+  "/w/new/settings/users",
+);
 expect(resolveOrganizationSwitchHref("/w/old/custom/deep", "new")).toBe(
   "/w/new/dashboard",
 );
@@ -1300,6 +1320,7 @@ git commit -m "feat: add organization web API adapters"
 ### Task 10: Onboarding, Workspace List, Routing, and Switcher UI
 
 **Files:**
+
 - Create: `apps/web/src/messages/organizations.en.json`
 - Create: `apps/web/src/messages/organizations.ru.json`
 - Modify: `apps/web/src/i18n/messages.ts`
@@ -1320,6 +1341,7 @@ git commit -m "feat: add organization web API adapters"
 - Modify: `apps/web/test/i18n/messages.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 9 loaders/mutations/routes.
 - Produces: zero-org onboarding, paged workspace list/create, active/fallback dashboard resolver, canonical route guard, and explicit switch UI.
 
@@ -1328,8 +1350,12 @@ git commit -m "feat: add organization web API adapters"
 Mock loaders and Next navigation. Assert:
 
 ```tsx
-expect(screen.getByRole("heading", { name: "Create your first workspace" })).toBeVisible();
-expect(screen.queryByRole("link", { name: /invitation/i })).not.toBeInTheDocument();
+expect(
+  screen.getByRole("heading", { name: "Create your first workspace" }),
+).toBeVisible();
+expect(
+  screen.queryByRole("link", { name: /invitation/i }),
+).not.toBeInTheDocument();
 expect(redirect).toHaveBeenCalledWith("/w/acme/dashboard");
 expect(forbidden).toHaveBeenCalled();
 ```
@@ -1411,6 +1437,7 @@ git commit -m "feat: add organization onboarding and routing"
 ### Task 11: Workspace Settings and Member Management UI
 
 **Files:**
+
 - Create: `apps/web/src/components/organizations/organization-settings-nav.tsx`
 - Create: `apps/web/src/components/organizations/organization-settings-form.tsx`
 - Create: `apps/web/src/components/organizations/organization-delete-dialog.tsx`
@@ -1427,6 +1454,7 @@ git commit -m "feat: add organization onboarding and routing"
 - Create: `apps/web/test/app/organization-settings-pages.test.tsx`
 
 **Interfaces:**
+
 - Consumes: detail/member loaders, capabilities, and browser mutations.
 - Produces: role-aware settings, delete, direct-add/domain acknowledgement, role update, and fixed-role explanation pages.
 
@@ -1437,7 +1465,9 @@ Assert owner/admin/member presentation separately:
 ```tsx
 expect(screen.getByLabelText("Workspace Name")).toBeDisabled();
 expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
-expect(screen.queryByRole("button", { name: /remove|delete member/i })).not.toBeInTheDocument();
+expect(
+  screen.queryByRole("button", { name: /remove|delete member/i }),
+).not.toBeInTheDocument();
 expect(screen.getByText("Outside domain policy")).toBeVisible();
 ```
 
@@ -1518,6 +1548,7 @@ git commit -m "feat: add organization settings and member management"
 ### Task 12: Deterministic Multi-User Playwright Acceptance
 
 **Files:**
+
 - Create: `apps/web/e2e/organizations.spec.ts`
 - Create: `apps/web/e2e/support/generated-organizations-api.ts`
 - Modify: `apps/web/e2e/support/generated-auth-api.ts`
@@ -1526,6 +1557,7 @@ git commit -m "feat: add organization settings and member management"
 - Modify: `apps/web/playwright.config.ts` only if the existing webServer contract needs the organization seed/cleanup behavior.
 
 **Interfaces:**
+
 - Consumes: complete API/UI slice and local automation auth.
 - Produces: deterministic browser evidence using generated SDK-only setup/cleanup helpers.
 
@@ -1618,6 +1650,7 @@ development audit remains the known 26-high tooling-only advisory graph while
 the required production audit is clean.
 
 **Files:**
+
 - Modify: `docs/api-conventions.md`
 - Modify: `docs/web-conventions.md`
 - Modify: `docs/authentication-persistence-operations.md`
@@ -1625,6 +1658,7 @@ the required production audit is clean.
 - Modify: `docs/superpowers/plans/2026-07-30-organizations-membership-onboarding.md` only to mark completed checkboxes/evidence if execution tracking is retained.
 
 **Interfaces:**
+
 - Consumes: verified implementation and exact observed command output.
 - Produces: iteration-5 status, scope, correspondence, operational commands, acceptance evidence, intentional differences, and iteration-6 gate.
 
@@ -1736,14 +1770,16 @@ HEAD.
 ### Task 14: Ready PR and Automatic Review Loop
 
 **Files:**
+
 - Modify only files required by actionable review findings.
 - Append each review round's observed evidence to `docs/aspnetcore-migration-plan.md` when behavior or verification changes.
 
 **Interfaces:**
+
 - Consumes: green Task 13 branch and repository automatic reviewer.
 - Produces: pushed ready PR with no actionable review comments.
 
-- [ ] **Step 1: Perform final branch review before push**
+- [x] **Step 1: Perform final branch review before push**
 
 ```bash
 git status --short --branch
@@ -1754,7 +1790,7 @@ git diff --exit-code origin/main...HEAD -- template/
 
 Expected: clean tree, intentional commits, no reference diff.
 
-- [ ] **Step 2: Push and create a ready PR**
+- [x] **Step 2: Push and create a ready PR**
 
 ```bash
 git push -u origin codex/iteration-5-organizations-membership
@@ -1767,14 +1803,14 @@ The PR body must contain scope, correspondence table, security/transaction
 summary, exact acceptance results, intentional differences, and out-of-scope
 items. Do not pass `--draft`.
 
-- [ ] **Step 3: Wait for and inspect automatic review**
+- [x] **Step 3: Wait for and inspect automatic review**
 
 Use the connected GitHub integration or `gh` to read review status, review
 threads, and check runs. Wait for the configured automatic reviewer rather than
 self-posting a review. Classify each comment as actionable or non-actionable with
 code/test evidence.
 
-- [ ] **Step 4: Fix each actionable review finding test-first**
+- [x] **Step 4: Fix each actionable review finding test-first**
 
 For a behavior defect, add the smallest failing regression test, observe RED,
 implement the fix, run the focused suite and the Task 13 gates affected by the
@@ -1782,7 +1818,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [ ] **Step 5: Commit, push, and repeat review rounds**
+- [x] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1795,8 +1831,32 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [ ] **Step 6: Record the final clean review state**
+- [x] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
 changed, and verify the ready PR remains mergeable with required checks passing.
+
+Observed closure on 2026-07-31:
+
+- Final branch review and both immutable-reference guards were clean before the
+  controller pushed the iteration branch.
+- PR #6 was created ready rather than draft. At the round-4 observation, its
+  reviewed implementation head was
+  `635b29262a344435af7d778f615297262f686e93`.
+- Automatic review rounds 1–3 produced actionable findings that were
+  classified, repaired test-first, verified, pushed, and resolved. The
+  round-3 renewal lifecycle follow-up is included in the reviewed
+  implementation head.
+- Automatic review round 4 completed in issue comment `5137840074` at
+  `2026-07-31T00:44:29Z` with “Didn't find any major issues. Hooray!” for the
+  reviewed implementation head.
+- GitHub reports all 13 review threads resolved. PR #6 is open, ready,
+  mergeable, and not merged.
+- GitHub returned no commit status contexts and no PR-triggered workflow runs
+  for the reviewed implementation head, so there were no configured checks to
+  report as passing or failing.
+- This subsequent documentation-only evidence commit may sit on top of the
+  reviewed implementation head after the controller pushes it; the controller
+  will then run the automatic review again. No amended/future commit hash is
+  claimed here.

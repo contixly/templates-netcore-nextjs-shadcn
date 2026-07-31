@@ -1,7 +1,9 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 5 — organizations, membership и onboarding (функциональный scope завершён 2026-07-30; deterministic acceptance пройдена).
+**Текущая итерация:** 5 — organizations, membership и onboarding (завершена
+2026-07-31; deterministic acceptance и automatic-review loop пройдены; ready PR
+#6 открыт и не смержен).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -189,7 +191,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(функциональный scope завершён 2026-07-30)**
+### Итерация 5 — Organizations, membership и onboarding **(завершена 2026-07-31; PR открыт и не смержен)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -902,9 +904,10 @@ console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
 
 ## Acceptance evidence: итерация 5
 
-**Состояние:** functional scope завершён только после всех нижеследующих gates
-2026-07-30. Новый код и документация находятся вне `template/`; обе проверки
-immutable reference прошли.
+**Состояние:** итерация и Task 14 automatic-review loop завершены 2026-07-31
+после всех нижеследующих gates и чистого review round 4. Новый код и
+документация находятся вне `template/`; обе проверки immutable reference
+прошли. Ready PR #6 остаётся открытым и не смержен.
 
 ### Reference → API → UI → test mapping
 
@@ -1106,6 +1109,37 @@ pending.
 | `npm test -- --runInBand`                                            | PASS; 51/51 suites, 334/334 tests, 0 snapshots                                                                                                                             |
 | clean production build and standalone guard                          | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                  |
 | default full 5-worker E2E                                            | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                            |
+
+### PR #6 auto-review round 4 clean closure 2026-07-31
+
+Automatic Codex review round 4 completed in issue comment
+`5137840074`, created `2026-07-31T00:44:29Z`, against reviewed commit
+`635b29262a344435af7d778f615297262f686e93`, with the observed message
+“Codex Review: Didn't find any major issues. Hooray!”. GitHub returned 13/13
+review threads resolved and 0 unresolved. At that round-4 observation, PR #6
+was open, ready rather than draft, mergeable, and not merged, and its head
+matched the reviewed implementation commit. This subsequent documentation-only
+evidence commit may sit on top after the controller pushes it and will then be
+automatically re-reviewed by the controller. The iteration-5 implementation and
+Task 14 review loop are complete, but this does not claim that the PR has been
+merged.
+
+Evidence carried by the reviewed implementation head:
+
+| Command / state                                                      | Observed result                                                                                                                                 |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| automatic review round 4                                             | CLEAN; no major issues reported for `635b29262a344435af7d778f615297262f686e93`                                                                  |
+| review threads                                                       | 13/13 resolved, 0 unresolved                                                                                                                    |
+| PR #6 state at round-4 observation                                   | open, ready (`draft=false`), mergeable, `merged=false`; head matched the reviewed implementation commit                                         |
+| GitHub checks on reviewed implementation head                        | no configured status contexts and no PR-triggered workflow runs were returned; there were no checks to report as passing or failing             |
+| `dotnet restore/build/test/format`                                   | PASS; build 0 warnings/errors; Application 179/179, API 417/417, total 596/596; format clean                                                    |
+| EF pending-model check and idempotent script                         | PASS; no pending model changes; `/tmp/template-pr-review-round-3.sql` 22,767 bytes                                                              |
+| `dotnet list Template.sln package --vulnerable --include-transitive` | PASS; no vulnerable direct/transitive NuGet packages in all 7 projects                                                                          |
+| two OpenAPI exports and generated SDK check                          | PASS; deterministic SHA-256 `dc2a10e2da80545c30e4e8db16bff86c3a285fc90da4abf1cb0c93fe4becc524`; generated SDK current                           |
+| web static, Jest, and build                                          | PASS; boundaries/format/lint/typecheck clean; Jest 51/51 suites and 334/334 tests; Next.js production build and standalone guard clean          |
+| default full 5-worker E2E                                            | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                 |
+| package audits                                                       | PASS; no vulnerable NuGet packages and `npm audit --omit=dev` reports 0 production vulnerabilities; full development audit remains 26 high only |
+| immutable reference                                                  | PASS; working-tree and reviewed-range `template/` diffs plus `git status --short -- template/` are empty                                        |
 
 **Next product gate:** iteration 6 may start only as its own planned vertical
 slice for Teams and invitations: define invitation security/expiry,
