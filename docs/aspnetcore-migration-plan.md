@@ -3,11 +3,11 @@
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 5 — organizations, membership и onboarding
 (round 14 остаётся историческим clean-наблюдением для implementation head
-`a59cda75d5040e151f965094e4dcdcf2669b04f0`; automatic-review round 16 для
-round-15 implementation head `b05aee4c6a027211983b5f812027ab287609a442`
-открыл actionable P1 client identity-boundary finding; локальный round-16 fix
-ожидает controller push, thread resolution и свежий automatic review; Task 14
-Steps 5–6 остаются pending).
+`a59cda75d5040e151f965094e4dcdcf2669b04f0`; automatic-review round 18 для
+implementation head `55088c2a65d1219f8ce798d9443adf038a98d6cd` открыл два
+actionable P2 findings; локальный test-first round-18 fix ожидает controller
+push, resolution обоих threads и свежий automatic review; Task 14 Steps 5–6
+остаются pending).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -293,8 +293,8 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 2 — чистый Next.js UI foundation                   | Завершена   | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                                                            |
 | 3 — persistence, Identity и базовая аутентификация | Завершена   | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                                                                      |
 | 4 — accounts и внешний OAuth                       | Завершена   | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                                                                       |
-| 5 — organizations, membership и onboarding         | На проверке | Round 14 остаётся историческим clean-наблюдением для `a59cda75d5040e151f965094e4dcdcf2669b04f0` (27/27 resolved на тот момент). Round 15 выявил actionable риск PATCH прежней organization после переиспользования slug; локальный immutable-ID boundary fix ожидает controller push, resolution thread `PRRT_kwDOThDXX86VgCIZ` и свежий review. Task 14 Steps 5–6 pending; iteration 6 не начинается внутри этого review fix. |
-| 6–12                                               | Не начаты   | Iteration 6 снова ожидает закрытия reopened Task 14 после round-15 push/re-review и затем должна начаться только как отдельный planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                           |
+| 5 — organizations, membership и onboarding         | На проверке | Round 14 остаётся историческим clean-наблюдением для `a59cda75d5040e151f965094e4dcdcf2669b04f0` (27/27 resolved на тот момент). Round 18 для `55088c2a65d1219f8ce798d9443adf038a98d6cd` выявил два P2: noncanonical UUID route segments и hidden Activity delete navigation. Локальный test-first fix ожидает controller push, resolution threads `PRRT_kwDOThDXX86Vi58c` / `PRRT_kwDOThDXX86Vi58f` и свежий review. Task 14 Steps 5–6 pending; iteration 6 не начинается внутри этого fix. |
+| 6–12                                               | Не начаты   | Iteration 6 снова ожидает закрытия reopened Task 14 после round-18 push/re-review и затем должна начаться только как отдельный planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                           |
 
 ## Acceptance evidence: итерация 1
 
@@ -1956,6 +1956,83 @@ and the original NUL/dot-marker rejection: **3/3 passed**.
 This amendment fixes the sole Important local-review finding. Controller-owned
 push, review-thread work and a fresh automatic review remain pending; no future
 clean result or future reviewed hash is claimed.
+
+### PR #6 auto-review round 18 local fix verification 2026-08-01
+
+Automatic review of implementation head
+`55088c2a65d1219f8ce798d9443adf038a98d6cd` produced two actionable P2
+threads: noncanonical organization/member UUID route segments
+(`PRRT_kwDOThDXX86Vi58c`, REST comment `3693610570`) and workspace deletion
+completion while React Activity is hidden (`PRRT_kwDOThDXX86Vi58f`,
+`3693610573`).
+
+The API root cause was the normalization behavior of .NET
+`Guid.TryParseExact(value, "D")`: surrounding whitespace parses successfully.
+Every organization/member route validator now also compares the original route
+text with the parsed UUID's `D` rendering using ordinal-ignore-case semantics.
+The shared safe opaque-id projection uses the same rule. PATCH/DELETE
+organization, GET/POST members and PATCH member role therefore retain their
+existing `400 validation_failed` field errors and exactly-once actor/session
+audits, but whitespace spellings omit the invalid opaque id and raw/encoded text
+and cannot reach Application/store. Valid uppercase/mixed hex remains accepted.
+The detail key was already canonical; the two route-id validators are the only
+other iteration-5 organization route UUID parsers. Typed request-body UUIDs are
+unchanged.
+
+`OrganizationDeleteDialog` now separates insertion attachment from layout
+visibility. Actual keyed deletion makes post-transport continuation inert and
+clears queued router work. An attached hidden success settles request/local
+state, closes the dialog and invokes a live `onDeleted`, but queues the required
+`/workspaces` replace plus refresh rather than executing global effects. Reveal
+drains the queue exactly once; repeat hide/reveal cannot replay it. Hidden
+failure is locally rendered and retryable without navigation. Visible and
+StrictMode completion remains immediate, and the existing immutable-id key
+still suppresses different-organization late success.
+
+Strict RED preceded each production edit:
+
+```bash
+dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
+  --no-restore \
+  --filter 'FullyQualifiedName~WhitespaceRouteUuidsAreAuditedAndRejectedBeforePersistence|FullyQualifiedName~CanonicalOrganizationRouteUuidsAcceptPublishedHexCasing'
+```
+
+The API RED was **6 failed / 1 passed**: all five affected method families plus
+the member-id variant expected 400 but reached the throwing probe store and
+returned 500; the real canonical mixed/uppercase persistence baseline passed.
+
+```bash
+cd apps/web
+npm test -- --runInBand test/components/organization-delete-dialog.test.tsx
+```
+
+The Activity RED was **2 failed / 6 passed**: both hidden-success regressions
+observed immediate `router.replace("/workspaces")` instead of zero hidden global
+effects.
+
+Focused GREEN was **10/10 API tests**, including prior detail-key and safe-audit
+regressions, and **2/2 web suites, 40/40 tests** for the delete dialog plus its
+real keyed settings-page lifecycle.
+
+| Round-18 local gate | Observed result |
+| ------------------- | --------------- |
+| `dotnet restore Template.sln` | PASS; all seven projects current |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
+| `dotnet test Template.sln --no-restore` | PASS; Application **174/174**, API **456/456**, total **630/630** |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required |
+| EF model/script | PASS; no pending `TemplateDbContext` changes; idempotent script **23,431 bytes**, covering index inspected |
+| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
+| deterministic OpenAPI / SDK | PASS; two 0-warning/error exports, unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated 4-file SDK deterministic/current; no contract/generated diff |
+| web boundaries/static | PASS; boundary harness **3/3**, Prettier, ESLint, Next typegen and TypeScript clean |
+| full Jest | PASS; **51/51 suites, 375/375 tests**, 0 snapshots |
+| clean production build | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present |
+| dependency security | production npm audit PASS with 0 vulnerabilities; full development audit retains one high `brace-expansion` toolchain advisory and no production finding |
+| Playwright | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed** |
+| repository/reference guards | PASS; whitespace, generated drift and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged; no OpenSpec artifact |
+
+This is local fix evidence only. The controller owns push, both thread
+replies/resolution and a fresh automatic review. No future clean round-18 result
+or future reviewed hash is claimed.
 
 ## 9. Правило обновления этого документа
 

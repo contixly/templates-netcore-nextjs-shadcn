@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useInsertionEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useInsertionEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
@@ -46,6 +52,8 @@ export function OrganizationDeleteDialog({
   const router = useRouter();
   const interactionReady = useInteractionReady();
   const attached = useRef(true);
+  const visible = useRef(true);
+  const queuedRouterEffects = useRef<(() => void) | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
@@ -58,6 +66,17 @@ export function OrganizationDeleteDialog({
     attached.current = true;
     return () => {
       attached.current = false;
+      queuedRouterEffects.current = null;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    visible.current = true;
+    const routerEffects = queuedRouterEffects.current;
+    queuedRouterEffects.current = null;
+    routerEffects?.();
+    return () => {
+      visible.current = false;
     };
   }, []);
 
@@ -110,8 +129,15 @@ export function OrganizationDeleteDialog({
     if (!attached.current) {
       return;
     }
-    router.replace(organizationRoutes.workspaces);
-    router.refresh();
+    const completeRouterEffects = () => {
+      router.replace(organizationRoutes.workspaces);
+      router.refresh();
+    };
+    if (!visible.current) {
+      queuedRouterEffects.current = completeRouterEffects;
+      return;
+    }
+    completeRouterEffects();
   }
 
   const failureMessage =

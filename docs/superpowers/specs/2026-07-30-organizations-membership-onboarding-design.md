@@ -237,6 +237,18 @@ while other keys resolve only by slug. API detail resolution returns
 `canonicalKey`, which is the slug. UI links prefer slug; UUID routes remain valid
 and redirect to canonical slug routes where the reference does so.
 
+All iteration-5 organization/member UUID route segments require a parsed
+`D` rendering equal to the original route text with ordinal-ignore-case
+semantics. This preserves published upper/lower or mixed hex casing but rejects
+leading, trailing or wrapped whitespace and every other normalized spelling.
+The check happens after actor resolution inside the existing operation audit;
+invalid organization/member ids retain `400 validation_failed`, omit the
+invalid opaque id and raw/encoded text from the exactly-once audit/log surface,
+and never reach Application or persistence. The detail key uses the same
+canonical comparison but retains its non-disclosing `404
+organization_not_found`. No other iteration-5 organization route UUID parser is
+outside these validators; typed request-body UUIDs remain unchanged.
+
 A deep link selects its URL organization for the request but never changes the
 session preference. Only an explicit switch mutation updates active context.
 
@@ -656,6 +668,14 @@ data table and final shell remain iteration 9.
   baseline, queues global router effects, and layout setup flushes the queue
   exactly once on reveal. Visible and StrictMode-replayed instances keep normal
   completion behavior;
+- the workspace delete dialog owns the same distinct lifetimes. An attached
+  hidden success settles its request lock/local state and invokes a live
+  `onDeleted`, but queues the now-required `/workspaces` replace plus refresh
+  instead of executing global router work. Reveal drains that queue exactly
+  once, including after repeat hide/reveal; actual insertion deletion clears it.
+  Hidden failure stays locally retryable without navigation. Visible and
+  StrictMode success remains immediate, and the immutable-id key continues to
+  suppress every different-organization late completion;
 - canonical URL is replaced after slug change;
 - danger control requires owner/delete capability and another accessible org;
 - users page separates the current actor, pages other members, exposes direct

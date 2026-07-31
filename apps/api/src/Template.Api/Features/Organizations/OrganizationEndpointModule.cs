@@ -736,7 +736,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             SafeOpaqueId(memberId));
 
     private static Guid? SafeOpaqueId(string? value) =>
-        Guid.TryParseExact(value, "D", out var id) && id != Guid.Empty
+        TryParseCanonicalUuid(value, out var id) && id != Guid.Empty
             ? id
             : null;
 
@@ -938,7 +938,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
     private static OrganizationId ValidateOrganizationId(string value)
     {
-        if (!Guid.TryParseExact(value, "D", out var id) || id == Guid.Empty)
+        if (!TryParseCanonicalUuid(value, out var id) || id == Guid.Empty)
         {
             throw Validation(
                 "organizationId",
@@ -950,11 +950,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
     private static string ValidateOrganizationKey(string value)
     {
-        if ((Guid.TryParseExact(value, "D", out var id) &&
-             string.Equals(
-                 value,
-                 id.ToString("D"),
-                 StringComparison.OrdinalIgnoreCase)) ||
+        if (TryParseCanonicalUuid(value, out _) ||
             (OrganizationSlug.TryCreate(value, out var slug) &&
              string.Equals(value, slug.Value, StringComparison.Ordinal)))
         {
@@ -968,7 +964,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
     private static OrganizationMemberId ValidateMemberId(string value)
     {
-        if (!Guid.TryParseExact(value, "D", out var id) || id == Guid.Empty)
+        if (!TryParseCanonicalUuid(value, out var id) || id == Guid.Empty)
         {
             throw Validation(
                 "memberId",
@@ -977,6 +973,13 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
         return new OrganizationMemberId(id);
     }
+
+    private static bool TryParseCanonicalUuid(string? value, out Guid id) =>
+        Guid.TryParseExact(value, "D", out id) &&
+        string.Equals(
+            value,
+            id.ToString("D"),
+            StringComparison.OrdinalIgnoreCase);
 
     private static int ValidateLimit(string? value)
     {

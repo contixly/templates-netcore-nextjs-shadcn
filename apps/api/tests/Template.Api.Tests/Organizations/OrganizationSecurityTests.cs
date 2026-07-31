@@ -78,6 +78,65 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             }
         };
 
+    public static TheoryData<
+        string,
+        string,
+        string,
+        string?,
+        bool,
+        string> WhitespaceRouteUuidCases =>
+        new()
+        {
+            {
+                "PATCH",
+                "/api/v1/organizations/{organizationId}",
+                "organization_update",
+                "{\"name\":\"Canonical Boundary Update\"}",
+                true,
+                "organizationId"
+            },
+            {
+                "DELETE",
+                "/api/v1/organizations/{organizationId}",
+                "organization_delete",
+                "{\"confirmationName\":\"Canonical Boundary Delete\"}",
+                true,
+                "organizationId"
+            },
+            {
+                "GET",
+                "/api/v1/organizations/{organizationId}/members",
+                "organization_members_list",
+                null,
+                false,
+                "organizationId"
+            },
+            {
+                "POST",
+                "/api/v1/organizations/{organizationId}/members",
+                "organization_member_add",
+                "{\"userId\":\"0198a7ac-d0f8-7832-b711-211f56c57703\",\"role\":\"member\"}",
+                true,
+                "organizationId"
+            },
+            {
+                "PATCH",
+                "/api/v1/organizations/{organizationId}/members/{memberId}",
+                "organization_member_role_update",
+                "{\"role\":\"admin\"}",
+                true,
+                "organizationId"
+            },
+            {
+                "PATCH",
+                "/api/v1/organizations/{organizationId}/members/{memberId}",
+                "organization_member_role_update",
+                "{\"role\":\"admin\"}",
+                true,
+                "memberId"
+            }
+        };
+
     public static TheoryData<string, string, string> MutationBodies =>
         new()
         {
@@ -376,6 +435,169 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             sessionId,
             organizationId,
             memberId: null);
+    }
+
+    [Theory]
+    [MemberData(nameof(WhitespaceRouteUuidCases))]
+    public async Task WhitespaceRouteUuidsAreAuditedAndRejectedBeforePersistence(
+        string method,
+        string pathTemplate,
+        string operation,
+        string? body,
+        bool requiresCsrf,
+        string invalidField)
+    {
+        var organizationId =
+            Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57701");
+        var memberId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57702");
+        var invalidId = invalidField == "organizationId"
+            ? organizationId
+            : memberId;
+        var canonicalId = invalidId.ToString("D");
+        var encodedValues = new[]
+        {
+            $"%20{canonicalId}",
+            $"{canonicalId}%20",
+            $"%20{canonicalId}%20"
+        };
+        var (isolated, client, store, actor, sessionId, logs) =
+            await CreateBoundaryProbeAsync();
+        await using (isolated)
+        using (client)
+        {
+            foreach (var encodedValue in encodedValues)
+            {
+                logs.Clear();
+                var path = pathTemplate
+                    .Replace(
+                        "{organizationId}",
+                        invalidField == "organizationId"
+                            ? encodedValue
+                            : organizationId.ToString("D"),
+                        StringComparison.Ordinal)
+                    .Replace(
+                        "{memberId}",
+                        invalidField == "memberId"
+                            ? encodedValue
+                            : memberId.ToString("D"),
+                        StringComparison.Ordinal);
+                using var response = requiresCsrf
+                    ? await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
+                        client,
+                        new HttpMethod(method),
+                        path,
+                        body!,
+                        "application/json")
+                    : await client.SendAsync(
+                        new HttpRequestMessage(new HttpMethod(method), path),
+                        TestContext.Current.CancellationToken);
+
+                await OrganizationEndpointTestSupport.AssertValidationProblemAsync(
+                    response,
+                    invalidField);
+                OrganizationEndpointTestSupport.AssertNoStore(response);
+                AssertSingleOrganizationAudit(
+                    logs,
+                    operation,
+                    "validation_failed",
+                    actor.UserId,
+                    sessionId,
+                    invalidField == "organizationId" ? null : organizationId,
+                    invalidField == "memberId" ? null :
+                        operation == "organization_member_role_update"
+                            ? memberId
+                            : null);
+                var rendered = RenderedLogs(logs);
+                Assert.DoesNotContain(
+                    canonicalId,
+                    rendered,
+                    StringComparison.OrdinalIgnoreCase);
+                Assert.DoesNotContain(
+                    encodedValue,
+                    rendered,
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            Assert.Equal(0, store.CallCount);
+        }
+    }
+
+    [Fact]
+    public async Task CanonicalOrganizationRouteUuidsAcceptPublishedHexCasing()
+    {
+        using var ownerClient = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            ownerClient,
+            "Round 18 Canonical Owner",
+            $"local-agent+round18-owner-{Guid.NewGuid():N}@local-agent.test");
+        using var targetClient = factory.CreateApiClient();
+        var target = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            targetClient,
+            "Round 18 Canonical Target",
+            $"local-agent+round18-target-{Guid.NewGuid():N}@local-agent.test");
+        using var primary =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                ownerClient,
+                "Round 18 Canonical Primary");
+        var primaryId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(primary))
+            .GetProperty("id")
+            .GetGuid();
+        using var secondary =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                ownerClient,
+                "Round 18 Canonical Secondary");
+        var secondaryId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(secondary))
+            .GetProperty("id")
+            .GetGuid();
+
+        using var update =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{primaryId.ToString("D").ToUpperInvariant()}",
+                new { name = "Round 18 Canonical Updated" });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+
+        using var members = await ownerClient.GetAsync(
+            $"/api/v1/organizations/{MixedCaseUuid(primaryId)}/members",
+            TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, members.StatusCode);
+
+        using var addMember =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Post,
+                $"/api/v1/organizations/{MixedCaseUuid(primaryId)}/members",
+                new { userId = target.UserId, role = "member" });
+        Assert.Equal(HttpStatusCode.Created, addMember.StatusCode);
+        var memberId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(addMember))
+            .GetProperty("id")
+            .GetGuid();
+
+        using var updateRole =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{primaryId:D}/members/{MixedCaseUuid(memberId)}",
+                new { role = "admin" });
+        Assert.Equal(HttpStatusCode.OK, updateRole.StatusCode);
+
+        using var delete =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Delete,
+                $"/api/v1/organizations/{secondaryId.ToString("D").ToUpperInvariant()}",
+                new { confirmationName = "Round 18 Canonical Secondary" });
+        Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
+        OrganizationEndpointTestSupport.AssertNoStore(
+            update,
+            members,
+            addMember,
+            updateRole,
+            delete);
     }
 
     [Fact]
@@ -1514,6 +1736,26 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             .GetProperty("session")
             .GetProperty("id")
             .GetGuid();
+    }
+
+    private static string MixedCaseUuid(Guid value)
+    {
+        var uppercase = false;
+        return new string(
+            value.ToString("D")
+                .Select(character =>
+                {
+                    if (character is < 'a' or > 'f')
+                    {
+                        return character;
+                    }
+
+                    uppercase = !uppercase;
+                    return uppercase
+                        ? char.ToUpperInvariant(character)
+                        : character;
+                })
+                .ToArray());
     }
 
     private static void AssertSingleOrganizationAudit(

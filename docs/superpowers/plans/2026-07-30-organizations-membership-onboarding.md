@@ -2135,3 +2135,21 @@ store calls. Focused GREEN is 3/3. Exact full gate evidence is recorded in the
 migration plan and ignored fix report. Controller-owned push, thread resolution
 and fresh automatic review remain pending; no future clean result/hash is
 claimed.
+
+Round 18 reopened Task 14 after automatic review of implementation head
+`55088c2a65d1219f8ce798d9443adf038a98d6cd` produced two actionable P2
+threads. The first extends the already established canonical UUID rule from the
+detail key to every organization/member route UUID validator and its safe audit
+projection. PATCH/DELETE organization, GET/POST members and PATCH member role
+now reject leading, trailing or wrapped whitespace before Application/store,
+retain `400 validation_failed` and exactly-once safe audit semantics, and accept
+canonical mixed/uppercase hex. The second gives `OrganizationDeleteDialog` a
+layout visibility lifetime distinct from insertion attachment. An attached
+hidden success settles locally and invokes live reconciliation without global
+router work, queues `/workspaces` replace plus refresh for exactly-once reveal,
+and discards that queue on permanent deletion; hidden failure remains retryable,
+while visible/StrictMode and different-id deletion behavior are unchanged.
+Strict RED/GREEN and complete gate evidence are recorded in the migration plan
+and ignored round-18 report. Task 14 Steps 5–6 remain pending: the controller
+owns push, both thread replies/resolution and a fresh automatic review. No
+future clean result or future reviewed hash is claimed.

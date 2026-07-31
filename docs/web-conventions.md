@@ -379,6 +379,19 @@ success baseline, but queues canonical replace/refresh without invoking either
 global router effect. Layout setup on reveal flushes that queue exactly once;
 ordinary visible and StrictMode-replayed forms keep normal completion behavior.
 
+Workspace deletion uses the same two lifetimes. Insertion cleanup permanently
+invalidates a keyed dialog and discards any queued router work. Layout cleanup
+only marks the attached dialog Activity-hidden. A hidden success clears its
+request lock, closes local dialog state, and invokes a still-live `onDeleted`
+reconciliation, but does not replace or refresh globally. Because the deleted
+settings resource cannot remain the revealed destination, it queues the
+required `/workspaces` replacement plus refresh and drains both exactly once on
+reveal; repeated hide/reveal does not replay them. Permanent deletion before
+reveal discards the queue. Hidden failure remains local and retryable without
+navigation, while visible and StrictMode success keeps immediate replace plus
+refresh. The existing immutable-id key still makes different-organization late
+completion inert.
+
 Mutation responses are immediately authoritative. A successful write followed
 by a failed refresh remains a confirmed partial success: the UI keeps a
 conservative projection and offers a GET-only refresh retry, never repeats the

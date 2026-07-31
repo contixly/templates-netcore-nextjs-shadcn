@@ -446,8 +446,16 @@ other normalized spelling is rejected. Invalid text returns the same
 non-disclosing `404 organization_not_found`, is never logged, and never reaches
 Application or persistence. The runtime detail concurrency outcome is `409
 concurrency_conflict`, and that response is part of the exact OpenAPI operation
-and generated SDK error union. Organization pages sort by the actor's immutable
-membership edge
+and generated SDK error union. Every organization/member UUID route segment on
+PATCH/DELETE organization and GET/POST/PATCH membership operations uses the
+same render-and-compare rule after actor resolution. A noncanonical route UUID
+returns the existing `400 validation_failed` field error, emits exactly one safe
+operation audit with the invalid opaque id omitted, excludes raw/encoded route
+text from logs, and cannot reach Application or persistence. Canonical mixed or
+uppercase hex remains accepted. The detail-key, organization-id and member-id
+validators are the complete iteration-5 organization route UUID surface; typed
+body UUIDs retain their existing JSON contract. Organization pages sort by the
+actor's immutable membership edge
 `(membership.joinedAt ASC, membership.id ASC)` and member pages by
 `(member.joinedAt ASC, member.id ASC)`; the covering actor-list index is
 `(user_id, joined_at, id)`. Both use opaque typed, versioned base64url checksum
