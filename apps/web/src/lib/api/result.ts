@@ -10,6 +10,7 @@ import type {
   AuthCapabilitiesResponse,
   AuthSessionResponse,
   LocalAutomationScenarioResponse,
+  ProblemDetails,
   SystemStatusResponse,
 } from "@/src/lib/api/generated";
 
@@ -20,7 +21,7 @@ export type ApiFailure =
       status: number;
       traceId?: string;
       email?: string;
-      emailDomain?: string;
+      emailDomain?: ProblemDetails["emailDomain"];
       allowedEmailDomains?: string[];
     }
   | {

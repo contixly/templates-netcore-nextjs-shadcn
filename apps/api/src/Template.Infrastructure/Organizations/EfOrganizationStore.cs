@@ -17,7 +17,9 @@ internal sealed class EfOrganizationStore(
     TimeProvider timeProvider)
     : IOrganizationStore
 {
-    private const int MaximumSlugAttempts = 5;
+    private const int MaximumReadableSlugCandidates = 5;
+    private const int MaximumSlugRaceAttempts = 5;
+    private const int MaximumSlugLength = 64;
 
     public async Task<
         OrganizationStorePage<OrganizationSummary, OrganizationCursorPosition>>
@@ -159,14 +161,12 @@ internal sealed class EfOrganizationStore(
             CancellationToken cancellationToken)
     {
         var slugBase = OrganizationSlug.GenerateBase(command.Name);
-        for (var attempt = 1; attempt <= MaximumSlugAttempts; attempt++)
+        for (var attempt = 1; attempt <= MaximumSlugRaceAttempts; attempt++)
         {
-            var candidate = attempt == 1
-                ? slugBase
-                : $"{slugBase}-{attempt}";
+            var organizationId = OrganizationId.New();
             try
             {
-                var result = await unitOfWork.ExecuteAsync(
+                return await unitOfWork.ExecuteAsync(
                     async transactionCancellationToken =>
                     {
                         if (await LockUserAsync(
@@ -202,17 +202,12 @@ internal sealed class EfOrganizationStore(
                                 OrganizationFailure.NameConflict);
                         }
 
-                        if (await db.Organizations.AsNoTracking().AnyAsync(
-                                organization => organization.Slug == candidate,
-                                transactionCancellationToken))
-                        {
-                            return OrganizationOperationResult<
-                                OrganizationDetail>.Failed(
-                                OrganizationFailure.SlugConflict);
-                        }
+                        var candidate = await SelectCreateSlugAsync(
+                            slugBase,
+                            organizationId,
+                            transactionCancellationToken);
 
                         var now = timeProvider.GetUtcNow();
-                        var organizationId = OrganizationId.New();
                         db.Organizations.Add(new OrganizationEntity
                         {
                             Id = organizationId.Value,
@@ -247,17 +242,11 @@ internal sealed class EfOrganizationStore(
                                 []));
                     },
                     cancellationToken);
-
-                if (result.Failure != OrganizationFailure.SlugConflict ||
-                    attempt == MaximumSlugAttempts)
-                {
-                    return result;
-                }
             }
             catch (Exception exception) when (
                 IsUniqueViolation(exception, "ux_organizations_slug"))
             {
-                if (attempt == MaximumSlugAttempts)
+                if (attempt == MaximumSlugRaceAttempts)
                 {
                     return OrganizationOperationResult<
                         OrganizationDetail>.Failed(
@@ -273,6 +262,40 @@ internal sealed class EfOrganizationStore(
 
         return OrganizationOperationResult<OrganizationDetail>.Failed(
             OrganizationFailure.SlugConflict);
+    }
+
+    private async Task<string> SelectCreateSlugAsync(
+        string slugBase,
+        OrganizationId organizationId,
+        CancellationToken cancellationToken)
+    {
+        var readableCandidates = Enumerable
+            .Range(1, MaximumReadableSlugCandidates)
+            .Select(index => index == 1 ? slugBase : $"{slugBase}-{index}")
+            .ToArray();
+        var occupiedCandidates = await db.Organizations
+            .AsNoTracking()
+            .Where(organization => readableCandidates.Contains(
+                organization.Slug))
+            .Select(organization => organization.Slug)
+            .ToArrayAsync(cancellationToken);
+        var occupied = occupiedCandidates.ToHashSet(StringComparer.Ordinal);
+        var readable = readableCandidates.FirstOrDefault(
+            candidate => !occupied.Contains(candidate));
+        if (readable is not null)
+        {
+            return readable;
+        }
+
+        const int separatorLength = 1;
+        const int uuidSuffixLength = 32;
+        var maximumBaseLength =
+            MaximumSlugLength - separatorLength - uuidSuffixLength;
+        var prefix = slugBase[..Math.Min(
+                slugBase.Length,
+                maximumBaseLength)]
+            .TrimEnd('-');
+        return $"{prefix}-{organizationId.Value:N}";
     }
 
     public async Task<OrganizationOperationResult<OrganizationDetail>>

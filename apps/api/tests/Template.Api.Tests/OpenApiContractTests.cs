@@ -1013,7 +1013,12 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             CanonicalUuidPattern,
             update["properties"]!["slug"]!["x-trimmed-not-pattern"]!
                 .GetValue<string>());
-        var domain = update["properties"]!["allowedEmailDomains"]!["items"]!;
+        var allowedEmailDomains =
+            update["properties"]!["allowedEmailDomains"]!;
+        Assert.Equal(
+            100,
+            allowedEmailDomains["maxItems"]!.GetValue<int>());
+        var domain = allowedEmailDomains["items"]!;
         Assert.Null(domain["maxLength"]);
         Assert.Equal(
             253,

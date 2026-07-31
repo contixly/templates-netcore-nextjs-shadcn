@@ -145,7 +145,7 @@ export function OrganizationSettingsForm({
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [success, setSuccess] = useState(false);
   const [pending, setPending] = useState(false);
-  const canUpdate = organization.capabilities.canUpdateOrganization;
+  const canUpdate = initialOrganization.capabilities.canUpdateOrganization;
   const parsedDomains = parseDomains(domainsText);
   const previewDomains = parsedDomains.domains;
   const normalizedName = name.trim();

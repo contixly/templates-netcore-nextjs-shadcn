@@ -22,6 +22,10 @@ function nonEmptyStrings(value: unknown): string[] | undefined {
   return value.map((item) => item as string);
 }
 
+function nullableNonEmptyString(value: unknown): string | null | undefined {
+  return value === null ? null : nonEmptyString(value);
+}
+
 export function normalizeApiFailure(
   error: unknown,
   response?: Response,
@@ -37,13 +41,13 @@ export function normalizeApiFailure(
   const traceId = nonEmptyString(problem?.traceId);
   const code = nonEmptyString(problem?.code) ?? "api_problem";
   const email = nonEmptyString(problem?.email);
-  const emailDomain = nonEmptyString(problem?.emailDomain);
+  const emailDomain = nullableNonEmptyString(problem?.emailDomain);
   const allowedEmailDomains = nonEmptyStrings(problem?.allowedEmailDomains);
   const domainAcknowledgement =
     code === "member_domain_acknowledgement_required" &&
     response.status === 409 &&
     email &&
-    emailDomain &&
+    emailDomain !== undefined &&
     allowedEmailDomains
       ? { email, emailDomain, allowedEmailDomains }
       : undefined;

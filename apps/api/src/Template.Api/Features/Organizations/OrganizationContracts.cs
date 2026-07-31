@@ -2,6 +2,11 @@ using System.Text.Json.Serialization;
 
 namespace Template.Api.Features.Organizations;
 
+internal static class OrganizationContractLimits
+{
+    internal const int MaximumAllowedEmailDomains = 100;
+}
+
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 internal sealed record CreateOrganizationRequest
 {

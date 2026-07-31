@@ -344,13 +344,19 @@ neither enables Save nor adds a stale domain collection to an unrelated PATCH. A
 real set addition or removal remains dirty. A normalized no-change form keeps
 Save disabled; a successful response replaces both visible inputs and the dirty
 comparison baseline, preventing stale administrators from overwriting unrelated
-fields.
+fields. On a later RSC projection, update capability is taken immediately from
+the latest server prop so demotion disables every field, removes Save, and
+blocks forced submit without overwriting a local draft or its latest
+mutation-confirmed comparison baseline.
 
 Mutation responses are immediately authoritative. A successful write followed
 by a failed refresh remains a confirmed partial success: the UI keeps a
 conservative projection and offers a GET-only refresh retry, never repeats the
 mutation. Direct member add exposes an outside-domain confirmation only for the
-typed 409 acknowledgement problem; the initial request has no write. Directory
+typed 409 acknowledgement problem; the initial request has no write. Its
+generated `emailDomain` metadata remains `string | null`: explicit null renders
+the fixed localized unknown-domain fallback and still permits the one confirmed
+retry, while an omitted, blank, or wrong-typed value fails closed. Directory
 state also keeps the current actor separate and never renders member removal
 controls. Member-directory continuation is an exact first-action organization
 control: its server HTML is disabled, and it becomes enabled only after that

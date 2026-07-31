@@ -2,7 +2,7 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 5 — organizations, membership и onboarding
-(функциональный scope реализован; automatic-review round 5 переоткрыт,
+(функциональный scope реализован; automatic-review round 6 переоткрыт,
 локальные исправления проверены, controller push/re-review ожидаются; ready PR
 #6 открыт и не смержен).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
@@ -1171,6 +1171,45 @@ clean state is claimed here.
 | clean production build and standalone guard                          | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                            |
 | default full 5-worker E2E                                            | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                      |
 | whitespace, generated metadata, and immutable-reference guards       | PASS; `git diff --check`, generated OpenAPI/SDK diff, working-tree and `origin/main...HEAD` `template/` diffs, status, and untracked-reference guards clean          |
+
+### PR #6 auto-review round 6 local fix verification 2026-07-31
+
+Automatic review of implementation head
+`8c1ad3730a7f1e3604b40189f6c9a8fec427a8a0` found four actionable findings.
+Each was reproduced test-first and repaired inside iteration-5 scope:
+
+- a mounted workspace-settings form now takes update capability from the latest
+  RSC projection, revokes all controls and forced submit after demotion, and
+  preserves dirty fields plus the mutation-confirmed baseline;
+- safe acknowledgement normalization preserves contract-valid
+  `emailDomain: null`; the dialog renders localized unknown-domain copy and
+  performs the existing single explicit confirmed retry;
+- organization PATCH checks the raw `allowedEmailDomains` array at the HTTP
+  boundary, accepts 100 items, rejects 101 (including duplicates) with stable
+  `validation_failed`, and publishes OpenAPI `maxItems: 100`;
+- create preserves readable generated candidates through `-5`, then uses a
+  bounded 64-character collision-resistant organization-ID suffix. Existing
+  candidates no longer consume the separate five unique-index race attempts,
+  including the shared `workspace` base for non-ASCII names.
+
+This is local fixer evidence only. The controller still owns commit push,
+round-6 thread replies/resolution, and the next automatic review; no round-6
+clean state is claimed here.
+
+| Command / gate                              | Observed result                                                                                                                                                                                                                        |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused web RED                             | Expected FAIL; settings permission, null normalization, and null-domain dialog assertions failed; 3 suites failed, 6 failed/31 passed of 37 because the early dialog failure also left queued mock responses for three dependent cases |
+| focused store/API/OpenAPI RED               | Expected FAIL; sixth shared-base create returned slug conflict, 101 raw domains returned 200, and OpenAPI lacked `maxItems`                                                                                                            |
+| focused web GREEN                           | PASS; 3/3 suites, 37/37 tests, including forced-submit blocking and one null-domain confirmed retry                                                                                                                                    |
+| focused store/API/OpenAPI GREEN             | PASS; 3/3 tests, including `workspace` through `workspace-5`, UUID-suffixed sixth slug, raw duplicate bound, persisted-set preservation, and `maxItems: 100`                                                                           |
+| `dotnet restore/build/test/format`          | PASS; build 0 warnings/errors; Application 179/179, API 419/419, total 598/598; format clean                                                                                                                                           |
+| EF and NuGet gates                          | PASS; no pending model changes; pure idempotent `--output` artifact `/tmp/template-pr6-r6-primary.sql` 22,767 bytes; no vulnerable direct/transitive NuGet packages in all 7 projects                                                  |
+| two OpenAPI exports and generated SDK       | PASS; deterministic SHA-256 `212ed49adaa1a95d42fd407c89a14c3e08dff58cda6324a50ce2a22f6aed8251`; generated SDK 4 files deterministic/current; generated SDK test 7/7                                                                    |
+| web static gates and audits                 | PASS; boundary harness 3/3, format/lint/typecheck clean, production npm audit 0; development-only audit remains 26 high across the existing tooling graph                                                                              |
+| `npm test -- --runInBand`                   | PASS; 51/51 suites, 340/340 tests, 0 snapshots                                                                                                                                                                                         |
+| clean production build and standalone guard | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                                                                              |
+| default full 5-worker E2E                   | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                                                        |
+| repository and immutable-reference guards   | PASS; docs/code whitespace, generated SDK metadata, working-tree/range/status/untracked `template/` guards clean                                                                                                                       |
 
 **Next product gate:** iteration 6 remains blocked until Task 14 receives a
 fresh clean automatic review with no unresolved actionable threads. After that,

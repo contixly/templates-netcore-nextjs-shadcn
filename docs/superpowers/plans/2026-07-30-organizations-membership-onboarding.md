@@ -1869,3 +1869,12 @@ hydration readiness. Focused and full acceptance evidence is recorded in
 `docs/aspnetcore-migration-plan.md`. Step 5 remains controller-owned until the
 fix commit is pushed and the three threads are resolved; Step 6 requires a new
 automatic-review result and therefore is not yet complete.
+
+Round 6 reopened Task 14 after automatic review of implementation head
+`8c1ad3730a7f1e3604b40189f6c9a8fec427a8a0` produced four actionable findings.
+The local fixer repaired mounted settings permission reconciliation, nullable
+member-domain acknowledgement, the 100-item raw allowed-domain HTTP/OpenAPI
+bound, and sixth-and-later generated-slug collisions. Step 5 remains
+controller-owned until the round-6 fix is pushed and all four threads are
+resolved; Step 6 still requires a fresh automatic-review result and no clean
+state is claimed here.

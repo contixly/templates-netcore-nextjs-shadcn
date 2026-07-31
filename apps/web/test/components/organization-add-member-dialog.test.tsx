@@ -208,6 +208,56 @@ it("shows the API-provided domain warning and retries exactly once only after co
   expect(onMemberConfirmed).toHaveBeenCalledWith(member);
 });
 
+it("uses localized fallback copy and confirms an acknowledgement with a null domain", async () => {
+  const onMemberConfirmed = jest.fn();
+  addMember
+    .mockResolvedValueOnce({
+      ok: false,
+      failure: {
+        kind: "problem",
+        code: "member_domain_acknowledgement_required",
+        status: 409,
+        email: "outside@localhost",
+        emailDomain: null,
+        allowedEmailDomains: ["example.com"],
+      },
+    })
+    .mockResolvedValueOnce({ ok: true, data: member });
+  renderWithMessages(
+    <OrganizationAddMemberDialog
+      assignableRoles={["member", "admin"]}
+      organizationId={organizationId}
+      onMemberConfirmed={onMemberConfirmed}
+    />,
+  );
+  await openAndFill();
+
+  fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+  const warning = await screen.findByRole("alert");
+  expect(warning).toHaveTextContent("Email domain outside policy");
+  expect(warning).toHaveTextContent("outside@localhost");
+  expect(warning).toHaveTextContent("unknown domain");
+  expect(screen.getByRole("button", { name: "Confirm add" })).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Confirm add" }));
+
+  await waitFor(() => {
+    expect(addMember).toHaveBeenCalledTimes(2);
+  });
+  expect(addMember).toHaveBeenNthCalledWith(
+    2,
+    { id: "browser-client" },
+    organizationId,
+    {
+      userId,
+      role: "member",
+      acknowledgeDomainRestriction: true,
+    },
+  );
+  expect(onMemberConfirmed).toHaveBeenCalledWith(member);
+});
+
 it("does not offer a second acknowledgement retry when the acknowledged request fails", async () => {
   const domainFailure = {
     ok: false,

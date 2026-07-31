@@ -611,6 +611,63 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
         }
     }
 
+    [Fact]
+    public async Task OrganizationUpdateBoundsRawAllowedEmailDomainsAtOneHundred()
+    {
+        using var client = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Domain Limit Owner",
+            "local-agent+organization-domain-limit@local-agent.test");
+        using var create =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Domain Limit");
+        var organizationId = (await OrganizationEndpointTestSupport.ReadDataAsync(
+            create)).GetProperty("id").GetGuid();
+        var acceptedDomains = Enumerable.Range(0, 100)
+            .Select(index => $"accepted-{index:D3}.example")
+            .ToArray();
+
+        using var accepted =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                client,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}",
+                new { allowedEmailDomains = acceptedDomains });
+        Assert.Equal(HttpStatusCode.OK, accepted.StatusCode);
+        Assert.Equal(
+            acceptedDomains.Order(StringComparer.Ordinal),
+            (await OrganizationEndpointTestSupport.ReadDataAsync(accepted))
+                .GetProperty("allowedEmailDomains")
+                .EnumerateArray()
+                .Select(value => value.GetString()!));
+
+        var rejectedDomains = Enumerable
+            .Repeat("repeated.example", 101)
+            .ToArray();
+        using var rejected =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                client,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}",
+                new { allowedEmailDomains = rejectedDomains });
+        await OrganizationEndpointTestSupport.AssertValidationProblemAsync(
+            rejected,
+            "allowedEmailDomains");
+
+        using var detailResponse = await client.GetAsync(
+            "/api/v1/organizations/by-key/domain-limit",
+            TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
+        Assert.Equal(
+            acceptedDomains.Order(StringComparer.Ordinal),
+            (await OrganizationEndpointTestSupport.ReadDataAsync(detailResponse))
+                .GetProperty("allowedEmailDomains")
+                .EnumerateArray()
+                .Select(value => value.GetString()!));
+    }
+
     private static void AssertOrganizationDetail(
         JsonElement data,
         Guid id,

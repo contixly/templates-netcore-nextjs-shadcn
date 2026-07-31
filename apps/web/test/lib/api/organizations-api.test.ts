@@ -390,6 +390,29 @@ it("preserves only the safe domain-acknowledgement extensions for member confirm
   expect(JSON.stringify(result)).not.toContain("unsafeExtension");
 });
 
+it("preserves an explicit null domain in safe member acknowledgement metadata", () => {
+  expect(
+    normalizeApiFailure(
+      {
+        code: "member_domain_acknowledgement_required",
+        traceId: "trace-null-domain",
+        email: "member@localhost",
+        emailDomain: null,
+        allowedEmailDomains: ["example.test"],
+      },
+      new Response(null, { status: 409 }),
+    ),
+  ).toEqual({
+    kind: "problem",
+    code: "member_domain_acknowledgement_required",
+    status: 409,
+    traceId: "trace-null-domain",
+    email: "member@localhost",
+    emailDomain: null,
+    allowedEmailDomains: ["example.test"],
+  });
+});
+
 it.each([
   {
     label: "status is not 409",

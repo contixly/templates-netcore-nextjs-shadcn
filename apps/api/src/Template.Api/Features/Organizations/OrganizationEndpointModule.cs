@@ -298,6 +298,14 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         IReadOnlyList<string>? domains = null;
         if (request.AllowedEmailDomains is not null)
         {
+            if (request.AllowedEmailDomains.Count >
+                OrganizationContractLimits.MaximumAllowedEmailDomains)
+            {
+                throw Validation(
+                    "allowedEmailDomains",
+                    "At most 100 allowed email domains may be supplied.");
+            }
+
             if (request.AllowedEmailDomains.Any(value => value is null))
             {
                 throw Validation(

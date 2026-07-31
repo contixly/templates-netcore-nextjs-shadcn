@@ -260,8 +260,11 @@ PATCH slugs trim and lowercase, then require
 `^[a-z0-9]+(?:-[a-z0-9]+)*$` and reject UUID-shaped normalized values. Generated
 slugs strip unsupported characters, collapse separators, use a 48-character
 base, fall back to `workspace`, prefix a UUID-shaped base with `workspace-`, and
-try `-2`, `-3`, etc. Global unique DB authority and five bounded attempts handle
-concurrent create collisions.
+preserve the readable `base`, `base-2`, …, `base-5` candidates. When all five
+already exist, create uses a collision-resistant lowercase 32-hex organization-ID
+suffix and truncates the base as needed to keep the complete slug at most 64
+characters. Existing candidates do not consume the separate five-attempt budget
+for global-unique-index races.
 
 ### Allowed domains
 
@@ -269,7 +272,9 @@ Each value trims, lowercases, removes at most one leading `@`, validates a DNS-
 like exact domain of at most 253 characters and de-duplicates. Empty collection
 disables the policy. Subdomains do not match unless listed explicitly.
 Changing policy never removes existing members; projections mark out-of-policy
-members.
+members. Organization PATCH accepts at most 100 raw `allowedEmailDomains` array
+items, inclusive, and checks that request-resource bound before normalization so
+duplicates cannot bypass it.
 
 ## 9. Roles and permissions
 
@@ -380,6 +385,9 @@ The domain-acknowledgement problem may include target email, normalized email
 domain and ordered allowed domains because the actor already holds member-create
 permission and supplied the exact target ID. The UI asks for explicit confirmation
 and repeats the POST with acknowledgement; the first request performs no write.
+`emailDomain` is explicitly nullable when the verified email suffix is not a
+DNS-like domain. That valid null keeps the acknowledgement flow available and
+the UI renders fixed localized unknown-domain copy.
 
 Logs record operation, outcome, actor user/session ID, organization/member opaque
 IDs and trace ID. They never include names, emails, domains, bodies, cookies,
@@ -516,6 +524,9 @@ data table and final shell remain iteration 9.
 - workspace PATCH sends only normalized fields that differ from the latest
   confirmed detail response; an unchanged form is a disabled no-op, and every
   successful response replaces the comparison baseline;
+- a mounted form takes update permission from the latest incoming RSC projection,
+  so demotion revokes controls and submit immediately while local dirty values
+  and the latest mutation-confirmed field baseline remain intact;
 - canonical URL is replaced after slug change;
 - danger control requires owner/delete capability and another accessible org;
 - users page separates the current actor, pages other members, exposes direct
@@ -597,8 +608,10 @@ from the refreshed first page remain in force. Current-actor domain eligibility
 mirrors the domain policy's exact email/domain syntax but serializes only the
 resulting outside-policy boolean. A direct-add domain override is offered only
 for exact HTTP 409
-`member_domain_acknowledgement_required` responses carrying nonempty email,
-email domain, and allowed-domain list metadata.
+`member_domain_acknowledgement_required` responses carrying nonempty email, an
+explicit nullable email-domain field, and a nonempty allowed-domain list.
+Explicit null renders localized unknown-domain copy; omitted, blank, or
+wrong-typed metadata fails closed.
 
 ## 16. Test-first implementation order
 
@@ -634,6 +647,7 @@ Focused tests are run red before production code and green after each slice.
 - tenant-qualified reads;
 - cascade and `SET NULL` behavior;
 - slug collision, duplicate member and role/delete races;
+- sixth-and-later shared generated-slug collisions, including non-ASCII names;
 - account/local cleanup transaction and count.
 
 ### API
@@ -643,6 +657,8 @@ Focused tests are run red before production code and green after each slice.
 - missing/foreign indistinguishability;
 - permission matrix and stable problem codes;
 - cursor range/corruption;
+- raw 100-item allowed-domain acceptance, 101-item rejection, and OpenAPI
+  `maxItems`;
 - OpenAPI security, headers, enums, bounds and strict schemas.
 
 ### Web/Jest

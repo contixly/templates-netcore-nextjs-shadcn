@@ -57,6 +57,46 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task Create_uses_collision_resistant_slug_after_readable_candidates()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "generated-slug-fallback@local-agent.test");
+        var names = new[] { "ЖЮ", "КЛ", "МН", "ПР", "СТ", "УФ" };
+        var details = new List<OrganizationDetail>();
+
+        foreach (var name in names)
+        {
+            var result = await fixture.Store.CreateAsync(
+                new CreateOrganizationCommand(
+                    actor.UserId,
+                    actor.SessionId,
+                    name),
+                TestContext.Current.CancellationToken);
+
+            Assert.True(result.Succeeded);
+            details.Add(Assert.IsType<OrganizationDetail>(result.Value));
+        }
+
+        Assert.Equal(
+            ["workspace", "workspace-2", "workspace-3", "workspace-4", "workspace-5"],
+            details.Take(5).Select(detail => detail.Slug.Value));
+        Assert.Equal(
+            $"workspace-{details[5].Id.Value:N}",
+            details[5].Slug.Value);
+        Assert.Equal(
+            details.Count,
+            details.Select(detail => detail.Slug.Value).Distinct().Count());
+        Assert.All(details, detail =>
+        {
+            Assert.True(
+                OrganizationSlug.TryCreate(detail.Slug.Value, out var canonical));
+            Assert.Equal(detail.Slug, canonical);
+            Assert.InRange(detail.Slug.Value.Length, 1, 64);
+        });
+    }
+
+    [Fact]
     public async Task Create_rolls_back_organization_when_session_is_not_current()
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);

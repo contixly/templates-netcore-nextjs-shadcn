@@ -34,7 +34,10 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
-import type { OrganizationMemberResponse } from "@/src/lib/api/generated/types.gen";
+import type {
+  OrganizationMemberResponse,
+  ProblemDetails,
+} from "@/src/lib/api/generated/types.gen";
 import { addBrowserOrganizationMember } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { ApiFailure } from "@/src/lib/api/result";
 
@@ -47,7 +50,7 @@ type DomainAcknowledgement = Readonly<{
   userId: string;
   role: OrganizationRole;
   email: string;
-  emailDomain: string;
+  emailDomain: Exclude<ProblemDetails["emailDomain"], undefined>;
   allowedEmailDomains: string[];
 }>;
 
@@ -148,7 +151,9 @@ export function OrganizationAddMemberDialog({
         result.failure.code === "member_domain_acknowledgement_required" &&
         result.failure.status === 409 &&
         result.failure.email?.trim() &&
-        result.failure.emailDomain?.trim() &&
+        result.failure.emailDomain !== undefined &&
+        (result.failure.emailDomain === null ||
+          result.failure.emailDomain.trim()) &&
         result.failure.allowedEmailDomains &&
         result.failure.allowedEmailDomains.length > 0 &&
         result.failure.allowedEmailDomains.every((domain) => domain.trim())
@@ -339,7 +344,8 @@ export function OrganizationAddMemberDialog({
               <AlertDescription>
                 {t("domainWarningDescription", {
                   email: acknowledgement.email,
-                  domain: acknowledgement.emailDomain,
+                  domain:
+                    acknowledgement.emailDomain ?? t("unknownEmailDomain"),
                   domains: acknowledgement.allowedEmailDomains.join(", "),
                 })}
               </AlertDescription>

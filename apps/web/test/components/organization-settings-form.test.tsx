@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
 import { updateBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { OrganizationDetailResponse } from "@/src/lib/api/generated/types.gen";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
 
 const replace = jest.fn();
 const refresh = jest.fn();
@@ -64,6 +64,59 @@ it("renders member organization settings as read-only without a save action", ()
       "Only workspace administrators and owners can change these details.",
     ),
   ).toBeVisible();
+});
+
+it("revokes refreshed update permission without overwriting dirty settings", () => {
+  const view = renderWithMessages(
+    <OrganizationSettingsForm initialOrganization={ownerOrganization} />,
+  );
+  const form = screen.getByLabelText("Workspace Name").closest("form")!;
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "My unsaved name" },
+  });
+  fireEvent.change(screen.getByLabelText("Allowed Email Domains"), {
+    target: { value: "draft.example.com" },
+  });
+
+  view.rerender(
+    withMessages(
+      <OrganizationSettingsForm
+        initialOrganization={{
+          ...ownerOrganization,
+          name: "Server renamed",
+          slug: "server-renamed",
+          canonicalKey: "server-renamed",
+          allowedEmailDomains: ["server.example.com"],
+          capabilities: {
+            canUpdateOrganization: false,
+          },
+        }}
+      />,
+    ),
+  );
+
+  expect(screen.getByLabelText("Workspace Name")).toHaveValue(
+    "My unsaved name",
+  );
+  expect(screen.getByLabelText("Workspace Slug")).toHaveValue("acme");
+  expect(screen.getByLabelText("Allowed Email Domains")).toHaveValue(
+    "draft.example.com",
+  );
+  expect(screen.getByLabelText("Workspace Name")).toBeDisabled();
+  expect(screen.getByLabelText("Workspace Slug")).toBeDisabled();
+  expect(screen.getByLabelText("Allowed Email Domains")).toBeDisabled();
+  expect(
+    screen.getByText(
+      "Only workspace administrators and owners can change these details.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Save" }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.submit(form);
+  expect(updateOrganization).not.toHaveBeenCalled();
 });
 
 it("previews normalized domains, sends the generated update request, and replaces a changed canonical URL", async () => {

@@ -435,6 +435,17 @@ runtime organization name and has no outer whitespace. Empty, control,
 unsupported-symbol, and overlength positions return `400 invalid_cursor`
 before any PostgreSQL query.
 
+Generated create slugs preserve the readable `base`, `base-2`, …, `base-5`
+sequence. If all five are occupied, a truncated base plus the new public
+organization UUID in lowercase 32-hex form supplies a collision-resistant
+candidate within the 64-character slug limit. Pre-existing readable candidates
+do not consume the separate five retries reserved for global unique-index races.
+
+`UpdateOrganizationRequest.allowedEmailDomains` accepts at most 100 raw JSON
+array items, inclusive. The endpoint checks this before normalization and
+de-duplication, returns the stable `400 validation_failed` problem on
+`allowedEmailDomains` for 101 or more items, and publishes `maxItems: 100`.
+
 Missing and foreign organizations intentionally share `404
 organization_not_found`; foreign/missing members likewise do not disclose
 resources. Permission failures use `organization_permission_denied` or
@@ -446,6 +457,9 @@ resources. Permission failures use `organization_permission_denied` or
 `organization_ownership_transfer_required`, `invalid_cursor`, and
 `concurrency_conflict`. The domain-acknowledgement metadata is returned only to
 authorized add-member callers and the initial warning request performs no write.
+Its `emailDomain` property is explicitly nullable when a verified email suffix
+cannot be normalized as a DNS-like domain; null is valid acknowledgement
+metadata, whereas omission or malformed metadata is not.
 
 A single `TemplateDbContext` PostgreSQL transaction is the organization boundary:
 create serializes through the actor user, creates the organization/owner and

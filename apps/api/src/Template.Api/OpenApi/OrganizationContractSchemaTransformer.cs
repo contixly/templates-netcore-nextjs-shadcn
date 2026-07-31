@@ -187,11 +187,14 @@ internal sealed class OrganizationContractSchemaTransformer
         OpenApiSchema schema,
         string propertyName)
     {
-        if (GetPropertySchema(schema, propertyName)?.Items is not OpenApiSchema domain)
+        if (GetPropertySchema(schema, propertyName) is not { } domains ||
+            domains.Items is not OpenApiSchema domain)
         {
             return;
         }
 
+        domains.MaxItems =
+            OrganizationContractLimits.MaximumAllowedEmailDomains;
         domain.MaxLength = null;
         domain.Pattern = null;
         AddExtension(domain, "x-trimmed-max-length", 253);
