@@ -357,10 +357,10 @@ internal sealed class EfOrganizationStore(
                         await AcquireNameNamespaceLockAsync(
                             command.Name,
                             transactionCancellationToken);
-                        var nameExists = await AccessibleNameExistsAsync(
-                            command.ActorUserId.Value,
-                            command.Name,
+                        var nameExists =
+                            await AnyAffectedMemberAccessibleNameExistsAsync(
                             command.OrganizationId.Value,
+                            command.Name,
                             transactionCancellationToken);
                         if (nameExists)
                         {
@@ -729,9 +729,10 @@ internal sealed class EfOrganizationStore(
             return await unitOfWork.ExecuteAsync(
                 async transactionCancellationToken =>
                 {
-                    if (await LockOrganizationAsync(
+                    var organization = await LockOrganizationAsync(
                             command.OrganizationId.Value,
-                            transactionCancellationToken) is null)
+                            transactionCancellationToken);
+                    if (organization is null)
                     {
                         return OrganizationOperationResult<
                             OrganizationMember>.Failed(
@@ -773,6 +774,20 @@ internal sealed class EfOrganizationStore(
                             command.OrganizationId.Value,
                             command.TargetUserId.Value,
                             transactionCancellationToken) is not null)
+                    {
+                        return OrganizationOperationResult<
+                            OrganizationMember>.Failed(
+                            OrganizationFailure.MemberAlreadyExists);
+                    }
+
+                    await AcquireNameNamespaceLockAsync(
+                        organization.Name,
+                        transactionCancellationToken);
+                    if (await AccessibleNameExistsAsync(
+                            command.TargetUserId.Value,
+                            organization.Name,
+                            command.OrganizationId.Value,
+                            transactionCancellationToken))
                     {
                         return OrganizationOperationResult<
                             OrganizationMember>.Failed(
@@ -983,7 +998,7 @@ internal sealed class EfOrganizationStore(
             .SingleOrDefaultAsync(cancellationToken);
 
     private Task<bool> AccessibleNameExistsAsync(
-        Guid actorUserId,
+        Guid userId,
         string name,
         Guid? excludedOrganizationId,
         CancellationToken cancellationToken) =>
@@ -995,7 +1010,7 @@ internal sealed class EfOrganizationStore(
                         FROM organizations.organizations AS organization
                         INNER JOIN organizations.members AS membership
                             ON membership.organization_id = organization.id
-                        WHERE membership.user_id = {actorUserId}
+                        WHERE membership.user_id = {userId}
                           AND lower(organization.name) = lower({name})
                     ) AS "Value"
                     """)
@@ -1007,12 +1022,35 @@ internal sealed class EfOrganizationStore(
                         FROM organizations.organizations AS organization
                         INNER JOIN organizations.members AS membership
                             ON membership.organization_id = organization.id
-                        WHERE membership.user_id = {actorUserId}
+                        WHERE membership.user_id = {userId}
                           AND organization.id <> {excludedOrganizationId.Value}
                           AND lower(organization.name) = lower({name})
                     ) AS "Value"
                     """)
                 .SingleAsync(cancellationToken);
+
+    private Task<bool> AnyAffectedMemberAccessibleNameExistsAsync(
+        Guid organizationId,
+        string name,
+        CancellationToken cancellationToken) =>
+        db.Database.SqlQuery<bool>(
+                $"""
+                 SELECT EXISTS (
+                     SELECT 1
+                     FROM organizations.members AS affected_membership
+                     INNER JOIN organizations.members AS other_membership
+                         ON other_membership.user_id =
+                            affected_membership.user_id
+                     INNER JOIN organizations.organizations AS other_organization
+                         ON other_organization.id =
+                            other_membership.organization_id
+                     WHERE affected_membership.organization_id =
+                               {organizationId}
+                       AND other_organization.id <> {organizationId}
+                       AND lower(other_organization.name) = lower({name})
+                 ) AS "Value"
+                 """)
+            .SingleAsync(cancellationToken);
 
     private async Task AcquireNameNamespaceLockAsync(
         string name,

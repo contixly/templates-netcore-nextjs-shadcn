@@ -460,6 +460,12 @@ authorized add-member callers and the initial warning request performs no write.
 Its `emailDomain` property is explicitly nullable when a verified email suffix
 cannot be normalized as a DNS-like domain; null is valid acknowledgement
 metadata, whereas omission or malformed metadata is not.
+An add-member request that would give its target access to another organization
+with the same PostgreSQL-lowered name also returns the existing
+`member_already_exists` problem, with no acknowledgement or conflicting
+organization/name metadata. This intentionally coalesces exact membership and
+target accessible-name conflicts so the caller cannot infer the target's
+unrelated organization graph.
 
 A single `TemplateDbContext` PostgreSQL transaction is the organization boundary:
 create serializes through the actor user, creates the organization/owner and
@@ -471,19 +477,23 @@ accessible set, requires another accessible organization, and relies on the FK
 state. Unique indexes are authoritative for slug/member races and classified
 results are retried only where the persistence operation specifies it.
 
-Create and name-changing update also serialize the candidate normalized-name
-decision with a transaction-scoped two-key PostgreSQL advisory lock before the
-actor-accessible conflict query. The reserved first key namespaces organization
-name decisions; the second uses `hashtext(lower(candidateName))`, exactly
-matching the database normalization used by the equality query. Every path
-takes at most one name lock after its authorization row locks, so the lock order
-is stable and the lock is released by transaction commit/rollback, including
-cancellation. Hash collisions may conservatively serialize different names but
-cannot create a false conflict because the exact actor-scoped query remains
-authoritative. Consequently two actors whose accessible sets are disjoint may
-still own the same case-insensitive name, while different actors who share the
-affected organizations cannot concurrently commit two claims that sequential
-execution would reject.
+Create, name-changing update, and add-member serialize the candidate normalized
+name decision with a transaction-scoped two-key PostgreSQL advisory lock before
+the exact conflict query. The reserved first key namespaces organization name
+decisions; the second uses `hashtext(lower(candidateName))`, exactly matching
+the database normalization used by the equality queries. Create checks the
+actor's accessible names; update checks every current member against other
+organizations while excluding the renamed organization; add-member checks the
+target against other organizations while excluding the receiving organization.
+Add-member locks the target user before the name advisory key, preserving the
+user-then-name order shared with target create and preventing an inverse wait.
+Every path takes at most one name key and performs non-locking indexed conflict
+queries after it, so the lock is released by transaction commit/rollback,
+including cancellation. Hash collisions may conservatively serialize different
+names but cannot create a false conflict because the exact query remains
+authoritative. Consequently disjoint member graphs may still retain the same
+case-insensitive name, while no operation can commit two equivalent names into
+one user's accessible set.
 
 Set-active performs one membership-qualified update and does not take an
 exclusive organization `FOR UPDATE` lock, so concurrent selections and

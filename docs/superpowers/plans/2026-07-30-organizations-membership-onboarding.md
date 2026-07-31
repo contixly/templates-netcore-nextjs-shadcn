@@ -1818,7 +1818,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [x] **Step 5: Commit, push, and repeat review rounds**
+- [ ] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1831,7 +1831,7 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [x] **Step 6: Record the final clean review state**
+- [ ] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
@@ -1913,3 +1913,14 @@ passed/5 opt-in skipped, and clean immutable-reference guards.
 Steps 5 and 6 are complete for that implementation head. The following
 documentation-only closure commit deliberately claims neither its own future
 hash nor an automatic-review result; the controller will push and re-review it.
+
+Round 10 reopened Task 14 after automatic review of documentation head
+`afc7f755f646a3595fce7630c77b50881f40abf4` produced one actionable P2
+organization-invariant finding. Round 9 remains the observed clean state for
+its historical implementation head only. The repair strengthens the durable
+rule to a per-user accessible-name graph invariant, adds target-name admission
+checks and all-affected-member rename checks under the shared PostgreSQL
+advisory namespace, and preserves `member_already_exists` as the non-disclosing
+add outcome. Step 5 is controller-owned until this local fix is pushed and its
+thread resolved; Step 6 requires a new automatic-review result, so no round-10
+clean state is claimed here.

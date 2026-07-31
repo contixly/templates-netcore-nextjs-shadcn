@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Template.Api.Observability;
 using Template.Api.Tests.Infrastructure;
@@ -508,6 +509,105 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             "sensitive-organization-name-991",
             genericRendered,
             StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Equivalent_name_member_conflict_is_stable_non_disclosing_and_not_cached()
+    {
+        using var ownerClient = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            ownerClient,
+            "Invariant Owner",
+            "local-agent+invariant-owner@local-agent.test");
+        using var targetClient = factory.CreateApiClient();
+        var target = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            targetClient,
+            "Sensitive Invariant Target",
+            "local-agent+sensitive-invariant-target@local-agent.test");
+        using var exactTargetClient = factory.CreateApiClient();
+        var exactTarget =
+            await OrganizationEndpointTestSupport.CreateScenarioAsync(
+                exactTargetClient,
+                "Exact Duplicate Target",
+                "local-agent+exact-duplicate-target@local-agent.test");
+        using var targetOrganization =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                targetClient,
+                "Sensitive Equivalent Name");
+        Assert.Equal(HttpStatusCode.Created, targetOrganization.StatusCode);
+        using var receivingOrganization =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                ownerClient,
+                "sENSITIVE eQUIVALENT nAME");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(
+                receivingOrganization))
+            .GetProperty("id")
+            .GetGuid();
+
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+        using var collision =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/members",
+                new { userId = target.UserId, role = "member" });
+        using var accepted =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/members",
+                new { userId = exactTarget.UserId, role = "member" });
+        using var exactDuplicate =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/members",
+                new { userId = exactTarget.UserId, role = "member" });
+
+        Assert.Equal(HttpStatusCode.Created, accepted.StatusCode);
+        using var collisionProblem = JsonDocument.Parse(
+            await collision.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        using var duplicateProblem = JsonDocument.Parse(
+            await exactDuplicate.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        Assert.Equal(HttpStatusCode.Conflict, collision.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, exactDuplicate.StatusCode);
+        foreach (var property in new[] { "type", "title", "status", "detail", "code" })
+        {
+            Assert.Equal(
+                duplicateProblem.RootElement.GetProperty(property).GetRawText(),
+                collisionProblem.RootElement.GetProperty(property).GetRawText());
+        }
+
+        var collisionBody = collisionProblem.RootElement.GetRawText();
+        Assert.DoesNotContain(target.Email, collisionBody);
+        Assert.DoesNotContain(target.UserId.ToString(), collisionBody);
+        Assert.DoesNotContain("Sensitive Equivalent Name", collisionBody);
+        Assert.DoesNotContain("emailDomain", collisionBody);
+        Assert.DoesNotContain("allowedEmailDomains", collisionBody);
+        OrganizationEndpointTestSupport.AssertNoStore(
+            collision,
+            exactDuplicate);
+        Assert.Equal(
+            2,
+            await OrganizationEndpointTestSupport.CountMembersAsync(
+                factory.Services,
+                organizationId));
+
+        var renderedLogs = string.Join(
+            Environment.NewLine,
+            logs.Logs.Select(log =>
+                string.Join(
+                    " ",
+                    new[] { log.Message }.Concat(
+                        log.State.Values.Select(value =>
+                            value?.ToString() ?? string.Empty)))));
+        Assert.DoesNotContain(target.Email, renderedLogs);
+        Assert.DoesNotContain(target.UserId.ToString(), renderedLogs);
+        Assert.DoesNotContain("Sensitive Equivalent Name", renderedLogs);
     }
 
     private sealed record ForeignCase(

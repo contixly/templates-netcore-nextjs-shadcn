@@ -250,19 +250,26 @@ session preference. Only an explicit switch mutation updates active context.
 This intentionally tightens the reference regex, which admits control
 whitespace through `\s`.
 
-Duplicate names are rejected case-insensitively among organizations accessible
-to the actor, matching reference UX. This is an application rule, not a global
-DB invariant. Create and name-changing update take the same transaction-scoped,
-two-key PostgreSQL advisory lock before the actor-scoped conflict query. The
-first key is reserved for organization-name decisions; the second is
+Organization names obey a per-user accessible-name graph invariant: for every
+user, no two organizations in that user's committed accessible set may have
+equal PostgreSQL `lower(name)` values. This is not global name uniqueness;
+organizations with disjoint member sets may retain case-insensitively equal
+names. Create checks the actor because it adds only that actor, a name-changing
+update checks every current member affected by the rename, and add-member checks
+the target user's other organizations before adding the new edge.
+
+All three paths take the same transaction-scoped, two-key PostgreSQL advisory
+lock before their exact conflict query. The first key is reserved for
+organization-name decisions; the second is
 `hashtext(lower(candidateName))`, using the exact PostgreSQL normalization that
-the conflict query compares. This serializes concurrent claims of one normalized
-name even when different actors share the affected organizations. A hash
-collision can only serialize unrelated names: the exact query remains
-authoritative and therefore cannot reject globally duplicated names belonging
-to disjoint actors. Each operation takes at most one such advisory lock after
-its authorization row locks, always in the same order, and the lock follows
-transaction commit, rollback, timeout, and cancellation automatically.
+the queries compare. A hash collision can only serialize unrelated names: the
+exact query remains authoritative and therefore cannot reject globally
+duplicated names belonging to disjoint member graphs. Each operation takes at
+most one name lock after its authorization/user row locks, always in the same
+order, and the lock follows transaction commit, rollback, timeout, and
+cancellation automatically. This deliberately strengthens the immutable
+reference, whose create/update checks are actor-scoped and whose add-member path
+can admit indistinguishable switcher names.
 
 ### Slug
 
@@ -444,7 +451,10 @@ result without weakening any mutation lock.
 
 Lock organization and actor membership, re-evaluate permission, validate any
 name/slug conflict, replace allowed-domain rows and update the organization in
-one transaction. The global unique index is authoritative for slug races.
+one transaction. For a name change, acquire the proposed-name advisory key and
+reject when any current member can access another organization with an equal
+PostgreSQL-lowered name; the current organization is excluded so a case-only
+rename remains valid. The global unique index is authoritative for slug races.
 
 ### Delete
 
@@ -455,10 +465,15 @@ session FKs through `SET NULL`. Dashboard fallback remains deterministic.
 
 ### Add member
 
-Lock/recheck actor role and target state. Validate target existence, duplicate
-membership, assignable role and domain policy. The warning response writes
-nothing. An acknowledged request inserts exactly one membership; the unique key
-maps a race to `member_already_exists`.
+Lock/recheck actor role, then lock the target user and check target existence
+and exact current membership. Acquire the locked organization's current-name
+advisory key and reject when the target can access another organization with an
+equal PostgreSQL-lowered name. This target-name conflict reuses
+`member_already_exists`, carries no acknowledgement metadata, and is checked
+before domain policy to avoid disclosing the target's unrelated organization
+graph. The warning response writes nothing. An acknowledged request inserts
+exactly one membership; the unique key maps a race to
+`member_already_exists`.
 
 ### Change role
 
@@ -667,8 +682,12 @@ Focused tests are run red before production code and green after each slice.
 - tenant-qualified reads;
 - cascade and `SET NULL` behavior;
 - slug collision, duplicate member and role/delete races;
-- same-name create/update races, including different actors who share both
-  affected organizations, while disjoint actors may retain duplicate names;
+- per-user accessible-name graph checks for sequential add, other-admin rename,
+  case-only self-exclusion, and domain-warning precedence;
+- same-name create/update/add races, including add/add and other-admin
+  rename/add interleavings plus target create/add user-before-name lock order
+  and post-wait visibility, while disjoint member graphs may retain duplicate
+  names;
 - sixth-and-later shared generated-slug collisions, including non-ASCII names;
 - account/local cleanup transaction and count.
 

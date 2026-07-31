@@ -839,6 +839,121 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task Add_member_rejects_an_equivalent_accessible_name_before_domain_acknowledgement()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "name-graph-owner@allowed.example");
+        var target = await fixture.CreateUserAndSessionAsync(
+            "name-graph-target@outside.example");
+        var receivingOrganization = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Acme",
+            "name-graph-receiving",
+            OrganizationRole.Owner);
+        await fixture.SeedAllowedDomainsAsync(
+            receivingOrganization,
+            "allowed.example");
+        await fixture.SeedOrganizationForAsync(
+            target,
+            "aCME",
+            "name-graph-existing",
+            OrganizationRole.Owner);
+
+        var result = await fixture.Store.AddMemberAsync(
+            new AddOrganizationMemberCommand(
+                owner.UserId,
+                receivingOrganization,
+                target.UserId,
+                OrganizationRole.Member,
+                AcknowledgeDomainRestriction: false),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OrganizationFailure.MemberAlreadyExists, result.Failure);
+        Assert.Null(result.Acknowledgement);
+        Assert.Equal(
+            0,
+            await fixture.CountMembershipsAsync(
+                receivingOrganization,
+                target.UserId));
+    }
+
+    [Fact]
+    public async Task Rename_rejects_an_equivalent_name_accessible_to_another_current_member()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var administrator = await fixture.CreateUserAndSessionAsync(
+            "affected-name-admin@local-agent.test");
+        var affectedMember = await fixture.CreateUserAndSessionAsync(
+            "affected-name-member@local-agent.test");
+        var renamedOrganization = await fixture.SeedOrganizationForAsync(
+            administrator,
+            "Beta",
+            "affected-name-beta",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            renamedOrganization,
+            affectedMember,
+            OrganizationRole.Member);
+        await fixture.SeedOrganizationForAsync(
+            affectedMember,
+            "Acme",
+            "affected-name-acme",
+            OrganizationRole.Owner);
+
+        var result = await fixture.Store.UpdateAsync(
+            new UpdateOrganizationCommand(
+                administrator.UserId,
+                renamedOrganization,
+                "aCME",
+                Slug: null,
+                AllowedEmailDomains: null),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(OrganizationFailure.NameConflict, result.Failure);
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            "Beta",
+            await db.Organizations
+                .Where(row => row.Id == renamedOrganization.Value)
+                .Select(row => row.Name)
+                .SingleAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Rename_allows_a_case_only_change_when_no_member_has_another_equivalent_name()
+    {
+        await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "case-only-owner@local-agent.test");
+        var member = await fixture.CreateUserAndSessionAsync(
+            "case-only-member@local-agent.test");
+        var organizationId = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Acme",
+            "case-only-acme",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            organizationId,
+            member,
+            OrganizationRole.Member);
+
+        var result = await fixture.Store.UpdateAsync(
+            new UpdateOrganizationCommand(
+                owner.UserId,
+                organizationId,
+                "aCME",
+                Slug: null,
+                AllowedEmailDomains: null),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(
+            "aCME",
+            Assert.IsType<OrganizationDetail>(result.Value).Name);
+    }
+
+    [Fact]
     public async Task Membership_writes_apply_authorization_before_target_disclosure_and_forbid_self_edits()
     {
         await using var fixture = await OrganizationStoreFixture.CreateAsync(postgres);
@@ -1035,6 +1150,9 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
 
 internal sealed class OrganizationStoreFixture : IAsyncDisposable
 {
+    private static readonly TimeSpan ObservationTimeout =
+        TimeSpan.FromSeconds(10);
+
     internal static readonly DateTimeOffset Now =
         new(2026, 7, 30, 12, 0, 0, TimeSpan.Zero);
 
@@ -1136,6 +1254,113 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         _services
             .GetRequiredService<OrganizationNameConflictBarrier>()
             .CoordinateNextPair();
+
+    internal void PauseNextNameCheck() =>
+        _services
+            .GetRequiredService<OrganizationNameConflictBarrier>()
+            .PauseNext();
+
+    internal Task WaitForPausedNameCheckAsync() =>
+        _services
+            .GetRequiredService<OrganizationNameConflictBarrier>()
+            .WaitUntilPausedAsync();
+
+    internal Task WaitForPausedNameCheckAsync(Task holder) =>
+        WaitForSignalBeforeOperationCompletesAsync(
+            _services
+                .GetRequiredService<OrganizationNameConflictBarrier>()
+                .WaitUntilPausedAsync(),
+            holder,
+            "The name-decision holder completed before its query was paused.");
+
+    internal void ReleasePausedNameCheck() =>
+        _services
+            .GetRequiredService<OrganizationNameConflictBarrier>()
+            .ReleasePaused();
+
+    internal void ObserveNextNameAdvisoryAttempt() =>
+        _services
+            .GetRequiredService<OrganizationNameConflictBarrier>()
+            .ObserveNextNameAdvisoryAttempt();
+
+    internal Task WaitForNameAdvisoryAttemptAsync(Task competingOperation) =>
+        WaitForSignalBeforeOperationCompletesAsync(
+            _services
+                .GetRequiredService<OrganizationNameConflictBarrier>()
+                .WaitForNameAdvisoryAttemptAsync(),
+            competingOperation,
+            "The competing add completed before attempting the observed name advisory lock.");
+
+    internal void ObserveNextUserLockAttempt() =>
+        _services
+            .GetRequiredService<OrganizationNameConflictBarrier>()
+            .ObserveNextUserLockAttempt();
+
+    internal Task WaitForUserLockAttemptAsync(Task competingOperation) =>
+        WaitForSignalBeforeOperationCompletesAsync(
+            _services
+                .GetRequiredService<OrganizationNameConflictBarrier>()
+                .WaitForUserLockAttemptAsync(),
+            competingOperation,
+            "The competing add completed before attempting the observed target-user lock.");
+
+    internal static async Task DrainOperationsAsync(params Task?[] operations)
+    {
+        var started = operations
+            .Where(operation => operation is not null)
+            .Cast<Task>()
+            .ToArray();
+        if (started.Length == 0)
+        {
+            return;
+        }
+
+        await Task.WhenAll(started)
+            .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+    }
+
+    private static async Task WaitForSignalBeforeOperationCompletesAsync(
+        Task signal,
+        Task operation,
+        string earlyCompletionMessage)
+    {
+        Task completed;
+        try
+        {
+            completed = await Task.WhenAny(signal, operation)
+                .WaitAsync(
+                    ObservationTimeout,
+                    TestContext.Current.CancellationToken);
+        }
+        catch (TimeoutException exception)
+        {
+            throw new TimeoutException(
+                $"The expected database command was not observed within {ObservationTimeout}.",
+                exception);
+        }
+
+        if (ReferenceEquals(completed, signal))
+        {
+            await signal.WaitAsync(TestContext.Current.CancellationToken);
+            return;
+        }
+
+        if (operation.IsFaulted)
+        {
+            throw new InvalidOperationException(
+                earlyCompletionMessage,
+                operation.Exception);
+        }
+
+        if (operation.IsCanceled)
+        {
+            throw new InvalidOperationException(
+                earlyCompletionMessage,
+                new TaskCanceledException(operation));
+        }
+
+        throw new InvalidOperationException(earlyCompletionMessage);
+    }
 
     internal void CoordinateConcurrentSlugSelections() =>
         _services
@@ -1498,6 +1723,23 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                 TestContext.Current.CancellationToken);
     }
 
+    internal async Task<OrganizationOperationResult<OrganizationDetail>>
+        CreateOrganizationWithCancellationAsync(
+            OrganizationActor actor,
+            string name,
+            CancellationTokenSource cancellation)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .CreateAsync(
+                new CreateOrganizationCommand(
+                    actor.UserId,
+                    actor.SessionId,
+                    name),
+                cancellation.Token);
+    }
+
     internal async Task<OrganizationOperationResult<
         OrganizationStorePage<
             OrganizationMember,
@@ -1545,6 +1787,26 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                     Slug: null,
                     AllowedEmailDomains: null),
                 TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<OrganizationOperationResult<OrganizationDetail>>
+        UpdateOrganizationWithCancellationAsync(
+            OrganizationActor actor,
+            OrganizationId organizationId,
+            string name,
+            CancellationTokenSource cancellation)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .UpdateAsync(
+                new UpdateOrganizationCommand(
+                    actor.UserId,
+                    organizationId,
+                    name,
+                    Slug: null,
+                    AllowedEmailDomains: null),
+                cancellation.Token);
     }
 
     internal async Task<OrganizationOperationResult<OrganizationDetail>>
@@ -1620,6 +1882,27 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
                 TestContext.Current.CancellationToken);
     }
 
+    internal async Task<OrganizationOperationResult<OrganizationMember>>
+        AddMemberWithCancellationAsync(
+            OrganizationActor actor,
+            OrganizationId organizationId,
+            OrganizationActor target,
+            OrganizationRole role,
+            CancellationTokenSource cancellation)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider
+            .GetRequiredService<IOrganizationStore>()
+            .AddMemberAsync(
+                new AddOrganizationMemberCommand(
+                    actor.UserId,
+                    organizationId,
+                    target.UserId,
+                    role,
+                    AcknowledgeDomainRestriction: true),
+                cancellation.Token);
+    }
+
     internal async Task<int> CountAccessibleOrganizationsAsync(
         OrganizationActor actor)
     {
@@ -1627,6 +1910,23 @@ internal sealed class OrganizationStoreFixture : IAsyncDisposable
         return await db.OrganizationMembers.CountAsync(
             row => row.UserId == actor.UserId.Value,
             TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<int> CountAccessibleOrganizationsByNameAsync(
+        OrganizationActor actor,
+        string name)
+    {
+        await using var db = CreateDbContext();
+        return await db.Database.SqlQuery<int>(
+                $"""
+                 SELECT count(*)::integer AS "Value"
+                 FROM organizations.organizations AS organization
+                 INNER JOIN organizations.members AS membership
+                     ON membership.organization_id = organization.id
+                 WHERE membership.user_id = {actor.UserId.Value}
+                   AND lower(organization.name) = lower({name})
+                 """)
+            .SingleAsync(TestContext.Current.CancellationToken);
     }
 
     internal async Task<string> LowerInPostgresAsync(string value)
@@ -1728,6 +2028,13 @@ internal sealed class OrganizationNameConflictBarrier : DbCommandInterceptor
     private int _enabled;
     private int _arrived;
     private TaskCompletionSource _release = NewSignal();
+    private int _pauseEnabled;
+    private TaskCompletionSource _paused = NewSignal();
+    private TaskCompletionSource _pauseRelease = NewSignal();
+    private int _observeNameAdvisory;
+    private TaskCompletionSource _nameAdvisoryAttempted = NewSignal();
+    private int _observeUserLock;
+    private TaskCompletionSource _userLockAttempted = NewSignal();
 
     internal void CoordinateNextPair()
     {
@@ -1736,14 +2043,84 @@ internal sealed class OrganizationNameConflictBarrier : DbCommandInterceptor
         Volatile.Write(ref _enabled, 1);
     }
 
+    internal void PauseNext()
+    {
+        _paused = NewSignal();
+        _pauseRelease = NewSignal();
+        Volatile.Write(ref _pauseEnabled, 1);
+    }
+
+    internal Task WaitUntilPausedAsync() => _paused.Task;
+
+    internal void ReleasePaused() => _pauseRelease.TrySetResult();
+
+    internal void ObserveNextNameAdvisoryAttempt()
+    {
+        _nameAdvisoryAttempted = NewSignal();
+        Volatile.Write(ref _observeNameAdvisory, 1);
+    }
+
+    internal Task WaitForNameAdvisoryAttemptAsync() =>
+        _nameAdvisoryAttempted.Task;
+
+    internal void ObserveNextUserLockAttempt()
+    {
+        _userLockAttempted = NewSignal();
+        Volatile.Write(ref _observeUserLock, 1);
+    }
+
+    internal Task WaitForUserLockAttemptAsync() => _userLockAttempted.Task;
+
+    public override ValueTask<InterceptionResult<DbDataReader>>
+        ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+    {
+        ObserveCommandAttempt(command);
+        return ValueTask.FromResult(result);
+    }
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        ObserveCommandAttempt(command);
+        return ValueTask.FromResult(result);
+    }
+
+    public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<object> result,
+        CancellationToken cancellationToken = default)
+    {
+        ObserveCommandAttempt(command);
+        return ValueTask.FromResult(result);
+    }
+
     public override async ValueTask<DbDataReader> ReaderExecutedAsync(
         DbCommand command,
         CommandExecutedEventData eventData,
         DbDataReader result,
         CancellationToken cancellationToken = default)
     {
-        if (Volatile.Read(ref _enabled) == 0 ||
-            !IsNameConflictQuery(command))
+        if (!IsNameConflictQuery(command))
+        {
+            return result;
+        }
+
+        if (Interlocked.Exchange(ref _pauseEnabled, 0) == 1)
+        {
+            _paused.TrySetResult();
+            await _pauseRelease.Task.WaitAsync(cancellationToken);
+            return result;
+        }
+
+        if (Volatile.Read(ref _enabled) == 0)
         {
             return result;
         }
@@ -1773,6 +2150,51 @@ internal sealed class OrganizationNameConflictBarrier : DbCommandInterceptor
         command.CommandText.Contains(
             "lower(",
             StringComparison.OrdinalIgnoreCase);
+
+    private void ObserveCommandAttempt(DbCommand command)
+    {
+        var isNameAdvisory = command.CommandText.Contains(
+                "pg_advisory_xact_lock",
+                StringComparison.OrdinalIgnoreCase);
+        if (Volatile.Read(ref _observeNameAdvisory) == 1 &&
+            isNameAdvisory &&
+            Interlocked.Exchange(ref _observeNameAdvisory, 0) == 1)
+        {
+            _nameAdvisoryAttempted.TrySetResult();
+        }
+        else if (Volatile.Read(ref _observeNameAdvisory) == 1 &&
+                 IsNameConflictQuery(command) &&
+                 Interlocked.Exchange(ref _observeNameAdvisory, 0) == 1)
+        {
+            _nameAdvisoryAttempted.TrySetException(
+                new InvalidOperationException(
+                    "The exact name query executed before the observed advisory-lock attempt."));
+        }
+
+        if (Volatile.Read(ref _observeUserLock) == 1 &&
+            command.CommandText.Contains(
+                "FROM auth.users",
+                StringComparison.OrdinalIgnoreCase) &&
+            command.CommandText.Contains(
+                "FOR UPDATE",
+                StringComparison.OrdinalIgnoreCase) &&
+            Interlocked.Exchange(ref _observeUserLock, 0) == 1)
+        {
+            _userLockAttempted.TrySetResult();
+        }
+        else if (Volatile.Read(ref _observeUserLock) == 1 &&
+                 (isNameAdvisory ||
+                  IsNameConflictQuery(command) ||
+                  command.CommandText.Contains(
+                      "INSERT INTO organizations.members",
+                      StringComparison.OrdinalIgnoreCase)) &&
+                 Interlocked.Exchange(ref _observeUserLock, 0) == 1)
+        {
+            _userLockAttempted.TrySetException(
+                new InvalidOperationException(
+                    "The add path advanced past its target-user lock position before the observed user-lock attempt."));
+        }
+    }
 
     private static TaskCompletionSource NewSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);

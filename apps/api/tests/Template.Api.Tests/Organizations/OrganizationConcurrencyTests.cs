@@ -414,4 +414,194 @@ public sealed class OrganizationConcurrencyTests(
                 organizationId,
                 target.UserId));
     }
+
+    [Fact]
+    public async Task Concurrent_adds_preserve_one_equivalent_name_per_target()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var firstOwner = await fixture.CreateUserAndSessionAsync(
+            "name-edge-first-owner@local-agent.test");
+        var secondOwner = await fixture.CreateUserAndSessionAsync(
+            "name-edge-second-owner@local-agent.test");
+        var target = await fixture.CreateUserAndSessionAsync(
+            "name-edge-target@local-agent.test");
+        var first = await fixture.SeedOrganizationForAsync(
+            firstOwner,
+            "Acme",
+            "name-edge-first",
+            OrganizationRole.Owner);
+        var second = await fixture.SeedOrganizationForAsync(
+            secondOwner,
+            "aCME",
+            "name-edge-second",
+            OrganizationRole.Owner);
+
+        var attempts = await Task.WhenAll(
+            fixture.AddMemberAsync(
+                firstOwner,
+                first,
+                target,
+                OrganizationRole.Member),
+            fixture.AddMemberAsync(
+                secondOwner,
+                second,
+                target,
+                OrganizationRole.Member));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.MemberAlreadyExists));
+        Assert.Equal(
+            1,
+            await fixture.CountAccessibleOrganizationsByNameAsync(
+                target,
+                "ACME"));
+    }
+
+    [Fact]
+    public async Task Other_admin_rename_and_add_preserve_the_affected_member_name_graph()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var receivingOwner = await fixture.CreateUserAndSessionAsync(
+            "rename-add-receiving-owner@local-agent.test");
+        var renamingAdministrator = await fixture.CreateUserAndSessionAsync(
+            "rename-add-administrator@local-agent.test");
+        var affectedMember = await fixture.CreateUserAndSessionAsync(
+            "rename-add-member@local-agent.test");
+        var receiving = await fixture.SeedOrganizationForAsync(
+            receivingOwner,
+            "Acme",
+            "rename-add-receiving",
+            OrganizationRole.Owner);
+        var renamed = await fixture.SeedOrganizationForAsync(
+            renamingAdministrator,
+            "Beta",
+            "rename-add-target",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            renamed,
+            affectedMember,
+            OrganizationRole.Member);
+        using var operationCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                TestContext.Current.CancellationToken);
+        fixture.PauseNextNameCheck();
+        var rename = fixture.UpdateOrganizationWithCancellationAsync(
+            renamingAdministrator,
+            renamed,
+            "aCME",
+            operationCancellation);
+        Task<OrganizationOperationResult<OrganizationMember>>? add = null;
+        var observedAttempt = false;
+        try
+        {
+            await fixture.WaitForPausedNameCheckAsync(rename);
+            fixture.ObserveNextNameAdvisoryAttempt();
+            add = fixture.AddMemberWithCancellationAsync(
+                receivingOwner,
+                receiving,
+                affectedMember,
+                OrganizationRole.Member,
+                operationCancellation);
+            await fixture.WaitForNameAdvisoryAttemptAsync(add);
+            observedAttempt = true;
+        }
+        finally
+        {
+            fixture.ReleasePausedNameCheck();
+            if (!observedAttempt)
+            {
+                operationCancellation.Cancel();
+            }
+
+            await OrganizationStoreFixture.DrainOperationsAsync(rename, add);
+        }
+
+        var renameResult = await rename;
+        var addResult = await add!;
+
+        Assert.Equal(
+            1,
+            new[] { renameResult.Succeeded, addResult.Succeeded }
+                .Count(succeeded => succeeded));
+        Assert.True(
+            renameResult.Failure == OrganizationFailure.NameConflict ||
+            addResult.Failure == OrganizationFailure.MemberAlreadyExists);
+        Assert.Equal(
+            1,
+            await fixture.CountAccessibleOrganizationsByNameAsync(
+                affectedMember,
+                "ACME"));
+    }
+
+    [Fact]
+    public async Task Target_create_and_add_preserve_user_before_name_lock_order_and_visibility()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var receivingOwner = await fixture.CreateUserAndSessionAsync(
+            "create-add-receiving-owner@local-agent.test");
+        var target = await fixture.CreateUserAndSessionAsync(
+            "create-add-target@local-agent.test");
+        var receiving = await fixture.SeedOrganizationForAsync(
+            receivingOwner,
+            "Acme",
+            "create-add-receiving",
+            OrganizationRole.Owner);
+        using var operationCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                TestContext.Current.CancellationToken);
+        fixture.PauseNextNameCheck();
+        var create = fixture.CreateOrganizationWithCancellationAsync(
+            target,
+            "aCME",
+            operationCancellation);
+        Task<OrganizationOperationResult<OrganizationMember>>? add = null;
+        var observedAttempt = false;
+        try
+        {
+            await fixture.WaitForPausedNameCheckAsync(create);
+            fixture.ObserveNextUserLockAttempt();
+            add = fixture.AddMemberWithCancellationAsync(
+                receivingOwner,
+                receiving,
+                target,
+                OrganizationRole.Member,
+                operationCancellation);
+            await fixture.WaitForUserLockAttemptAsync(add);
+            observedAttempt = true;
+        }
+        finally
+        {
+            fixture.ReleasePausedNameCheck();
+            if (!observedAttempt)
+            {
+                operationCancellation.Cancel();
+            }
+
+            await OrganizationStoreFixture.DrainOperationsAsync(create, add);
+        }
+
+        var createResult = await create;
+        var addResult = await add!;
+
+        Assert.True(createResult.Succeeded);
+        Assert.Equal(
+            OrganizationFailure.MemberAlreadyExists,
+            addResult.Failure);
+        Assert.Equal(
+            1,
+            await fixture.CountAccessibleOrganizationsByNameAsync(
+                target,
+                "ACME"));
+        Assert.Equal(
+            0,
+            await fixture.CountMembershipsAsync(
+                receiving,
+                target.UserId));
+    }
 }

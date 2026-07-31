@@ -2,7 +2,7 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 5 — organizations, membership и onboarding
-(функциональный scope реализован; automatic-review round 6 переоткрыт,
+(функциональный scope реализован; automatic-review round 10 переоткрыт,
 локальные исправления проверены, controller push/re-review ожидаются; ready PR
 #6 открыт и не смержен).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
@@ -192,7 +192,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(завершена; automatic-review round 9 clean; Ready PR #6 открыт и не смержен)**
+### Итерация 5 — Organizations, membership и onboarding **(реализация завершена; automatic-review round 10 локально исправлен, re-review ожидается; Ready PR #6 открыт и не смержен)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -1308,7 +1308,43 @@ This subsequent documentation-only closure commit contains no implementation
 change. The controller will push it and request another automatic review; this
 document intentionally does not predict that commit hash or review result.
 
-**Next product gate:** the iteration-5 review gate no longer blocks iteration 6.
+### PR #6 auto-review round 10 local fix verification 2026-07-31
+
+Automatic review of documentation head
+`afc7f755f646a3595fce7630c77b50881f40abf4` found one actionable P2:
+direct member admission could join a user to two organizations with equal
+PostgreSQL-lowered names, and an administrator who did not share the member's
+other organization could create the same state by renaming. Round 9 remains a
+clean historical observation for its reviewed implementation head; Task 14 is
+reopened until the controller pushes this fix, resolves the thread, and obtains
+a new clean automatic review.
+
+The durable rule is intentionally stronger than the immutable reference. Every
+user's committed accessible organization set now contains at most one
+`lower(name)` value, while disjoint member graphs may still use equal names.
+Create retains its actor check. Name-changing update takes the shared advisory
+key and checks every current member against other organizations, excluding the
+organization being renamed. Add-member preserves authorization, target
+existence, and exact-member precedence, then locks the organization's current
+name namespace and checks the target before domain policy. A target-name
+collision reuses non-disclosing `409 member_already_exists` with no
+acknowledgement or graph metadata.
+
+| Round-10 local gate                          | Observed result                                                                                                                                                                                     |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| focused RED                                  | Expected FAIL; sequential add returned domain acknowledgement, other-admin rename and both add/add and rename/add interleavings committed duplicate accessible names, and real API add returned 201 |
+| focused GREEN                                | PASS; 7/7 new store/concurrency/real-API regressions; deterministic concurrency class 15/15 repeated five times; full organization API/integration filter 96/96                                     |
+| .NET restore/build/test/format               | PASS; build 0 warnings/errors; Application 179/179, API 428/428, total 607/607; format clean                                                                                                        |
+| EF model and migration artifact              | PASS; no pending model changes; pure `--output` idempotent SQL artifact 22,767 bytes                                                                                                                |
+| NuGet and production npm vulnerability gates | PASS; no vulnerable direct/transitive NuGet packages in 7 projects; `npm audit --omit=dev` reports 0 production vulnerabilities                                                                     |
+| OpenAPI and generated SDK                    | PASS; deterministic unchanged SHA-256 `212ed49adaa1a95d42fd407c89a14c3e08dff58cda6324a50ce2a22f6aed8251`; generated SDK current; no new problem or schema                                           |
+| web static, Jest, build, and standalone      | PASS; boundaries 3/3, format/lint/typecheck clean; Jest 51/51 suites and 344/344 tests; Next.js generated 19/19; standalone exists                                                                  |
+| default 5-worker E2E                         | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed                                                                                                                                     |
+| development-only npm audit                   | KNOWN; `npm ci` reports the documented 26 high tooling-only advisories while the production audit remains clean                                                                                     |
+| immutable reference and repository guards    | PASS after evidence update; working-tree/range/status/untracked `template/` guards and `git diff --check` clean                                                                                     |
+
+**Next product gate:** the round-10 iteration-5 review gate temporarily blocks
+iteration 6 until the controller observes a new clean automatic review.
 Teams and invitations remain outside this change and may begin only as their own
 planned vertical slice covering invitation security/expiry, accept/reject
 lifecycle, team membership, notifications/email boundary, and E2E coverage.
