@@ -352,7 +352,24 @@ baseline, preventing stale administrators from overwriting unrelated fields. On
 a later RSC projection, update capability is taken immediately from the latest
 server prop so demotion disables every field, removes Save, and blocks forced
 submit without overwriting a local draft or its latest mutation-confirmed
-comparison baseline.
+comparison baseline. The server workspace-settings page keys this local form
+boundary by the resolved immutable organization id, never the mutable slug or
+pathname. Therefore a slug reused by another organization remounts all local
+baseline/input/feedback/pending state before that replacement can submit, while
+a fresh projection for the same id retains the mounted dirty/confirmed state and
+continues to reconcile capability from the latest prop. Each form owns separate
+attachment and visibility lifecycles. An insertion-effect cleanup marks the
+instance permanently detached during an actual keyed deletion, before
+replacement layout work; a completed mutation checks that marker immediately
+after transport and before any ref/state write or router side effect. Thus a
+late success from replaced A cannot navigate or refresh mounted B. React
+Activity preservation is different: hiding cleans layout effects and detaches
+host refs but retains state, refs, and the insertion-effect lifetime. A separate
+layout marker therefore records visibility. An attached hidden completion still
+clears its request lock and pending state and reconciles failure or the confirmed
+success baseline, but queues canonical replace/refresh without invoking either
+global router effect. Layout setup on reveal flushes that queue exactly once;
+ordinary visible and StrictMode-replayed forms keep normal completion behavior.
 
 Mutation responses are immediately authoritative. A successful write followed
 by a failed refresh remains a confirmed partial success: the UI keeps a

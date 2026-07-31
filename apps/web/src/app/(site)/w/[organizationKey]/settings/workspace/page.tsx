@@ -85,6 +85,7 @@ export default async function OrganizationWorkspaceSettingsPage({
         </CardHeader>
         <CardContent>
           <OrganizationSettingsForm
+            key={organization.data.id}
             initialOrganization={{
               id: organization.data.id,
               name: organization.data.name,

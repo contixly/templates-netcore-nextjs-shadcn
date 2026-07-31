@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  Activity,
+  StrictMode,
+  useInsertionEffect,
+  useLayoutEffect,
+} from "react";
 
 import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
 import { updateBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
@@ -19,6 +25,25 @@ jest.mock("@/src/lib/api/organizations/browser/organization-mutations", () => ({
 }));
 
 const updateOrganization = jest.mocked(updateBrowserOrganization);
+
+function ActivityHideSignal({ onHidden }: Readonly<{ onHidden: () => void }>) {
+  useLayoutEffect(() => () => onHidden(), [onHidden]);
+  return null;
+}
+
+function ActivityLifetimeSignals({
+  hostRef,
+  onInsertionCleanup,
+  onLayoutCleanup,
+}: Readonly<{
+  hostRef: (node: HTMLDivElement | null) => void;
+  onInsertionCleanup: () => void;
+  onLayoutCleanup: () => void;
+}>) {
+  useInsertionEffect(() => () => onInsertionCleanup(), [onInsertionCleanup]);
+  useLayoutEffect(() => () => onLayoutCleanup(), [onLayoutCleanup]);
+  return <div ref={hostRef}>activity lifetime</div>;
+}
 
 const ownerOrganization = {
   id: "01900000-0000-7000-8000-000000000010",
@@ -191,6 +216,212 @@ it("keeps confirmed returned settings when the canonical key is unchanged", asyn
   expect(screen.getByLabelText("Workspace Name")).toHaveValue("Confirmed Name");
   expect(replace).not.toHaveBeenCalled();
   expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+it("completes a mounted update after StrictMode replays its lifecycle", async () => {
+  updateOrganization.mockResolvedValue({
+    ok: true,
+    data: {
+      ...ownerOrganization,
+      name: "Strict Mode Saved",
+    },
+  });
+  renderWithMessages(
+    <StrictMode>
+      <OrganizationSettingsForm initialOrganization={ownerOrganization} />
+    </StrictMode>,
+  );
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Strict Mode Saved" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Workspace settings saved.",
+  );
+  expect(updateOrganization).toHaveBeenCalledTimes(1);
+  expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+it("characterizes Activity hide as layout/ref detachment without insertion cleanup", () => {
+  const hostRef = jest.fn<void, [HTMLDivElement | null]>();
+  const insertionCleanup = jest.fn();
+  const layoutCleanup = jest.fn();
+  const signals = (
+    <ActivityLifetimeSignals
+      hostRef={hostRef}
+      onInsertionCleanup={insertionCleanup}
+      onLayoutCleanup={layoutCleanup}
+    />
+  );
+  const view = renderWithMessages(
+    <Activity mode="visible">{signals}</Activity>,
+  );
+
+  expect(hostRef.mock.lastCall?.[0]).toBeInstanceOf(HTMLDivElement);
+  view.rerender(withMessages(<Activity mode="hidden">{signals}</Activity>));
+  expect(layoutCleanup).toHaveBeenCalledTimes(1);
+  expect(hostRef.mock.lastCall?.[0]).toBeNull();
+  expect(insertionCleanup).not.toHaveBeenCalled();
+
+  view.rerender(withMessages(<Activity mode="visible">{signals}</Activity>));
+  expect(hostRef.mock.lastCall?.[0]).toBeInstanceOf(HTMLDivElement);
+  expect(insertionCleanup).not.toHaveBeenCalled();
+
+  view.unmount();
+  expect(insertionCleanup).toHaveBeenCalledTimes(1);
+});
+
+it("settles a failed update while Activity-hidden and restores an unlocked form", async () => {
+  let resolveHiddenUpdate!: (
+    value: Awaited<ReturnType<typeof updateBrowserOrganization>>,
+  ) => void;
+  const hiddenUpdate = new Promise<
+    Awaited<ReturnType<typeof updateBrowserOrganization>>
+  >((resolve) => {
+    resolveHiddenUpdate = resolve;
+  });
+  updateOrganization.mockReturnValueOnce(hiddenUpdate).mockResolvedValueOnce({
+    ok: true,
+    data: {
+      ...ownerOrganization,
+      name: "Recovered after reveal",
+    },
+  });
+  const hidden = jest.fn();
+  const activityContent = (
+    <>
+      <OrganizationSettingsForm initialOrganization={ownerOrganization} />
+      <ActivityHideSignal onHidden={hidden} />
+    </>
+  );
+  const view = renderWithMessages(
+    <Activity mode="visible">{activityContent}</Activity>,
+  );
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Recovered after reveal" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("button", { name: "Saving" })).toBeDisabled();
+
+  view.rerender(
+    withMessages(<Activity mode="hidden">{activityContent}</Activity>),
+  );
+  expect(hidden).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    resolveHiddenUpdate({
+      ok: false,
+      failure: {
+        kind: "problem",
+        code: "concurrency_conflict",
+        status: 409,
+        traceId: "hidden-failure-trace",
+      },
+    });
+    await hiddenUpdate;
+  });
+  expect(replace).not.toHaveBeenCalled();
+  expect(refresh).not.toHaveBeenCalled();
+
+  view.rerender(
+    withMessages(<Activity mode="visible">{activityContent}</Activity>),
+  );
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "hidden-failure-trace",
+  );
+  expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Workspace settings saved.",
+  );
+  expect(updateOrganization).toHaveBeenNthCalledWith(
+    2,
+    { id: "browser-client" },
+    ownerOrganization.id,
+    { name: "Recovered after reveal" },
+  );
+  expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+it("reconciles an Activity-hidden success and flushes its router effects once on reveal", async () => {
+  const confirmedHiddenUpdate = {
+    ...ownerOrganization,
+    slug: "bar",
+    canonicalKey: "bar",
+  };
+  let resolveHiddenUpdate!: (
+    value: Awaited<ReturnType<typeof updateBrowserOrganization>>,
+  ) => void;
+  const hiddenUpdate = new Promise<
+    Awaited<ReturnType<typeof updateBrowserOrganization>>
+  >((resolve) => {
+    resolveHiddenUpdate = resolve;
+  });
+  updateOrganization.mockReturnValueOnce(hiddenUpdate).mockResolvedValueOnce({
+    ok: true,
+    data: {
+      ...confirmedHiddenUpdate,
+      name: "After reveal",
+    },
+  });
+  const hidden = jest.fn();
+  const form = (
+    <>
+      <OrganizationSettingsForm initialOrganization={ownerOrganization} />
+      <ActivityHideSignal onHidden={hidden} />
+    </>
+  );
+  const view = renderWithMessages(<Activity mode="visible">{form}</Activity>);
+
+  fireEvent.change(screen.getByLabelText("Workspace Slug"), {
+    target: { value: "bar" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("button", { name: "Saving" })).toBeDisabled();
+
+  view.rerender(withMessages(<Activity mode="hidden">{form}</Activity>));
+  expect(hidden).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    resolveHiddenUpdate({ ok: true, data: confirmedHiddenUpdate });
+    await hiddenUpdate;
+  });
+  expect(replace).not.toHaveBeenCalled();
+  expect(refresh).not.toHaveBeenCalled();
+
+  view.rerender(withMessages(<Activity mode="visible">{form}</Activity>));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Workspace settings saved.",
+  );
+  expect(screen.getByLabelText("Workspace Slug")).toHaveValue("bar");
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(replace).toHaveBeenCalledWith("/w/bar/settings/workspace");
+  expect(refresh).toHaveBeenCalledTimes(1);
+
+  view.rerender(withMessages(<Activity mode="hidden">{form}</Activity>));
+  view.rerender(withMessages(<Activity mode="visible">{form}</Activity>));
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(refresh).toHaveBeenCalledTimes(1);
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "After reveal" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenNthCalledWith(
+      2,
+      { id: "browser-client" },
+      ownerOrganization.id,
+      { name: "After reveal" },
+    );
+  });
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(refresh).toHaveBeenCalledTimes(2);
 });
 
 it("sends only changed domains from a stale two-admin baseline and refreshes the baseline from success", async () => {

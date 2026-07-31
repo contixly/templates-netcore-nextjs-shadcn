@@ -573,6 +573,21 @@ data table and final shell remain iteration 9.
 - a mounted form takes update permission from the latest incoming RSC projection,
   so demotion revokes controls and submit immediately while local dirty values
   and the latest mutation-confirmed field baseline remain intact;
+- the server/client settings-form boundary is keyed by the resolved immutable
+  organization id, not slug/pathname: an RSC projection for a different id
+  synchronously remounts local baseline, inputs, feedback and pending identity,
+  while a same-id projection preserves mounted dirty/confirmed state and applies
+  the latest capability;
+- each form instance owns separate attachment and visibility lifecycles. An
+  insertion-effect cleanup invalidates the attachment marker during actual
+  keyed deletion before replacement layout work, and every completed mutation
+  checks it immediately after transport, before ref/state writes or router
+  replace/refresh. React Activity hiding retains that lifetime while cleaning
+  layout effects and detaching host refs: an attached hidden completion clears
+  its lock/pending state and reconciles failure or the confirmed success
+  baseline, queues global router effects, and layout setup flushes the queue
+  exactly once on reveal. Visible and StrictMode-replayed instances keep normal
+  completion behavior;
 - canonical URL is replaced after slug change;
 - danger control requires owner/delete capability and another accessible org;
 - users page separates the current actor, pages other members, exposes direct

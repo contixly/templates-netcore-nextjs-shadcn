@@ -1,11 +1,19 @@
-import { render, screen, within } from "@testing-library/react";
 import {
-  Children,
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import {
   isValidElement,
   Suspense,
+  useLayoutEffect,
   type ReactElement,
   type ReactNode,
 } from "react";
+import { createRoot } from "react-dom/client";
 
 import SettingsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/page";
 import RolesSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/roles/page";
@@ -19,6 +27,7 @@ import RolesPage from "@/src/app/(site)/w/[organizationKey]/settings/roles/page"
 import UsersPage from "@/src/app/(site)/w/[organizationKey]/settings/users/page";
 import WorkspacePage from "@/src/app/(site)/w/[organizationKey]/settings/workspace/page";
 import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
+import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
 import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import type {
@@ -29,9 +38,12 @@ import type {
 import { loadOrganizationMembers } from "@/src/lib/api/organizations/server/load-organization-members";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
-import { renderWithMessages } from "@/test/support/render";
+import { updateBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
+import { renderWithMessages, withMessages } from "@/test/support/render";
 
 const pathname = jest.fn(() => "/w/acme/settings/workspace");
+const replace = jest.fn();
+const refresh = jest.fn();
 
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),
@@ -44,7 +56,7 @@ jest.mock("next/navigation", () => ({
     throw new Error(`NEXT_REDIRECT:${href}`);
   }),
   usePathname: () => pathname(),
-  useRouter: () => ({ replace: jest.fn(), refresh: jest.fn() }),
+  useRouter: () => ({ replace, refresh }),
 }));
 jest.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) => {
@@ -75,6 +87,12 @@ jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
 jest.mock("@/src/lib/api/organizations/server/load-organizations", () => ({
   loadOrganizations: jest.fn(),
 }));
+jest.mock("@/src/lib/api/browser/client", () => ({
+  createBrowserApiClient: () => ({ id: "browser-client" }),
+}));
+jest.mock("@/src/lib/api/organizations/browser/organization-mutations", () => ({
+  updateBrowserOrganization: jest.fn(),
+}));
 jest.mock(
   "@/src/lib/api/organizations/server/load-organization-members",
   () => ({
@@ -94,6 +112,7 @@ const loadSession = jest.mocked(loadServerAuthSession);
 const loadDetail = jest.mocked(loadOrganization);
 const loadList = jest.mocked(loadOrganizations);
 const loadMembers = jest.mocked(loadOrganizationMembers);
+const updateOrganization = jest.mocked(updateBrowserOrganization);
 const capabilities = {
   canUpdateOrganization: true,
   canDeleteOrganization: true,
@@ -136,15 +155,36 @@ function findElementByType(
   if (node.type === type) {
     return node;
   }
-  for (const child of Children.toArray(
-    (node.props as { children?: ReactNode }).children,
-  )) {
+  const children = (node.props as { children?: ReactNode }).children;
+  for (const child of Array.isArray(children) ? children : [children]) {
     const match = findElementByType(child, type);
     if (match) {
       return match;
     }
   }
   return null;
+}
+
+async function loadWorkspaceSettingsForm(
+  organization: OrganizationDetailResponse,
+): Promise<ReactElement> {
+  loadDetail.mockResolvedValueOnce({ ok: true, data: organization });
+  const workspace = await WorkspacePage({
+    params: Promise.resolve({ organizationKey: organization.canonicalKey }),
+  });
+  const settingsForm = findElementByType(workspace, OrganizationSettingsForm);
+  expect(settingsForm).not.toBeNull();
+  return settingsForm!;
+}
+
+function LayoutCommitHarness({
+  children,
+  onCommit,
+}: Readonly<{ children: ReactNode; onCommit?: () => void }>) {
+  useLayoutEffect(() => {
+    onCommit?.();
+  }, [onCommit]);
+  return children;
 }
 
 beforeEach(() => {
@@ -419,6 +459,366 @@ it("passes only id and name through the workspace delete client boundary", async
     canDelete: true,
     organization: { id: detail.id, name: "Acme" },
   });
+});
+
+it("keys the workspace settings client boundary by the resolved organization id", async () => {
+  const settingsForm = await loadWorkspaceSettingsForm(detail);
+
+  expect(settingsForm.key).toBe(detail.id);
+});
+
+it("remounts dirty workspace settings when the same slug resolves to a different organization while preserving same-id refresh state", async () => {
+  const replacementOrganization = {
+    ...detail,
+    id: "01900000-0000-7000-8000-000000000099",
+    name: "Replacement",
+    allowedEmailDomains: ["replacement.example.com"],
+    currentRole: "member",
+    capabilities: {
+      ...capabilities,
+      canUpdateOrganization: false,
+      canDeleteOrganization: false,
+      canAddMembers: false,
+      canUpdateMemberRoles: false,
+    },
+  } satisfies OrganizationDetailResponse;
+  const firstForm = await loadWorkspaceSettingsForm(detail);
+  const view = renderWithMessages(firstForm);
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Dirty Acme" },
+  });
+  fireEvent.change(screen.getByLabelText("Workspace Slug"), {
+    target: { value: "invalid slug" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Use 1–64 lowercase letters or numbers separated by single hyphens.",
+  );
+
+  const replacementForm = await loadWorkspaceSettingsForm(
+    replacementOrganization,
+  );
+  view.rerender(withMessages(replacementForm));
+
+  expect(screen.getByLabelText("Workspace Name")).toHaveValue("Replacement");
+  expect(screen.getByLabelText("Workspace Slug")).toHaveValue("acme");
+  expect(screen.getByLabelText("Allowed Email Domains")).toHaveValue(
+    "replacement.example.com",
+  );
+  expect(
+    screen.queryByText(
+      "Use 1–64 lowercase letters or numbers separated by single hyphens.",
+    ),
+  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Workspace Name")).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Save" }),
+  ).not.toBeInTheDocument();
+
+  const promotedReplacement = {
+    ...replacementOrganization,
+    name: "Replacement on server",
+    currentRole: "admin",
+    capabilities,
+  } satisfies OrganizationDetailResponse;
+  const promotedForm = await loadWorkspaceSettingsForm(promotedReplacement);
+  view.rerender(withMessages(promotedForm));
+
+  expect(screen.getByLabelText("Workspace Name")).toHaveValue("Replacement");
+  expect(screen.getByLabelText("Workspace Name")).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+
+  updateOrganization.mockResolvedValue({
+    ok: true,
+    data: {
+      ...promotedReplacement,
+      name: "Replacement saved",
+    },
+  });
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Replacement saved" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenCalledWith(
+      { id: "browser-client" },
+      replacementOrganization.id,
+      { name: "Replacement saved" },
+    );
+  });
+  expect(updateOrganization).not.toHaveBeenCalledWith(
+    expect.anything(),
+    detail.id,
+    expect.anything(),
+  );
+});
+
+it("drops an old pending form identity when the same slug resolves to another organization", async () => {
+  const replacementOrganization = {
+    ...detail,
+    id: "01900000-0000-7000-8000-000000000098",
+    name: "Replacement",
+    allowedEmailDomains: ["replacement.example.com"],
+  } satisfies OrganizationDetailResponse;
+  let resolveOldUpdate!: (
+    value: Awaited<ReturnType<typeof updateBrowserOrganization>>,
+  ) => void;
+  const oldUpdate = new Promise<
+    Awaited<ReturnType<typeof updateBrowserOrganization>>
+  >((resolve) => {
+    resolveOldUpdate = resolve;
+  });
+  updateOrganization.mockReturnValueOnce(oldUpdate).mockResolvedValueOnce({
+    ok: true,
+    data: {
+      ...replacementOrganization,
+      name: "Replacement saved",
+    },
+  });
+  const firstForm = await loadWorkspaceSettingsForm(detail);
+  const view = renderWithMessages(firstForm);
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Acme pending" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("button", { name: "Saving" })).toBeDisabled();
+  expect(updateOrganization).toHaveBeenNthCalledWith(
+    1,
+    { id: "browser-client" },
+    detail.id,
+    { name: "Acme pending" },
+  );
+
+  const replacementForm = await loadWorkspaceSettingsForm(
+    replacementOrganization,
+  );
+  view.rerender(withMessages(replacementForm));
+
+  expect(screen.getByLabelText("Workspace Name")).toHaveValue("Replacement");
+  expect(screen.getByLabelText("Workspace Name")).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+  expect(
+    screen.queryByRole("button", { name: "Saving" }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Replacement saved" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => {
+    expect(updateOrganization).toHaveBeenNthCalledWith(
+      2,
+      { id: "browser-client" },
+      replacementOrganization.id,
+      { name: "Replacement saved" },
+    );
+  });
+
+  await act(async () => {
+    resolveOldUpdate({
+      ok: false,
+      failure: {
+        kind: "problem",
+        code: "concurrency_conflict",
+        status: 409,
+        traceId: "old-acme-trace",
+      },
+    });
+    await oldUpdate;
+  });
+
+  expect(screen.getByLabelText("Workspace Name")).toHaveValue(
+    "Replacement saved",
+  );
+  expect(screen.queryByText("old-acme-trace")).not.toBeInTheDocument();
+});
+
+it("ignores a late successful update from the organization replaced at the same slug", async () => {
+  const replacementOrganization = {
+    ...detail,
+    id: "01900000-0000-7000-8000-000000000097",
+    name: "Replacement",
+    allowedEmailDomains: ["replacement.example.com"],
+  } satisfies OrganizationDetailResponse;
+  let resolveOldUpdate!: (
+    value: Awaited<ReturnType<typeof updateBrowserOrganization>>,
+  ) => void;
+  const oldUpdate = new Promise<
+    Awaited<ReturnType<typeof updateBrowserOrganization>>
+  >((resolve) => {
+    resolveOldUpdate = resolve;
+  });
+  updateOrganization.mockReturnValueOnce(oldUpdate).mockResolvedValueOnce({
+    ok: true,
+    data: {
+      ...replacementOrganization,
+      name: "Replacement saved",
+    },
+  });
+  const firstForm = await loadWorkspaceSettingsForm(detail);
+  const view = renderWithMessages(firstForm);
+
+  fireEvent.change(screen.getByLabelText("Workspace Slug"), {
+    target: { value: "bar" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  expect(await screen.findByRole("button", { name: "Saving" })).toBeDisabled();
+  expect(updateOrganization).toHaveBeenNthCalledWith(
+    1,
+    { id: "browser-client" },
+    detail.id,
+    { slug: "bar" },
+  );
+
+  const replacementForm = await loadWorkspaceSettingsForm(
+    replacementOrganization,
+  );
+  view.rerender(withMessages(replacementForm));
+  fireEvent.change(screen.getByLabelText("Workspace Name"), {
+    target: { value: "Replacement saved" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Workspace settings saved.",
+  );
+  expect(updateOrganization).toHaveBeenNthCalledWith(
+    2,
+    { id: "browser-client" },
+    replacementOrganization.id,
+    { name: "Replacement saved" },
+  );
+  expect(replace).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    resolveOldUpdate({
+      ok: true,
+      data: {
+        ...detail,
+        slug: "bar",
+        canonicalKey: "bar",
+      },
+    });
+    await oldUpdate;
+  });
+
+  expect(screen.getByLabelText("Workspace Name")).toHaveValue(
+    "Replacement saved",
+  );
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Workspace settings saved.",
+  );
+  expect(replace).not.toHaveBeenCalled();
+  expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+it("invalidates the old organization during the different-id commit before passive cleanup", async () => {
+  const replacementOrganization = {
+    ...detail,
+    id: "01900000-0000-7000-8000-000000000096",
+    name: "Replacement",
+    allowedEmailDomains: ["replacement.example.com"],
+  } satisfies OrganizationDetailResponse;
+  let resolveOldUpdate!: (
+    value: Awaited<ReturnType<typeof updateBrowserOrganization>>,
+  ) => void;
+  const oldUpdate = new Promise<
+    Awaited<ReturnType<typeof updateBrowserOrganization>>
+  >((resolve) => {
+    resolveOldUpdate = resolve;
+  });
+  updateOrganization.mockReturnValueOnce(oldUpdate).mockResolvedValueOnce({
+    ok: true,
+    data: {
+      ...replacementOrganization,
+      name: "Replacement saved",
+    },
+  });
+  const firstForm = await loadWorkspaceSettingsForm(detail);
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  const reactActEnvironment = globalThis as typeof globalThis & {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  };
+  const actEnvironment = reactActEnvironment.IS_REACT_ACT_ENVIRONMENT;
+
+  try {
+    await act(async () => {
+      root.render(
+        withMessages(<LayoutCommitHarness>{firstForm}</LayoutCommitHarness>),
+      );
+    });
+    fireEvent.change(screen.getByLabelText("Workspace Slug"), {
+      target: { value: "bar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(
+      await screen.findByRole("button", { name: "Saving" }),
+    ).toBeDisabled();
+
+    const replacementForm = await loadWorkspaceSettingsForm(
+      replacementOrganization,
+    );
+    let signalReplacementCommit!: () => void;
+    const replacementCommitted = new Promise<void>((resolve) => {
+      signalReplacementCommit = resolve;
+    });
+    reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
+    root.render(
+      withMessages(
+        <LayoutCommitHarness
+          onCommit={() => {
+            resolveOldUpdate({
+              ok: true,
+              data: {
+                ...detail,
+                slug: "bar",
+                canonicalKey: "bar",
+              },
+            });
+            signalReplacementCommit();
+          }}
+        >
+          {replacementForm}
+        </LayoutCommitHarness>,
+      ),
+    );
+    await replacementCommitted;
+    await Promise.resolve();
+    reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
+
+    expect(screen.getByLabelText("Workspace Name")).toHaveValue("Replacement");
+    expect(replace).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Workspace Name"), {
+      target: { value: "Replacement saved" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Workspace settings saved.",
+    );
+    expect(updateOrganization).toHaveBeenNthCalledWith(
+      2,
+      { id: "browser-client" },
+      replacementOrganization.id,
+      { name: "Replacement saved" },
+    );
+    expect(replace).not.toHaveBeenCalled();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  } finally {
+    reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = actEnvironment;
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  }
 });
 
 it("adds explicit workspace switcher slot pages for every settings destination", async () => {

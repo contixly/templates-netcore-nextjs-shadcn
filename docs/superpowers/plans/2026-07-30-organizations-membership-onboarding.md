@@ -1825,7 +1825,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [x] **Step 5: Commit, push, and repeat review rounds**
+- [ ] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1838,7 +1838,7 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [x] **Step 6: Record the final clean review state**
+- [ ] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
@@ -2013,3 +2013,28 @@ of scope. This documentation-only closure records observed implementation/review
 facts only: it claims neither its own future hash nor its own review result.
 After push, controller PR verification and re-review occur without another
 tracked edit.
+
+Round 15 reopened Task 14 after automatic review of documentation head
+`30c38088a25ff61547dd7db7fcf8f1bb56bd782e` identified an actionable,
+security-relevant client identity boundary. Because mutable slugs may be released
+and reused, a later RSC refresh of the same pathname can resolve a different
+organization id while React retains the mounted settings form's old local
+baseline and transport id. The strict test-first repair keys the server-rendered
+`OrganizationSettingsForm` element by the resolved immutable organization id.
+Different-id projections now remount dirty/feedback/pending state before a new
+transport can start; same-id projections keep dirty/confirmed state and continue
+to take capability from the latest prop. Independent local-review fix 1/5 also
+adds a per-instance post-transport lifecycle guard, and scoped fix 2/5 closes
+the commit-to-passive-cleanup interval for actual different-id replacement.
+Scoped fix 3/5 distinguishes that permanent deletion from Cache Components'
+React Activity preservation: an insertion-effect attachment lifetime remains
+active while hidden but is invalidated synchronously on keyed deletion; a
+separate layout visibility marker lets hidden completions settle locks and local
+success/failure state while queuing canonical replace/refresh for exactly-once
+reveal. The actual installed Activity regression also proves host refs detach
+and therefore cannot serve as the lifetime discriminator. Exact RED/GREEN and
+acceptance evidence is recorded in
+`docs/aspnetcore-migration-plan.md`. Step 5 remains controller-owned until the
+local round-15 commit is pushed and thread `PRRT_kwDOThDXX86VgCIZ` is resolved;
+Step 6 requires a fresh automatic review, so no round-15 clean state is claimed
+here.

@@ -2,7 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useRef, useState, type FormEvent } from "react";
+import {
+  useInsertionEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
@@ -135,6 +141,9 @@ export function OrganizationSettingsForm({
   const t = useTranslations("organizations.settings.form");
   const router = useRouter();
   const interactionReady = useInteractionReady();
+  const attached = useRef(true);
+  const visible = useRef(true);
+  const queuedRouterEffects = useRef<(() => void) | null>(null);
   const requestInFlight = useRef(false);
   const [organization, setOrganization] = useState(initialOrganization);
   const [name, setName] = useState(initialOrganization.name);
@@ -157,6 +166,23 @@ export function OrganizationSettingsForm({
     normalizedSlug,
     previewDomains,
   );
+
+  useInsertionEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    visible.current = true;
+    const routerEffects = queuedRouterEffects.current;
+    queuedRouterEffects.current = null;
+    routerEffects?.();
+    return () => {
+      visible.current = false;
+    };
+  }, []);
 
   function resetFeedback() {
     setValidation(null);
@@ -226,6 +252,9 @@ export function OrganizationSettingsForm({
       organization.id,
       updateRequest,
     );
+    if (!attached.current) {
+      return;
+    }
     requestInFlight.current = false;
     setPending(false);
 
@@ -241,12 +270,19 @@ export function OrganizationSettingsForm({
     setDomainsText(result.data.allowedEmailDomains.join("\n"));
     setSuccess(true);
 
-    if (result.data.canonicalKey !== previousCanonicalKey) {
-      router.replace(
-        organizationRoutes.settingsWorkspace(result.data.canonicalKey),
-      );
+    const completeRouterEffects = () => {
+      if (result.data.canonicalKey !== previousCanonicalKey) {
+        router.replace(
+          organizationRoutes.settingsWorkspace(result.data.canonicalKey),
+        );
+      }
+      router.refresh();
+    };
+    if (!visible.current) {
+      queuedRouterEffects.current = completeRouterEffects;
+      return;
     }
-    router.refresh();
+    completeRouterEffects();
   }
 
   const failureMessage =

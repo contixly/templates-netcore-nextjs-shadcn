@@ -2,10 +2,10 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 5 — organizations, membership и onboarding
-(наблюдаемый implementation head `a59cda75d5040e151f965094e4dcdcf2669b04f0`
-clean в automatic-review round 14; **27/27** review threads resolved, 0
-unresolved; PR #6 OPEN, ready (`isDraft=false`), MERGEABLE с
-`mergeStateStatus=CLEAN`, не смержен и не имеет configured checks).
+(round 14 остаётся историческим clean-наблюдением для implementation head
+`a59cda75d5040e151f965094e4dcdcf2669b04f0`; automatic-review round 15 открыл
+actionable wrong-resource UI finding, локальный fix ожидает controller push,
+thread resolution и свежий automatic review; Task 14 Steps 5–6 снова pending).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -193,7 +193,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(наблюдаемый implementation head `a59cda75d5040e151f965094e4dcdcf2669b04f0` clean в automatic-review round 14; 27/27 threads resolved; ready PR #6 открыт, mergeable и не смержен)**
+### Итерация 5 — Organizations, membership и onboarding **(round 14 historical clean; round 15 local fix pending push/re-review)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -284,15 +284,15 @@ callbacks проверены fake-provider integration tests; live успешн�
 
 ## 8. Журнал выполнения
 
-| Итерация                                           | Состояние | Примечание                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| -------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                                                                                                                                                                                                                                                                                  |
-| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                                                                                                                                                                                                                                                                            |
-| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                                                                                                            |
-| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                                                                                                                      |
-| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                                                                                                                       |
-| 5 — organizations, membership и onboarding         | Завершена | Наблюдаемый implementation head `a59cda75d5040e151f965094e4dcdcf2669b04f0` clean в automatic-review round 14 (27/27 threads resolved, 0 unresolved). PR #6 OPEN, ready (`isDraft=false`), MERGEABLE с `mergeStateStatus=CLEAN`, не смержен; `gh pr checks 6` не сообщает configured checks. Iteration 6 разблокирована, но Teams/Invitations — отдельный planned slice; API keys — iteration 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope. |
-| 6–12                                               | Не начаты | Iteration 6 больше не блокируется iteration 5, но Teams и invitations начинаются только как отдельный planned vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                                                                                                                      |
+| Итерация                                           | Состояние   | Примечание                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0 — bootstrap                                      | Завершена   | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                                                                                                                                                                                                                                  |
+| 1 — API foundation                                 | Завершена   | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                                                                                                                                                                                                                            |
+| 2 — чистый Next.js UI foundation                   | Завершена   | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                                                            |
+| 3 — persistence, Identity и базовая аутентификация | Завершена   | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                                                                      |
+| 4 — accounts и внешний OAuth                       | Завершена   | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                                                                       |
+| 5 — organizations, membership и onboarding         | На проверке | Round 14 остаётся историческим clean-наблюдением для `a59cda75d5040e151f965094e4dcdcf2669b04f0` (27/27 resolved на тот момент). Round 15 выявил actionable риск PATCH прежней organization после переиспользования slug; локальный immutable-ID boundary fix ожидает controller push, resolution thread `PRRT_kwDOThDXX86VgCIZ` и свежий review. Task 14 Steps 5–6 pending; iteration 6 не начинается внутри этого review fix. |
+| 6–12                                               | Не начаты   | Iteration 6 снова ожидает закрытия reopened Task 14 после round-15 push/re-review и затем должна начаться только как отдельный planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                           |
 
 ## Acceptance evidence: итерация 1
 
@@ -906,17 +906,15 @@ console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
 
 ## Acceptance evidence: итерация 5
 
-**Текущее наблюдаемое состояние:** functional scope и Task 14 Steps 5–6
-завершены для implementation head `a59cda75d5040e151f965094e4dcdcf2669b04f0`.
-Automatic review round 14 (issue comment `5146005055`, создан
-`2026-07-31T18:03:41Z`) не нашёл major issues; thread-aware snapshot фиксирует
-**27/27 resolved и 0 unresolved** review threads. Новый код и документация
-находятся вне `template/`; PR #6 OPEN, ready (`isDraft=false`), MERGEABLE с
-`mergeStateStatus=CLEAN`, не смержен, а `gh pr checks 6` не сообщает configured
-checks. Этот documentation-only closure фиксирует наблюдаемые
-implementation/review facts, но не заявляет hash или automatic-review result для
-самого closure commit: после controller push final PR verification выполняется
-без ещё одного tracked documentation edit.
+**Текущее наблюдаемое состояние:** round 14 остаётся историческим clean-state
+для implementation head `a59cda75d5040e151f965094e4dcdcf2669b04f0`:
+automatic review issue comment `5146005055` не нашёл major issues, а тогдашний
+snapshot фиксировал **27/27 resolved и 0 unresolved**. Automatic-review round 15
+открыл новый actionable thread `PRRT_kwDOThDXX86VgCIZ` (REST comment
+`3692506665`) о stale local organization identity при переиспользовании slug.
+Локальный web/docs fix выполнен, но Task 14 Steps 5–6 снова pending до
+controller push, thread resolution и свежего automatic-review результата. Эта
+запись не переносит historical round-14 clean claim на текущий локальный head.
 
 ### Reference → API → UI → test mapping
 
@@ -1582,6 +1580,101 @@ This documentation-only closure records observed implementation/review facts;
 it does not claim its own future hash or automatic-review result. After push,
 final controller PR verification and re-review must occur without another
 tracked edit.
+
+### PR #6 auto-review round 15 local fix verification 2026-07-31
+
+Automatic review of documentation head
+`30c38088a25ff61547dd7db7fcf8f1bb56bd782e` produced one actionable P2
+wrong-resource finding (REST comment `3692506665`, thread
+`PRRT_kwDOThDXX86VgCIZ`). A mutable slug can be released and reused: a later
+`router.refresh()` of the same workspace-settings pathname may therefore resolve
+organization B while React preserves organization A's mounted client state.
+Before this fix the form initializers retained A's baseline, inputs, feedback,
+pending lock and mutation id, while capability came directly from B's fresh
+prop. That mixed identity could allow a save rendered under B to PATCH A.
+
+The server workspace-settings page now keys the `OrganizationSettingsForm`
+boundary by the resolved immutable organization id. A different id synchronously
+remounts the complete local form before interaction; the same id keeps the
+current mounted dirty/confirmed state and continues to reconcile permission from
+the latest projection. The key is never derived from mutable slug or pathname.
+No API, OpenAPI, generated SDK, EF/database or .NET production behavior changed.
+
+Strict RED was observed before production code:
+
+```bash
+cd apps/web
+npm test -- --runInBand test/app/organization-settings-pages.test.tsx
+```
+
+Result: expected **FAIL**, 1/1 suite failed, **3 failed / 17 passed**. The server
+element key was `null`; a dirty/invalid A remained mounted when the same `acme`
+slug resolved to read-only B; and an in-flight A retained its pending controls
+instead of exposing B's clean baseline. After the one-line immutable-id key,
+the focused page/form command passed **2/2 suites, 37/37 tests**. The regressions
+also prove same-id permission refresh preserves B's local state, B's permission
+controls the rendered actions, the next generated PATCH uses only B's id, and a
+late A failure cannot overwrite B's remounted fields or feedback.
+
+Independent local-review fix 1/5 found that unmount made those React state
+updates inert but did not stop a late successful A handler from calling global
+`router.replace()`/`router.refresh()` after B mounted. A second strict RED used
+the same real server-page keyed boundary: A started a slug update, B replaced A
+at `acme` and completed its own name update, then A returned success at canonical
+key `bar`. The focused command failed as expected at **1 failed / 38 passed**
+because obsolete A navigated to `/w/bar/settings/workspace`. Each form instance
+now owns a mounted guard whose cleanup invalidates the old handler. Immediately
+after transport and before any ref/state/router work, an obsolete handler
+returns. Layout setup re-arms the guard for React StrictMode lifecycle replay.
+Focused GREEN is **2/2 suites, 39/39 tests**: B alone owns its refresh/navigation
+semantics, late A success/failure are inert, and normal mounted StrictMode
+success remains intact.
+
+Scoped re-review fix 2/5 found that the first guard used passive `useEffect`
+cleanup, leaving a commit-to-passive-flush interval in which B was mounted while
+A still appeared active. The timing regression deliberately avoids Testing
+Library's passive-draining rerender: a raw concurrent root renders the two real
+server-page form elements, and B's layout effect settles A after B commits but
+before passive cleanup. Strict RED was **1 failed / 39 passed** because A still
+replaced `/w/bar/settings/workspace`. Lifecycle invalidation now uses
+`useLayoutEffect`; A's cleanup runs synchronously within the different-id commit
+before B layout/potential settlement, while setup still re-arms StrictMode.
+Focused GREEN is **2/2 suites, 40/40 tests**, with no A state/replace/refresh in
+that timing window and normal B submit/refresh behavior afterward.
+
+Scoped re-review fix 3/5 found that Cache Components preserves hidden routes
+with React Activity, whose hide transition cleans layout effects without
+destroying component state or refs. Treating that cleanup as deletion stranded
+an in-flight form on `Saving` and discarded its response. Actual installed
+React characterization additionally proved that Activity detaches host refs,
+so a host-node attachment cannot distinguish hide from deletion. Strict RED was
+**2 failed / 1 passed** in the three-test Activity focus: hidden failure stayed
+locked with no alert, and hidden success invoked a router refresh instead of
+deferring global effects. The form now uses insertion-effect cleanup as its
+permanent attachment discriminator and a separate layout visibility marker.
+An actually deleted A still returns before any post-await write or router work;
+an attached hidden form clears its request lock/pending state and reconciles the
+failure or confirmed success baseline. A hidden success queues canonical
+replace/refresh, and reveal drains the queue exactly once. Focused GREEN is
+**2/2 suites, 43/43 tests**; the actual Activity hide/failure/retry and
+hide/success/reveal cycles, StrictMode, and the prior real A→B layout-timing
+isolation all pass.
+
+| Round-15 local gate                                           | Observed result                                                                                                |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| focused page/form GREEN                                       | PASS; initial 37/37; fix 1/5 39/39; fix 2/5 40/40; fix 3/5 **43/43**, 2/2 suites, 0 snapshots                  |
+| `npm run boundaries:check`                                    | PASS; boundary harness 3/3 and source scan clean                                                               |
+| `npm run api:check`                                           | PASS; generated REST SDK 4 files deterministic/current                                                         |
+| `npm run format:check` / `npm run lint` / `npm run typecheck` | PASS; Prettier, ESLint, Next typegen and TypeScript clean                                                      |
+| `npm run audit:prod`                                          | PASS; 0 production vulnerabilities                                                                             |
+| full Jest                                                     | PASS; 51/51 suites, **357/357 tests**, 0 snapshots                                                             |
+| clean production build and standalone                         | PASS; Next.js 16.2.11, 19/19 generation units, `.next/standalone/server.js` present                            |
+| .NET gates                                                    | Not rerun: this round has no tracked .NET/API/OpenAPI/EF change; controller retains mandatory final acceptance |
+| repository and immutable-reference guards                     | PASS; whitespace, generated/OpenAPI drift, working-tree/status/untracked/range `template/` guards clean        |
+
+Round 14 remains historical clean evidence only. Task 14 Steps 5–6 are reopened:
+the controller owns push, thread reply/resolution and the next automatic review.
+No clean round-15 review state is claimed locally.
 
 ## 9. Правило обновления этого документа
 
