@@ -192,7 +192,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(функциональный scope реализован; automatic-review round 8 переоткрыт; PR открыт и не смержен)**
+### Итерация 5 — Organizations, membership и onboarding **(завершена; automatic-review round 9 clean; Ready PR #6 открыт и не смержен)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -905,12 +905,14 @@ console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
 
 ## Acceptance evidence: итерация 5
 
-**Состояние:** функциональный scope итерации реализован, но Task 14
-automatic-review loop снова открыт после двух actionable P2 findings round 8.
-Новый код и документация находятся вне `template/`; Ready PR #6 остаётся
-открытым и не смержен. Чистое состояние round 4 является историческим и не
-распространяется на последующие implementation heads; новый clean-review result
-пока не заявляется.
+**Состояние:** функциональный scope итерации и Task 14 automatic-review loop
+завершены для implementation head
+`9508a0be5b0c546a592775bf553110f751821040`. Automatic review round 9 не
+нашёл новых замечаний, все предыдущие review threads resolved. Новый код и
+документация находятся вне `template/`; Ready PR #6 остаётся открытым и не
+смержен. Следующий documentation-only commit фиксирует эту наблюдаемую closure
+и будет отдельно отправлен controller-ом на automatic re-review; его будущий
+hash и результат здесь не заявляются.
 
 ### Reference → API → UI → test mapping
 
@@ -1281,12 +1283,37 @@ remains reopened and no round-8 clean state is claimed here.
 | default full 5-worker E2E                   | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                                                       |
 | repository and immutable-reference guards   | PASS; `git diff --check`, generated OpenAPI/SDK diff, working-tree and `origin/main...HEAD` `template/` diffs, status, and untracked-reference guards clean after this evidence update; no contract/schema/reference artifact changed |
 
-**Next product gate:** iteration 6 remains blocked until Task 14 receives a
-fresh clean automatic review with no unresolved actionable threads. After that,
-iteration 6 may start only as its own planned vertical slice for Teams and
-invitations: define invitation security/expiry, accept/reject lifecycle, team
-membership, notifications/email boundary, and E2E coverage. It must not add
-Teams/Invitations/API Keys/dashboard work under iteration 5.
+### PR #6 automatic-review round 9 clean closure 2026-07-31
+
+Repository automatic review completed for implementation head
+`9508a0be5b0c546a592775bf553110f751821040`. Codex issue comment
+`5139401641` at `2026-07-31T04:52:53Z` reported: “Codex Review: Didn't find any
+major issues. Already looking forward to the next diff.” All prior review
+threads are resolved. The controller also verified that PR #6 is open, ready
+rather than draft, mergeable, and has no configured PR checks to report as
+passing or failing.
+
+| Final implementation gate                        | Observed result                                                                                                                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| .NET restore/build/test/format                   | PASS; build 0 warnings/errors; Application 179/179, API 421/421, total 600/600; format clean                                    |
+| EF model and migration artifact                  | PASS; no pending model changes; pure `--output` idempotent SQL artifact 22,767 bytes                                            |
+| NuGet and production npm vulnerability gates     | PASS; no vulnerable direct/transitive NuGet packages in 7 projects; `npm audit --omit=dev` reports 0 production vulnerabilities |
+| OpenAPI and generated SDK                        | PASS; deterministic SHA-256 `212ed49adaa1a95d42fd407c89a14c3e08dff58cda6324a50ce2a22f6aed8251`; generated SDK current           |
+| web static, Jest, build, and standalone          | PASS; boundaries/format/lint/typecheck clean; Jest 51/51 suites and 344/344 tests; Next.js generated 19/19; standalone exists   |
+| default 5-worker E2E                             | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed                                                                 |
+| immutable reference                              | PASS; working-tree/range/status/untracked `template/` guards clean                                                              |
+| PR/review state for reviewed implementation head | PASS; round 9 clean; all threads resolved; PR open, ready, mergeable; no configured checks                                      |
+
+This subsequent documentation-only closure commit contains no implementation
+change. The controller will push it and request another automatic review; this
+document intentionally does not predict that commit hash or review result.
+
+**Next product gate:** the iteration-5 review gate no longer blocks iteration 6.
+Teams and invitations remain outside this change and may begin only as their own
+planned vertical slice covering invitation security/expiry, accept/reject
+lifecycle, team membership, notifications/email boundary, and E2E coverage.
+Teams/Invitations/API Keys/dashboard work must not be added retroactively under
+iteration 5.
 
 ## 9. Правило обновления этого документа
 

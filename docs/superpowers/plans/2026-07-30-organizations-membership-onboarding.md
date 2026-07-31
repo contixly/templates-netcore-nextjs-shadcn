@@ -1818,7 +1818,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [ ] **Step 5: Commit, push, and repeat review rounds**
+- [x] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1831,7 +1831,7 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [ ] **Step 6: Record the final clean review state**
+- [x] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
@@ -1897,3 +1897,19 @@ transaction-scoped PostgreSQL advisory namespace and added the client-side
 remains controller-owned until the round-8 fix is pushed and both threads are
 resolved; Step 6 still requires a fresh automatic review result and no round-8
 clean state is claimed here.
+
+Round 9 closed Task 14 for reviewed implementation head
+`9508a0be5b0c546a592775bf553110f751821040`. Codex issue comment
+`5139401641` at `2026-07-31T04:52:53Z` reported no major issues, all prior
+review threads are resolved, and the controller observed PR #6 open, ready,
+mergeable, and without configured PR checks. Exact final implementation
+evidence is recorded in `docs/aspnetcore-migration-plan.md`: .NET 600/600, no
+EF drift with a 22,767-byte pure `--output` idempotent script, clean NuGet and
+production npm vulnerability gates, deterministic OpenAPI SHA-256
+`212ed49adaa1a95d42fd407c89a14c3e08dff58cda6324a50ce2a22f6aed8251`,
+Jest 51/51 suites and 344/344 tests, Next.js 19/19 plus standalone, E2E 14
+passed/5 opt-in skipped, and clean immutable-reference guards.
+
+Steps 5 and 6 are complete for that implementation head. The following
+documentation-only closure commit deliberately claims neither its own future
+hash nor an automatic-review result; the controller will push and re-review it.
