@@ -412,6 +412,21 @@ Logs record operation, outcome, actor user/session ID, organization/member opaqu
 IDs and trace ID. They never include names, emails, domains, bodies, cookies,
 credentials or cursor values.
 
+After an organization endpoint resolves the authenticated actor, its HTTP
+boundary parsing and validation execute inside one API-level audit boundary.
+`ApiValidationException` is audited as `validation_failed`; the stable
+`invalid_request` raised by manual JSON reading is audited with that same code.
+The original exception is rethrown unchanged, so status, Problem Details,
+authorization/validation precedence, no-store behavior and CSRF semantics do
+not change. The boundary audit may project only non-empty canonical `D` UUIDs
+from organization/member route segments. Invalid route text and every request
+body/query value remain excluded, including names, slugs, emails, domains,
+target-user IDs, confirmation values and cursors. Application/Domain calls sit
+outside this boundary and retain their single `RequireSuccess` audit, preventing
+double audit for successful and business-failure outcomes. Authentication and
+antiforgery failures that happen before actor resolution are not represented as
+organization operation attempts.
+
 ## 13. Transactions and concurrency
 
 ### Create

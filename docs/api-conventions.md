@@ -305,6 +305,18 @@ logged. Bodies, query values, cookies, and credential headers are not logged.
 Health completion is `Debug`; normal API success is `Information`; 4xx is
 `Warning`; 5xx is `Error`.
 
+The framework request-start/finish category
+`Microsoft.AspNetCore.Hosting.Diagnostics` is disabled with `None` in both base
+and Development logging configuration, even when other ASP.NET Core Development
+diagnostics are raised to `Information`. Disabling the exact category prevents
+the Hosting logger from creating its external scope, whose `RequestPath` value
+contains the raw path and would otherwise be rendered because console scopes
+remain enabled. The integration capture provider mirrors this exact `None`
+rule alongside the broader production `Microsoft.AspNetCore` `Warning` floor,
+while retaining `Debug` events from application-owned categories. Application
+trace scopes therefore remain available without allowing a framework hosting
+scope to reintroduce raw route values into otherwise safe events.
+
 OAuth and account security audit events have a separate bounded contract:
 
 - OAuth records a closed operation, closed provider id, stable outcome,

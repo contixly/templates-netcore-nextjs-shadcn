@@ -100,6 +100,12 @@ public sealed class ApiWebApplicationFactory(
         {
             logging.SetMinimumLevel(LogLevel.Debug);
             logging.AddFilter<CapturedLogProvider>(level => level >= LogLevel.Debug);
+            logging.AddFilter<CapturedLogProvider>(
+                CapturedLogProvider.AspNetCoreCategory,
+                level => level >= LogLevel.Warning);
+            logging.AddFilter<CapturedLogProvider>(
+                CapturedLogProvider.RawRequestHostingCategory,
+                LogLevel.None);
         });
         builder.ConfigureTestServices(services =>
         {

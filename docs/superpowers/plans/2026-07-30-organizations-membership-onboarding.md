@@ -1825,7 +1825,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [x] **Step 5: Commit, push, and repeat review rounds**
+- [ ] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1838,7 +1838,7 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [x] **Step 6: Record the final clean review state**
+- [ ] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
@@ -1972,3 +1972,14 @@ Keys/product dashboard/proxy/deployment/Aspire remain later/out of scope. This
 documentation-only closure claims neither its own commit hash nor a review result
 for itself; after its controller push, final PR verification occurs without
 another tracked documentation edit.
+
+Round 13 reopened Task 14 after automatic review of documentation head
+`a6c65ade36f088fe781e58b0bcae81c0e0194704` identified an authenticated
+organization HTTP-boundary audit gap. The local test-first repair routes expected
+manual JSON and validation rejections through one central organization audit
+executor after actor resolution, logs only stable outcomes plus safe route UUIDs,
+rethrows unchanged, and leaves Application success/business failures on their
+existing exactly-once audit path. Exact RED/GREEN and acceptance evidence is in
+`docs/aspnetcore-migration-plan.md`. Step 5 remains controller-owned until this
+local commit is pushed and the round-13 thread is resolved; Step 6 requires a
+fresh automatic-review result, so no round-13 clean state is claimed here.

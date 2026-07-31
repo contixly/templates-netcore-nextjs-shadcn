@@ -2,9 +2,10 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 5 — organizations, membership и onboarding
-(завершена для наблюдаемого implementation head
-`deb208fc8393fef5cd9adb2fca961c15137ec338`: automatic-review round 12 чистый;
-ready PR #6 открыт, ready, mergeable и не смержен).
+(automatic-review round 12 остаётся исторически чистым для implementation head
+`deb208fc8393fef5cd9adb2fca961c15137ec338`; Task 14 переоткрыта для локального
+round-13 audit-boundary fix, ожидающего controller push и повторного review;
+ready PR #6 открыт и не смержен).
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -192,7 +193,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(завершена для наблюдаемого implementation head `deb208fc8393fef5cd9adb2fca961c15137ec338`; automatic-review round 12 чистый; ready PR #6 открыт и не смержен)**
+### Итерация 5 — Organizations, membership и onboarding **(round 12 исторически чистый для `deb208fc8393fef5cd9adb2fca961c15137ec338`; Task 14 переоткрыта для локального round-13 fix pending controller push/re-review; ready PR #6 открыт и не смержен)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -283,15 +284,15 @@ callbacks проверены fake-provider integration tests; live успешн�
 
 ## 8. Журнал выполнения
 
-| Итерация                                           | Состояние | Примечание                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                                                                                                                                                                                                             |
-| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                                                                                                                                                                                                       |
-| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                                       |
-| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                                                 |
-| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                                                  |
-| 5 — organizations, membership и onboarding         | Завершена | Наблюдаемый implementation head `deb208fc8393fef5cd9adb2fca961c15137ec338` принят: REST/OpenAPI/SDK, EF schema, persistent active context, role-aware workspace UI и deterministic multi-user acceptance; automatic-review round 12 чистый, 26/26 threads resolved; PR #6 открыт, ready, mergeable, не смержен. Teams/Invitations — iteration 6, API keys — iteration 7, product dashboard — iteration 9. |
-| 6–12                                               | Не начаты | Iteration 6 больше не блокируется iteration 5, но Teams и invitations начинаются только как отдельный planned vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                                                 |
+| Итерация                                           | Состояние   | Примечание                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 — bootstrap                                      | Завершена   | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                                                                                                                                                                                          |
+| 1 — API foundation                                 | Завершена   | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                                                                                                                                                                                    |
+| 2 — чистый Next.js UI foundation                   | Завершена   | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                    |
+| 3 — persistence, Identity и базовая аутентификация | Завершена   | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                              |
+| 4 — accounts и внешний OAuth                       | Завершена   | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                               |
+| 5 — organizations, membership и onboarding         | Переоткрыта | Наблюдаемый implementation head `deb208fc8393fef5cd9adb2fca961c15137ec338` остаётся исторически clean в automatic-review round 12 (26/26 threads resolved). Task 14 переоткрыта для локального round-13 audit-boundary fix; controller ещё должен push/re-review. PR #6 открыт и не смержен. Teams/Invitations — iteration 6, API keys — iteration 7, product dashboard — iteration 9. |
+| 6–12                                               | Не начаты   | Iteration 6 больше не блокируется iteration 5, но Teams и invitations начинаются только как отдельный planned vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                              |
 
 ## Acceptance evidence: итерация 1
 
@@ -905,9 +906,9 @@ console callbacks, HTTPS same-origin/proxy configuration, backup/restore drill
 
 ## Acceptance evidence: итерация 5
 
-**Состояние:** функциональный scope итерации и Task 14 automatic-review loop
-завершены для наблюдаемого implementation head
-`deb208fc8393fef5cd9adb2fca961c15137ec338`. Automatic review round 12
+**Состояние:** functional scope был принят для наблюдаемого implementation head
+`deb208fc8393fef5cd9adb2fca961c15137ec338`, но Task 14 переоткрыта локальным
+round-13 audit-boundary fix pending controller push/re-review. Automatic review round 12
 (комментарий `5145006747`) не нашёл major issues; thread-aware snapshot
 зафиксировал 26/26 resolved и 0 unresolved review threads. Новый код и
 документация находятся вне `template/`; PR #6 остаётся ready, OPEN, MERGEABLE,
@@ -1424,6 +1425,111 @@ Keys/product dashboard/proxy/deployment/Aspire remain later and out of scope.
 This documentation-only closure records the observed clean implementation
 state, not a hash or review result for itself. After the controller pushes it,
 final PR verification must occur without another tracked documentation edit.
+
+### PR #6 auto-review round 13 local fix verification 2026-07-31
+
+Automatic review of documentation head
+`a6c65ade36f088fe781e58b0bcae81c0e0194704` produced one actionable API audit
+finding (`PRRT_kwDOThDXX86VeaSr`, REST comment `3691882986`). Round 12 remains
+the historical clean observation for `deb208fc83`; Task 14 is reopened until the
+controller pushes this local fix, resolves the thread and obtains a fresh clean
+review.
+
+The finding was confirmed. Organization endpoints resolved the actor and then
+manually parsed route/query/body data, but `ApiValidationException` and
+`invalid_request` escaped directly to `ApiExceptionHandler` before either
+`RequireSuccess` or `OrganizationSecurityEvents.Write`. The generic rejection
+log contained only the stable code, not organization operation/outcome and actor
+user/session IDs required by the durable audit contract.
+
+A central organization HTTP-boundary executor now audits only the two expected
+pre-Application exception families and rethrows the same exception:
+`ApiValidationException` as `validation_failed`, and manual JSON
+`ApiProblemException` as its stable `invalid_request`. It receives only route
+segments, projects exact non-empty `D` UUIDs, and never records invalid raw route
+text or request/query/body values. Application invocation remains outside the
+executor, so `RequireSuccess` and the existing success event remain exactly-once.
+Authentication/antiforgery failures before actor resolution remain outside the
+organization audit boundary. Status/code, Problem Details, CSRF, no-store and
+validation/authorization precedence are unchanged; OpenAPI has no response
+contract change.
+
+| Round-13 local gate                                    | Observed result                                                                                                                                                          |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| strict focused RED                                     | Expected FAIL; 3 boundary matrix tests failed because no organization audit event existed, while the normal success/business-failure exactly-once baseline passed (1/4). |
+| exact regression GREEN                                 | PASS; malformed JSON, invalid fields, route/query/cursor safety and normal-path exactly-once tests 4/4.                                                                  |
+| focused organization API/security                      | PASS; 111/111.                                                                                                                                                           |
+| full .NET restore/build/test/format                    | PASS; restore current; build 0 warnings/errors; Application 174/174, API 436/436, total **610/610**; format clean.                                                       |
+| OpenAPI/generated client                               | PASS; two deterministic unchanged exports, SHA-256 `df1de15b2dd76006af6a57b5b01f0690634677e374e47248bd0f422b4d0b1064`; generated SDK 4 files current.                    |
+| durable-doc formatting and repository/reference guards | PASS; durable docs Prettier-clean; `git diff --check` and working-tree/status/untracked `template/` guards clean; OpenAPI/generated artifacts unchanged.                 |
+
+#### Round-13 local-review fix 1/5
+
+Independent local review found that the first log-safety GREEN run had narrowed
+rendered-log assertions after `Microsoft.AspNetCore.Hosting.Diagnostics`
+request-start output exposed the raw URL. That narrowing contradicted the
+absolute no-raw-path/query/cursor contract and was blocking.
+
+Complete-stream theories first reproduced each disclosure independently:
+invalid organization route text, a name-derived organization key, `limit=0`
+query text and an opaque cursor token all appeared in captured logs (**4/4
+failed as intended**). Configuration/provider-floor regressions also failed for
+both base and Development JSON plus the captured request-start event. Base and
+Development now explicitly keep
+`Microsoft.AspNetCore.Hosting.Diagnostics=Warning`. The captured provider keeps
+application-owned `Debug` observability but mirrors the production
+`Microsoft.AspNetCore=Warning` floor; this also suppresses debug route matching
+events that render raw route values. The same floor applies to the specialized
+Yandex captured-log factory.
+
+| Round-13 local-review gate                       | Observed result                                                                                                              |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| complete-stream raw-value RED                    | Expected FAIL; invalid route, name-derived key, limit query and cursor token all rendered, 4/4 failed.                       |
+| runtime/test logging-floor RED                   | Expected FAIL; base and Development exact category keys were absent and captured request-start remained visible, 5/5 failed. |
+| complete-stream/config GREEN                     | PASS; raw-value theories, restored full-stream audit safety, exact config and provider Debug-retention checks 9/9.           |
+| audit/observability/specialized-provider focused | PASS; `OrganizationSecurityTests`, `ObservabilityTests` and `YandexOpenIddictClientTests` 53/53.                             |
+| focused organization API/security                | PASS; 115/115.                                                                                                               |
+| full .NET restore/build/test/format              | PASS; restore current; build 0 warnings/errors; Application 174/174, API 443/443, total **617/617**; format clean.           |
+
+#### Round-13 local-review fix 2/5
+
+The next scoped review found that fix 1 filtered Hosting events but did not
+prevent the framework Hosting logger from creating its external request scope.
+Because both console formatters render scopes, `HostingLogScope.RequestPath`
+could place an invalid organization route or name-derived key beside an
+otherwise safe application event. The complete-stream renderer had also omitted
+scope and exception text, making the previous two path assertions false
+positives.
+
+The strict regression set expanded complete-stream rendering to category,
+message, structured state, every captured scope value and exception text. It
+then reproduced the two raw path disclosures through captured scopes, while the
+two configuration rows proved that the old exact category value was still
+`Warning`: **5/7 failed as intended**, with only the query/cursor rows passing
+because the Hosting scope carries the path rather than the query.
+
+Base and Development now set the exact
+`Microsoft.AspNetCore.Hosting.Diagnostics=None` rule. The main and specialized
+Yandex capture factories apply the same exact provider/category `None` rule
+after their broader `Microsoft.AspNetCore=Warning` rule. The Hosting logger is
+therefore disabled even for `Critical`, preventing its raw `RequestPath` scope
+from being created. Console scopes remain enabled, application-owned `TraceId`
+scope and Debug health completion remain captured, and unrelated ASP.NET Core
+Warning-or-higher events remain available.
+
+| Round-13 local-review fix 2 gate               | Observed result                                                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| scope-complete/config strict RED               | Expected FAIL; both raw path scope rows, both `Warning` configuration rows and hosting-scope regression failed; 5 failed, 2 passed. |
+| exact scope/config/observability GREEN         | PASS; all four complete-stream route/query cases, both `None` configuration rows and retained safe observability passed, 7/7.       |
+| audit/observability/specialized-provider focus | PASS; `OrganizationSecurityTests`, `ObservabilityTests` and `YandexOpenIddictClientTests` 53/53.                                    |
+| focused organization API/security              | PASS; 115/115.                                                                                                                      |
+| full .NET restore/build/test/format            | PASS; restore current; build 0 warnings/errors; Application 174/174, API 443/443, total **617/617**; format clean.                  |
+| OpenAPI/generated client                       | PASS; two deterministic unchanged exports, SHA-256 `df1de15b2dd76006af6a57b5b01f0690634677e374e47248bd0f422b4d0b1064`; SDK current. |
+| durable-doc and repository/reference guards    | PASS; Prettier and whitespace checks clean; OpenAPI/generated artifacts unchanged; immutable `template/` untouched.                 |
+
+Task 14 Steps 5 and 6 are pending. The controller owns push, round-13 thread
+reply/resolution and the next automatic review; this local commit claims no
+future clean state.
 
 ## 9. Правило обновления этого документа
 

@@ -1,15 +1,26 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Template.Api.Observability;
 using Template.Api.Tests.Infrastructure;
+using Template.Application.Organizations;
+using Template.Application.Organizations.Ports;
+using Template.Domain.Authentication;
+using Template.Domain.Organizations;
 
 namespace Template.Api.Tests.Organizations;
 
 public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
     : IClassFixture<ApiWebApplicationFactory>, IAsyncLifetime
 {
+    private const string OrganizationLogCategory =
+        "Template.Api.Features.Organizations.OrganizationEndpointModule";
+
     public async ValueTask InitializeAsync()
     {
         await factory.ResetAuthDataAsync(TestContext.Current.CancellationToken);
@@ -129,6 +140,626 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
                 """{"role":"admin","unknown":true}"""
             }
         };
+
+    public static TheoryData<string, string, HttpStatusCode, string>
+        CompleteLogSafetyCases =>
+        new()
+        {
+            {
+                "/api/v1/organizations/round13-sensitive-invalid-route/members",
+                "round13-sensitive-invalid-route",
+                HttpStatusCode.BadRequest,
+                "validation_failed"
+            },
+            {
+                "/api/v1/organizations/by-key/round13-sensitive-name-derived",
+                "round13-sensitive-name-derived",
+                HttpStatusCode.NotFound,
+                "organization_not_found"
+            },
+            {
+                "/api/v1/organizations?limit=0",
+                "limit=0",
+                HttpStatusCode.BadRequest,
+                "validation_failed"
+            },
+            {
+                "/api/v1/organizations?cursor=round13-sensitive-cursor",
+                "round13-sensitive-cursor",
+                HttpStatusCode.BadRequest,
+                "invalid_cursor"
+            }
+        };
+
+    [Theory]
+    [MemberData(nameof(CompleteLogSafetyCases))]
+    public async Task CompleteCapturedLogsExcludeRawOrganizationRouteAndQueryValues(
+        string path,
+        string sensitiveToken,
+        HttpStatusCode expectedStatus,
+        string expectedCode)
+    {
+        using var client = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Round 13 Complete Log Actor",
+            $"local-agent+round13-complete-{Guid.NewGuid():N}@local-agent.test");
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+
+        using var response = await client.GetAsync(
+            path,
+            TestContext.Current.CancellationToken);
+
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            response,
+            expectedStatus,
+            expectedCode);
+        Assert.DoesNotContain(
+            logs.Logs,
+            log => log.Scope.Values.Any(value =>
+                value?.ToString()?.Contains(
+                    sensitiveToken,
+                    StringComparison.OrdinalIgnoreCase) is true));
+        Assert.DoesNotContain(
+            logs.Logs,
+            log => RenderedLog(log).Contains(
+                sensitiveToken,
+                StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task EveryOrganizationMutationAuditsMalformedJsonAtTheAuthenticatedBoundary()
+    {
+        var organizationId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57701");
+        var memberId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57702");
+        var cases = new[]
+        {
+            new BoundaryCase(
+                HttpMethod.Post,
+                "/api/v1/organizations",
+                "organization_create",
+                "{\"round13-sensitive-create\":",
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null),
+            new BoundaryCase(
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}",
+                "organization_update",
+                "{\"round13-sensitive-update\":",
+                organizationId,
+                ExpectedMemberId: null),
+            new BoundaryCase(
+                HttpMethod.Delete,
+                $"/api/v1/organizations/{organizationId:D}",
+                "organization_delete",
+                "{\"round13-sensitive-delete\":",
+                organizationId,
+                ExpectedMemberId: null),
+            new BoundaryCase(
+                HttpMethod.Put,
+                "/api/v1/auth/session/active-organization",
+                "active_organization_set",
+                "{\"round13-sensitive-active\":",
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null),
+            new BoundaryCase(
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/members",
+                "organization_member_add",
+                "{\"round13-sensitive-member-add\":",
+                organizationId,
+                ExpectedMemberId: null),
+            new BoundaryCase(
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}/members/{memberId:D}",
+                "organization_member_role_update",
+                "{\"round13-sensitive-role-update\":",
+                organizationId,
+                memberId)
+        };
+        var (isolated, client, store, actor, sessionId, logs) =
+            await CreateBoundaryProbeAsync();
+        await using (isolated)
+        using (client)
+        {
+            foreach (var boundaryCase in cases)
+            {
+                logs.Clear();
+                using var response =
+                    await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
+                        client,
+                        boundaryCase.Method,
+                        boundaryCase.Path,
+                        boundaryCase.Body!,
+                        "application/json");
+
+                await OrganizationEndpointTestSupport.AssertProblemAsync(
+                    response,
+                    HttpStatusCode.BadRequest,
+                    "invalid_request");
+                OrganizationEndpointTestSupport.AssertNoStore(response);
+                AssertSingleOrganizationAudit(
+                    logs,
+                    boundaryCase.Operation,
+                    "invalid_request",
+                    actor.UserId,
+                    sessionId,
+                    boundaryCase.ExpectedOrganizationId,
+                    boundaryCase.ExpectedMemberId);
+                Assert.DoesNotContain(
+                    boundaryCase.SensitiveValue,
+                    RenderedLogs(logs),
+                    StringComparison.Ordinal);
+            }
+
+            Assert.Equal(0, store.CallCount);
+        }
+    }
+
+    [Fact]
+    public async Task EveryOrganizationMutationAuditsInvalidFieldsWithoutRenderingBodyValues()
+    {
+        var organizationId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57701");
+        var memberId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57702");
+        var targetUserId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57703");
+        var invalidConfirmation = new string('Q', 51);
+        var cases = new[]
+        {
+            new BoundaryCase(
+                HttpMethod.Post,
+                "/api/v1/organizations",
+                "organization_create",
+                $$"""{"name":"{{new string('N', 51)}}"}""",
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: new string('N', 51)),
+            new BoundaryCase(
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}",
+                "organization_update",
+                """{"slug":"round13_sensitive_invalid_slug"}""",
+                organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: "round13_sensitive_invalid_slug"),
+            new BoundaryCase(
+                HttpMethod.Delete,
+                $"/api/v1/organizations/{organizationId:D}",
+                "organization_delete",
+                $$"""{"confirmationName":"{{invalidConfirmation}}"}""",
+                organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: invalidConfirmation),
+            new BoundaryCase(
+                HttpMethod.Put,
+                "/api/v1/auth/session/active-organization",
+                "active_organization_set",
+                """{"organizationId":"00000000-0000-0000-0000-000000000000"}""",
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "00000000-0000-0000-0000-000000000000"),
+            new BoundaryCase(
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/members",
+                "organization_member_add",
+                $$"""{"userId":"{{targetUserId:D}}","role":"round13-sensitive-role-add"}""",
+                organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: "round13-sensitive-role-add"),
+            new BoundaryCase(
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}/members/{memberId:D}",
+                "organization_member_role_update",
+                """{"role":"round13-sensitive-role-update"}""",
+                organizationId,
+                memberId,
+                SensitiveToken: "round13-sensitive-role-update")
+        };
+        var (isolated, client, store, actor, sessionId, logs) =
+            await CreateBoundaryProbeAsync();
+        await using (isolated)
+        using (client)
+        {
+            foreach (var boundaryCase in cases)
+            {
+                logs.Clear();
+                using var response =
+                    await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
+                        client,
+                        boundaryCase.Method,
+                        boundaryCase.Path,
+                        boundaryCase.Body!,
+                        "application/json");
+
+                await OrganizationEndpointTestSupport.AssertProblemAsync(
+                    response,
+                    HttpStatusCode.BadRequest,
+                    "validation_failed");
+                OrganizationEndpointTestSupport.AssertNoStore(response);
+                AssertSingleOrganizationAudit(
+                    logs,
+                    boundaryCase.Operation,
+                    "validation_failed",
+                    actor.UserId,
+                    sessionId,
+                    boundaryCase.ExpectedOrganizationId,
+                    boundaryCase.ExpectedMemberId);
+                var rendered = RenderedLogs(logs);
+                Assert.DoesNotContain(
+                    boundaryCase.SensitiveValue,
+                    rendered,
+                    StringComparison.Ordinal);
+                if (boundaryCase.Operation == "organization_member_add")
+                {
+                    Assert.DoesNotContain(
+                        targetUserId.ToString("D"),
+                        rendered,
+                        StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            Assert.Equal(0, store.CallCount);
+        }
+    }
+
+    [Fact]
+    public async Task RouteQueryAndCursorRejectionsAuditOnlySafeOpaqueIdentifiers()
+    {
+        var organizationId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57701");
+        var memberId = Guid.Parse("0198a7ac-d0f8-7832-b711-211f56c57702");
+        var cases = new[]
+        {
+            new BoundaryCase(
+                HttpMethod.Patch,
+                "/api/v1/organizations/round13-sensitive-invalid-organization",
+                "organization_update",
+                """{"name":"Valid Boundary Name"}""",
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "round13-sensitive-invalid-organization"),
+            new BoundaryCase(
+                HttpMethod.Patch,
+                $"/api/v1/organizations/round13-sensitive-invalid-organization/members/{memberId:D}",
+                "organization_member_role_update",
+                """{"role":"member"}""",
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: memberId,
+                SensitiveToken: "round13-sensitive-invalid-organization"),
+            new BoundaryCase(
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}/members/round13-sensitive-invalid-member",
+                "organization_member_role_update",
+                """{"role":"member"}""",
+                ExpectedOrganizationId: organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: "round13-sensitive-invalid-member"),
+            new BoundaryCase(
+                HttpMethod.Get,
+                "/api/v1/organizations/round13-sensitive-list-id/members",
+                "organization_members_list",
+                Body: null,
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "round13-sensitive-list-id",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                "/api/v1/organizations?limit=0",
+                "organization_list",
+                Body: null,
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=0",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                $"/api/v1/organizations/{organizationId:D}/members?limit=101",
+                "organization_members_list",
+                Body: null,
+                ExpectedOrganizationId: organizationId,
+                ExpectedMemberId: null,
+                SensitiveToken: "limit=101",
+                RequiresCsrf: false),
+            new BoundaryCase(
+                HttpMethod.Get,
+                "/api/v1/organizations?cursor=round13-sensitive-cursor",
+                "organization_list",
+                Body: null,
+                ExpectedOrganizationId: null,
+                ExpectedMemberId: null,
+                SensitiveToken: "round13-sensitive-cursor",
+                RequiresCsrf: false,
+                ExpectedCode: "invalid_cursor")
+        };
+        var (isolated, client, store, actor, sessionId, logs) =
+            await CreateBoundaryProbeAsync();
+        await using (isolated)
+        using (client)
+        {
+            foreach (var boundaryCase in cases)
+            {
+                logs.Clear();
+                using var response = boundaryCase.RequiresCsrf
+                    ? await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
+                        client,
+                        boundaryCase.Method,
+                        boundaryCase.Path,
+                        boundaryCase.Body!,
+                        "application/json")
+                    : await client.SendAsync(
+                        new HttpRequestMessage(
+                            boundaryCase.Method,
+                            boundaryCase.Path),
+                        TestContext.Current.CancellationToken);
+                var expectedCode = boundaryCase.ExpectedCode ?? "validation_failed";
+
+                await OrganizationEndpointTestSupport.AssertProblemAsync(
+                    response,
+                    HttpStatusCode.BadRequest,
+                    expectedCode);
+                OrganizationEndpointTestSupport.AssertNoStore(response);
+                AssertSingleOrganizationAudit(
+                    logs,
+                    boundaryCase.Operation,
+                    expectedCode,
+                    actor.UserId,
+                    sessionId,
+                    boundaryCase.ExpectedOrganizationId,
+                    boundaryCase.ExpectedMemberId);
+                Assert.DoesNotContain(
+                    boundaryCase.SensitiveValue,
+                    RenderedLogs(logs),
+                    StringComparison.OrdinalIgnoreCase);
+            }
+
+            Assert.Equal(0, store.CallCount);
+        }
+    }
+
+    [Fact]
+    public async Task EveryOrganizationMutationSuccessAndBusinessFailureEmitsExactlyOneAudit()
+    {
+        using var ownerClient = factory.CreateApiClient();
+        var owner = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            ownerClient,
+            "Round 13 Audit Owner",
+            "local-agent+round13-audit-owner@local-agent.test");
+        var ownerSessionId = await ReadSessionIdAsync(ownerClient);
+        using var targetClient = factory.CreateApiClient();
+        var target = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            targetClient,
+            "Round 13 Audit Target",
+            "local-agent+round13-audit-target@local-agent.test");
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+
+        logs.Clear();
+        using var create = await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+            ownerClient,
+            "Round 13 Primary");
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        var organizationId = (await OrganizationEndpointTestSupport.ReadDataAsync(create))
+            .GetProperty("id")
+            .GetGuid();
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_create",
+            "succeeded",
+            owner.UserId,
+            ownerSessionId,
+            organizationId,
+            memberId: null);
+
+        logs.Clear();
+        using var duplicateCreate =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                ownerClient,
+                "Round 13 Primary");
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            duplicateCreate,
+            HttpStatusCode.Conflict,
+            "organization_name_conflict");
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_create",
+            "organization_name_conflict",
+            owner.UserId,
+            ownerSessionId,
+            organizationId: null,
+            memberId: null);
+
+        using var secondary =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                ownerClient,
+                "Round 13 Secondary");
+        var secondaryId = (await OrganizationEndpointTestSupport.ReadDataAsync(secondary))
+            .GetProperty("id")
+            .GetGuid();
+
+        logs.Clear();
+        using var update = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            ownerClient,
+            HttpMethod.Patch,
+            $"/api/v1/organizations/{organizationId:D}",
+            new { name = "Round 13 Primary Renamed" });
+        Assert.Equal(HttpStatusCode.OK, update.StatusCode);
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_update",
+            "succeeded",
+            owner.UserId,
+            ownerSessionId,
+            organizationId,
+            memberId: null);
+
+        logs.Clear();
+        using var conflictingUpdate =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{secondaryId:D}",
+                new { name = "Round 13 Primary Renamed" });
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            conflictingUpdate,
+            HttpStatusCode.Conflict,
+            "organization_name_conflict");
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_update",
+            "organization_name_conflict",
+            owner.UserId,
+            ownerSessionId,
+            secondaryId,
+            memberId: null);
+
+        logs.Clear();
+        using var delete = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            ownerClient,
+            HttpMethod.Delete,
+            $"/api/v1/organizations/{secondaryId:D}",
+            new { confirmationName = "Round 13 Secondary" });
+        Assert.Equal(HttpStatusCode.OK, delete.StatusCode);
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_delete",
+            "succeeded",
+            owner.UserId,
+            ownerSessionId,
+            secondaryId,
+            memberId: null);
+
+        logs.Clear();
+        using var missingDelete =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Delete,
+                $"/api/v1/organizations/{secondaryId:D}",
+                new { confirmationName = "Round 13 Secondary" });
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            missingDelete,
+            HttpStatusCode.NotFound,
+            "organization_not_found");
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_delete",
+            "organization_not_found",
+            owner.UserId,
+            ownerSessionId,
+            secondaryId,
+            memberId: null);
+
+        logs.Clear();
+        using var setActive = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            ownerClient,
+            HttpMethod.Put,
+            "/api/v1/auth/session/active-organization",
+            new { organizationId });
+        Assert.Equal(HttpStatusCode.OK, setActive.StatusCode);
+        AssertSingleOrganizationAudit(
+            logs,
+            "active_organization_set",
+            "succeeded",
+            owner.UserId,
+            ownerSessionId,
+            organizationId,
+            memberId: null);
+
+        var foreignOrganizationId = Guid.CreateVersion7();
+        logs.Clear();
+        using var foreignActive =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Put,
+                "/api/v1/auth/session/active-organization",
+                new { organizationId = foreignOrganizationId });
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            foreignActive,
+            HttpStatusCode.NotFound,
+            "organization_not_found");
+        AssertSingleOrganizationAudit(
+            logs,
+            "active_organization_set",
+            "organization_not_found",
+            owner.UserId,
+            ownerSessionId,
+            foreignOrganizationId,
+            memberId: null);
+
+        logs.Clear();
+        using var addMember = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            ownerClient,
+            HttpMethod.Post,
+            $"/api/v1/organizations/{organizationId:D}/members",
+            new { userId = target.UserId, role = "member" });
+        Assert.Equal(HttpStatusCode.Created, addMember.StatusCode);
+        var memberId = (await OrganizationEndpointTestSupport.ReadDataAsync(addMember))
+            .GetProperty("id")
+            .GetGuid();
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_member_add",
+            "succeeded",
+            owner.UserId,
+            ownerSessionId,
+            organizationId,
+            memberId);
+
+        logs.Clear();
+        using var duplicateMember =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/members",
+                new { userId = target.UserId, role = "member" });
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            duplicateMember,
+            HttpStatusCode.Conflict,
+            "member_already_exists");
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_member_add",
+            "member_already_exists",
+            owner.UserId,
+            ownerSessionId,
+            organizationId,
+            memberId: null);
+
+        logs.Clear();
+        using var updateRole =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}/members/{memberId:D}",
+                new { role = "admin" });
+        Assert.Equal(HttpStatusCode.OK, updateRole.StatusCode);
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_member_role_update",
+            "succeeded",
+            owner.UserId,
+            ownerSessionId,
+            organizationId,
+            memberId);
+
+        logs.Clear();
+        using var unchangedRole =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                ownerClient,
+                HttpMethod.Patch,
+                $"/api/v1/organizations/{organizationId:D}/members/{memberId:D}",
+                new { role = "admin" });
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            unchangedRole,
+            HttpStatusCode.Conflict,
+            "member_role_unchanged");
+        AssertSingleOrganizationAudit(
+            logs,
+            "organization_member_role_update",
+            "member_role_unchanged",
+            owner.UserId,
+            ownerSessionId,
+            organizationId,
+            memberId);
+    }
 
     [Theory]
     [MemberData(nameof(ProtectedRoutes))]
@@ -509,6 +1140,10 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             "sensitive-organization-name-991",
             genericRendered,
             StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            "sensitive-organization-name-991",
+            RenderedLogs(logs),
+            StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -602,12 +1237,194 @@ public sealed class OrganizationSecurityTests(ApiWebApplicationFactory factory)
             logs.Logs.Select(log =>
                 string.Join(
                     " ",
-                    new[] { log.Message }.Concat(
+                    new[] { log.Category, log.Message }.Concat(
                         log.State.Values.Select(value =>
                             value?.ToString() ?? string.Empty)))));
         Assert.DoesNotContain(target.Email, renderedLogs);
         Assert.DoesNotContain(target.UserId.ToString(), renderedLogs);
         Assert.DoesNotContain("Sensitive Equivalent Name", renderedLogs);
+    }
+
+    private async Task<BoundaryProbeContext> CreateBoundaryProbeAsync()
+    {
+        var store = new BoundaryProbeOrganizationStore();
+        var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IOrganizationStore>();
+                services.AddSingleton<IOrganizationStore>(store);
+            }));
+        var client = isolated.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = true
+        });
+        var actor = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Round 13 Boundary Actor",
+            $"local-agent+round13-boundary-{Guid.NewGuid():N}@local-agent.test");
+        var sessionId = await ReadSessionIdAsync(client);
+        var logs = isolated.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+        return new BoundaryProbeContext(
+            isolated,
+            client,
+            store,
+            actor,
+            sessionId,
+            logs);
+    }
+
+    private static async Task<Guid> ReadSessionIdAsync(HttpClient client)
+    {
+        using var response = await client.GetAsync(
+            "/api/v1/auth/session",
+            TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        return document.RootElement
+            .GetProperty("data")
+            .GetProperty("session")
+            .GetProperty("id")
+            .GetGuid();
+    }
+
+    private static void AssertSingleOrganizationAudit(
+        CapturedLogProvider logs,
+        string operation,
+        string outcome,
+        Guid userId,
+        Guid sessionId,
+        Guid? organizationId,
+        Guid? memberId)
+    {
+        var audit = Assert.Single(
+            logs.Logs,
+            log => log.Category == OrganizationLogCategory);
+        Assert.Equal(LogLevel.Information, audit.Level);
+        Assert.Equal(operation, audit.State["OrganizationOperation"]);
+        Assert.Equal(outcome, audit.State["OrganizationOutcome"]);
+        Assert.Equal(userId, audit.State["UserId"]);
+        Assert.Equal(sessionId, audit.State["SessionId"]);
+        Assert.Equal(organizationId, audit.State["OrganizationId"] as Guid?);
+        Assert.Equal(memberId, audit.State["MemberId"] as Guid?);
+        Assert.False(string.IsNullOrWhiteSpace(audit.Scope["TraceId"]?.ToString()));
+        Assert.Null(audit.Exception);
+    }
+
+    private static string RenderedLogs(CapturedLogProvider logs) =>
+        string.Join(
+            Environment.NewLine,
+            logs.Logs.Select(RenderedLog));
+
+    private static string RenderedLog(CapturedLog log) =>
+        string.Join(
+            " ",
+            new[] { log.Category, log.Message }.Concat(
+                log.State.Values.Select(value =>
+                    value?.ToString() ?? string.Empty))
+                .Concat(log.Scope.Values.Select(value =>
+                    value?.ToString() ?? string.Empty))
+                .Append(log.Exception?.ToString() ?? string.Empty));
+
+    private sealed record BoundaryProbeContext(
+        WebApplicationFactory<Program> Isolated,
+        HttpClient Client,
+        BoundaryProbeOrganizationStore Store,
+        OrganizationEndpointTestSupport.TestScenario Actor,
+        Guid SessionId,
+        CapturedLogProvider Logs);
+
+    private sealed record BoundaryCase(
+        HttpMethod Method,
+        string Path,
+        string Operation,
+        string? Body,
+        Guid? ExpectedOrganizationId,
+        Guid? ExpectedMemberId,
+        string? SensitiveToken = null,
+        bool RequiresCsrf = true,
+        string? ExpectedCode = null)
+    {
+        internal string SensitiveValue { get; } =
+            SensitiveToken ?? Body ?? Path;
+    }
+
+    private sealed class BoundaryProbeOrganizationStore : IOrganizationStore
+    {
+        public int CallCount { get; private set; }
+
+        public Task<OrganizationStorePage<
+            OrganizationSummary,
+            OrganizationListCursorPosition>> ListAsync(
+            UserId actorUserId,
+            OrganizationListCursorPosition? after,
+            int limit,
+            CancellationToken cancellationToken) => Reached<
+                OrganizationStorePage<
+                    OrganizationSummary,
+                    OrganizationListCursorPosition>>();
+
+        public Task<OrganizationOperationResult<OrganizationDetail>> GetByKeyAsync(
+            UserId actorUserId,
+            string organizationKey,
+            CancellationToken cancellationToken) =>
+            Reached<OrganizationOperationResult<OrganizationDetail>>();
+
+        public Task<OrganizationOperationResult<OrganizationDetail>> CreateAsync(
+            CreateOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            Reached<OrganizationOperationResult<OrganizationDetail>>();
+
+        public Task<OrganizationOperationResult<OrganizationDetail>> UpdateAsync(
+            UpdateOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            Reached<OrganizationOperationResult<OrganizationDetail>>();
+
+        public Task<OrganizationOperationResult<OrganizationDeletion>> DeleteAsync(
+            DeleteOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            Reached<OrganizationOperationResult<OrganizationDeletion>>();
+
+        public Task<OrganizationOperationResult<ActiveOrganization>> SetActiveAsync(
+            SetActiveOrganizationCommand command,
+            CancellationToken cancellationToken) =>
+            Reached<OrganizationOperationResult<ActiveOrganization>>();
+
+        public Task<OrganizationOperationResult<
+            OrganizationStorePage<
+                OrganizationMember,
+                OrganizationMemberCursorPosition>>> ListMembersAsync(
+            UserId actorUserId,
+            OrganizationId organizationId,
+            OrganizationMemberCursorPosition? after,
+            int limit,
+            CancellationToken cancellationToken) => Reached<
+                OrganizationOperationResult<
+                    OrganizationStorePage<
+                        OrganizationMember,
+                        OrganizationMemberCursorPosition>>>();
+
+        public Task<OrganizationOperationResult<OrganizationMember>> AddMemberAsync(
+            AddOrganizationMemberCommand command,
+            CancellationToken cancellationToken) =>
+            Reached<OrganizationOperationResult<OrganizationMember>>();
+
+        public Task<OrganizationOperationResult<OrganizationMember>>
+            UpdateMemberRoleAsync(
+                UpdateOrganizationMemberRoleCommand command,
+                CancellationToken cancellationToken) =>
+            Reached<OrganizationOperationResult<OrganizationMember>>();
+
+        private Task<T> Reached<T>()
+        {
+            CallCount++;
+            throw new InvalidOperationException(
+                "Organization store must not be reached by boundary rejection tests.");
+        }
     }
 
     private sealed record ForeignCase(

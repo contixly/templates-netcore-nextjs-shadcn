@@ -146,7 +146,11 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var pageLimit = ValidateLimit(limit);
+        var pageLimit = await AuditBoundaryAsync(
+            () => Task.FromResult(ValidateLimit(limit)),
+            "organization_list",
+            actor,
+            logger);
         var result = await organizations.ListAsync(
             actor.UserId,
             cursor,
@@ -186,11 +190,18 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var request = await reader.ReadAsync<CreateOrganizationRequest>(
-            http,
-            emptyBodyFactory: null,
-            cancellationToken);
-        var name = ValidateName(request.Name);
+        var name = await AuditBoundaryAsync(
+            async () =>
+            {
+                var request = await reader.ReadAsync<CreateOrganizationRequest>(
+                    http,
+                    emptyBodyFactory: null,
+                    cancellationToken);
+                return ValidateName(request.Name);
+            },
+            "organization_create",
+            actor,
+            logger);
         var result = await organizations.CreateAsync(
             actor.UserId,
             actor.SessionId,
@@ -267,77 +278,91 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var id = ValidateOrganizationId(organizationId);
-        var request = await reader.ReadAsync<UpdateOrganizationRequest>(
-            http,
-            emptyBodyFactory: null,
-            cancellationToken);
-        if (request.Name is null
-            && request.Slug is null
-            && request.AllowedEmailDomains is null)
-        {
-            throw Validation(
-                "body",
-                "At least one organization field is required.");
-        }
-
-        var name = request.Name is null ? null : ValidateName(request.Name);
-        string? slug = null;
-        if (request.Slug is not null)
-        {
-            if (!OrganizationSlug.TryCreate(request.Slug, out var parsedSlug))
+        var boundary = await AuditBoundaryAsync(
+            async () =>
             {
-                throw Validation(
-                    "slug",
-                    "A canonical organization slug is required.");
-            }
+                var id = ValidateOrganizationId(organizationId);
+                var request = await reader.ReadAsync<UpdateOrganizationRequest>(
+                    http,
+                    emptyBodyFactory: null,
+                    cancellationToken);
+                if (request.Name is null
+                    && request.Slug is null
+                    && request.AllowedEmailDomains is null)
+                {
+                    throw Validation(
+                        "body",
+                        "At least one organization field is required.");
+                }
 
-            slug = parsedSlug.Value;
-        }
+                var name = request.Name is null
+                    ? null
+                    : ValidateName(request.Name);
+                string? slug = null;
+                if (request.Slug is not null)
+                {
+                    if (!OrganizationSlug.TryCreate(
+                            request.Slug,
+                            out var parsedSlug))
+                    {
+                        throw Validation(
+                            "slug",
+                            "A canonical organization slug is required.");
+                    }
 
-        IReadOnlyList<string>? domains = null;
-        if (request.AllowedEmailDomains is not null)
-        {
-            if (request.AllowedEmailDomains.Count >
-                OrganizationContractLimits.MaximumAllowedEmailDomains)
-            {
-                throw Validation(
-                    "allowedEmailDomains",
-                    "At most 100 allowed email domains may be supplied.");
-            }
+                    slug = parsedSlug.Value;
+                }
 
-            if (request.AllowedEmailDomains.Any(value => value is null))
-            {
-                throw Validation(
-                    "allowedEmailDomains",
-                    "Every allowed email domain must be valid.");
-            }
+                IReadOnlyList<string>? domains = null;
+                if (request.AllowedEmailDomains is not null)
+                {
+                    if (request.AllowedEmailDomains.Count >
+                        OrganizationContractLimits.MaximumAllowedEmailDomains)
+                    {
+                        throw Validation(
+                            "allowedEmailDomains",
+                            "At most 100 allowed email domains may be supplied.");
+                    }
 
-            var normalization = OrganizationEmailDomainPolicy.Normalize(
-                request.AllowedEmailDomains.Select(value => value!));
-            if (normalization.InvalidValues.Count > 0)
-            {
-                throw Validation(
-                    "allowedEmailDomains",
-                    "Every allowed email domain must be valid.");
-            }
+                    if (request.AllowedEmailDomains.Any(value => value is null))
+                    {
+                        throw Validation(
+                            "allowedEmailDomains",
+                            "Every allowed email domain must be valid.");
+                    }
 
-            domains = normalization.Domains;
-        }
+                    var normalization = OrganizationEmailDomainPolicy.Normalize(
+                        request.AllowedEmailDomains.Select(value => value!));
+                    if (normalization.InvalidValues.Count > 0)
+                    {
+                        throw Validation(
+                            "allowedEmailDomains",
+                            "Every allowed email domain must be valid.");
+                    }
+
+                    domains = normalization.Domains;
+                }
+
+                return new UpdateBoundary(id, name, slug, domains);
+            },
+            "organization_update",
+            actor,
+            logger,
+            organizationId);
 
         var result = await organizations.UpdateAsync(
             actor.UserId,
-            id,
-            name,
-            slug,
-            domains,
+            boundary.OrganizationId,
+            boundary.Name,
+            boundary.Slug,
+            boundary.AllowedEmailDomains,
             cancellationToken);
         var detail = RequireSuccess(
             result,
             "organization_update",
             actor,
             logger,
-            id.Value,
+            boundary.OrganizationId.Value,
             memberId: null);
         OrganizationSecurityEvents.Write(
             logger,
@@ -345,7 +370,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             "succeeded",
             actor.UserId.Value,
             actor.SessionId.Value,
-            id.Value,
+            boundary.OrganizationId.Value,
             memberId: null);
         return Results.Ok(
             new ApiResponse<OrganizationDetailResponse>(Map(detail)));
@@ -365,30 +390,40 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var id = ValidateOrganizationId(organizationId);
-        var request = await reader.ReadAsync<DeleteOrganizationRequest>(
-            http,
-            emptyBodyFactory: null,
-            cancellationToken);
-        if (string.IsNullOrEmpty(request.ConfirmationName)
-            || request.ConfirmationName.Length > 50)
-        {
-            throw Validation(
-                "confirmationName",
-                "An organization confirmation name is required.");
-        }
+        var boundary = await AuditBoundaryAsync(
+            async () =>
+            {
+                var id = ValidateOrganizationId(organizationId);
+                var request = await reader.ReadAsync<DeleteOrganizationRequest>(
+                    http,
+                    emptyBodyFactory: null,
+                    cancellationToken);
+                if (string.IsNullOrEmpty(request.ConfirmationName)
+                    || request.ConfirmationName.Length > 50)
+                {
+                    throw Validation(
+                        "confirmationName",
+                        "An organization confirmation name is required.");
+                }
+
+                return new DeleteBoundary(id, request.ConfirmationName);
+            },
+            "organization_delete",
+            actor,
+            logger,
+            organizationId);
 
         var result = await organizations.DeleteAsync(
             actor.UserId,
-            id,
-            request.ConfirmationName,
+            boundary.OrganizationId,
+            boundary.ConfirmationName,
             cancellationToken);
         var deletion = RequireSuccess(
             result,
             "organization_delete",
             actor,
             logger,
-            id.Value,
+            boundary.OrganizationId.Value,
             memberId: null);
         OrganizationSecurityEvents.Write(
             logger,
@@ -396,7 +431,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             "succeeded",
             actor.UserId.Value,
             actor.SessionId.Value,
-            id.Value,
+            boundary.OrganizationId.Value,
             memberId: null);
         return Results.Ok(new ApiResponse<OrganizationDeletionResponse>(
             new(deletion.OrganizationId.Value)));
@@ -415,19 +450,27 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var request = await reader.ReadAsync<SetActiveOrganizationRequest>(
-            http,
-            emptyBodyFactory: null,
-            cancellationToken);
-        if (request.OrganizationId is null
-            || request.OrganizationId == Guid.Empty)
-        {
-            throw Validation(
-                "organizationId",
-                "A valid organization ID is required.");
-        }
+        var id = await AuditBoundaryAsync(
+            async () =>
+            {
+                var request =
+                    await reader.ReadAsync<SetActiveOrganizationRequest>(
+                        http,
+                        emptyBodyFactory: null,
+                        cancellationToken);
+                if (request.OrganizationId is null
+                    || request.OrganizationId == Guid.Empty)
+                {
+                    throw Validation(
+                        "organizationId",
+                        "A valid organization ID is required.");
+                }
 
-        var id = new OrganizationId(request.OrganizationId.Value);
+                return new OrganizationId(request.OrganizationId.Value);
+            },
+            "active_organization_set",
+            actor,
+            logger);
         var result = await organizations.SetActiveAsync(
             actor.UserId,
             actor.SessionId,
@@ -467,20 +510,27 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var id = ValidateOrganizationId(organizationId);
-        var pageLimit = ValidateLimit(limit);
+        var boundary = await AuditBoundaryAsync(
+            () => Task.FromResult(
+                new MemberListBoundary(
+                    ValidateOrganizationId(organizationId),
+                    ValidateLimit(limit))),
+            "organization_members_list",
+            actor,
+            logger,
+            organizationId);
         var result = await memberships.ListAsync(
             actor.UserId,
-            id,
+            boundary.OrganizationId,
             cursor,
-            pageLimit,
+            boundary.Limit,
             cancellationToken);
         var page = RequireSuccess(
             result,
             "organization_members_list",
             actor,
             logger,
-            id.Value,
+            boundary.OrganizationId.Value,
             memberId: null);
         OrganizationSecurityEvents.Write(
             logger,
@@ -488,7 +538,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             "succeeded",
             actor.UserId.Value,
             actor.SessionId.Value,
-            id.Value,
+            boundary.OrganizationId.Value,
             memberId: null);
         return Results.Ok(new ApiResponse<OrganizationMemberPageResponse>(
             new(
@@ -510,30 +560,44 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var id = ValidateOrganizationId(organizationId);
-        var request = await reader.ReadAsync<AddOrganizationMemberRequest>(
-            http,
-            emptyBodyFactory: null,
-            cancellationToken);
-        if (request.UserId is null || request.UserId == Guid.Empty)
-        {
-            throw Validation("userId", "A valid target user ID is required.");
-        }
+        var boundary = await AuditBoundaryAsync(
+            async () =>
+            {
+                var id = ValidateOrganizationId(organizationId);
+                var request = await reader.ReadAsync<AddOrganizationMemberRequest>(
+                    http,
+                    emptyBodyFactory: null,
+                    cancellationToken);
+                if (request.UserId is null || request.UserId == Guid.Empty)
+                {
+                    throw Validation(
+                        "userId",
+                        "A valid target user ID is required.");
+                }
 
-        var role = ValidateRole(request.Role);
+                return new AddMemberBoundary(
+                    id,
+                    new UserId(request.UserId.Value),
+                    ValidateRole(request.Role),
+                    request.AcknowledgeDomainRestriction ?? false);
+            },
+            "organization_member_add",
+            actor,
+            logger,
+            organizationId);
         var result = await memberships.AddAsync(
             actor.UserId,
-            id,
-            new UserId(request.UserId.Value),
-            role,
-            request.AcknowledgeDomainRestriction ?? false,
+            boundary.OrganizationId,
+            boundary.TargetUserId,
+            boundary.Role,
+            boundary.AcknowledgeDomainRestriction,
             cancellationToken);
         var member = RequireSuccess(
             result,
             "organization_member_add",
             actor,
             logger,
-            id.Value,
+            boundary.OrganizationId.Value,
             memberId: null);
         OrganizationSecurityEvents.Write(
             logger,
@@ -541,10 +605,10 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             "succeeded",
             actor.UserId.Value,
             actor.SessionId.Value,
-            id.Value,
+            boundary.OrganizationId.Value,
             member.Id.Value);
         return Results.Created(
-            $"/api/v1/organizations/{id.Value:D}/members/{member.Id.Value:D}",
+            $"/api/v1/organizations/{boundary.OrganizationId.Value:D}/members/{member.Id.Value:D}",
             new ApiResponse<OrganizationMemberResponse>(Map(member)));
     }
 
@@ -563,38 +627,108 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             browserSessions,
             http.User,
             cancellationToken);
-        var id = ValidateOrganizationId(organizationId);
-        var requestedMemberId = ValidateMemberId(memberId);
-        var request =
-            await reader.ReadAsync<UpdateOrganizationMemberRoleRequest>(
-                http,
-                emptyBodyFactory: null,
-                cancellationToken);
-        var role = ValidateRole(request.Role);
+        var boundary = await AuditBoundaryAsync(
+            async () =>
+            {
+                var id = ValidateOrganizationId(organizationId);
+                var requestedMemberId = ValidateMemberId(memberId);
+                var request =
+                    await reader.ReadAsync<UpdateOrganizationMemberRoleRequest>(
+                        http,
+                        emptyBodyFactory: null,
+                        cancellationToken);
+                return new UpdateMemberRoleBoundary(
+                    id,
+                    requestedMemberId,
+                    ValidateRole(request.Role));
+            },
+            "organization_member_role_update",
+            actor,
+            logger,
+            organizationId,
+            memberId);
         var result = await memberships.UpdateRoleAsync(
             actor.UserId,
-            id,
-            requestedMemberId,
-            role,
+            boundary.OrganizationId,
+            boundary.MemberId,
+            boundary.Role,
             cancellationToken);
         var member = RequireSuccess(
             result,
             "organization_member_role_update",
             actor,
             logger,
-            id.Value,
-            requestedMemberId.Value);
+            boundary.OrganizationId.Value,
+            boundary.MemberId.Value);
         OrganizationSecurityEvents.Write(
             logger,
             "organization_member_role_update",
             "succeeded",
             actor.UserId.Value,
             actor.SessionId.Value,
-            id.Value,
-            requestedMemberId.Value);
+            boundary.OrganizationId.Value,
+            boundary.MemberId.Value);
         return Results.Ok(
             new ApiResponse<OrganizationMemberResponse>(Map(member)));
     }
+
+    private static async Task<T> AuditBoundaryAsync<T>(
+        Func<Task<T>> execute,
+        string operation,
+        ActorContext actor,
+        ILogger logger,
+        string? organizationId = null,
+        string? memberId = null)
+    {
+        try
+        {
+            return await execute();
+        }
+        catch (ApiValidationException)
+        {
+            WriteBoundaryAudit(
+                operation,
+                ApiProblemCodes.ValidationFailed,
+                actor,
+                logger,
+                organizationId,
+                memberId);
+            throw;
+        }
+        catch (ApiProblemException problem)
+            when (problem.Code == ApiProblemCodes.InvalidRequest)
+        {
+            WriteBoundaryAudit(
+                operation,
+                problem.Code,
+                actor,
+                logger,
+                organizationId,
+                memberId);
+            throw;
+        }
+    }
+
+    private static void WriteBoundaryAudit(
+        string operation,
+        string outcome,
+        ActorContext actor,
+        ILogger logger,
+        string? organizationId,
+        string? memberId) =>
+        OrganizationSecurityEvents.Write(
+            logger,
+            operation,
+            outcome,
+            actor.UserId.Value,
+            actor.SessionId.Value,
+            SafeOpaqueId(organizationId),
+            SafeOpaqueId(memberId));
+
+    private static Guid? SafeOpaqueId(string? value) =>
+        Guid.TryParseExact(value, "D", out var id) && id != Guid.Empty
+            ? id
+            : null;
 
     private static T RequireSuccess<T>(
         OrganizationOperationResult<T> result,
@@ -870,6 +1004,31 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
     private static void NoStore(HttpContext context) =>
         context.Response.Headers.CacheControl = "no-store";
+
+    private sealed record UpdateBoundary(
+        OrganizationId OrganizationId,
+        string? Name,
+        string? Slug,
+        IReadOnlyList<string>? AllowedEmailDomains);
+
+    private sealed record DeleteBoundary(
+        OrganizationId OrganizationId,
+        string ConfirmationName);
+
+    private sealed record MemberListBoundary(
+        OrganizationId OrganizationId,
+        int Limit);
+
+    private sealed record AddMemberBoundary(
+        OrganizationId OrganizationId,
+        UserId TargetUserId,
+        OrganizationRole Role,
+        bool AcknowledgeDomainRestriction);
+
+    private sealed record UpdateMemberRoleBoundary(
+        OrganizationId OrganizationId,
+        OrganizationMemberId MemberId,
+        OrganizationRole Role);
 
     private sealed record ActorContext(UserId UserId, SessionId SessionId);
 }
