@@ -9,25 +9,36 @@ const refreshStartedMarker = Symbol.for(
   "template.browser-session-refresh.started",
 );
 
+type BrowserSessionRefreshCycle = Readonly<{
+  pathname: string;
+}>;
+
 export function BrowserSessionRefresh() {
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
+    const refreshDocument = document as unknown as Document &
+      Record<symbol, BrowserSessionRefreshCycle | undefined>;
     if (pathname === "/dashboard") {
+      delete refreshDocument[refreshStartedMarker];
       return;
     }
 
-    const refreshWindow = window as unknown as Window &
-      Record<symbol, boolean | undefined>;
-    if (refreshWindow[refreshStartedMarker]) {
+    if (refreshDocument[refreshStartedMarker]?.pathname === pathname) {
       return;
     }
-    refreshWindow[refreshStartedMarker] = true;
+    const cycle = { pathname };
+    refreshDocument[refreshStartedMarker] = cycle;
     void refreshBrowserAuthSession().then((result) => {
-      if (result.ok) {
-        router.refresh();
+      if (refreshDocument[refreshStartedMarker] !== cycle) {
+        return;
       }
+      if (!result.ok) {
+        delete refreshDocument[refreshStartedMarker];
+        return;
+      }
+      router.refresh();
     });
   }, [pathname, router]);
 

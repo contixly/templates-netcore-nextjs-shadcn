@@ -205,10 +205,15 @@ This covers protected organization and account surfaces without per-page
 duplicates, so normal half-life sliding renewal updates both PostgreSQL and the
 browser's secure HttpOnly cookie before the endpoint projects `updatedAt` and
 `expiresAt`. The response therefore describes the renewed server-side session
-rather than the pre-renewal row. Anonymous, failed, and malformed header
-projections mount no renewal. Cookie-bearing account Server Component reads
-send the same suppression marker; unmarked browser `GET` requests keep normal
-sliding expiration.
+rather than the pre-renewal row. A document-local pathname-cycle marker
+coalesces concurrent mounts and the success refresh/remount for one protected
+pathname, then permits each later soft navigation to a different protected
+pathname to renew again. Failure releases the current marker for retry, while
+the transient `/dashboard` resolver defers the read to its final protected
+destination. Anonymous, failed, and malformed header projections mount no
+renewal. Cookie-bearing account Server Component reads send the same
+suppression marker; unmarked browser `GET` requests keep normal sliding
+expiration.
 
 When a valid opaque cookie references a missing, expired, corrupt, or mismatched
 server-side ticket, authentication remains anonymous and the same response

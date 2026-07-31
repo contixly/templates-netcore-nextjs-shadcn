@@ -22,9 +22,10 @@ const refreshSession = jest.mocked(refreshBrowserAuthSession);
 beforeEach(() => {
   jest.clearAllMocks();
   pathname = "/workspaces";
-  delete (window as unknown as Window & Record<symbol, boolean | undefined>)[
-    refreshStartedMarker
-  ];
+  delete (
+    document as unknown as Document &
+      Record<symbol, Readonly<{ pathname: string }> | undefined>
+  )[refreshStartedMarker];
   refreshSession.mockResolvedValue({
     ok: true,
     data: {
@@ -57,35 +58,103 @@ it("waits for the dashboard resolver to reach its protected destination", async 
   expect(refreshRoute).not.toHaveBeenCalled();
 });
 
-it("refreshes the authenticated browser session once per document", async () => {
-  const { container, rerender, unmount } = render(<BrowserSessionRefresh />);
-
-  expect(container).toBeEmptyDOMElement();
+it("defers a dashboard resolver navigation to its final destination cycle", async () => {
+  pathname = "/w/acme/dashboard";
+  const { rerender } = render(<BrowserSessionRefresh />);
   await waitFor(() => {
     expect(refreshSession).toHaveBeenCalledTimes(1);
     expect(refreshRoute).toHaveBeenCalledTimes(1);
   });
 
+  pathname = "/dashboard";
   rerender(<BrowserSessionRefresh />);
   await Promise.resolve();
   expect(refreshSession).toHaveBeenCalledTimes(1);
-  expect(refreshRoute).toHaveBeenCalledTimes(1);
 
-  unmount();
+  pathname = "/w/acme/dashboard";
+  rerender(<BrowserSessionRefresh />);
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(2);
+    expect(refreshRoute).toHaveBeenCalledTimes(2);
+  });
+});
+
+it("renews each protected pathname during same-document soft navigation", async () => {
+  const { rerender } = render(<BrowserSessionRefresh />);
+
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(refreshRoute).toHaveBeenCalledTimes(1);
+  });
+
+  pathname = "/w/acme/settings/workspace";
+  rerender(<BrowserSessionRefresh />);
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(2);
+    expect(refreshRoute).toHaveBeenCalledTimes(2);
+  });
+
+  pathname = "/user/profile";
+  rerender(<BrowserSessionRefresh />);
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(3);
+    expect(refreshRoute).toHaveBeenCalledTimes(3);
+  });
+
+  pathname = "/user/security";
+  rerender(<BrowserSessionRefresh />);
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(4);
+    expect(refreshRoute).toHaveBeenCalledTimes(4);
+  });
+});
+
+it("deduplicates the success refresh and same-path remount", async () => {
+  const first = render(<BrowserSessionRefresh />);
+
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(refreshRoute).toHaveBeenCalledTimes(1);
+  });
+
+  first.rerender(<BrowserSessionRefresh />);
+  first.unmount();
   render(<BrowserSessionRefresh />);
   await Promise.resolve();
   expect(refreshSession).toHaveBeenCalledTimes(1);
   expect(refreshRoute).toHaveBeenCalledTimes(1);
 });
 
-it("does not refresh the dashboard when the browser session read fails", async () => {
+it("deduplicates concurrent mounts for the same protected pathname", async () => {
+  render(
+    <>
+      <BrowserSessionRefresh />
+      <BrowserSessionRefresh />
+    </>,
+  );
+
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(refreshRoute).toHaveBeenCalledTimes(1);
+  });
+});
+
+it("releases a failed pathname cycle so a later remount can retry", async () => {
   refreshSession.mockResolvedValueOnce({
     ok: false,
     failure: { kind: "network", code: "api_unavailable" },
   });
 
-  render(<BrowserSessionRefresh />);
+  const first = render(<BrowserSessionRefresh />);
 
   await waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
   expect(refreshRoute).not.toHaveBeenCalled();
+
+  first.unmount();
+  render(<BrowserSessionRefresh />);
+
+  await waitFor(() => {
+    expect(refreshSession).toHaveBeenCalledTimes(2);
+    expect(refreshRoute).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1078,6 +1078,35 @@ receives the next automatic review state.
 | clean production build and standalone guard                          | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                                             |
 | default full 5-worker E2E                                            | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                                                       |
 
+### PR #6 round 3 local fix verification 2026-07-31
+
+The remaining P2 renewal lifecycle defect was repaired test-first. The shared
+browser refresh now keeps document-local state only for the current protected
+pathname cycle: concurrent/same-path refresh remounts coalesce, different-path
+soft navigation renews again, failure releases the marker for retry, stale
+requests cannot act on a newer cycle, and `/dashboard` still defers to its final
+destination. Visible-Link Playwright coverage exercises `/workspaces` →
+workspace settings → account routes in one document. The mandatory .NET run
+also exposed the sliding-expiration test's fixed 2026-07-24 fake issuance
+crossing its real CookieContainer expiry at 2026-07-31 00:00 UTC; test-only fake
+time now captures the current UTC second per test while all lifetime and
+rotation assertions remain relative. Production cookie/session behavior is
+unchanged. Task 14's controller-owned push and final clean-review step remain
+pending.
+
+| Command / gate                                                       | Observed result                                                                                                                                                            |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| renewal component RED → GREEN                                        | Expected 2/5 failures for different-path soft navigation and failure retry; then PASS 6/6 including dashboard deferral, same-path remount, and concurrent-mount coalescing |
+| focused related component/route Jest                                 | PASS; 4/4 suites, 36/36 tests                                                                                                                                              |
+| visible-Link focused organization Playwright                         | Expected zero reads on the first same-document soft navigation before the fix; then PASS 1/1 with exactly seven sequential renewals and no same-path loop                  |
+| UTC-midnight sliding-expiration RED → GREEN                          | Reproduced 4/4 failures after the fixed cookie expired in wall-clock time; current-UTC-relative per-test issuance then PASS 4/4                                            |
+| `dotnet restore/build/test/format`                                   | PASS; build 0 warnings/errors; Application 179/179, API 417/417, total 596/596; format clean                                                                               |
+| two OpenAPI exports, reviewed-contract diff, and generated SDK check | PASS; deterministic unchanged SHA-256 `dc2a10e2da80545c30e4e8db16bff86c3a285fc90da4abf1cb0c93fe4becc524`; generated SDK 4 files current                                    |
+| boundaries, Prettier, ESLint, typecheck, and production audit        | PASS; boundary harness 3/3, formatting/lint/types clean, 0 production vulnerabilities                                                                                      |
+| `npm test -- --runInBand`                                            | PASS; 51/51 suites, 334/334 tests, 0 snapshots                                                                                                                             |
+| clean production build and standalone guard                          | PASS; Next.js 16.2.11, 19/19 static-generation units, `.next/standalone/server.js` exists                                                                                  |
+| default full 5-worker E2E                                            | PASS; 14 passed, 5 opt-in live-provider tests skipped, 0 failed (19 discovered)                                                                                            |
+
 **Next product gate:** iteration 6 may start only as its own planned vertical
 slice for Teams and invitations: define invitation security/expiry,
 accept/reject lifecycle, team membership, notifications/email boundary, and

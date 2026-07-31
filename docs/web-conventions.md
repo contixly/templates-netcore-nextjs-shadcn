@@ -124,14 +124,18 @@ generated-SDK call for protected `/welcome`, `/workspaces`, `/w/**`, and
 `/user/**` surfaces. The browser-owned request can receive the secure HttpOnly
 sliding-renewal cookie; a successful read refreshes the current App Router route
 so uncached Server Components project the now-current session, while a failed
-read leaves the existing projection in place. A document-scoped guard prevents
-a rerender, redirect/remount, or the refresh response from issuing a second
-request. The transient `/dashboard` resolver defers renewal to its final
-`/welcome` or `/w/**` destination, avoiding two document-level reads for one
-navigation. Anonymous,
-failed, and malformed server projections mount neither account navigation nor
-renewal. Individual dashboard/settings pages must not add duplicate refresh
-components. JavaScript never reads or copies the cookie.
+read leaves the existing projection in place. Document-local pathname-cycle
+state prevents concurrent mounts and the successful `router.refresh()`
+same-path remount from issuing a second request in the current cycle. Each later
+App Router soft navigation to a different protected pathname starts a new
+unmarked renewal in the same document. A failed read releases its pathname
+cycle so a later remount or navigation may retry; a stale request cannot clear
+or refresh a newer pathname cycle. The transient `/dashboard` resolver clears
+the prior cycle and defers renewal to its final `/welcome` or `/w/**`
+destination, avoiding two reads for one resolver navigation. Anonymous, failed,
+and malformed server projections mount neither account navigation nor renewal.
+Individual dashboard/settings pages must not add duplicate refresh components.
+JavaScript never reads or copies the cookie.
 
 Redirect targets are normalized to safe same-origin application paths. Full
 URLs, protocol-relative `//` values, malformed escapes, repeated encoded

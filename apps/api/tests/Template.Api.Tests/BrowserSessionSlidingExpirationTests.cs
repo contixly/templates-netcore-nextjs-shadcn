@@ -17,7 +17,8 @@ public sealed class BrowserSessionSlidingExpirationTests(
     : IClassFixture<ApiWebApplicationFactory>
 {
     private readonly MutableTimeProvider _time = new(
-        new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero));
+        DateTimeOffset.FromUnixTimeSeconds(
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
 
     [Fact]
     public async Task SsrReadDoesNotRenewBeforeBrowserRefreshReceivesCookie()

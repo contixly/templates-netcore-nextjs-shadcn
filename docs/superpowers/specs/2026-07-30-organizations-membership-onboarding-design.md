@@ -537,10 +537,12 @@ browser `getAuthSession` refresh after a complete authenticated projection.
 This unmarked call owns sliding renewal for `/welcome`, `/workspaces`, `/w/**`,
 and `/user/**`, then refreshes the server projection once; page-local dashboard
 refresh mounts are prohibited. The transient `/dashboard` resolver defers to
-its final protected destination. A document-scoped guard prevents
-redirect/remount duplicates and refresh loops, while
-duplicate reads, while anonymous, malformed, and API-failure projections mount
-no renewal.
+its final protected destination. Document-local pathname-cycle state coalesces
+concurrent mounts plus the successful refresh/remount for the current path,
+starts another unmarked renewal after a soft navigation to a different
+protected pathname, and releases a failed cycle for later retry. A stale
+request cannot clear or refresh the newer pathname cycle. Anonymous, malformed,
+and API-failure projections mount no renewal.
 
 Protected organization pages redirect only an explicit anonymous session to a
 route-specific login URL. Transport, configuration and malformed-projection

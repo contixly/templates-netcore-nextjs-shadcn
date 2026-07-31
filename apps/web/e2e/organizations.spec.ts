@@ -126,15 +126,18 @@ test.describe.serial("organization full-stack workflows", () => {
         browserSessionReads += 1;
       }
     });
+    async function expectBrowserSessionReads(expected: number) {
+      await expect.poll(() => browserSessionReads).toBe(expected);
+      await page.waitForTimeout(250);
+      expect(browserSessionReads).toBe(expected);
+    }
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL("/welcome");
     await expect(
       page.getByRole("heading", { name: "Create your first workspace" }),
     ).toBeVisible();
-    await expect.poll(() => browserSessionReads).toBe(1);
-    await page.waitForTimeout(250);
-    expect(browserSessionReads).toBe(1);
+    await expectBrowserSessionReads(1);
     await page.goto("/workspaces");
     await expect(
       page.getByRole("heading", { name: "Workspaces", exact: true }),
@@ -142,9 +145,7 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "No workspaces yet" }),
     ).toBeVisible();
-    await expect.poll(() => browserSessionReads).toBe(2);
-    await page.waitForTimeout(250);
-    expect(browserSessionReads).toBe(2);
+    await expectBrowserSessionReads(2);
     await waitForOrganizationControlInteraction(
       page.getByRole("button", { name: "Create New Workspace" }),
     );
@@ -158,9 +159,7 @@ test.describe.serial("organization full-stack workflows", () => {
       await page.goto(route[0]);
       await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
     }
-    await expect.poll(() => browserSessionReads).toBe(6);
-    await page.waitForTimeout(250);
-    expect(browserSessionReads).toBe(6);
+    await expectBrowserSessionReads(6);
 
     await page.goto("/dashboard");
     await expect(page).toHaveURL("/welcome");
@@ -172,6 +171,57 @@ test.describe.serial("organization full-stack workflows", () => {
       "E2E Organization",
     );
     await expect(page).toHaveURL("/w/e2e-organization/dashboard");
+
+    await page.waitForTimeout(250);
+    browserSessionReads = 0;
+    const switcher = page.getByRole("button", {
+      name: "Current workspace: E2E Organization",
+    });
+    await waitForOrganizationControlInteraction(switcher);
+    await switcher.click();
+    await page.getByRole("link", { name: "Manage workspaces" }).click();
+    await expect(page).toHaveURL("/workspaces");
+    await expect(
+      page.getByRole("heading", { name: "Workspaces", exact: true }),
+    ).toBeVisible();
+    await expectBrowserSessionReads(1);
+
+    await page
+      .getByRole("article", { name: "E2E Organization workspace" })
+      .getByRole("link", { name: "Settings" })
+      .click();
+    await expect(page).toHaveURL("/w/e2e-organization/settings/workspace");
+    await expect(
+      page.getByRole("heading", { name: "Workspace settings" }),
+    ).toBeVisible();
+    await expectBrowserSessionReads(2);
+
+    await page.getByRole("link", { name: "Users", exact: true }).click();
+    await expect(page).toHaveURL("/w/e2e-organization/settings/users");
+    await expect(
+      page.getByRole("heading", { name: "Workspace users" }),
+    ).toBeVisible();
+    await expectBrowserSessionReads(3);
+
+    await page.getByRole("link", { name: "Account settings" }).click();
+    await expect(page).toHaveURL("/user/profile");
+    await expect(
+      page.getByRole("heading", { name: "Profile settings" }),
+    ).toBeVisible();
+    await expectBrowserSessionReads(4);
+
+    for (const [linkName, route, heading, expectedReads] of [
+      ["Connections", "/user/connections", "Connections", 5],
+      ["Security", "/user/security", "Security", 6],
+      ["Danger", "/user/danger", "Danger zone", 7],
+    ] as const) {
+      await page.getByRole("link", { name: linkName, exact: true }).click();
+      await expect(page).toHaveURL(route);
+      await expect(
+        page.getByRole("heading", { name: heading, exact: true }),
+      ).toBeVisible();
+      await expectBrowserSessionReads(expectedReads);
+    }
 
     await page.goto("/workspaces");
     await expect(
@@ -217,9 +267,6 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("navigation", { name: "Workspace settings" }),
     ).toBeVisible();
-    await expect.poll(() => browserSessionReads).toBe(12);
-    await page.waitForTimeout(250);
-    expect(browserSessionReads).toBe(12);
     await expectNoFutureOrganizationLinks(page);
   });
 
