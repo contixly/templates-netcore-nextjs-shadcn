@@ -293,8 +293,8 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 2 — чистый Next.js UI foundation                   | Завершена   | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                                                            |
 | 3 — persistence, Identity и базовая аутентификация | Завершена   | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                                                                      |
 | 4 — accounts и внешний OAuth                       | Завершена   | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                                                                       |
-| 5 — organizations, membership и onboarding         | На проверке | Round 14 остаётся историческим clean-наблюдением для `a59cda75d5040e151f965094e4dcdcf2669b04f0` (27/27 resolved на тот момент). Round 18 для `55088c2a65d1219f8ce798d9443adf038a98d6cd` выявил два P2: noncanonical UUID route segments и hidden Activity delete navigation. Локальный test-first fix ожидает controller push, resolution threads `PRRT_kwDOThDXX86Vi58c` / `PRRT_kwDOThDXX86Vi58f` и свежий review. Task 14 Steps 5–6 pending; iteration 6 не начинается внутри этого fix. |
-| 6–12                                               | Не начаты   | Iteration 6 снова ожидает закрытия reopened Task 14 после round-18 push/re-review и затем должна начаться только как отдельный planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                           |
+| 5 — organizations, membership и onboarding         | На проверке | Round 14 остаётся историческим clean-наблюдением для `a59cda75d5040e151f965094e4dcdcf2669b04f0` (27/27 resolved на тот момент). Round 19 для `2d2706c423dfc4fe897fb7db0b5b5a49a6bbf822` выявил P2 stale switcher navigation после route exit. Локальный test-first lifecycle fix ожидает controller push, resolution thread `PRRT_kwDOThDXX86VjNgi` и свежий review. Task 14 Steps 5–6 pending; iteration 6 не начинается внутри этого fix. |
+| 6–12                                               | Не начаты   | Iteration 6 снова ожидает закрытия reopened Task 14 после round-19 push/re-review и затем должна начаться только как отдельный planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                           |
 
 ## Acceptance evidence: итерация 1
 
@@ -2033,6 +2033,114 @@ real keyed settings-page lifecycle.
 This is local fix evidence only. The controller owns push, both thread
 replies/resolution and a fresh automatic review. No future clean round-18 result
 or future reviewed hash is claimed.
+
+### PR #6 auto-review round 19 local fix verification 2026-08-01
+
+Automatic review of implementation head
+`2d2706c423dfc4fe897fb7db0b5b5a49a6bbf822` produced actionable P2 thread
+`PRRT_kwDOThDXX86VjNgi` (REST comment `3693727310`): a set-active request could
+complete after its originating switcher route was no longer current and still
+perform a global push derived from the old pathname.
+
+The root cause was the absence of any post-transport lifetime boundary in
+`OrganizationSwitcher`. The request closure captured `pathname`, but after the
+generated REST mutation it unconditionally cleared local request state, closed
+the dialog, pushed the suffix-preserving selected route, and refreshed. A
+route-owned parallel slot can remain mounted across pathname transitions, and
+React Activity hiding disconnects layout effects without running insertion
+cleanup, so neither component presence nor pathname closure alone identifies a
+live navigation origin.
+
+The switcher now owns three independent signals: insertion-effect permanent
+attachment, layout-effect Activity visibility, and an incrementing committed
+pathname generation. Each request captures the exact origin generation before
+transport. Actual deletion makes completion inert before ref, state, or router
+effects and discards queued work. An attached hidden completion settles its
+request lock and local success/failure state. Hidden success never replays the
+old push; it queues at most one refresh, drained exactly once on reveal only if
+the same origin generation remains current. Any pathname transition clears the
+queue and permanently suppresses old navigation, including an A→B→A transition.
+Visible same-generation success retains the approved generated REST call, one
+suffix-preserving canonical push, then one refresh. Safe failure remains
+retryable without raw problem data, and the existing routed-plus-active-id no-op
+is unchanged.
+
+Strict real-component RED preceded production edits:
+
+```bash
+cd apps/web
+npm test -- --runInBand test/components/organization-switcher.test.tsx
+```
+
+The final test-only RED was **1/1 suite failed, 4 failed / 15 passed**. Permanent
+deletion, Activity-hidden completion, hidden completion followed by deletion,
+and the mounted A→B→A pathname-generation case each expected zero global route
+effects but observed one stale `router.push("/w/new/settings/users")`.
+Visible StrictMode, active-id no-op, suffix preservation, safe route-exited and
+Activity-hidden failure/retry baselines were already green.
+
+Focused GREEN is **1/1 suite, 19/19 tests**. The switcher, route-owned slot,
+organization routing, and switch-navigation focus is **4/4 suites, 59/59
+tests**. Coverage includes permanent deletion before settlement, actual installed
+React Activity hide/reveal and queue deletion, repeat hide/reveal, exact mounted
+pathname generation, safe failure and unlocked retry, visible StrictMode, and
+exactly-once push/refresh behavior.
+
+| Round-19 local gate                                           | Observed result                                                                                                                                                                                 |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                 | PASS; all seven projects current                                                                                                                                                                |
+| `dotnet build Template.sln --no-restore`                      | PASS; 0 warnings, 0 errors                                                                                                                                                                      |
+| `dotnet test Template.sln --no-restore`                       | PASS; Application **174/174**, API **456/456**, total **630/630**                                                                                                                               |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required                                                                                                                                                            |
+| EF model/script                                               | PASS; no pending `TemplateDbContext` changes; idempotent script **23,431 bytes**, covering index inspected                                                                                      |
+| NuGet vulnerability scan                                      | PASS; no vulnerable direct/transitive packages in seven projects                                                                                                                                |
+| deterministic OpenAPI / SDK                                   | PASS; two 0-warning/error exports, unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated 4-file SDK deterministic/current; no contract/generated diff |
+| web boundaries/static                                         | PASS; boundary harness **3/3**, Prettier, ESLint, Next typegen and TypeScript clean                                                                                                             |
+| full Jest                                                     | PASS; **51/51 suites, 381/381 tests**, 0 snapshots                                                                                                                                              |
+| clean production build                                        | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present                                                                                                                    |
+| dependency security                                           | production npm audit PASS with 0 vulnerabilities; full development audit retains one high `brace-expansion` toolchain advisory and no production finding                                        |
+| Playwright                                                    | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed**                                                                                                                                   |
+| repository/reference guards                                   | PASS; whitespace, generated drift and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged; no OpenSpec artifact                                                 |
+
+This is local fix evidence only. The controller owns push, thread reply/resolution
+and a fresh automatic review. No future clean round-19 result or future reviewed
+hash is claimed.
+
+#### Round 19 local review fix 1/5 — hidden queue plus pathname generation
+
+Local review found one Important acceptance-evidence gap, not a demonstrated
+production defect. Existing tests independently covered a hidden queued refresh
+and pending-request A→B→A invalidation, but did not first queue success while
+Activity-hidden and then commit pathname generations while the same hidden
+switcher remained mounted.
+
+The real-component regression now performs that exact sequence. A sibling
+`useInsertionEffect` signal records committed path props and proves that hidden
+A→B→A insertion updates actually execute rather than merely changing the mocked
+`usePathname` return. Reveal produces zero old push/refresh, and a later visible
+selection completes one current suffix-preserving push plus refresh, proving the
+old completion settled the lock.
+
+The production implementation has two independent protections: the pathname
+insertion effect eagerly clears `queuedRefresh`, and reveal compares the queued
+origin with the current generation before draining. Therefore removing only the
+eager clear cannot make the externally stale refresh observable. To prove the
+new behavior test rather than a source line, a deliberate temporary uncommitted
+mutation disabled both protections. The exact targeted command
+
+```bash
+cd apps/web
+npm test -- --runInBand test/components/organization-switcher.test.tsx \
+  -t 'discards a queued Activity-hidden refresh after the mounted pathname changes away and back'
+```
+
+failed **0/1** for the intended reason: reveal called `refresh` once. The source
+was restored byte-for-byte to the committed production implementation; its diff
+is empty. Targeted GREEN was **1/1**, the switcher suite was **20/20**, and the
+switcher/slot/routing/navigation focus was **4/4 suites, 60/60 tests**. Queue
+clearing plus generation-checked drain remain defense in depth. No API, contract,
+generated client, package, database, cookie/security boundary, or production web
+behavior changed.
 
 ## 9. Правило обновления этого документа
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useInsertionEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconCheck, IconSelector } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -29,6 +29,21 @@ export type OrganizationSwitcherItem = Readonly<{
   id: string;
   name: string;
 }>;
+
+type RouteLifetime = Readonly<{
+  generation: number;
+  pathname: string;
+}>;
+
+function sameRouteLifetime(
+  current: RouteLifetime,
+  origin: RouteLifetime,
+): boolean {
+  return (
+    current.generation === origin.generation &&
+    current.pathname === origin.pathname
+  );
+}
 
 function routeKey(pathname: string): string | undefined {
   const value = /^\/w\/([^/]+)(?:\/|$)/.exec(pathname)?.[1];
@@ -57,6 +72,10 @@ export function OrganizationSwitcher({
   const pathname = usePathname();
   const router = useRouter();
   const interactionReady = useOrganizationControlInteractionReady();
+  const attached = useRef(true);
+  const visible = useRef(true);
+  const routeLifetime = useRef<RouteLifetime>({ generation: 0, pathname });
+  const queuedRefresh = useRef<RouteLifetime | null>(null);
   const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -77,6 +96,40 @@ export function OrganizationSwitcher({
         )
       : [currentOrganization, ...organizations]
     : organizations;
+
+  useInsertionEffect(() => {
+    attached.current = true;
+    return () => {
+      attached.current = false;
+      queuedRefresh.current = null;
+    };
+  }, []);
+
+  useInsertionEffect(() => {
+    if (routeLifetime.current.pathname !== pathname) {
+      routeLifetime.current = {
+        generation: routeLifetime.current.generation + 1,
+        pathname,
+      };
+      queuedRefresh.current = null;
+    }
+  }, [pathname]);
+
+  useLayoutEffect(() => {
+    visible.current = true;
+    const refreshOrigin = queuedRefresh.current;
+    queuedRefresh.current = null;
+    if (
+      refreshOrigin &&
+      attached.current &&
+      sameRouteLifetime(routeLifetime.current, refreshOrigin)
+    ) {
+      router.refresh();
+    }
+    return () => {
+      visible.current = false;
+    };
+  }, [router]);
 
   if (!key || options.length === 0) {
     return null;
@@ -106,10 +159,14 @@ export function OrganizationSwitcher({
     requestInFlight.current = true;
     setPending(true);
     setFailure(null);
+    const origin = routeLifetime.current;
     const result = await setActiveBrowserOrganization(
       createBrowserApiClient(),
       { organizationId: organization.id },
     );
+    if (!attached.current) {
+      return;
+    }
     requestInFlight.current = false;
     setPending(false);
 
@@ -119,8 +176,15 @@ export function OrganizationSwitcher({
     }
 
     setOpen(false);
+    if (!sameRouteLifetime(routeLifetime.current, origin)) {
+      return;
+    }
+    if (!visible.current) {
+      queuedRefresh.current = origin;
+      return;
+    }
     router.push(
-      resolveOrganizationSwitchHref(pathname, organization.canonicalKey),
+      resolveOrganizationSwitchHref(origin.pathname, organization.canonicalKey),
     );
     router.refresh();
   }

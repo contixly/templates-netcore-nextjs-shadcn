@@ -2153,3 +2153,34 @@ Strict RED/GREEN and complete gate evidence are recorded in the migration plan
 and ignored round-18 report. Task 14 Steps 5–6 remain pending: the controller
 owns push, both thread replies/resolution and a fresh automatic review. No
 future clean result or future reviewed hash is claimed.
+
+Round 19 reopened Task 14 after automatic review of implementation head
+`2d2706c423dfc4fe897fb7db0b5b5a49a6bbf822` identified actionable P2 thread
+`PRRT_kwDOThDXX86VjNgi` (REST comment `3693727310`): a pending switcher
+continuation could outlive its originating route and issue a stale global push.
+Strict real-component RED preceded production edits: the switcher suite failed
+**4/19** tests (**15 passed**) because permanent deletion, Activity hiding,
+queued hidden deletion, and an A→B→A mounted pathname generation all still
+pushed `/w/new/settings/users`. The switcher now separates insertion attachment,
+layout visibility, and exact committed-pathname generation. Visible same-origin
+success keeps one suffix-preserving push plus refresh. Permanent deletion is
+fully inert; a hidden same-origin success settles locally and queues only one
+refresh for reveal without replaying push; a pathname change permanently
+suppresses old work even if it changes back; safe failure unlocks retry without
+raw data. Focused GREEN is **19/19**, and the switcher/slot/routing/navigation
+focus is **4/4 suites, 59/59 tests**. Complete gate evidence is recorded in the
+migration plan and ignored round-19 report. Task 14 Steps 5–6 remain pending:
+the controller owns push, thread reply/resolution, and a fresh automatic review.
+No future clean result or future reviewed hash is claimed.
+
+Round 19 local review fix 1/5 closes the sole Important acceptance gap without a
+tracked production change. A real switcher inside installed React Activity now
+completes success while hidden, proves sibling pathname-dependent insertion
+effects commit hidden A→B→A updates, reveals with zero stale push/refresh, and
+then completes a fresh current interaction. A temporary uncommitted mutation
+disabled both eager queue invalidation and reveal-time generation validation;
+the focused regression failed **0/1** with one stale refresh. Restoring the exact
+production implementation produced targeted GREEN **1/1**, switcher GREEN
+**20/20**, and the related four-suite focus **60/60**. The two production checks
+remain defense in depth. Controller-owned push/thread/fresh-review work remains
+pending.

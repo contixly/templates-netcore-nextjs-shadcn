@@ -595,6 +595,22 @@ before rendering.
 The organization dashboard is a minimal organization-aware context page; charts,
 data table and final shell remain iteration 9.
 
+The route-owned parallel switcher has three independent client lifetimes:
+insertion-effect attachment for permanent existence, layout-effect visibility
+for React Activity, and an incrementing committed-pathname generation. Each
+set-active attempt captures its exact origin. Permanent deletion stops the
+continuation before ref, state, or router effects. Activity-hidden completion
+may settle live local failure/success state, but successful global work is
+reduced to one queued refresh for the same still-current generation; reveal
+never replays the stale push, drains the refresh once, and repeat hide/reveal
+does not repeat it. Any pathname transition permanently invalidates the old
+attempt even if the slot survives, temporarily returns `null`, or later returns
+to the same pathname. Visible current-generation success preserves the approved
+suffix-aware canonical push plus refresh and the active-id no-op.
+Queue invalidation and reveal-time origin-generation comparison intentionally
+remain independent defenses: a hidden A queue is discarded by committed A→B→A
+pathname updates and cannot drain even if one protection later regresses.
+
 ### Settings
 
 - settings root redirects to `/settings/workspace`;

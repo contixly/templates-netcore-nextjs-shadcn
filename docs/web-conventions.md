@@ -328,6 +328,22 @@ authoritative for its organization id: it replaces a same-id first-page summary
 without changing list order, or is prepended when that id is absent. A slug
 update replaces the browser URL with the returned canonical key.
 
+The switcher treats permanent attachment, React Activity visibility, and the
+exact committed pathname generation as separate lifetimes. A selection captures
+its pathname generation before set-active transport. Actual deletion makes its
+continuation inert before local or router effects. An attached hidden completion
+settles the request lock and local state but never replays the old push; a hidden
+success queues only one refresh, drained on reveal only when that exact pathname
+generation is still current. Any intervening pathname change, including a
+change away and back while the parallel slot remains mounted or renders `null`,
+permanently discards old-path navigation and queued reconciliation. Failure can
+remain safely retryable on a preserved instance without displaying raw API
+data. A visible same-generation success keeps one suffix-preserving canonical
+push followed by one refresh, including after StrictMode lifecycle replay.
+Queued refresh protection is defense in depth: each committed pathname change
+eagerly discards the queue, and reveal also verifies the queued origin generation
+before draining it.
+
 Lists return opaque server cursors unchanged, explicitly load more, and
 de-duplicate ids. Workspace browser accumulation keeps prior pages and the last
 cursor on a safe failure, retries the same GET, and applies every incoming
