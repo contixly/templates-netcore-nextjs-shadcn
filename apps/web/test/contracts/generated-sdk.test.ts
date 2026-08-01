@@ -81,15 +81,16 @@ import type {
 
 type Assert<T extends true> = T;
 type Equal<Left, Right> =
-  (<T>() => T extends Left ? 1 : 2) extends
-  (<T>() => T extends Right ? 1 : 2)
+  (<T>() => T extends Left ? 1 : 2) extends <T>() => T extends Right ? 1 : 2
     ? true
     : false;
 type _CreateInvitationBodyIsRequired = Assert<
   Equal<undefined extends CreateInvitationData["body"] ? true : false, false>
 >;
 type _CreateInvitationTeamIsNullable = Assert<
-  null extends NonNullable<CreateInvitationData["body"]>["teamId"] ? true : false
+  null extends NonNullable<CreateInvitationData["body"]>["teamId"]
+    ? true
+    : false
 >;
 type _CreateInvitationCsrfIsRequired = Assert<
   Equal<
@@ -106,7 +107,10 @@ type _InvitationStatusIsExact = Assert<
   >
 >;
 type _CandidateQueryIsOptional = Assert<
-  Equal<NonNullable<GetTeamMemberCandidatesData["query"]>["q"], string | undefined>
+  Equal<
+    NonNullable<GetTeamMemberCandidatesData["query"]>["q"],
+    string | undefined
+  >
 >;
 type _CreateInvitationSuccessEnvelopeIsExact = Assert<
   Equal<CreateInvitationResponses[201], ApiResponseOfInvitationResponse>
@@ -119,36 +123,102 @@ type _ConfirmUsesCsrfWithoutBody = Assert<
 >;
 type ErrorStatuses<Error> = keyof Error;
 type StandardCollaborationErrors = 400 | 401 | 403 | 404 | 405 | 409 | 500;
-type RateLimitedCollaborationErrors =
-  | StandardCollaborationErrors
-  | 429;
+type RateLimitedCollaborationErrors = StandardCollaborationErrors | 429;
 type _OrganizationErrorStatuses = [
   Assert<Equal<ErrorStatuses<GetOrganizationsErrors>, 400 | 401 | 405 | 500>>,
-  Assert<Equal<ErrorStatuses<CreateOrganizationErrors>, 400 | 401 | 405 | 409 | 500>>,
-  Assert<Equal<ErrorStatuses<GetOrganizationByKeyErrors>, 401 | 404 | 405 | 409 | 500>>,
-  Assert<Equal<ErrorStatuses<UpdateOrganizationErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<DeleteOrganizationErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<SetActiveOrganizationErrors>, 400 | 401 | 404 | 405 | 409 | 500>>,
-  Assert<Equal<ErrorStatuses<GetOrganizationMembersErrors>, 400 | 401 | 404 | 405 | 409 | 500>>,
-  Assert<Equal<ErrorStatuses<AddOrganizationMemberErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<UpdateOrganizationMemberRoleErrors>, StandardCollaborationErrors>>,
+  Assert<
+    Equal<ErrorStatuses<CreateOrganizationErrors>, 400 | 401 | 405 | 409 | 500>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetOrganizationByKeyErrors>,
+      401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<ErrorStatuses<UpdateOrganizationErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<DeleteOrganizationErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<SetActiveOrganizationErrors>,
+      400 | 401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetOrganizationMembersErrors>,
+      400 | 401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<AddOrganizationMemberErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<UpdateOrganizationMemberRoleErrors>,
+      StandardCollaborationErrors
+    >
+  >,
 ];
 type _CollaborationErrorStatuses = [
   Assert<Equal<ErrorStatuses<GetTeamsErrors>, StandardCollaborationErrors>>,
   Assert<Equal<ErrorStatuses<CreateTeamErrors>, StandardCollaborationErrors>>,
   Assert<Equal<ErrorStatuses<UpdateTeamErrors>, StandardCollaborationErrors>>,
   Assert<Equal<ErrorStatuses<DeleteTeamErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<GetTeamMembersErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<AddTeamMemberErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<RemoveTeamMemberErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<GetTeamMemberCandidatesErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<GetOrganizationInvitationsErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<CreateInvitationErrors>, RateLimitedCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<GetAccountInvitationsErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<GetInvitationDecisionErrors>, StandardCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<AcceptInvitationErrors>, RateLimitedCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<RejectInvitationErrors>, RateLimitedCollaborationErrors>>,
-  Assert<Equal<ErrorStatuses<ConfirmLocalAutomationEmailErrors>, 400 | 401 | 403 | 404 | 405 | 500>>,
+  Assert<
+    Equal<ErrorStatuses<GetTeamMembersErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<AddTeamMemberErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<RemoveTeamMemberErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetTeamMemberCandidatesErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetOrganizationInvitationsErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<ErrorStatuses<CreateInvitationErrors>, RateLimitedCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetAccountInvitationsErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetInvitationDecisionErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<ErrorStatuses<AcceptInvitationErrors>, RateLimitedCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<RejectInvitationErrors>, RateLimitedCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<ConfirmLocalAutomationEmailErrors>,
+      400 | 401 | 403 | 404 | 405 | 500
+    >
+  >,
 ];
 
 describe("generated system status SDK", () => {
@@ -265,7 +335,13 @@ describe("generated system status SDK", () => {
       headers: { "X-CSRF-TOKEN": "csrf" },
       url: "/api/local-auth/confirm-email",
     };
-    void [validCreate, validConfirm, missingCsrf, invalidStatus, confirmWithBody];
+    void [
+      validCreate,
+      validConfirm,
+      missingCsrf,
+      invalidStatus,
+      confirmWithBody,
+    ];
     expect(true).toBe(true);
   });
 

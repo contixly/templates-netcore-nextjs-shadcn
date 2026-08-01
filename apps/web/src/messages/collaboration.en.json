@@ -26,7 +26,10 @@
       "placeholder": "Search by name or email",
       "empty": "No eligible members found.",
       "loadMore": "Load more candidates",
-      "loadingMore": "Loading more candidates"
+      "loadingMore": "Loading more candidates",
+      "description": "Search eligible workspace members and add one to this team.",
+      "search": "Search",
+      "searching": "Searching"
     },
     "actions": {
       "create": "Create team",
@@ -39,7 +42,12 @@
       "addingMember": "Adding member",
       "removeMember": "Remove member",
       "removingMember": "Removing member",
-      "retry": "Retry"
+      "retry": "Retry",
+      "renameNamed": "Rename {team}",
+      "deleteNamed": "Delete {team}",
+      "addMemberNamed": "Add member to {team}",
+      "addMemberPerson": "Add {name}",
+      "removeMemberNamed": "Remove {name}"
     },
     "form": {
       "name": "Team name",
@@ -55,6 +63,18 @@
       "memberAdded": "Member added to the team.",
       "memberRemoved": "Member removed from the team.",
       "refreshFailure": "The change was saved, but the latest team data could not be loaded."
+    },
+    "failures": {
+      "unchanged": "Enter a different team name."
+    },
+    "readOnly": {
+      "title": "Read-only team access",
+      "description": "You can review teams and their members, but only workspace administrators and owners can make changes."
+    },
+    "roles": {
+      "member": "Member",
+      "admin": "Administrator",
+      "owner": "Owner"
     }
   },
   "invitations": {
