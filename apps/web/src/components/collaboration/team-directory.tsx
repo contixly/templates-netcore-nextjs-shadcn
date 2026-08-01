@@ -76,6 +76,28 @@ type OrganizationView = Readonly<{
   canManageTeams: boolean;
 }>;
 
+function mergeUniqueById<T>(
+  current: readonly T[],
+  incoming: readonly T[],
+  identify: (item: T) => string,
+): readonly T[] {
+  const merged: T[] = [];
+  const indexById = new Map<string, number>();
+
+  for (const item of [...current, ...incoming]) {
+    const id = identify(item);
+    const existingIndex = indexById.get(id);
+    if (existingIndex === undefined) {
+      indexById.set(id, merged.length);
+      merged.push(item);
+    } else {
+      merged[existingIndex] = item;
+    }
+  }
+
+  return merged;
+}
+
 function readPage<T>(
   result: Readonly<{
     data?: { data: T };
@@ -162,7 +184,7 @@ function TeamMemberDirectory({
   const memberRead = useRef(false);
   const mutationInFlight = useRef(new Set<string>());
   const [members, setMembers] = useState<readonly TeamMemberResponse[]>(
-    team.members.items,
+    mergeUniqueById([], team.members.items, (member) => member.id),
   );
   const [nextCursor, setNextCursor] = useState(team.members.nextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -177,7 +199,7 @@ function TeamMemberDirectory({
 
   if (serverMembers !== team.members) {
     setServerMembers(team.members);
-    setMembers(team.members.items);
+    setMembers(mergeUniqueById([], team.members.items, (member) => member.id));
     setNextCursor(team.members.nextCursor);
     setPartialFailure(false);
     setRefreshFailure(false);
@@ -203,8 +225,13 @@ function TeamMemberDirectory({
       else setPartialFailure(true);
       return false;
     }
-    if (replace) setMembers(result.data.items);
-    else setMembers((current) => [...current, ...result.data.items]);
+    if (replace) {
+      setMembers(mergeUniqueById([], result.data.items, (member) => member.id));
+    } else {
+      setMembers((current) =>
+        mergeUniqueById(current, result.data.items, (member) => member.id),
+      );
+    }
     setNextCursor(result.data.nextCursor);
     setPartialFailure(false);
     setRefreshFailure(false);
@@ -276,12 +303,12 @@ function TeamMemberDirectory({
 
   const mutationMessage =
     mutationFailure?.kind === "problem"
-      ? ({
-          team_member_not_found: failures("codes.team_member_not_found"),
-          team_not_found: failures("codes.team_not_found"),
-          team_permission_denied: failures("codes.team_permission_denied"),
-          antiforgery_failed: failures("codes.antiforgery_failed"),
-        }[mutationFailure.code] ?? failures("generic"))
+      ? (new Map<string, string>([
+          ["team_member_not_found", failures("codes.team_member_not_found")],
+          ["team_not_found", failures("codes.team_not_found")],
+          ["team_permission_denied", failures("codes.team_permission_denied")],
+          ["antiforgery_failed", failures("codes.antiforgery_failed")],
+        ]).get(mutationFailure.code) ?? failures("generic"))
       : failures("generic");
 
   return (
@@ -415,7 +442,7 @@ function TeamMemberCandidateDialog({
   const t = useTranslations("collaboration.teams");
   const failures = useTranslations("collaboration.failures");
   const lifecycle = useAttachedAndVisible();
-  const readInFlight = useRef(false);
+  const requestEpoch = useRef(0);
   const mutationInFlight = useRef(new Set<string>());
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -430,11 +457,10 @@ function TeamMemberCandidateDialog({
 
   async function search(event?: FormEvent<HTMLFormElement>, cursor?: string) {
     event?.preventDefault();
-    if (readInFlight.current) return;
     const normalizedQuery = (cursor ? searchedQuery : query)
       .trim()
       .slice(0, 100);
-    readInFlight.current = true;
+    const epoch = ++requestEpoch.current;
     setLoading(true);
     setFailure(null);
     const result = await runRead<{
@@ -451,8 +477,7 @@ function TeamMemberCandidateDialog({
         },
       }),
     );
-    if (!lifecycle.attached.current) return;
-    readInFlight.current = false;
+    if (!lifecycle.attached.current || requestEpoch.current !== epoch) return;
     setLoading(false);
     if (!result.ok) {
       setFailure(result.failure);
@@ -460,7 +485,11 @@ function TeamMemberCandidateDialog({
     }
     setSearchedQuery(normalizedQuery);
     setCandidates((current) =>
-      cursor ? [...current, ...result.data.items] : result.data.items,
+      mergeUniqueById(
+        cursor ? current : [],
+        result.data.items,
+        (candidate) => candidate.memberId,
+      ),
     );
     setNextCursor(result.data.nextCursor);
   }
@@ -494,14 +523,15 @@ function TeamMemberCandidateDialog({
 
   const failureMessage =
     failure?.kind === "problem"
-      ? ({
-          team_member_already_exists: failures(
-            "codes.team_member_already_exists",
-          ),
-          team_not_found: failures("codes.team_not_found"),
-          team_permission_denied: failures("codes.team_permission_denied"),
-          validation_failed: failures("codes.validation_failed"),
-        }[failure.code] ?? failures("generic"))
+      ? (new Map<string, string>([
+          [
+            "team_member_already_exists",
+            failures("codes.team_member_already_exists"),
+          ],
+          ["team_not_found", failures("codes.team_not_found")],
+          ["team_permission_denied", failures("codes.team_permission_denied")],
+          ["validation_failed", failures("codes.validation_failed")],
+        ]).get(failure.code) ?? failures("generic"))
       : failures("generic");
 
   return (
@@ -511,6 +541,7 @@ function TeamMemberCandidateDialog({
         if (mutationInFlight.current.size === 0) {
           setOpen(next);
           if (!next) {
+            requestEpoch.current += 1;
             setQuery("");
             setSearchedQuery("");
             setCandidates([]);
@@ -547,7 +578,15 @@ function TeamMemberCandidateDialog({
             <Input
               id={`candidate-search-${team.id}`}
               maxLength={100}
-              onChange={(event) => setQuery(event.currentTarget.value)}
+              onChange={(event) => {
+                requestEpoch.current += 1;
+                setQuery(event.currentTarget.value);
+                setSearchedQuery("");
+                setCandidates([]);
+                setNextCursor(null);
+                setLoading(false);
+                setFailure(null);
+              }}
               placeholder={t("candidates.placeholder")}
               value={query}
             />
@@ -635,7 +674,7 @@ export function TeamDirectory({
   const lifecycle = useAttachedAndVisible();
   const readInFlight = useRef(false);
   const [teams, setTeams] = useState<readonly TeamResponse[]>(
-    initialPage.items,
+    mergeUniqueById([], initialPage.items, (team) => team.id),
   );
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -646,13 +685,17 @@ export function TeamDirectory({
 
   if (serverPage !== initialPage) {
     setServerPage(initialPage);
-    setTeams(initialPage.items);
+    setTeams(mergeUniqueById([], initialPage.items, (team) => team.id));
     setNextCursor(initialPage.nextCursor);
     setPartialFailure(false);
     setRefreshFailure(false);
   }
 
-  async function readTeams(cursor?: string, recovery = false) {
+  async function readTeams(
+    cursor?: string,
+    recovery = false,
+    reconcileFirstPage = false,
+  ) {
     if (readInFlight.current) return false;
     readInFlight.current = true;
     setLoadingMore(true);
@@ -672,8 +715,14 @@ export function TeamDirectory({
       else setPartialFailure(true);
       return false;
     }
-    if (cursor) {
-      setTeams((current) => [...current, ...result.data.items]);
+    if (cursor || reconcileFirstPage) {
+      setTeams((current) =>
+        mergeUniqueById(
+          cursor ? current : [],
+          result.data.items,
+          (team) => team.id,
+        ),
+      );
       setNextCursor(result.data.nextCursor);
     }
     setRefreshFailure(false);
@@ -748,7 +797,7 @@ export function TeamDirectory({
           <AlertTitle>{t("success.refreshFailure")}</AlertTitle>
           <AlertDescription>
             <Button
-              onClick={() => readTeams(undefined, true)}
+              onClick={() => readTeams(undefined, true, true)}
               size="sm"
               type="button"
               variant="outline"

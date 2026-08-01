@@ -47,19 +47,19 @@ function useAttachedRef() {
 function useTeamFailureMessage(failure: ApiFailure | null) {
   const t = useTranslations("collaboration.failures");
   if (!failure) return null;
-  const codeMessages: Readonly<Record<string, string>> = {
-    antiforgery_failed: t("codes.antiforgery_failed"),
-    rate_limited: t("codes.rate_limited"),
-    team_name_conflict: t("codes.team_name_conflict"),
-    team_name_unchanged: t("codes.team_name_unchanged"),
-    team_not_found: t("codes.team_not_found"),
-    team_permission_denied: t("codes.team_permission_denied"),
-    validation_failed: t("codes.validation_failed"),
-  };
+  const codeMessages = new Map<string, string>([
+    ["antiforgery_failed", t("codes.antiforgery_failed")],
+    ["rate_limited", t("codes.rate_limited")],
+    ["team_name_conflict", t("codes.team_name_conflict")],
+    ["team_name_unchanged", t("codes.team_name_unchanged")],
+    ["team_not_found", t("codes.team_not_found")],
+    ["team_permission_denied", t("codes.team_permission_denied")],
+    ["validation_failed", t("codes.validation_failed")],
+  ]);
   return {
     message:
-      failure.kind === "problem" && codeMessages[failure.code]
-        ? codeMessages[failure.code]
+      failure.kind === "problem" && codeMessages.has(failure.code)
+        ? codeMessages.get(failure.code)!
         : t("generic"),
     traceId: failure.kind === "problem" ? failure.traceId : undefined,
   };

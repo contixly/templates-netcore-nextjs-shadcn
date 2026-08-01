@@ -146,6 +146,70 @@ it("appends team pages without replacing already visible results", async () => {
   );
 });
 
+it("deduplicates replayed team and member pages by immutable id while applying the newest projection", async () => {
+  jest.mocked(getTeams).mockResolvedValue({
+    data: {
+      data: {
+        items: [
+          { ...platform, name: "Platform replay" },
+          { ...platform, id: "team-2", name: "Design stale" },
+          { ...platform, id: "team-2", name: "Design current" },
+        ],
+        nextCursor: null,
+      },
+    },
+  } as Awaited<ReturnType<typeof getTeams>>);
+  jest.mocked(getTeamMembers).mockResolvedValue({
+    data: {
+      data: {
+        items: [
+          { ...firstMember, name: "Alice replay" },
+          {
+            ...firstMember,
+            id: "membership-2",
+            userId: "user-2",
+            name: "Bob stale",
+          },
+          {
+            ...firstMember,
+            id: "membership-2",
+            userId: "user-2",
+            name: "Bob current",
+          },
+        ],
+        nextCursor: null,
+      },
+    },
+  } as Awaited<ReturnType<typeof getTeamMembers>>);
+
+  renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [platform], nextCursor: "team-next" }}
+      organization={{ id: "org-1", canManageTeams: false }}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Load more teams" }));
+  expect(await screen.findByText("Platform replay")).toBeVisible();
+  fireEvent.click(
+    within(
+      screen.getByRole("region", { name: "Platform replay members" }),
+    ).getByRole("button", { name: "Load more members" }),
+  );
+
+  const platformMembers = screen.getByRole("region", {
+    name: "Platform replay members",
+  });
+  expect(
+    await within(platformMembers).findByText("Alice replay"),
+  ).toBeVisible();
+  expect(screen.getAllByText("Design current")).toHaveLength(1);
+  expect(screen.getAllByText("Bob current")).toHaveLength(1);
+  expect(screen.queryByText("Platform")).not.toBeInTheDocument();
+  expect(
+    within(platformMembers).queryByText("Alice Admin"),
+  ).not.toBeInTheDocument();
+});
+
 it("continues beyond the embedded member page and keeps partial data on a retryable failure", async () => {
   jest
     .mocked(getTeamMembers)
