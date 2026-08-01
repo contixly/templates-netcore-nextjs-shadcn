@@ -4,15 +4,17 @@ public sealed record OrganizationCapabilities(
     bool CanUpdateOrganization,
     bool CanDeleteOrganization,
     bool CanAddMembers,
-    bool CanUpdateMemberRoles);
+    bool CanUpdateMemberRoles,
+    bool CanManageTeams,
+    bool CanManageInvitations);
 
 public static class OrganizationPermissionPolicy
 {
     public static OrganizationCapabilities GetCapabilities(OrganizationRole role) => role switch
     {
-        var value when value == OrganizationRole.Admin => new(true, false, true, true),
-        var value when value == OrganizationRole.Owner => new(true, true, true, true),
-        _ => new(false, false, false, false)
+        var value when value == OrganizationRole.Admin => new(true, false, true, true, true, true),
+        var value when value == OrganizationRole.Owner => new(true, true, true, true, true, true),
+        _ => new(false, false, false, false, false, false)
     };
 
     public static bool CanAssign(OrganizationRole actorRole, OrganizationRole requestedRole) => actorRole switch
