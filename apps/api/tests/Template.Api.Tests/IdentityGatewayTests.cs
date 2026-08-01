@@ -123,6 +123,40 @@ public sealed class IdentityGatewayTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task ConfirmEmailMarksOnlyTheRequestedLocalIdentityVerified()
+    {
+        await using var scope = _services.CreateAsyncScope();
+        var gateway = scope.ServiceProvider.GetRequiredService<ILocalIdentityGateway>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+        var requested = await gateway.CreateLocalAsync(
+            new LocalAutomationCredentials(
+                "Confirmation Target",
+                "local-agent+confirmation-target@local-agent.test",
+                "local-confirmation-target-password"),
+            TestContext.Current.CancellationToken);
+        var untouched = await gateway.CreateLocalAsync(
+            new LocalAutomationCredentials(
+                "Confirmation Untouched",
+                "local-agent+confirmation-untouched@local-agent.test",
+                "local-confirmation-untouched-password"),
+            TestContext.Current.CancellationToken);
+
+        var confirmed = await gateway.ConfirmEmailAsync(
+            requested.Id,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(confirmed.EmailVerified);
+        Assert.True(await db.Users
+            .Where(user => user.Id == requested.Id.Value)
+            .Select(user => user.EmailConfirmed)
+            .SingleAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.Users
+            .Where(user => user.Id == untouched.Id.Value)
+            .Select(user => user.EmailConfirmed)
+            .SingleAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task DuplicateNormalizedEmailUsesStableDuplicateException()
     {
         await using var scope = _services.CreateAsyncScope();

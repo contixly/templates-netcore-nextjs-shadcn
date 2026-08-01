@@ -77,6 +77,309 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task CollaborationAndLocalConfirmationPublishExactBrowserContract()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+        var expected = new Dictionary<(string Path, string Method), string>
+        {
+            [("/api/v1/organizations/{organizationId}/teams", "get")] = "GetTeams",
+            [("/api/v1/organizations/{organizationId}/teams", "post")] = "CreateTeam",
+            [("/api/v1/organizations/{organizationId}/teams/{teamId}", "patch")] = "UpdateTeam",
+            [("/api/v1/organizations/{organizationId}/teams/{teamId}", "delete")] = "DeleteTeam",
+            [("/api/v1/organizations/{organizationId}/teams/{teamId}/members", "get")] = "GetTeamMembers",
+            [("/api/v1/organizations/{organizationId}/teams/{teamId}/members", "post")] = "AddTeamMember",
+            [("/api/v1/organizations/{organizationId}/teams/{teamId}/members/{userId}", "delete")] = "RemoveTeamMember",
+            [("/api/v1/organizations/{organizationId}/teams/{teamId}/member-candidates", "get")] = "GetTeamMemberCandidates",
+            [("/api/v1/organizations/{organizationId}/invitations", "get")] = "GetOrganizationInvitations",
+            [("/api/v1/organizations/{organizationId}/invitations", "post")] = "CreateInvitation",
+            [("/api/v1/account/invitations", "get")] = "GetAccountInvitations",
+            [("/api/v1/invitations/{invitationId}", "get")] = "GetInvitationDecision",
+            [("/api/v1/invitations/{invitationId}/accept", "post")] = "AcceptInvitation",
+            [("/api/v1/invitations/{invitationId}/reject", "post")] = "RejectInvitation",
+            [("/api/local-auth/confirm-email", "post")] = "ConfirmLocalAutomationEmail"
+        };
+
+        foreach (var ((path, method), operationId) in expected)
+        {
+            var operation = AssertOperation(document, path, method, operationId);
+            AssertCookieSecurity(operation);
+            Assert.Equal("no-store", operation["x-cache-control"]!.GetValue<string>());
+        }
+
+        foreach (var ((path, method), _) in expected.Where(value =>
+                     value.Key.Method is "post" or "patch" or "delete"))
+        {
+            AssertRequiredHeader(paths[path]![method]!, "X-CSRF-TOKEN");
+        }
+
+        var confirm = paths["/api/local-auth/confirm-email"]!["post"]!;
+        Assert.True(confirm["x-local-only"]!.GetValue<bool>());
+        Assert.Equal(new[] { 400, 401, 403, 404, 405, 500 },
+            ProblemStatuses(confirm));
+    }
+
+    [Fact]
+    public async Task CollaborationPublishesStrictFiltersEnumsAndErrorUnions()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+        var schemas = document["components"]!["schemas"]!;
+
+        foreach (var path in new[]
+                 {
+                     "/api/v1/organizations/{organizationId}/teams",
+                     "/api/v1/organizations/{organizationId}/teams/{teamId}/members",
+                     "/api/v1/organizations/{organizationId}/teams/{teamId}/member-candidates",
+                     "/api/v1/organizations/{organizationId}/invitations",
+                     "/api/v1/account/invitations"
+                 })
+        {
+            AssertPagination(paths[path]!["get"]!, 1, 100, 50, "Opaque versioned cursor.");
+        }
+
+        var candidates = paths["/api/v1/organizations/{organizationId}/teams/{teamId}/member-candidates"]!["get"]!;
+        var query = Assert.Single(candidates["parameters"]!.AsArray(), parameter =>
+            parameter!["name"]!.GetValue<string>() == "q");
+        Assert.Equal(100, query!["schema"]!["maxLength"]!.GetValue<int>());
+
+        var invitations = paths["/api/v1/organizations/{organizationId}/invitations"]!["get"]!;
+        var status = Assert.Single(invitations["parameters"]!.AsArray(), parameter =>
+            parameter!["name"]!.GetValue<string>() == "status");
+        AssertStringEnum(status!["schema"]!, "pending", "accepted", "rejected", "canceled", "expired");
+
+        foreach (var schemaName in new[] { "TeamNameRequest", "AddTeamMemberRequest", "CreateInvitationRequest" })
+        {
+            Assert.False(schemas[schemaName]!["additionalProperties"]!.GetValue<bool>());
+        }
+
+        AssertRequiredNonNullProperties(schemas["TeamNameRequest"]!, "name");
+        AssertRequiredNonNullProperties(schemas["AddTeamMemberRequest"]!, "userId");
+        AssertRequiredNonNullProperties(schemas["CreateInvitationRequest"]!, "email", "role");
+        AssertStringEnum(schemas["CreateInvitationRequest"]!["properties"]!["role"]!, "member", "admin", "owner");
+        AssertStringEnum(schemas["InvitationResponse"]!["properties"]!["role"]!, "member", "admin", "owner");
+        AssertStringEnum(schemas["InvitationResponse"]!["properties"]!["status"]!, "pending", "accepted", "rejected", "canceled");
+        AssertStringEnum(schemas["InvitationResponse"]!["properties"]!["displayState"]!, "pending", "accepted", "rejected", "canceled", "expired");
+        var invitationResponse = schemas["InvitationResponse"]!;
+        var invitationRequired = invitationResponse["required"]!.AsArray()
+            .Select(value => value!.GetValue<string>())
+            .ToArray();
+        Assert.DoesNotContain("warning", invitationRequired);
+        var warning = invitationResponse["properties"]!["warning"]!;
+        Assert.Equal(
+            new[] { "null", "string" },
+            EnumerateSchemaTypes(warning).Order(StringComparer.Ordinal));
+        var warningValues = warning["enum"]!.AsArray();
+        Assert.Equal(2, warningValues.Count);
+        Assert.Contains(warningValues, value => value is null);
+        Assert.Contains(
+            warningValues,
+            value => value?.GetValue<string>() == "notification_failed");
+
+        foreach (var (schemaName, propertyName) in new[]
+                 {
+                     ("AddTeamMemberRequest", "userId"),
+                     ("CreateInvitationRequest", "teamId"),
+                     ("TeamResponse", "id"),
+                     ("TeamResponse", "organizationId"),
+                     ("InvitationResponse", "id"),
+                     ("InvitationResponse", "organizationId"),
+                     ("InvitationResponse", "teamId"),
+                     ("AcceptedInvitationResponse", "invitationId"),
+                     ("AcceptedInvitationResponse", "organizationId")
+                 })
+        {
+            var property = schemas[schemaName]!["properties"]![propertyName]!;
+            Assert.Equal("uuid", property["format"]!.GetValue<string>());
+            Assert.Equal(CanonicalUuidPattern, property["pattern"]!.GetValue<string>());
+        }
+
+        Assert.Equal(new[] { 400, 401, 403, 404, 405, 409, 500 },
+            ProblemStatuses(paths["/api/v1/organizations/{organizationId}/teams"]!["post"]!));
+        Assert.Equal(new[] { 400, 401, 403, 404, 405, 409, 429, 500 },
+            ProblemStatuses(paths["/api/v1/organizations/{organizationId}/invitations"]!["post"]!));
+        Assert.Equal(new[] { 400, 401, 403, 404, 405, 409, 429, 500 },
+            ProblemStatuses(paths["/api/v1/invitations/{invitationId}/accept"]!["post"]!));
+    }
+
+    [Fact]
+    public async Task InvitationCreateEmailPublishesTrimmedAsciiOnlyRequestPolicy()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+        var requestEmail = schemas["CreateInvitationRequest"]!["properties"]!["email"]!;
+
+        Assert.Null(requestEmail["pattern"]);
+        Assert.Equal(254, requestEmail["x-trimmed-max-length"]!.GetValue<int>());
+        Assert.Equal("email", requestEmail["x-trimmed-format"]!.GetValue<string>());
+        Assert.NotNull(requestEmail["x-trimmed-pattern"]);
+        var trimmedPattern = requestEmail["x-trimmed-pattern"]!.GetValue<string>();
+        Assert.Matches(trimmedPattern, "INVITEE+tag@example.test");
+        Assert.DoesNotMatch(trimmedPattern, "İnvitee@example.test");
+        Assert.DoesNotMatch(trimmedPattern, "invitee\u007F@example.test");
+        Assert.Contains(
+            "ASCII",
+            requestEmail["description"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+
+        foreach (var schemaName in new[]
+                 {
+                     "InvitationResponse",
+                     "TeamMemberResponse",
+                     "TeamCandidateResponse"
+                 })
+        {
+            var projectedEmail = schemas[schemaName]!["properties"]!["email"]!;
+            Assert.Null(projectedEmail["x-trimmed-pattern"]);
+            Assert.Equal("email", projectedEmail["format"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
+    public async Task CollaborationOperationsPublishTheExactBrowserSurface()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+        var expected = new[]
+        {
+            ("/api/v1/organizations/{organizationId}/teams", "get", "GetTeams", "200", "ApiResponseOfTeamPageResponse", false, false),
+            ("/api/v1/organizations/{organizationId}/teams", "post", "CreateTeam", "201", "ApiResponseOfTeamResponse", true, false),
+            ("/api/v1/organizations/{organizationId}/teams/{teamId}", "patch", "UpdateTeam", "200", "ApiResponseOfTeamResponse", true, false),
+            ("/api/v1/organizations/{organizationId}/teams/{teamId}", "delete", "DeleteTeam", "200", "ApiResponseOfTeamDeletionResponse", true, false),
+            ("/api/v1/organizations/{organizationId}/teams/{teamId}/members", "get", "GetTeamMembers", "200", "ApiResponseOfTeamMemberPageResponse", false, false),
+            ("/api/v1/organizations/{organizationId}/teams/{teamId}/members", "post", "AddTeamMember", "201", "ApiResponseOfTeamMemberResponse", true, false),
+            ("/api/v1/organizations/{organizationId}/teams/{teamId}/members/{userId}", "delete", "RemoveTeamMember", "200", "ApiResponseOfTeamMemberRemovalResponse", true, false),
+            ("/api/v1/organizations/{organizationId}/teams/{teamId}/member-candidates", "get", "GetTeamMemberCandidates", "200", "ApiResponseOfTeamCandidatePageResponse", false, false),
+            ("/api/v1/organizations/{organizationId}/invitations", "get", "GetOrganizationInvitations", "200", "ApiResponseOfOrganizationInvitationPageResponse", false, false),
+            ("/api/v1/organizations/{organizationId}/invitations", "post", "CreateInvitation", "201", "ApiResponseOfInvitationResponse", true, true),
+            ("/api/v1/account/invitations", "get", "GetAccountInvitations", "200", "ApiResponseOfAccountInvitationPageResponse", false, false),
+            ("/api/v1/invitations/{invitationId}", "get", "GetInvitationDecision", "200", "ApiResponseOfInvitationDecisionResponse", false, false),
+            ("/api/v1/invitations/{invitationId}/accept", "post", "AcceptInvitation", "200", "ApiResponseOfAcceptedInvitationResponse", true, true),
+            ("/api/v1/invitations/{invitationId}/reject", "post", "RejectInvitation", "200", "ApiResponseOfInvitationDecisionResponse", true, true),
+            ("/api/local-auth/confirm-email", "post", "ConfirmLocalAutomationEmail", "200", "ApiResponseOfAuthSessionResponse", true, false)
+        };
+        var collaborationPaths = paths.AsObject()
+            .Where(path => path.Key.Contains("teams", StringComparison.Ordinal) ||
+                           path.Key.Contains("invitations", StringComparison.Ordinal) ||
+                           path.Key == "/api/local-auth/confirm-email")
+            .SelectMany(path => path.Value!.AsObject().Select(method =>
+                (Path: path.Key, Method: method.Key)))
+            .OrderBy(value => value.Path, StringComparer.Ordinal)
+            .ThenBy(value => value.Method, StringComparer.Ordinal)
+            .ToArray();
+        Assert.Equal(
+            expected.Select(value => (Path: value.Item1, Method: value.Item2))
+                .OrderBy(value => value.Path, StringComparer.Ordinal)
+                .ThenBy(value => value.Method, StringComparer.Ordinal),
+            collaborationPaths);
+
+        var operationIds = paths.AsObject().SelectMany(path => path.Value!.AsObject()
+            .Where(method => method.Key is "get" or "put" or "post" or "delete" or
+                "options" or "head" or "patch" or "trace")
+            .Select(method => method.Value!["operationId"]!.GetValue<string>())).ToArray();
+        Assert.Equal(operationIds.Length, operationIds.Distinct(StringComparer.Ordinal).Count());
+
+        foreach (var (path, method, operationId, success, envelope, mutation, rateLimited) in expected)
+        {
+            var operation = AssertOperation(document, path, method, operationId);
+            AssertCookieSecurity(operation);
+            foreach (var parameter in operation["parameters"]?.AsArray() ?? [])
+            {
+                if (parameter!["in"]?.GetValue<string>() == "path")
+                {
+                    Assert.Equal("uuid", parameter["schema"]!["format"]!.GetValue<string>());
+                    Assert.Equal(CanonicalUuidPattern, parameter["schema"]!["pattern"]!.GetValue<string>());
+                }
+            }
+            var responses = operation["responses"]!;
+            var expectedProblems = operationId == "ConfirmLocalAutomationEmail"
+                ? new[] { "400", "401", "403", "404", "405", "500" }
+                : rateLimited
+                    ? new[] { "400", "401", "403", "404", "405", "409", "429", "500" }
+                    : new[] { "400", "401", "403", "404", "405", "409", "500" };
+            Assert.Equal(
+                new[] { success }.Concat(expectedProblems).Order(StringComparer.Ordinal),
+                responses.AsObject().Select(response => response.Key).Order(StringComparer.Ordinal));
+            Assert.Equal($"#/components/schemas/{envelope}",
+                responses[success]!["content"]!["application/json"]!["schema"]!["$ref"]!.GetValue<string>());
+            foreach (var response in responses.AsObject())
+            {
+                AssertNoStoreResponseHeader(response.Value!);
+            }
+
+            if (mutation)
+            {
+                AssertRequiredHeader(operation, "X-CSRF-TOKEN");
+            }
+            else
+            {
+                Assert.DoesNotContain(operation["parameters"]?.AsArray() ?? [], parameter =>
+                    parameter!["name"]?.GetValue<string>() == "X-CSRF-TOKEN");
+            }
+
+            if (operationId is "CreateTeam" or "UpdateTeam" or "AddTeamMember" or
+                "CreateInvitation")
+            {
+                Assert.True(operation["requestBody"]!["required"]!.GetValue<bool>());
+            }
+            else
+            {
+                Assert.Null(operation["requestBody"]);
+            }
+
+            if (success == "201")
+            {
+                var location = responses[success]!["headers"]!["Location"]!;
+                Assert.True(location["required"]!.GetValue<bool>());
+                Assert.Equal("string", location["schema"]!["type"]!.GetValue<string>());
+                Assert.Equal("uri-reference", location["schema"]!["format"]!.GetValue<string>());
+            }
+
+            if (rateLimited)
+            {
+                var retryAfter = responses["429"]!["headers"]!["Retry-After"]!;
+                Assert.True(retryAfter["required"]!.GetValue<bool>());
+                Assert.Equal("string", retryAfter["schema"]!["type"]!.GetValue<string>());
+                Assert.Equal("^[0-9]+$", retryAfter["schema"]!["pattern"]!.GetValue<string>());
+                Assert.Equal("Decimal integer seconds until the caller may retry.", retryAfter["description"]!.GetValue<string>());
+            }
+        }
+
+        var schemas = document["components"]!["schemas"]!;
+        AssertRequiredNonNullProperties(schemas["CreateInvitationRequest"]!, "email", "role");
+        Assert.Contains("null", EnumerateSchemaTypes(schemas["CreateInvitationRequest"]!["properties"]!["teamId"]!));
+        Assert.Equal(100, paths["/api/v1/organizations/{organizationId}/teams/{teamId}/member-candidates"]!["get"]!["parameters"]!
+            .AsArray().Single(parameter => parameter!["name"]!.GetValue<string>() == "q")!["schema"]!["maxLength"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public async Task LocalConfirmationDocumentsItsStrictlyLocalPurpose()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var operation = document["paths"]!["/api/local-auth/confirm-email"]!["post"]!;
+
+        Assert.True(operation["x-local-only"]!.GetValue<bool>());
+        Assert.Equal(
+            "Development/Test only; requires LocalAutomationAuth enabled. Production returns 404. This is not production account verification.",
+            operation["description"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task AuthOperationsDeclareLocalCsrfAndCookieBoundaries()
     {
         using var client = factory.CreateApiClient();
@@ -1228,7 +1531,25 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             "member_already_exists",
             "member_role_unchanged",
             "role_assignment_forbidden",
-            "member_domain_acknowledgement_required");
+            "member_domain_acknowledgement_required",
+            "team_not_found",
+            "team_permission_denied",
+            "team_name_conflict",
+            "team_name_unchanged",
+            "team_member_not_found",
+            "team_member_already_exists",
+            "invitation_not_found",
+            "invitation_permission_denied",
+            "invitation_already_exists",
+            "invitation_recipient_already_member",
+            "invitation_team_invalid",
+            "invitation_domain_restricted",
+            "invitation_recipient_mismatch",
+            "invitation_email_verification_required",
+            "invitation_expired",
+            "invitation_not_pending",
+            "invitation_membership_conflict",
+            "invitation_limit_reached");
     }
 
     [Fact]
@@ -1584,11 +1905,11 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         string operationId)
     {
         var operation = document["paths"]?[path]?[method];
-        Assert.NotNull(operation);
+        Assert.True(operation is not null, $"Missing {method.ToUpperInvariant()} {path}.");
         Assert.Equal(
             operationId,
-            operation["operationId"]!.GetValue<string>());
-        return operation;
+            operation!["operationId"]!.GetValue<string>());
+        return operation!;
     }
 
     private static void AssertRequiredHeader(
@@ -1601,6 +1922,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Equal("header", header!["in"]!.GetValue<string>());
         Assert.True(header["required"]!.GetValue<bool>());
         Assert.Equal("string", header["schema"]!["type"]!.GetValue<string>());
+    }
+
+    private static void AssertNoStoreResponseHeader(JsonNode response)
+    {
+        var header = response["headers"]!["Cache-Control"]!;
+        Assert.True(header["required"]!.GetValue<bool>());
+        Assert.Equal("string", header["schema"]!["type"]!.GetValue<string>());
+        Assert.Equal("no-store", header["schema"]!["enum"]![0]!.GetValue<string>());
     }
 
     private static void AssertPagination(
@@ -1655,6 +1984,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             schema["enum"]!.AsArray()
                 .Select(value => value!.GetValue<string>()));
     }
+
+    private static int[] ProblemStatuses(JsonNode operation) =>
+        operation["responses"]!.AsObject()
+            .Select(response => response.Key)
+            .Where(status => int.TryParse(status, out var value) && value >= 400)
+            .Select(int.Parse)
+            .Order()
+            .ToArray();
 
     private static IEnumerable<string> EnumerateSchemaTypes(JsonNode schema)
     {

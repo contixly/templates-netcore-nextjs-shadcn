@@ -76,6 +76,9 @@ export async function AuthenticatedOrganizationSettingsShell({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col md:flex-row">
       <OrganizationSettingsNav
+        canManageInvitations={
+          organization.data.capabilities.canManageInvitations
+        }
         organizationKey={organization.data.canonicalKey}
       />
       <main className="min-w-0 flex-1 px-4 py-8 md:px-6">{children}</main>

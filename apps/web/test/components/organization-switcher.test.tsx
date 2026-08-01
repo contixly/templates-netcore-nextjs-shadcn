@@ -7,9 +7,11 @@ import {
 } from "react";
 import { renderToString } from "react-dom/server";
 
-import { OrganizationSwitcher } from "@/src/components/organizations/organization-switcher";
+import {
+  OrganizationSwitcher,
+  type OrganizationSwitcherItem,
+} from "@/src/components/organizations/organization-switcher";
 import { setActiveBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
-import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 
 const organizationControlReadyAttribute =
@@ -31,39 +33,26 @@ jest.mock("@/src/lib/api/organizations/browser/organization-mutations", () => ({
 }));
 
 const setActive = jest.mocked(setActiveBrowserOrganization);
-const capabilities = {
-  canUpdateOrganization: true,
-  canDeleteOrganization: true,
-  canAddMembers: true,
-  canUpdateMemberRoles: true,
-};
 const organizations = [
   {
     id: "old-id",
     name: "Old",
-    slug: "old",
     canonicalKey: "old",
-    createdAt: "2026-07-30T10:00:00Z",
-    updatedAt: "2026-07-30T10:00:00Z",
-    currentRole: "owner",
-    capabilities,
+    canManageInvitations: true,
   },
   {
     id: "new-id",
     name: "New",
-    slug: "new",
     canonicalKey: "new",
-    createdAt: "2026-07-30T10:00:00Z",
-    updatedAt: "2026-07-30T10:00:00Z",
-    currentRole: "member",
-    capabilities,
+    canManageInvitations: false,
   },
-] satisfies OrganizationSummaryResponse[];
+] satisfies OrganizationSwitcherItem[];
 
 const offPageCurrent = {
   id: "off-page-id",
   name: "Workspace Fifty One",
   canonicalKey: "workspace-fifty-one",
+  canManageInvitations: false,
 };
 
 function ActivityHideSignal({ onHidden }: Readonly<{ onHidden: () => void }>) {
@@ -169,6 +158,7 @@ it("replaces a stale same-id list entry with the authoritative current detail", 
         id: "old-id",
         name: "Renamed Workspace",
         canonicalKey: "old",
+        canManageInvitations: true,
       }}
       organizations={organizations}
     />,
@@ -203,8 +193,16 @@ it("preserves the full accessible name while constraining long labels", () => {
         id: "long-id",
         name: longName,
         canonicalKey: "long",
+        canManageInvitations: false,
       }}
-      organizations={[{ id: "long-id", name: longName, canonicalKey: "long" }]}
+      organizations={[
+        {
+          id: "long-id",
+          name: longName,
+          canonicalKey: "long",
+          canManageInvitations: false,
+        },
+      ]}
     />,
   );
 
@@ -250,6 +248,41 @@ it("sets active context before preserving a registered route and refreshing once
   expect(push).toHaveBeenCalledTimes(1);
   expect(order).toEqual(["mutation", "navigation", "refresh"]);
 });
+
+it.each([
+  ["/w/old/settings/teams", false, "/w/new/settings/teams"],
+  ["/w/old/settings/invitations", true, "/w/new/settings/invitations"],
+  ["/w/old/settings/invitations", false, "/w/new/dashboard"],
+] as const)(
+  "routes %s using only the selected target invitation capability %s",
+  async (currentPathname, canManageInvitations, expected) => {
+    pathname.mockReturnValue(currentPathname);
+    setActive.mockResolvedValue({
+      ok: true,
+      data: { organizationId: "new-id" },
+    });
+    renderWithMessages(
+      <OrganizationSwitcher
+        organizations={organizations.map((organization) =>
+          organization.id === "new-id"
+            ? { ...organization, canManageInvitations }
+            : organization,
+        )}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Current workspace: Old" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Switch to New" }),
+    );
+
+    await waitFor(() => {
+      expect(push).toHaveBeenCalledWith(expected);
+    });
+  },
+);
 
 it("makes a successful continuation inert after permanent deletion", async () => {
   const pendingSwitch =

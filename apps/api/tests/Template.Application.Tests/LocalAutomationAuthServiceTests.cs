@@ -116,6 +116,73 @@ public sealed class LocalAutomationAuthServiceTests
     }
 
     [Fact]
+    public async Task ConfirmEmailUpdatesIdentityAndRenewsCurrentTicketInOneUnitOfWork()
+    {
+        var current = TestIdentity.Session(isLocalAutomation: true);
+        var confirmed = current.User with { EmailVerified = true };
+        var identities = new FakeIdentityGateway { ConfirmedUser = confirmed };
+        var sessions = new FakeBrowserSessionGateway
+        {
+            Current = current,
+            RenewedSession = current.Session
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(
+            identities,
+            sessions,
+            new QueueCredentialGenerator(
+                new LocalAutomationCredentials(
+                    "Generated",
+                    "local-agent+generated@local-agent.test",
+                    "local-generated-password")),
+            transactions);
+
+        var result = await service.ConfirmEmailAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.True(result.Value!.User!.EmailVerified);
+        Assert.Equal(current.User.Id, Assert.Single(identities.ConfirmedUserIds));
+        Assert.Equal(1, sessions.RenewCurrentCalls);
+        Assert.Equal(1, transactions.Executions);
+    }
+
+    [Theory]
+    [InlineData(false, true, AuthFailure.SessionRequired)]
+    [InlineData(true, false, AuthFailure.LocalUserRequired)]
+    public async Task ConfirmEmailRejectsMissingOrNonLocalCurrentUser(
+        bool hasSession,
+        bool isLocalAutomation,
+        AuthFailure expected)
+    {
+        var identities = new FakeIdentityGateway();
+        var sessions = new FakeBrowserSessionGateway
+        {
+            Current = hasSession
+                ? TestIdentity.Session(isLocalAutomation)
+                : null
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(
+            identities,
+            sessions,
+            new QueueCredentialGenerator(
+                new LocalAutomationCredentials(
+                    "Generated",
+                    "local-agent+generated@local-agent.test",
+                    "local-generated-password")),
+            transactions);
+
+        var result = await service.ConfirmEmailAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(expected, result.Failure);
+        Assert.Empty(identities.ConfirmedUserIds);
+        Assert.Equal(0, sessions.RenewCurrentCalls);
+        Assert.Equal(0, transactions.Executions);
+    }
+
+    [Fact]
     public async Task CleanupRejectsAuthenticatedNonLocalUser()
     {
         var sessions = new FakeBrowserSessionGateway
@@ -316,6 +383,8 @@ public sealed class LocalAutomationAuthServiceTests
         public int CreateAttempts { get; private set; }
         public int PasswordChecks { get; private set; }
         public int DeleteAttempts { get; private set; }
+        public AuthUser? ConfirmedUser { get; init; }
+        public List<UserId> ConfirmedUserIds { get; } = [];
 
         public Task<AuthUser> CreateLocalAsync(
             LocalAutomationCredentials credentials,
@@ -355,13 +424,29 @@ public sealed class LocalAutomationAuthServiceTests
             DeleteAttempts++;
             return Task.CompletedTask;
         }
+
+        public Task<AuthUser> ConfirmEmailAsync(
+            UserId userId,
+            CancellationToken cancellationToken)
+        {
+            ConfirmedUserIds.Add(userId);
+            return Task.FromResult(
+                ConfirmedUser ??
+                TestIdentity.User() with
+                {
+                    Id = userId,
+                    EmailVerified = true
+                });
+        }
     }
 
     private sealed class FakeBrowserSessionGateway : IBrowserSessionGateway
     {
         public AuthenticatedSession? Current { get; init; }
+        public BrowserSession? RenewedSession { get; init; }
         public int SignInCalls { get; private set; }
         public int SignOutCalls { get; private set; }
+        public int RenewCurrentCalls { get; private set; }
 
         public Task<AuthenticatedSession?> GetCurrentAsync(CancellationToken cancellationToken) =>
             Task.FromResult(Current);
@@ -377,8 +462,14 @@ public sealed class LocalAutomationAuthServiceTests
         }
 
         public Task<BrowserSession> RenewCurrentAsync(
-            CancellationToken cancellationToken) =>
-            throw new InvalidOperationException("Renewal is not part of this test.");
+            CancellationToken cancellationToken)
+        {
+            RenewCurrentCalls++;
+            return Task.FromResult(
+                RenewedSession ??
+                throw new InvalidOperationException(
+                    "Renewal is not configured for this test."));
+        }
 
         public Task SignOutAsync(CancellationToken cancellationToken)
         {

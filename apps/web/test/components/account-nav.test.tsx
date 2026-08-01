@@ -50,13 +50,14 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-it("renders only iteration-four account destinations", () => {
+it("renders the collaboration invitation destination in account settings", () => {
   renderWithMessages(<AccountNav pathname="/user/profile" />);
 
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
     "Profile",
     "Connections",
     "Security",
+    "Invitations",
     "Danger",
   ]);
   expect(
@@ -65,12 +66,12 @@ it("renders only iteration-four account destinations", () => {
     "/user/profile",
     "/user/connections",
     "/user/security",
+    "/user/invitations",
     "/user/danger",
   ]);
   expect(
     screen.getByRole("navigation", { name: "Account settings" }),
   ).toBeInTheDocument();
-  expect(screen.queryByText("Invitations")).not.toBeInTheDocument();
   expect(screen.queryByText("API Keys")).not.toBeInTheDocument();
   expect(usePathname).not.toHaveBeenCalled();
 });
@@ -119,6 +120,7 @@ it("uses the fixed Russian deployment locale for account navigation", () => {
     "Профиль",
     "Подключения",
     "Безопасность",
+    "Приглашения",
     "Опасная зона",
   ]);
 });

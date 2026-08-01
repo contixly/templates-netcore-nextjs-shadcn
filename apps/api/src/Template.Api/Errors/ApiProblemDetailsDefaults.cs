@@ -81,7 +81,7 @@ internal static class ApiProblemDetailsDefaults
             ApiProblemCodes.RateLimited => new ProblemDefinition(
                 requestedCode,
                 "Too many requests",
-                "The authentication request rate limit was exceeded."),
+                "The request rate limit was exceeded."),
             ApiProblemCodes.InvalidReturnUrl => new ProblemDefinition(
                 requestedCode,
                 "Invalid return path",
@@ -206,6 +206,84 @@ internal static class ApiProblemDetailsDefaults
                     requestedCode,
                     "Organization ownership transfer required",
                     "Organization ownership must be transferred before this operation."),
+            ApiProblemCodes.TeamNotFound => new ProblemDefinition(
+                requestedCode,
+                "Team not found",
+                "The requested team was not found."),
+            ApiProblemCodes.TeamPermissionDenied => new ProblemDefinition(
+                requestedCode,
+                "Team permission denied",
+                "You do not have permission to perform this team operation."),
+            ApiProblemCodes.TeamNameConflict => new ProblemDefinition(
+                requestedCode,
+                "Team name conflict",
+                "A team in this organization already uses this name."),
+            ApiProblemCodes.TeamNameUnchanged => new ProblemDefinition(
+                requestedCode,
+                "Team name unchanged",
+                "The requested team already uses this name."),
+            ApiProblemCodes.TeamMemberNotFound => new ProblemDefinition(
+                requestedCode,
+                "Team member not found",
+                "The requested team member was not found."),
+            ApiProblemCodes.TeamMemberAlreadyExists => new ProblemDefinition(
+                requestedCode,
+                "Team member already exists",
+                "The requested user is already a member of this team."),
+            ApiProblemCodes.InvitationNotFound => new ProblemDefinition(
+                requestedCode,
+                "Invitation not found",
+                "The requested invitation was not found."),
+            ApiProblemCodes.InvitationPermissionDenied =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Invitation permission denied",
+                    "You do not have permission to perform this invitation operation."),
+            ApiProblemCodes.InvitationAlreadyExists => new ProblemDefinition(
+                requestedCode,
+                "Invitation already exists",
+                "A pending invitation already exists for this recipient."),
+            ApiProblemCodes.InvitationRecipientAlreadyMember =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Invitation recipient already a member",
+                    "The invitation recipient is already an organization member."),
+            ApiProblemCodes.InvitationTeamInvalid => new ProblemDefinition(
+                requestedCode,
+                "Invitation team invalid",
+                "The requested invitation team is not available."),
+            ApiProblemCodes.InvitationDomainRestricted =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Invitation domain restricted",
+                    "The invitation cannot be used under the current email-domain policy."),
+            ApiProblemCodes.InvitationRecipientMismatch =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Invitation recipient mismatch",
+                    "The current account is not the invitation recipient."),
+            ApiProblemCodes.InvitationEmailVerificationRequired =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Invitation email verification required",
+                    "A verified primary email is required for this invitation operation."),
+            ApiProblemCodes.InvitationExpired => new ProblemDefinition(
+                requestedCode,
+                "Invitation expired",
+                "The invitation has expired."),
+            ApiProblemCodes.InvitationNotPending => new ProblemDefinition(
+                requestedCode,
+                "Invitation not pending",
+                "The invitation is no longer pending."),
+            ApiProblemCodes.InvitationMembershipConflict =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Invitation membership conflict",
+                    "The invitation cannot create the requested organization membership."),
+            ApiProblemCodes.InvitationLimitReached => new ProblemDefinition(
+                requestedCode,
+                "Invitation limit reached",
+                "The pending invitation limit has been reached."),
             _ => null
         };
         if (custom is not null)

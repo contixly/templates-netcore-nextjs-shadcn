@@ -28,7 +28,14 @@ public sealed class OrganizationPersistenceModelTests(PostgreSqlContainerFixture
     public async Task MigrationCreatesOrganizationSchemaConstraintsAndIndexes()
     {
         Assert.Equal(
-            ["allowed_email_domains", "members", "organizations"],
+            [
+                "allowed_email_domains",
+                "invitations",
+                "members",
+                "organizations",
+                "team_members",
+                "teams"
+            ],
             await ReadTablesAsync("organizations"));
         Assert.Equal(
             "SET NULL",

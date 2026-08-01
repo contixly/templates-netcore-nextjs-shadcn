@@ -109,6 +109,37 @@ public sealed class LocalAutomationAuthService(
             cancellationToken);
     }
 
+    public async Task<AuthOperationResult<SessionState>> ConfirmEmailAsync(
+        CancellationToken cancellationToken)
+    {
+        var current = await sessions.GetCurrentAsync(cancellationToken);
+        if (current is null)
+        {
+            return AuthOperationResult<SessionState>.Failed(
+                AuthFailure.SessionRequired);
+        }
+
+        if (!current.User.IsLocalAutomation ||
+            !LocalAutomationCredentialPolicy.IsLocalEmail(current.User.Email))
+        {
+            return AuthOperationResult<SessionState>.Failed(
+                AuthFailure.LocalUserRequired);
+        }
+
+        return await transactions.ExecuteAsync(
+            async transactionCancellationToken =>
+            {
+                var user = await identities.ConfirmEmailAsync(
+                    current.User.Id,
+                    transactionCancellationToken);
+                var session = await sessions.RenewCurrentAsync(
+                    transactionCancellationToken);
+                return AuthOperationResult<SessionState>.Success(
+                    SessionState.From(new AuthenticatedSession(user, session)));
+            },
+            cancellationToken);
+    }
+
     public async Task<AuthOperationResult<LocalAutomationCleanup>> CleanupAsync(
         CancellationToken cancellationToken)
     {

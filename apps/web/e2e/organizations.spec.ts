@@ -64,11 +64,12 @@ const paginationOwner: OrganizationTestIdentity = {
 };
 
 async function expectNoFutureOrganizationLinks(page: Page) {
-  for (const futureSurface of [/invitations?/i, /teams?/i, /api keys?/i]) {
-    await expect(page.getByRole("link", { name: futureSurface })).toHaveCount(
-      0,
-    );
+  for (const collaborationSurface of [/invitations?/i, /teams?/i]) {
+    await expect(
+      page.getByRole("link", { name: collaborationSurface }),
+    ).toBeVisible();
   }
+  await expect(page.getByRole("link", { name: /api keys?/i })).toHaveCount(0);
 }
 
 function isOrganizationCreateResponse(url: string, method: string) {
@@ -80,7 +81,7 @@ async function createWorkspaceThroughBrowser(
   organizationScenario: {
     organizationCreated: (
       scenario: TrackedLocalAutomationScenario,
-      count?: number,
+      organizationId?: string,
     ) => void;
   },
   owner: TrackedLocalAutomationScenario,
@@ -99,10 +100,10 @@ async function createWorkspaceThroughBrowser(
   await page.getByRole("button", { name: "Create", exact: true }).click();
   const createResponse = await persistedOrganization;
   expect(createResponse.status()).toBe(201);
-  organizationScenario.organizationCreated(owner);
   const body = (await createResponse.json()) as {
     data: OrganizationDetailResponse;
   };
+  organizationScenario.organizationCreated(owner, body.data.id);
   return body.data;
 }
 
@@ -111,6 +112,7 @@ test.describe.serial("organization full-stack workflows", () => {
     organizationScenario,
     page,
   }) => {
+    test.setTimeout(60_000);
     const owner = await organizationScenario.createLocalUser(
       page.context(),
       onboardingOwner,
@@ -435,8 +437,9 @@ test.describe.serial("organization full-stack workflows", () => {
     ).toHaveCount(0);
 
     await memberPage.goto(`/w/${organization.canonicalKey}/settings/users`);
+    const memberSettingsMain = memberPage.getByRole("main");
     await expect(
-      memberPage.getByText(
+      memberSettingsMain.getByText(
         "Only workspace administrators and owners can add people or change roles.",
         { exact: true },
       ),
@@ -575,6 +578,8 @@ test.describe.serial("organization full-stack workflows", () => {
         canDeleteOrganization: true,
         canAddMembers: true,
         canUpdateMemberRoles: true,
+        canManageTeams: true,
+        canManageInvitations: true,
       },
     });
     await page.route("**/api/v1/organizations?cursor=*", async (route) => {

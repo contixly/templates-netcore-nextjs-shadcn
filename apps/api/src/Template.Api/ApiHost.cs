@@ -9,6 +9,7 @@ using Template.Api.Observability;
 using Template.Api.OpenApi;
 using Template.Application.Accounts;
 using Template.Application.Authentication;
+using Template.Application.Collaboration;
 using Template.Application.Organizations;
 using Template.Infrastructure.Health;
 using Template.Infrastructure.Persistence;
@@ -55,6 +56,8 @@ public static class ApiHost
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<OrganizationService>();
         builder.Services.AddScoped<OrganizationMembershipService>();
+        builder.Services.AddScoped<TeamService>();
+        builder.Services.AddScoped<InvitationService>();
         builder.Services
             .AddHealthChecks()
             .AddCheck<AuthDatabaseHealthCheck>(
@@ -97,8 +100,21 @@ public static class ApiHost
                 api.UseMiddleware<LocalAutomationAvailabilityMiddleware>();
             });
 
-        app.UseRateLimiter();
+        app.UseWhen(
+            IsExternalOAuthCallback,
+            callback =>
+            {
+                callback.UseRateLimiter();
+                callback.Use((context, next) =>
+                {
+                    context.Items[
+                        AuthRateLimitPolicies
+                            .ExternalOAuthCallbackPreAuthenticationLease] = true;
+                    return next(context);
+                });
+            });
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseMiddleware<InvalidBrowserSessionCookieMiddleware>();
         app.UseAuthorization();
         app.MapEndpointModules();
@@ -116,6 +132,11 @@ public static class ApiHost
             Assembly.GetEntryAssembly()?.GetName().Name,
             "GetDocument.Insider",
             StringComparison.Ordinal);
+
+    private static bool IsExternalOAuthCallback(HttpContext context) =>
+        context.Request.Path.StartsWithSegments("/api/auth/callback") ||
+        context.Request.Path.StartsWithSegments(
+            "/api/auth/oauth2/callback/yandex");
 
     private sealed class BuildTimeOpenApiXmlRepository : IXmlRepository
     {

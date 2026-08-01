@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddOrganizationMemberData, AddOrganizationMemberErrors, AddOrganizationMemberResponses, ChallengeExternalAuthData, ChallengeExternalAuthErrors, ChallengeExternalAuthResponses, CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, DeleteOrganizationData, DeleteOrganizationErrors, DeleteOrganizationResponses, DisconnectAccountProviderData, DisconnectAccountProviderErrors, DisconnectAccountProviderResponses, GetAccountConnectionsData, GetAccountConnectionsErrors, GetAccountConnectionsResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAccountSessionsData, GetAccountSessionsErrors, GetAccountSessionsResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetOrganizationByKeyData, GetOrganizationByKeyErrors, GetOrganizationByKeyResponses, GetOrganizationMembersData, GetOrganizationMembersErrors, GetOrganizationMembersResponses, GetOrganizationsData, GetOrganizationsErrors, GetOrganizationsResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, LogoutData, LogoutErrors, LogoutResponses, RevokeAccountSessionData, RevokeAccountSessionErrors, RevokeAccountSessionResponses, RevokeOtherAccountSessionsData, RevokeOtherAccountSessionsErrors, RevokeOtherAccountSessionsResponses, SetActiveOrganizationData, SetActiveOrganizationErrors, SetActiveOrganizationResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses, UpdateAccountProfileData, UpdateAccountProfileErrors, UpdateAccountProfileResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationMemberRoleData, UpdateOrganizationMemberRoleErrors, UpdateOrganizationMemberRoleResponses, UpdateOrganizationResponses } from './types.gen';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, AddOrganizationMemberData, AddOrganizationMemberErrors, AddOrganizationMemberResponses, AddTeamMemberData, AddTeamMemberErrors, AddTeamMemberResponses, ChallengeExternalAuthData, ChallengeExternalAuthErrors, ChallengeExternalAuthResponses, ConfirmLocalAutomationEmailData, ConfirmLocalAutomationEmailErrors, ConfirmLocalAutomationEmailResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, CreateTeamData, CreateTeamErrors, CreateTeamResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, DeleteOrganizationData, DeleteOrganizationErrors, DeleteOrganizationResponses, DeleteTeamData, DeleteTeamErrors, DeleteTeamResponses, DisconnectAccountProviderData, DisconnectAccountProviderErrors, DisconnectAccountProviderResponses, GetAccountConnectionsData, GetAccountConnectionsErrors, GetAccountConnectionsResponses, GetAccountData, GetAccountErrors, GetAccountInvitationsData, GetAccountInvitationsErrors, GetAccountInvitationsResponses, GetAccountResponses, GetAccountSessionsData, GetAccountSessionsErrors, GetAccountSessionsResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInvitationDecisionData, GetInvitationDecisionErrors, GetInvitationDecisionResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetOrganizationByKeyData, GetOrganizationByKeyErrors, GetOrganizationByKeyResponses, GetOrganizationInvitationsData, GetOrganizationInvitationsErrors, GetOrganizationInvitationsResponses, GetOrganizationMembersData, GetOrganizationMembersErrors, GetOrganizationMembersResponses, GetOrganizationsData, GetOrganizationsErrors, GetOrganizationsResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, GetTeamMemberCandidatesData, GetTeamMemberCandidatesErrors, GetTeamMemberCandidatesResponses, GetTeamMembersData, GetTeamMembersErrors, GetTeamMembersResponses, GetTeamsData, GetTeamsErrors, GetTeamsResponses, LogoutData, LogoutErrors, LogoutResponses, RejectInvitationData, RejectInvitationErrors, RejectInvitationResponses, RemoveTeamMemberData, RemoveTeamMemberErrors, RemoveTeamMemberResponses, RevokeAccountSessionData, RevokeAccountSessionErrors, RevokeAccountSessionResponses, RevokeOtherAccountSessionsData, RevokeOtherAccountSessionsErrors, RevokeOtherAccountSessionsResponses, SetActiveOrganizationData, SetActiveOrganizationErrors, SetActiveOrganizationResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses, UpdateAccountProfileData, UpdateAccountProfileErrors, UpdateAccountProfileResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationMemberRoleData, UpdateOrganizationMemberRoleErrors, UpdateOrganizationMemberRoleResponses, UpdateOrganizationResponses, UpdateTeamData, UpdateTeamErrors, UpdateTeamResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -253,6 +253,162 @@ export const updateOrganizationMemberRole = <ThrowOnError extends boolean = fals
     }
 });
 
+export const getTeams = <ThrowOnError extends boolean = false>(options: Options<GetTeamsData, ThrowOnError>): RequestResult<GetTeamsResponses, GetTeamsErrors, ThrowOnError> => (options.client ?? client).get<GetTeamsResponses, GetTeamsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams',
+    ...options
+});
+
+export const createTeam = <ThrowOnError extends boolean = false>(options: Options<CreateTeamData, ThrowOnError>): RequestResult<CreateTeamResponses, CreateTeamErrors, ThrowOnError> => (options.client ?? client).post<CreateTeamResponses, CreateTeamErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const deleteTeam = <ThrowOnError extends boolean = false>(options: Options<DeleteTeamData, ThrowOnError>): RequestResult<DeleteTeamResponses, DeleteTeamErrors, ThrowOnError> => (options.client ?? client).delete<DeleteTeamResponses, DeleteTeamErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams/{teamId}',
+    ...options
+});
+
+export const updateTeam = <ThrowOnError extends boolean = false>(options: Options<UpdateTeamData, ThrowOnError>): RequestResult<UpdateTeamResponses, UpdateTeamErrors, ThrowOnError> => (options.client ?? client).patch<UpdateTeamResponses, UpdateTeamErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams/{teamId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getTeamMembers = <ThrowOnError extends boolean = false>(options: Options<GetTeamMembersData, ThrowOnError>): RequestResult<GetTeamMembersResponses, GetTeamMembersErrors, ThrowOnError> => (options.client ?? client).get<GetTeamMembersResponses, GetTeamMembersErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams/{teamId}/members',
+    ...options
+});
+
+export const addTeamMember = <ThrowOnError extends boolean = false>(options: Options<AddTeamMemberData, ThrowOnError>): RequestResult<AddTeamMemberResponses, AddTeamMemberErrors, ThrowOnError> => (options.client ?? client).post<AddTeamMemberResponses, AddTeamMemberErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams/{teamId}/members',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const removeTeamMember = <ThrowOnError extends boolean = false>(options: Options<RemoveTeamMemberData, ThrowOnError>): RequestResult<RemoveTeamMemberResponses, RemoveTeamMemberErrors, ThrowOnError> => (options.client ?? client).delete<RemoveTeamMemberResponses, RemoveTeamMemberErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams/{teamId}/members/{userId}',
+    ...options
+});
+
+export const getTeamMemberCandidates = <ThrowOnError extends boolean = false>(options: Options<GetTeamMemberCandidatesData, ThrowOnError>): RequestResult<GetTeamMemberCandidatesResponses, GetTeamMemberCandidatesErrors, ThrowOnError> => (options.client ?? client).get<GetTeamMemberCandidatesResponses, GetTeamMemberCandidatesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/teams/{teamId}/member-candidates',
+    ...options
+});
+
+export const getOrganizationInvitations = <ThrowOnError extends boolean = false>(options: Options<GetOrganizationInvitationsData, ThrowOnError>): RequestResult<GetOrganizationInvitationsResponses, GetOrganizationInvitationsErrors, ThrowOnError> => (options.client ?? client).get<GetOrganizationInvitationsResponses, GetOrganizationInvitationsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/invitations',
+    ...options
+});
+
+export const createInvitation = <ThrowOnError extends boolean = false>(options: Options<CreateInvitationData, ThrowOnError>): RequestResult<CreateInvitationResponses, CreateInvitationErrors, ThrowOnError> => (options.client ?? client).post<CreateInvitationResponses, CreateInvitationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/invitations',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const getAccountInvitations = <ThrowOnError extends boolean = false>(options?: Options<GetAccountInvitationsData, ThrowOnError>): RequestResult<GetAccountInvitationsResponses, GetAccountInvitationsErrors, ThrowOnError> => (options?.client ?? client).get<GetAccountInvitationsResponses, GetAccountInvitationsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/invitations',
+    ...options
+});
+
+export const getInvitationDecision = <ThrowOnError extends boolean = false>(options: Options<GetInvitationDecisionData, ThrowOnError>): RequestResult<GetInvitationDecisionResponses, GetInvitationDecisionErrors, ThrowOnError> => (options.client ?? client).get<GetInvitationDecisionResponses, GetInvitationDecisionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/invitations/{invitationId}',
+    ...options
+});
+
+export const acceptInvitation = <ThrowOnError extends boolean = false>(options: Options<AcceptInvitationData, ThrowOnError>): RequestResult<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError> => (options.client ?? client).post<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/invitations/{invitationId}/accept',
+    ...options
+});
+
+export const rejectInvitation = <ThrowOnError extends boolean = false>(options: Options<RejectInvitationData, ThrowOnError>): RequestResult<RejectInvitationResponses, RejectInvitationErrors, ThrowOnError> => (options.client ?? client).post<RejectInvitationResponses, RejectInvitationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/invitations/{invitationId}/reject',
+    ...options
+});
+
 /**
  * Returns API status and echoes a validated optional value.
  */
@@ -297,6 +453,19 @@ export const signInLocalAutomation = <ThrowOnError extends boolean = false>(opti
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Development/Test only; requires LocalAutomationAuth enabled. Production returns 404. This is not production account verification.
+ */
+export const confirmLocalAutomationEmail = <ThrowOnError extends boolean = false>(options: Options<ConfirmLocalAutomationEmailData, ThrowOnError>): RequestResult<ConfirmLocalAutomationEmailResponses, ConfirmLocalAutomationEmailErrors, ThrowOnError> => (options.client ?? client).post<ConfirmLocalAutomationEmailResponses, ConfirmLocalAutomationEmailErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/local-auth/confirm-email',
+    ...options
 });
 
 /**

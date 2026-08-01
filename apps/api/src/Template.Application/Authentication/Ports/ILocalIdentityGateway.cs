@@ -13,5 +13,9 @@ public interface ILocalIdentityGateway
         string password,
         CancellationToken cancellationToken);
 
+    Task<AuthUser> ConfirmEmailAsync(
+        UserId userId,
+        CancellationToken cancellationToken);
+
     Task DeleteAsync(UserId userId, CancellationToken cancellationToken);
 }

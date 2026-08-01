@@ -1,5 +1,7 @@
 import type { Route } from "next";
 
+import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
+
 function organizationPath(organizationKey: string, suffix = ""): Route {
   return `/w/${encodeURIComponent(organizationKey)}${suffix}` as Route;
 }
@@ -18,4 +20,6 @@ export const organizationRoutes = {
     organizationPath(organizationKey, "/settings/users"),
   settingsRoles: (organizationKey: string) =>
     organizationPath(organizationKey, "/settings/roles"),
+  settingsTeams: collaborationRoutes.settingsTeams,
+  settingsInvitations: collaborationRoutes.settingsInvitations,
 } as const;

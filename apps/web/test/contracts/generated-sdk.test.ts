@@ -5,10 +5,16 @@ import { resolve } from "node:path";
 
 import {
   addOrganizationMember,
+  addTeamMember,
+  acceptInvitation,
   challengeExternalAuth,
+  confirmLocalAutomationEmail,
+  createTeam,
   createOrganization,
   createLocalAutomationScenario,
+  createInvitation,
   deleteAccount,
+  deleteTeam,
   deleteOrganization,
   deleteLocalAutomationScenario,
   disconnectAccountProvider,
@@ -20,17 +26,207 @@ import {
   getAuthSession,
   getOrganizationByKey,
   getOrganizationMembers,
+  getOrganizationInvitations,
+  getAccountInvitations,
+  getInvitationDecision,
   getOrganizations,
   getSystemStatus,
+  getTeamMemberCandidates,
+  getTeamMembers,
+  getTeams,
   logout,
   revokeAccountSession,
   revokeOtherAccountSessions,
+  rejectInvitation,
+  removeTeamMember,
   setActiveOrganization,
   signInLocalAutomation,
   updateAccountProfile,
   updateOrganization,
   updateOrganizationMemberRole,
+  updateTeam,
 } from "@/src/lib/api/generated";
+import type {
+  ApiResponseOfInvitationResponse,
+  AcceptInvitationErrors,
+  AddOrganizationMemberErrors,
+  AddTeamMemberErrors,
+  ConfirmLocalAutomationEmailData,
+  ConfirmLocalAutomationEmailErrors,
+  CreateInvitationErrors,
+  CreateInvitationData,
+  CreateInvitationResponses,
+  CreateOrganizationErrors,
+  CreateTeamErrors,
+  DeleteOrganizationErrors,
+  DeleteTeamErrors,
+  GetAccountInvitationsErrors,
+  GetInvitationDecisionErrors,
+  GetOrganizationByKeyErrors,
+  GetOrganizationInvitationsData,
+  GetOrganizationInvitationsErrors,
+  GetOrganizationMembersErrors,
+  GetOrganizationsErrors,
+  GetTeamMemberCandidatesErrors,
+  GetTeamMembersErrors,
+  GetTeamsErrors,
+  InvitationResponse,
+  RejectInvitationErrors,
+  RemoveTeamMemberErrors,
+  SetActiveOrganizationErrors,
+  GetTeamMemberCandidatesData,
+  UpdateOrganizationErrors,
+  UpdateOrganizationMemberRoleErrors,
+  UpdateTeamErrors,
+} from "@/src/lib/api/generated";
+
+type Assert<T extends true> = T;
+type Equal<Left, Right> =
+  (<T>() => T extends Left ? 1 : 2) extends <T>() => T extends Right ? 1 : 2
+    ? true
+    : false;
+type _CreateInvitationBodyIsRequired = Assert<
+  Equal<undefined extends CreateInvitationData["body"] ? true : false, false>
+>;
+type _CreateInvitationTeamIsNullable = Assert<
+  null extends NonNullable<CreateInvitationData["body"]>["teamId"]
+    ? true
+    : false
+>;
+type _CreateInvitationCsrfIsRequired = Assert<
+  Equal<
+    CreateInvitationData["headers"]["X-CSRF-TOKEN"] extends string
+      ? true
+      : false,
+    true
+  >
+>;
+type _InvitationStatusIsExact = Assert<
+  Equal<
+    NonNullable<GetOrganizationInvitationsData["query"]>["status"],
+    "pending" | "accepted" | "rejected" | "canceled" | "expired" | undefined
+  >
+>;
+type _CandidateQueryIsOptional = Assert<
+  Equal<
+    NonNullable<GetTeamMemberCandidatesData["query"]>["q"],
+    string | undefined
+  >
+>;
+type _CreateInvitationSuccessEnvelopeIsExact = Assert<
+  Equal<CreateInvitationResponses[201], ApiResponseOfInvitationResponse>
+>;
+type _CreateInvitationRateErrorIsExposed = Assert<
+  Equal<CreateInvitationErrors[429] extends object ? true : false, true>
+>;
+type _ConfirmUsesCsrfWithoutBody = Assert<
+  Equal<ConfirmLocalAutomationEmailData["body"], never | undefined>
+>;
+type ErrorStatuses<Error> = keyof Error;
+type StandardCollaborationErrors = 400 | 401 | 403 | 404 | 405 | 409 | 500;
+type RateLimitedCollaborationErrors = StandardCollaborationErrors | 429;
+type _OrganizationErrorStatuses = [
+  Assert<Equal<ErrorStatuses<GetOrganizationsErrors>, 400 | 401 | 405 | 500>>,
+  Assert<
+    Equal<ErrorStatuses<CreateOrganizationErrors>, 400 | 401 | 405 | 409 | 500>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetOrganizationByKeyErrors>,
+      401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<ErrorStatuses<UpdateOrganizationErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<DeleteOrganizationErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<SetActiveOrganizationErrors>,
+      400 | 401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetOrganizationMembersErrors>,
+      400 | 401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<AddOrganizationMemberErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<UpdateOrganizationMemberRoleErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+];
+type _CollaborationErrorStatuses = [
+  Assert<
+    Equal<
+      InvitationResponse["warning"],
+      "notification_failed" | null | undefined
+    >
+  >,
+  Assert<Equal<ErrorStatuses<GetTeamsErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<CreateTeamErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<UpdateTeamErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<DeleteTeamErrors>, StandardCollaborationErrors>>,
+  Assert<
+    Equal<ErrorStatuses<GetTeamMembersErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<AddTeamMemberErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<RemoveTeamMemberErrors>, StandardCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetTeamMemberCandidatesErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetOrganizationInvitationsErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<ErrorStatuses<CreateInvitationErrors>, RateLimitedCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetAccountInvitationsErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetInvitationDecisionErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<ErrorStatuses<AcceptInvitationErrors>, RateLimitedCollaborationErrors>
+  >,
+  Assert<
+    Equal<ErrorStatuses<RejectInvitationErrors>, RateLimitedCollaborationErrors>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<ConfirmLocalAutomationEmailErrors>,
+      400 | 401 | 403 | 404 | 405 | 500
+    >
+  >,
+];
 
 describe("generated system status SDK", () => {
   it("tracks the committed GetSystemStatus operation", () => {
@@ -53,6 +249,34 @@ describe("generated system status SDK", () => {
       "GetSystemStatus",
     );
     expect(getSystemStatus).toEqual(expect.any(Function));
+  });
+
+  it("tracks every collaboration and local-confirmation operation", () => {
+    expect(getTeams).toEqual(expect.any(Function));
+    expect(createTeam).toEqual(expect.any(Function));
+    expect(updateTeam).toEqual(expect.any(Function));
+    expect(deleteTeam).toEqual(expect.any(Function));
+    expect(getTeamMembers).toEqual(expect.any(Function));
+    expect(addTeamMember).toEqual(expect.any(Function));
+    expect(removeTeamMember).toEqual(expect.any(Function));
+    expect(getTeamMemberCandidates).toEqual(expect.any(Function));
+    expect(getOrganizationInvitations).toEqual(expect.any(Function));
+    expect(createInvitation).toEqual(expect.any(Function));
+    expect(getAccountInvitations).toEqual(expect.any(Function));
+    expect(getInvitationDecision).toEqual(expect.any(Function));
+    expect(acceptInvitation).toEqual(expect.any(Function));
+    expect(rejectInvitation).toEqual(expect.any(Function));
+    expect(confirmLocalAutomationEmail).toEqual(expect.any(Function));
+  });
+
+  it("preserves the local-confirmation production-safety documentation", () => {
+    const sdk = readFileSync(
+      resolve(process.cwd(), "src/lib/api/generated/sdk.gen.ts"),
+      "utf8",
+    );
+    expect(sdk).toContain(
+      "Development/Test only; requires LocalAutomationAuth enabled. Production returns 404. This is not production account verification.",
+    );
   });
 
   it("tracks every iteration-3 auth operation", () => {
@@ -89,28 +313,43 @@ describe("generated system status SDK", () => {
     expect(updateOrganizationMemberRole).toEqual(expect.any(Function));
   });
 
-  it("generates the exact organization error unions", () => {
-    const generatedTypes = readFileSync(
-      resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
-      "utf8",
-    );
-    const expected = {
-      GetOrganizationsErrors: [400, 401, 405, 500],
-      CreateOrganizationErrors: [400, 401, 405, 409, 500],
-      GetOrganizationByKeyErrors: [401, 404, 405, 409, 500],
-      UpdateOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
-      DeleteOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
-      SetActiveOrganizationErrors: [400, 401, 404, 405, 409, 500],
-      GetOrganizationMembersErrors: [400, 401, 404, 405, 409, 500],
-      AddOrganizationMemberErrors: [400, 401, 403, 404, 405, 409, 500],
-      UpdateOrganizationMemberRoleErrors: [400, 401, 403, 404, 405, 409, 500],
-    } as const;
-
-    for (const [typeName, statuses] of Object.entries(expected)) {
-      expect(generatedErrorStatuses(generatedTypes, typeName)).toEqual(
-        statuses,
-      );
-    }
+  it("proves generated error unions through compile-time equality", () => {
+    const validCreate: CreateInvitationData = {
+      body: { email: "invitee@example.test", role: "member", teamId: null },
+      headers: { "X-CSRF-TOKEN": "csrf" },
+      path: { organizationId: "01900000-0000-7000-8000-000000000010" },
+      url: "/api/v1/organizations/{organizationId}/invitations",
+    };
+    const validConfirm: ConfirmLocalAutomationEmailData = {
+      headers: { "X-CSRF-TOKEN": "csrf" },
+      url: "/api/local-auth/confirm-email",
+    };
+    // @ts-expect-error mutations cannot omit the CSRF request token
+    const missingCsrf: ConfirmLocalAutomationEmailData = {
+      url: "/api/local-auth/confirm-email",
+    };
+    const invalidStatus: GetOrganizationInvitationsData = {
+      path: { organizationId: "01900000-0000-7000-8000-000000000010" },
+      query: {
+        // @ts-expect-error the filter is a closed display-state union
+        status: "unknown",
+      },
+      url: "/api/v1/organizations/{organizationId}/invitations",
+    };
+    const confirmWithBody: ConfirmLocalAutomationEmailData = {
+      // @ts-expect-error confirmation accepts no request body
+      body: {},
+      headers: { "X-CSRF-TOKEN": "csrf" },
+      url: "/api/local-auth/confirm-email",
+    };
+    void [
+      validCreate,
+      validConfirm,
+      missingCsrf,
+      invalidStatus,
+      confirmWithBody,
+    ];
+    expect(true).toBe(true);
   });
 
   it("keeps protocol callbacks and provider secrets outside the UI contract", () => {
@@ -235,16 +474,6 @@ describe("generated system status SDK", () => {
 
 function schemaTypes(schema: { type: string | string[] }): string[] {
   return Array.isArray(schema.type) ? schema.type : [schema.type];
-}
-
-function generatedErrorStatuses(source: string, typeName: string): number[] {
-  const start = source.indexOf(`export type ${typeName} = {`);
-  expect(start).toBeGreaterThanOrEqual(0);
-  const end = source.indexOf("\n};", start);
-  expect(end).toBeGreaterThan(start);
-  return [...source.slice(start, end).matchAll(/^[ ]+(\d{3}):/gm)].map(
-    (match) => Number(match[1]),
-  );
 }
 
 function badRequestSchema(

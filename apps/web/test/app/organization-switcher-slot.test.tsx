@@ -43,12 +43,15 @@ const capabilities = {
   canDeleteOrganization: true,
   canAddMembers: true,
   canUpdateMemberRoles: true,
+  canManageTeams: true,
+  canManageInvitations: true,
 };
 
 function summary(
   id: string,
   name: string,
   canonicalKey: string,
+  canManageInvitations = false,
 ): OrganizationSummaryResponse {
   return {
     id,
@@ -58,7 +61,7 @@ function summary(
     createdAt: "2026-07-30T10:00:00Z",
     updatedAt: "2026-07-30T10:00:00Z",
     currentRole: "owner",
-    capabilities,
+    capabilities: { ...capabilities, canManageInvitations },
   };
 }
 
@@ -68,7 +71,7 @@ function detail(
   canonicalKey: string,
 ): OrganizationDetailResponse {
   return {
-    ...summary(id, name, canonicalKey),
+    ...summary(id, name, canonicalKey, true),
     allowedEmailDomains: [],
   };
 }
@@ -138,22 +141,30 @@ it("serializes only compact first-page and current switcher projections", async 
         canonicalKey: "acme",
         id: "acme-id",
         name: "Acme Current",
+        canManageInvitations: true,
       },
       organizations: [
         {
           canonicalKey: "first-page",
           id: "first-id",
           name: "First Page",
+          canManageInvitations: false,
         },
       ],
     },
   });
   expect(
     Object.keys(
+      (organizationSwitcher as { props: { currentOrganization: object } }).props
+        .currentOrganization,
+    ).sort(),
+  ).toEqual(["canManageInvitations", "canonicalKey", "id", "name"]);
+  expect(
+    Object.keys(
       (organizationSwitcher as { props: { organizations: object[] } }).props
         .organizations[0] ?? {},
     ).sort(),
-  ).toEqual(["canonicalKey", "id", "name"]);
+  ).toEqual(["canManageInvitations", "canonicalKey", "id", "name"]);
 });
 
 it("replaces A with B atomically during a workspace soft-route transition", async () => {

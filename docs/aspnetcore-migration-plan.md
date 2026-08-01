@@ -1,12 +1,11 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 5 — organizations, membership и onboarding — завершена
-для наблюдаемого reviewed implementation state
-`0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`. Iteration 6 разблокирована, но
-ещё не начата и должна выполняться отдельным planned slice. Документационное
-closure ниже не заявляет ни свой будущий hash, ни результат будущего automatic
-review: после controller push требуется fresh automatic review.
+**Текущая итерация:** 6 — Teams и invitations — принята для reviewed
+implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: automatic
+review не нашёл major issues, все 11 review threads resolved, PR #7 ready и
+mergeable. Документационный evidence-commit с этой записью ещё должен быть
+отправлен и автоматически проверен; его review result не заявляется заранее.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -194,7 +193,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(round 14 historical clean; round 20 local fix pending push/re-review)**
+### Итерация 5 — Organizations, membership и onboarding **(завершена для наблюдаемого reviewed implementation state)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -204,7 +203,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 **Выход:** пользователь может создать/select organization и управлять членами в пределах разрешений; маршруты `/workspaces` и `/w/[organizationKey]/**` работают через API.
 **Reference:** `template/src/features/organizations`, `template/src/features/workspaces` (organization-related actions and repositories).
 
-### Итерация 6 — Teams и invitations
+### Итерация 6 — Teams и invitations **(reviewed implementation head принят; documentation closure ожидает review)**
 
 **Цель:** восстановить collaboration workflows как отдельный вертикальный срез.
 
@@ -293,7 +292,8 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                      |
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
-| 6–12                                               | Не начаты | Iteration 6 разблокирована и должна начаться только отдельным planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                            |
+| 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
+| 7–12                                                 | Не начаты | API keys and `x-api-key` remain iteration 7, product dashboard iteration 9, Aspire iteration 10, and production proxy/container iterations 11–12; iteration 6 does not pre-implement them. |
 
 ## Acceptance evidence: итерация 1
 
@@ -2225,6 +2225,505 @@ This documentation-only closure claims neither its own future commit hash nor
 its own future automatic-review result. After the controller pushes it, a fresh
 automatic review is still required; the post-docs review is not already claimed
 clean.
+
+## Acceptance evidence: итерация 6
+
+**Scope/status:** the Teams and invitations vertical slice is implemented from
+Domain through PostgreSQL, browser REST/OpenAPI/generated SDK, Next.js settings/
+account/decision UI, and deterministic multi-user E2E. This section records the
+observed accepted implementation/review state through
+`6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`. The documentation-only evidence
+update that records that state still requires push and its own fresh automatic
+review; no result for that future review or PR merge is predicted.
+
+### Reference → API → UI → test mapping
+
+| Immutable reference | Target REST | Target UI | Executable evidence |
+| --- | --- | --- | --- |
+| team actions/repository and Prisma `Team` | eight team list/create/update/delete/member/candidate operations | `/w/{key}/settings/teams` | Domain/Application cursor/service tests, EF model/store/race tests, endpoint/security tests, Jest, Playwright |
+| add/remove team member and `TeamMember` | team member collection/removal and searchable candidates | team cards, paged composition, candidate dialog | tenant-qualified FK/race tests and owner/member multi-context E2E |
+| create/list invitations | organization invitation list/create | `/w/{key}/settings/invitations` | role/domain/duplicate/cap/expiry tests, filter/recovery Jest, owner/admin/member E2E |
+| pending invitation loader | account invitation collection | `/user/invitations` and zero-workspace `/welcome` CTA | recipient/isolation/keyset tests, Jest, Playwright |
+| decision loader and accept/reject actions | detail, accept, reject | `/invite/{id}` | recipient/verification/domain/atomicity/race tests, lifecycle Jest, two-page accept-race E2E |
+| Better Auth notification hook boundary | post-commit `IInvitationNotifier`; relative same-origin `invitationPath` | manual-share link and fixed no-email/warning recovery | notifier ordering/failure tests, API warning contract, clipboard/same-origin E2E |
+| reference direct test DB verification | local-only generated `POST /api/local-auth/confirm-email` | verification action only in eligible local state | Production-disable/CSRF/session-renewal API tests and generated-only E2E helper |
+| existing member-role action | existing organization-member `PATCH` | existing users role control | iteration-5 regression suite; teams never grant an organization role |
+
+### Delivered contract and durable decisions
+
+The committed OpenAPI contains 45 total operations. Iteration 6 contributes the
+15 collaboration/local operations listed in `docs/api-conventions.md`: eight
+team, six invitation, and one local-confirmation operation. They use secure
+HttpOnly browser sessions, no-store, RFC Problem Details, generated cookie
+security, and CSRF for every unsafe operation. Invitation create and decision
+rate limits are 20/user/minute and shared 30/user/minute respectively, both with
+no queue; the persistence cap is separately 100 unexpired pending invitations
+per actor/organization.
+
+The role matrix is fixed `owner | admin | member`: every member can read teams;
+admins/owners manage teams and team composition and read/create invitation
+activity; admins invite member/admin and owners may also invite owner. Only the
+matching primary-email recipient can read/respond to a decision; a mismatch
+returns no projection. Team/invitation validation, stable failures, opaque typed
+cursor orders, derived status filter, non-disclosure, and safe auditing are
+recorded in `docs/api-conventions.md`.
+
+Migration `20260801084304_TeamsInvitations` is the sixth EF migration. It adds
+`organizations.teams`, `team_members`, and `invitations`, the tenant-qualified
+member alternate key, composite tenant FKs, checks, stable cursor/cap indexes,
+the partial pending-recipient unique index, and the unique
+`(organization_id, lower(name))` expression index. Invitation IDs are random
+UUID v4; team/team-member IDs retain UUID v7 generation. There is no active-team
+session column, notification table, expiry worker, or outbox. Exact operational
+schema/rollback rules are in `docs/authentication-persistence-operations.md`.
+
+Invitation creation has an explicit 48-hour lifetime and invokes the safe no-op
+notifier only after commit. Acceptance is one PostgreSQL transaction covering
+organization membership, optional team membership, invitation accepted state,
+and current session active organization; rejection changes only status. Team
+deletion detaches historical invitation targets before cascade. Cleanup paths
+for organization/account/local users include all collaboration dependents.
+
+The Next.js UI uses only generated SDK loaders/actions. It supports read-only
+member team composition; manager create/rename/delete/search/add/remove;
+permission-gated invitation activity/create/filter/paging; account pending
+invitations; all decision states; local generated confirmation; and mutation-
+committed/GET-only recovery that never repeats a successful POST. Unsafe returned
+links and recipient mismatch purge/suppress private detail. En/ru catalogs and
+accessible named controls cover the complete slice. See
+`docs/web-conventions.md`.
+
+### Intentional differences and out of scope
+
+- Team membership references the organization-membership edge with
+  tenant-qualified database FKs rather than only a user ID.
+- Collections are typed cursor-paginated; candidates are bounded/searchable
+  rather than unbounded.
+- Expiry is explicitly 48 hours and derived; there is no periodic expiry write.
+- Invitation links are relative same-origin paths rather than configured
+  frontend absolute URLs.
+- Missing/foreign resources and recipient mismatch are more non-disclosing.
+- Accept is an explicit transaction including active organization and optional
+  team membership; active team is deliberately absent.
+- RFC Problem Details/OpenAPI/generated SDK replace Server Actions and Better
+  Auth; Playwright email confirmation uses a gated local-only generated REST
+  operation rather than direct SQL.
+- No real email provider, outbox/retry/background worker, cancel/resend UI,
+  organization-member removal, custom roles, API keys, public machine auth,
+  product dashboard, YARP/container/Aspire, old-data/session migration, or active
+  OpenSpec change/spec is included.
+
+### Task-14 observed acceptance 2026-08-01
+
+Все команды ниже запускались на рабочем дереве Task 14 после исправлений,
+вызванных самими gate-проверками. Измерения `real` наблюдались локально и не
+являются performance-бюджетом.
+
+| Gate | Наблюдаемый результат |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS/current; `real 1.02s` |
+| `dotnet build Template.sln --no-restore` | PASS; **0 warnings, 0 errors**; `real 1.41s` |
+| `dotnet test Template.sln --no-restore` | PASS; Application **257/257**, API **580/580**, итого **837/837**, 0 failed/skipped; `real 120.34s` |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS/clean; `real 10.81s` |
+| transitive NuGet vulnerable scan | PASS; 0 vulnerable packages во всех 7 solution projects; `real 6.05s` |
+| EF pending-model check | PASS; model совпадает с migrations; `real 3.69s` |
+| EF idempotent script | PASS; `/tmp/template-iteration6-final.sql` **30,706 bytes**, SHA-256 `00d417ced14a107b94b16c62979ea9b1117d753988e29696e6acce4b3625d220`; required team/invitation identifiers present; `real 2.73s` |
+| PostgreSQL 18.4 | PASS; Testcontainer model fixture **12/12** (`real 7.70s`); отдельная fresh `postgres:18.4` проверка дважды применила idempotent script, увидела 6 migrations и все новые FK/check/index names, затем down-script вернул 5 migrations, удалил три collaboration tables и сохранил `organizations.members` |
+| deterministic OpenAPI | PASS; после удаления canonical `v1.json` второй exact export действительно regenerated файл и `cmp` подтвердил byte identity; SHA-256 `fdfbe74c39a42c018ca35555c504c1078a30558b82d41415bf4da2bdb9503010`; **45** total operations, из них **15** iteration-6 collaboration/local operations |
+| generated web client | PASS; `npm run api:check`, **16 tracked generated files** deterministic/current; `real 0.88s` |
+| production dependency audit | PASS; `npm audit --omit=dev` — **0 vulnerabilities**; `real 1.00s` |
+| complete dependency audit | EXPECTED NONZERO/RECORDED; one **high**, development-only `brace-expansion` advisory `GHSA-mh99-v99m-4gvg` in root and nested `glob` development trees; production audit remains clean; fix is available through `npm audit fix` but dependency refresh is not folded into this slice |
+| web static gates | PASS; boundaries **5/5** (`real 1.40s`), Prettier clean (`1.92s`), ESLint 0 errors and 10 existing compile-time-assertion unused warnings (`4.77s`), typecheck/typegen (`2.02s`) |
+| Jest | PASS; **61/61 suites**, **474/474 tests**, 0 snapshots; `real 10.63s` |
+| clean Next production build | PASS; Next.js **16.2.11**, 23/23 page generation and `.next/standalone/server.js` present; `real 7.43s` |
+| Playwright | PASS; focused collaboration **2/2**, focused organizations **5/5**; final default 5-worker suite **16 passed, 5 opt-in live-provider tests skipped, 0 failed**; `real 60.47s` |
+
+Verification exposed two test/tooling defects and they were fixed test-first or
+with focused red/green evidence rather than hidden:
+
+1. The required OpenAPI sequence initially lost `v1.json`: the package's
+   incremental cache considered export current after the project target had
+   normalized `Template.Api.json` to `v1.json`. A new architecture test first
+   failed **0/1**, then passed **1/1** after the project invalidated the package
+   cache only when generated export is enabled and canonical output is missing.
+   The exact two-export/delete/compare sequence then passed and did not change
+   the committed contract.
+2. A first full 5-worker Playwright run reported **15 passed, 5 skipped, 1
+   failed** because a global exact-text locator matched both the visible
+   collaboration tree and a hidden React Activity copy. Scoping to the visible
+   named region passed focused collaboration **2/2**. A second full run reached
+   the same pre-existing selector defect in organization E2E (**12 passed, 5
+   skipped, 1 failed, 3 did not run**); network evidence showed successful `200`
+   pages, and scoping that assertion to `main` passed focused organizations
+   **5/5**. The fresh full suite then passed **16/16 deterministic tests**, with
+   only the 5 intentionally opt-in live-provider tests skipped. Product behavior
+   was not changed by either selector hardening.
+
+The exact schema inspection found checks `ck_invitations_{email,expiry,role,status}`
+and `ck_teams_name`; tenant/team/user FKs; primary, alternate, cursor, lookup,
+cap, pending-recipient, team-member and lower-name indexes including
+`ux_teams_organization_id_lower_name` with `lower(name)`. Script application was
+idempotent and rollback was explicitly exercised. The production dependency
+set and NuGet set are clean; the recorded development-only advisory and opt-in
+live OAuth skip are the only verification concerns. The intentional functional
+differences/out-of-scope list above remains unchanged.
+
+Repository guards passed after recording this evidence: no whitespace errors,
+no working-tree or branch-range change/untracked file under immutable
+`template/`, and no active OpenSpec change or spec. Contract/generated checks
+were clean. This is a local acceptance result only; automatic review, push and
+merge remain unobserved.
+
+### Task-14 fix round 1 observed acceptance 2026-08-01
+
+Review exposed an Important cross-layer Unicode mismatch: `TeamName` iterated
+UTF-16 `char` values, so it rejected valid supplementary-plane letters/digits
+and measured their surrogate pairs as two characters while PostgreSQL
+`char_length` and the existing OpenAPI `\p{L}\p{Nd}` contract treat them as one
+Unicode scalar. Strict test-first evidence reproduced the defect before the
+fix: focused Domain tests reported **19 passed, 2 failed**, and the focused HTTP
+create regression reported **0 passed, 1 failed** with `400` instead of `201`.
+
+`TeamName` now uses `string.EnumerateRunes()` and
+`Rune.IsLetterOrDigit`, permits only ASCII space/hyphen/underscore in addition,
+and counts at most 50 runes. Tests cover a Deseret supplementary-plane letter,
+a supplementary-plane decimal digit, exactly 50 astral scalars, 51-scalar
+rejection, and unpaired-surrogate rejection. Existing trimming and ASCII/BMP
+behavior remain unchanged. Focused GREEN was Domain **21/21** and HTTP **1/1**.
+No schema or OpenAPI pattern was narrowed.
+
+| Fix-round gate | Наблюдаемый результат |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS/current; `real 1.01s` |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings/errors; `real 2.11s` |
+| `dotnet test Template.sln --no-restore` | PASS; Application **261/261**, API **581/581**, total **842/842**, 0 failed/skipped; `real 115.55s` |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS/clean; `real 10.88s` |
+| OpenAPI delete/re-export/compare | PASS; byte-identical and committed diff clean; unchanged SHA-256 `fdfbe74c39a42c018ca35555c504c1078a30558b82d41415bf4da2bdb9503010` |
+| generated SDK snapshot | PASS; `npm run api:check` current/deterministic and generated diff clean; **16 tracked files** (`git ls-files`), `real 0.82s` |
+| relevant web gates | PASS; typecheck/typegen (`real 4.01s`), Jest **61/61 suites, 474/474 tests** (`10.66s`), clean Next production build 23/23 with standalone server (`7.35s`) |
+| immutable/reference guards | PASS; whitespace, `template/` working/range/status/untracked, active OpenSpec, contract and generated-tree guards clean |
+
+The generator console describes four artifacts emitted by its current job, but
+the durable repository snapshot/check covers **16 tracked generated files**;
+acceptance evidence uses the latter unambiguous count. Automatic review, push,
+and merge of the corrected head remain unobserved.
+
+### Final-review fix wave 1 observed acceptance 2026-08-01
+
+The whole-branch review of `a39d3d586e3893a46fe8717ac15715a371efa01a`
+identified eight required corrections. This consolidated wave fixes only those
+items: manager-only candidate search, PostgreSQL-consistent case folding and
+literal search, locked per-attempt invitation time, bounded team mutation
+retries, already-member rejection, browser Unicode-scalar validation, causal
+member recovery, and branch-range whitespace/evidence. The previously triaged
+Minor UX/accessibility/test-hardening entries and the approved derived-expiry
+filter were not broadened into this wave.
+
+Strict test-first observations were:
+
+- candidate authorization/case-fold/literal-search PostgreSQL regressions failed
+  **3/3** before the store fix, then the focused store set passed **4/4** and the
+  dedicated Application `NameUnchanged` propagation passed **1/1**;
+- the six new locked-clock/already-member store cases failed before persistence
+  changes, and the already-member endpoint separately failed **0/1** with `200`
+  instead of `409`; the combined store/endpoint set then passed **7/7**, while
+  the Application mutation-time focus passed **2/2**;
+- the five team mutation retry paths plus exhaustion failed **6/6** before the
+  retry helper; the final focus passed **10/10**, including fresh transaction and
+  authorization on retry plus non-retry of permission, validation, classified
+  uniqueness, and cancellation;
+- browser team-name focus reproduced one failure (**19 passed, 1 failed**) for
+  exactly 50 supplementary-plane letters, then passed **20/20**; the delayed
+  read/later-mutation regression failed **0/1** then passed **1/1**;
+- independent review found a narrower post-read-overlay interleaving, whose new
+  deterministic regression failed **0/1** before its generation guard and passed
+  **1/1** after it. The final combined team-directory focus is **27/27**.
+
+The invitation clock is now sampled after relevant locks inside every create or
+decision attempt. Create derives a full 48-hour expiry there; accept/reject and
+session expiry use a fresh attempt-local value, including retries. All five team
+mutations retry only PostgreSQL serialization/deadlock failures for at most
+three fresh transactions, and only exhaustion becomes `concurrency_conflict`.
+Candidate search re-authorizes `CanManageTeams` from the database, uses escaped
+literal `ILIKE`, and team-name equality uses PostgreSQL `lower`. Rejecting while
+already a member returns `invitation_recipient_already_member` without changing
+the pending invitation. Post-commit caller cancellation remains intentionally a
+committed success plus `notification_failed`, so it cannot encourage a duplicate
+create retry.
+
+| Final-review-wave gate | Наблюдаемый результат |
+| --- | --- |
+| full .NET restore/build/test/format | PASS; build 0 warnings/errors; Application **262/262**, API **599/599**, total **861/861**, 0 failed/skipped; format clean |
+| focused Application/PostgreSQL/API | PASS; Application collaboration focus **50/50**; team/invitation store, concurrency, and endpoint focus **65/65**; collaboration persistence model **12/12** |
+| NuGet and EF | PASS; no vulnerable package in 7 solution projects; no pending model changes |
+| EF idempotent script | PASS; `/tmp/template-iteration6-final-fix.sql` **30,706 bytes**, unchanged SHA-256 `00d417ced14a107b94b16c62979ea9b1117d753988e29696e6acce4b3625d220`; required collaboration identifiers present |
+| exact OpenAPI/generated client | PASS; delete/re-export files are byte-identical; unchanged SHA-256 `fdfbe74c39a42c018ca35555c504c1078a30558b82d41415bf4da2bdb9503010`; **45** total/**15** iteration-6 operations; `api:check` deterministic/current |
+| production/full npm audit | production PASS with 0 vulnerabilities; full audit remains expected nonzero for one high development-only `brace-expansion` advisory `GHSA-mh99-v99m-4gvg` |
+| web static/unit/build | PASS; boundaries **5/5**, Prettier clean, ESLint 0 errors/10 inherited compile-time assertion warnings, typecheck clean, Jest **61/61 suites and 483/483 tests**, clean Next.js 16.2.11 build 23/23 with standalone server |
+| Playwright Chromium | final focused collaboration **2/2**; final full suite **16 passed, 5 opt-in live-provider tests skipped, 0 failed** |
+
+An initial focused run and the first post-fix full E2E run exposed the same
+pre-existing test timing race: the expired-filter API GET returned `200`, but
+the automatic successful browser-session `router.refresh` completed after the
+test interacted and reset the client filter to `All invitations`. The E2E now
+waits for that required session-refresh cycle before exercising client-owned
+filter state. A focused rerun passed **2/2**, and the fresh full JSON-reporter run
+recorded **16 expected, 5 skipped, 0 unexpected, 0 flaky**. This is test
+synchronization only; invitation filter product behavior and the deferred Minor
+ledger were not changed.
+
+The contract, generated SDK, and migration schema/hash did not change. The
+immutable `template/` and inactive OpenSpec state remain guarded. This is local
+acceptance evidence only; push, merge, and a new automatic review of the final
+fix-wave head remain unobserved.
+
+**Next gate:** controller-owned push and automatic review of that exact head.
+Iteration 7 API keys/public machine authentication does not start until
+iteration 6's review state is observed and accepted; no review result is claimed
+here.
+
+### PR #7 automatic-review round 1 observed acceptance 2026-08-01
+
+Automatic review of `b40f10246a82e3898d10c22aa8c65d374a3f2578`
+identified three browser concurrency/terminal-state defects. The strict focused
+RED was **3/3 suites failed, 4 failed / 40 passed**: a pre-create pending-filter
+GET suppressed the confirmed row and never reconciled, accept and reject kept
+`invitation_recipient_already_member` actionable, and an old account
+continuation kept the replacement server page pending and could later append its
+stale row/cursor.
+
+The repair keeps confirmed create authority as a pending overlay only for
+`all`/`pending`, rejects older relevant read generations, and queues one latest
+GET reconciliation without replaying POST. Accept/reject now map the exact
+already-member code to the non-actionable state while retaining the matching
+safe workspace projection/link. Account server-page replacement advances a read
+generation and resets pending state; stale completion and `finally` paths are
+inert. No raw fetch, Server Action, handwritten collaboration DTO, contract,
+generated SDK, database, or immutable-reference change was introduced.
+
+| PR-round-1 gate | Наблюдаемый результат |
+| --- | --- |
+| focused Jest GREEN | PASS; **3/3 suites, 44/44 tests**, 0 snapshots; `real 2.28s` |
+| format/lint/typecheck | PASS; Prettier clean (`1.95s`); ESLint 0 errors and 10 inherited compile-time-assertion warnings (`3.99s`); Next typegen/TypeScript clean (`1.93s`) |
+| boundaries | PASS; **5/5** and source scan clean; `real 1.36s` |
+| full Jest | PASS; **61/61 suites, 487/487 tests**, 0 snapshots; `real 10.88s` |
+| clean production build | PASS; Next.js 16.2.11, **23/23** generation, standalone server present; `real 8.26s` |
+| Playwright Chromium | final focused collaboration **2/2** (`real 36.51s`); full **16 passed, 5 opt-in live-provider tests skipped, 0 failed** (`real 65.29s`) |
+
+The first focused Playwright attempt recorded **1 passed / 1 failed** because a
+page-global exact-text locator intermittently matched React Activity's hidden
+copy as well as the visible `<main>` copy. The screenshot and accessibility
+snapshot showed the intended visible decision state. With no source change, the
+immediate focused rerun passed **2/2**, and the subsequent five-worker full suite
+also passed. This remains a non-product test-selector concern; acceptance totals
+above use the final observed runs and do not claim the five opt-in live-provider
+screens.
+
+The immutable `template/`, inactive OpenSpec state, contract, and generated SDK
+remain unchanged. Push, merge, and a later automatic review of the corrected
+head remain unobserved and are not claimed.
+
+### PR #7 round-1 scoped causal-overlay follow-up 2026-08-01
+
+A scoped review of `b33fbe7fe247fef13c995df0c3c47d7494193eb8`
+found that the first repair did not preserve its create overlay across every
+server input. Two additional controlled regressions were added before the
+repair: the RSC replacement case failed by immediately dropping the confirmed
+email, and the isolated continuation-lifetime case failed **0/1** after an
+unrelated continuation incorrectly cleared the overlay before a later pending
+filter read.
+
+Invitation activity now stores server rows separately from unacknowledged
+mutation overlays. Only raw rows actually returned by a browser GET or RSC page
+can acknowledge the same immutable invitation id. Accumulated local rows are
+never acknowledgement evidence. A replacement RSC page acknowledges only the
+ids it contains; if confirmed ids remain, their all-filter projection stays
+visible and one current first-page GET reconciles the stale cursor/page. Browser
+request/mutation generations, all/pending-only projection, transactional
+nonmatching filters, and GET-only recovery remain intact.
+
+| Scoped follow-up gate | Наблюдаемый результат |
+| --- | --- |
+| causal RED | RSC replacement dropped its confirmed row; isolated continuation lifetime **0/1** |
+| focused invitation activity | PASS; **8/8 tests**, `real 2.34s` |
+| combined invitation focus | PASS; **3/3 suites, 46/46 tests**, `real 2.09s` |
+| format/lint/typecheck/boundaries | PASS; Prettier clean (`1.90s`); ESLint 0 errors/10 inherited warnings (`4.72s`); typecheck clean (`2.05s`); boundaries **5/5** (`1.37s`) |
+| full Jest | PASS; **61/61 suites, 489/489 tests**, 0 snapshots; `real 10.78s` |
+| clean production build | PASS; Next.js 16.2.11, **23/23** generation, standalone present; `real 7.41s` |
+| Playwright Chromium | focused collaboration **2/2** (`real 36.08s`); final full rerun **16 passed, 5 opt-in provider tests skipped, 0 failed** (`real 66.52s`) |
+
+The first final full Playwright attempt recorded **15 passed, 5 skipped, 1
+failed** (`real 61.42s`) when the collaboration decision workflow observed its
+verification prompt only in React Activity's hidden copy. The exact unchanged
+workflow had just passed in the focused **2/2** run; an immediate unchanged full
+rerun passed **16**, skipped the same five opt-in provider tests, and failed
+none. Both observations are retained here rather than presenting the retry as
+the only run.
+
+This scoped follow-up changes no decision/account-list behavior from the prior
+repair, no REST/client contract, database, package, E2E source, immutable
+reference, or OpenSpec state. Push and later automatic review remain
+unobserved.
+
+### PR #7 automatic-review round 2 observed acceptance 2026-08-01
+
+Automatic review of `9c4cc6c87ca9aba3520379f5b6e38fd8131deec2`
+reported six required defects, all reproduced and repaired in this round:
+
+1. a team continuation could outlive an incoming RSC page and append stale rows
+   or overwrite its cursor/pending state;
+2. a member continuation could similarly outlive the replacement embedded
+   member page;
+3. stale RSC input could erase confirmed create, rename, or delete team
+   authority;
+4. stale embedded member input could erase confirmed add/remove authority and
+   its locally confirmed member count;
+5. a same-invitation pending RSC projection could make a confirmed accept,
+   reject, or already-member decision actionable again; and
+6. a Unicode invitation address accepted by application validation could reach
+   PostgreSQL `lower`, fail in the database encoding/collation path, and surface
+   `500` instead of validation.
+
+Two scoped local-review follow-ups were also closed before integration. First,
+pagination acknowledgement now uses causal server evidence: exact create,
+rename, and add rows on a newer browser page may retire their overlays, while
+delete/remove absence is authoritative only on an exhaustive replacement first
+page, never merely at a continuation tail. RSC input advances the generation and
+queues the current generated GET, but cannot acknowledge an overlay directly.
+Second, invitation email has one explicit request policy across the API,
+browser, OpenAPI, and generated SDK: trim/lowercase, at most 254 characters,
+printable ASCII with no control characters, plus structural email validation.
+The request-only OpenAPI `x-trimmed-pattern` describes the post-trim character
+policy; response email projections remain the generic email schema.
+
+Strict test-first observations are kept separate where RED totals came from
+different controlled runs:
+
+- the four original TeamDirectory findings first produced **10 expected race
+  failures**, followed by **2 additional stale member-count failures**; GREEN
+  was **31/31** focused and **34/34** for TeamDirectory plus team settings;
+- the pagination acknowledgement follow-up added **3 failing upsert pagination
+  cases** before the fix; its final focused GREEN was **36/36**;
+- invitation decision produced **5 controlled failures** for already-member,
+  delayed/throwing accept, and failed reject reconciliation interleavings; the
+  four invitation suites then passed **48/48**;
+- the backend Unicode regression failed **0/1** with expected `400` but observed
+  `500`; GREEN was **1/1** for the regression, **9/9** invitation endpoints, and
+  **35/35** store/persistence;
+- the ASCII consistency follow-up produced web RED **1 failed / 5 passed** and
+  OpenAPI RED **0/1**; GREEN was API/OpenAPI **33/33** and web/generated-SDK
+  **15/15**.
+
+| PR-round-2 gate | Наблюдаемый результат |
+| --- | --- |
+| required .NET restore/build/test/format | PASS; restore current (`real 1.18s`); build 0 warnings/errors (`real 1.47s`); Application **262/262**, API **601/601**, total **863/863**, 0 failed/skipped (`real 117.24s`); format clean (`real 11.72s`) |
+| deterministic OpenAPI/export/client | PASS; two clean exports and the committed contract were byte-identical, **45 operations**, exact SHA-256 `bb10782ff8d515c0d871a2cf58edcbf6075c25c3a55dd0ea36a046550b5c67c8`; `api:check` before and after `api:generate` was current/deterministic |
+| focused/full Jest | PASS; round-2 integrated focus **8/8 suites, 102/102 tests** (`real 4.12s`); full **61/61 suites, 505/505 tests**, 0 snapshots (`real 12.18s`) |
+| web static/build | PASS; boundaries **5/5** and source scan clean (`real 1.47s`); Prettier clean (`real 2.17s`); ESLint 0 errors/10 inherited compile-time assertion warnings (`real 5.12s`); typegen/TypeScript clean (`real 1.95s`); clean Next.js 16.2.11 production build **23/23** with standalone server (`real 8.21s`) |
+| Playwright focused/final | PASS after the test-only stabilization described below; organization zero-state **1/1** (`real 38.38s`), collaboration **2/2** (`real 41.27s`), final full **16 passed, 5 opt-in live-provider tests skipped, 0 failed** (`real 71.42s`) |
+| repository/protection guards | PASS; `git diff --check`, immutable `template/` working/range/status/untracked checks, inactive OpenSpec exact-state check, generated-client drift check, and protected architecture/boundary scans clean |
+
+The first default five-worker E2E attempt recorded **10 passed, 5 skipped, 2
+failed, 4 did not run** (`real 54.30s`). Trace evidence showed the authentication
+redirect timed out while cold dashboard/welcome RSC compilation was still in
+flight. The organization scenario exceeded its 30-second budget after several
+2–5 second cold route compilations: its first organization POST returned `201`,
+then fixture teardown deleted the local-auth scenario and the pending second POST
+surfaced `401`. An unchanged warm rerun again recorded **10 passed, 5 skipped, 2
+failed, 4 did not run** (`real 51.62s`): authentication passed, the organization
+scenario repeated the same time-budget class, and collaboration encountered the
+already documented React Activity hidden-tree duplicate selector.
+
+The controlled failures became test-harness RED for two narrow, non-product
+changes: the long multi-route zero-organization workflow receives a 60-second
+per-test budget, and recipient verification scopes its exact prompt to visible
+`main`. The focused organization and collaboration runs and subsequent full run
+above passed. No retry, API mutation, or collaboration product behavior was
+changed to make E2E green.
+
+The exact contract and generated client now intentionally include only the
+request email extension described above; database schema and migration artifacts
+remain unchanged. The immutable reference and inactive OpenSpec state remain
+guarded. This commit is local: push, merge, and a new automatic review of the
+round-2 head remain unobserved and pending.
+
+### PR #7 automatic-review round 3 observed acceptance 2026-08-02
+
+Automatic review of `a3f9f6a681e030c73a9c813c2d03c04f94b7678c`
+raised two required findings. Comment `3696600112` found that the invitation
+settings selector exposed only the first 100 teams, so a valid later-page team
+could not be targeted. Comment `3696600113` found that member-count recovery
+treated one generated member page as complete authority, so teams with more than
+50 members could keep or later regain an incorrect count.
+
+The invitation settings page now exhausts generated team pages at limit 100,
+de-duplicates by immutable team id while retaining the newest projection, and
+fails safely on a later-page failure, empty cursor, or cursor cycle. The helper
+uses the existing request-bound generated server loader, so `no-store`, cookie
+allow-listing, correlation, and suppressed session renewal remain unchanged.
+
+Member recovery now computes absence and count authority only from a complete
+de-duplicated generated traversal. A partial first page and an embedded/RSC
+cursor cannot establish full coverage. Confirmed add/remove counts are
+generation-stamped and survive stale RSC input until a newer generated team row
+rebases them. Scoped local review additionally found and fixed two cross-resource
+races: an older overlapping generated team GET could regress the completed
+member-traversal count from **52 to 51**, and a delayed RSC team projection could
+do the same. Completing a member traversal now advances team-mutation authority;
+both older generated reads and delayed RSC input are discarded for count
+purposes and queue one current generated team replacement.
+
+Strict RED evidence is recorded per controlled scenario without combining
+incompatible runs:
+
+- the invitation loader added **3 failing cases** for later-page selection and
+  de-duplication, later-page failure, and repeated-cursor safety;
+- in the original member-count review reproduction, the add scenario timed out,
+  while the remove scenario failed later at its expected **52** count;
+- the overlapping generated-team-GET regression observed **52 → 51**; and
+- the delayed-RSC regression independently observed **52 → 51**.
+
+Focused GREEN was invitation pages **14/14**, invitation pages plus create-dialog
+coverage **20/20**, and TeamDirectory **39/39**. Final integrated acceptance was:
+
+| PR-round-3 gate | Наблюдаемый результат |
+| --- | --- |
+| focused Jest | PASS; invitation pages **14/14** (`real 2.03s`), combined invitation focus **20/20** (`real 1.82s`), TeamDirectory **39/39** (`real 2.67s`) |
+| full Jest | PASS; **61/61 suites, 511/511 tests**, 0 snapshots; `real 12.77s` |
+| format/lint/typecheck/boundaries | PASS; Prettier clean (`real 2.34s`); ESLint 0 errors/10 inherited compile-time-assertion warnings (`real 5.26s`); typegen/TypeScript clean (`real 1.85s`); boundaries **5/5** and source scan clean (`real 1.55s`) |
+| clean production build | PASS; Next.js 16.2.11, **23/23** generation, standalone server present; `real 11.16s` |
+| Playwright Chromium | PASS on the first final attempts; collaboration/invitation/settings focus **2/2** (`real 50.19s`); full **16 passed, 5 opt-in provider tests skipped, 0 failed** (`real 88.22s`) |
+| OpenAPI/generated client | PASS; `npm run api:check` current/deterministic (`real 0.82s`); contract unchanged with SHA-256 `bb10782ff8d515c0d871a2cf58edcbf6075c25c3a55dd0ea36a046550b5c67c8` |
+| repository/protection guards | PASS; whitespace, immutable `template/` working/range/status/untracked, inactive exact OpenSpec state, unchanged API/contract scope, and protected architecture/source scans clean |
+
+No .NET source, API contract, generated SDK artifact, database schema, migration,
+package, or E2E source changed in this round. The round-2 `a3f9f6a` full .NET
+acceptance therefore remains applicable: Application **262/262**, API **601/601**,
+total **863/863**, with no failures or skips. No known cold-compilation,
+hidden-tree selector, or time-budget retry was needed in these final E2E runs.
+At this local round-3 checkpoint, push, merge, and a new automatic review were
+still unobserved; the closure below records the subsequent implementation-head
+review evidence.
+
+### PR #7 implementation-head automatic-review clean closure 2026-08-02
+
+PR #7's automatic reviewer completed a clean review of implementation head
+`6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d` (reviewed commit
+`6f17d7708e`). The bot issue comment has node id
+`IC_kwDOThDXX88AAAABMyxOEA`, database id
+[`5153508880`](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/7#issuecomment-5153508880),
+and creation time `2026-08-01T21:24:58Z`. Its exact leading result line was:
+`Codex Review: Didn't find any major issues. :tada:`
+
+The GraphQL review-thread snapshot observed all **11/11 threads resolved** and
+**0 unresolved**. At the same observation PR #7 was ready rather than draft and
+mergeable. These facts complete automatic-review acceptance for the exact
+implementation head above; they do not describe or predict a different commit.
+
+This documentation-only evidence update records that already observed state.
+Its commit will be pushed and automatically reviewed next, so this section does
+not claim that the documentation commit itself has been reviewed, remains clean,
+or has any future review result.
 
 ## 9. Правило обновления этого документа
 

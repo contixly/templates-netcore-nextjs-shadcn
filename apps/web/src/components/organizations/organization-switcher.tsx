@@ -25,6 +25,7 @@ import type { ApiFailure } from "@/src/lib/api/result";
 import { cn } from "@/src/lib/utils";
 
 export type OrganizationSwitcherItem = Readonly<{
+  canManageInvitations: boolean;
   canonicalKey: string;
   id: string;
   name: string;
@@ -184,7 +185,11 @@ export function OrganizationSwitcher({
       return;
     }
     router.push(
-      resolveOrganizationSwitchHref(origin.pathname, organization.canonicalKey),
+      resolveOrganizationSwitchHref(
+        origin.pathname,
+        organization.canonicalKey,
+        organization.canManageInvitations,
+      ),
     );
     router.refresh();
   }

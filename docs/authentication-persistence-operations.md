@@ -2,7 +2,7 @@
 
 ## Scope
 
-Iterations 3–5 own the clean PostgreSQL `auth` schema, Identity Core users,
+Iterations 3–6 own the clean PostgreSQL `auth` and `organizations` schemas, Identity Core users,
 verified-email and external-login records, PostgreSQL-backed browser tickets
 and OpenIddict state, the persistent Data Protection key ring, the secure
 session cookie, antiforgery, local automation auth, account lifecycle, and
@@ -97,7 +97,7 @@ project as a child process. Its explicit
 environment so the loopback HTTP listener can model the production HTTPS
 boundary required by secure antiforgery cookies.
 
-The iteration-4 and iteration-5 migrations are additive:
+The iteration-4 through iteration-6 migrations are additive:
 
 - `20260728232503_AccountsExternalOAuth` creates `auth.user_emails`, adds
   verified-email/timestamp metadata to Identity logins, creates the Data
@@ -111,6 +111,11 @@ The iteration-4 and iteration-5 migrations are additive:
   `allowed_email_domains`), adds the closed role/name/slug constraints and
   indexes, and adds nullable indexed `auth.sessions.active_organization_id`
   with an FK to `organizations.organizations` using `SET NULL`.
+- `20260731070609_OrganizationActorListMembershipCursorIndex` adds the stable
+  actor-membership cursor index `(user_id, joined_at, id)`;
+- `20260801084304_TeamsInvitations` adds `organizations.teams`,
+  `organizations.team_members`, and `organizations.invitations`, plus the
+  tenant-qualified alternate key on `organizations.members`.
 
 `auth.user_emails.normalized_email` is globally unique, and a partial unique
 index permits at most one primary row per user. Identity
@@ -298,6 +303,92 @@ Clients must not decode or synthesize them. Lists include only unexpired rows;
 single revoke is ownership-qualified and cannot target the current id;
 revoke-others uses one set-based delete and preserves the current browser.
 
+## Collaboration persistence and local confirmation
+
+Migration `20260801084304_TeamsInvitations` creates three tables in the existing
+`organizations` schema. `teams` has UUID v7 application/EF fallback IDs, a
+required organization FK, `1..50` Unicode-scalar normalized-name check, alternate
+`(organization_id, id)` key, stable list index, and the raw PostgreSQL unique
+expression index `ux_teams_organization_id_lower_name`. `team_members` points to
+the organization-membership edge rather than directly to a user; its two
+composite `(organization_id, ...)` cascading FKs make cross-tenant membership
+impossible, and `(team_id, organization_member_id)` is unique. Team/member list
+indexes implement their immutable keyset orders.
+
+`invitations` has random UUID v4 IDs, normalized email, closed
+`owner | admin | member` role and `pending | accepted | rejected | canceled`
+stored status, organization and inviter cascades, and a restrictive composite
+team FK. Team deletion must clear the nullable target before deleting the team,
+so historical invitations become workspace-only. A partial unique index permits
+one pending `(organization_id, email)` row. Organization, recipient, team, and
+inviter-cap indexes support keyset reads and transactional validation. `expired`
+is derived from `pending && expires_at <= now`; there is no expiry job or
+notification/outbox table. `auth.sessions` deliberately has no active-team
+column.
+
+The migration's named collaboration constraints are:
+
+- checks `ck_teams_name`, `ck_invitations_email`,
+  `ck_invitations_expiry`, `ck_invitations_role`, and
+  `ck_invitations_status`;
+- tenant FKs `fk_teams_organizations_organization_id`,
+  `fk_team_members_members_organization_id_organization_member_id`,
+  `fk_team_members_teams_organization_id_team_id`, and
+  `fk_invitations_teams_organization_id_team_id`;
+- invitation ownership FKs
+  `fk_invitations_organizations_organization_id` and
+  `fk_invitations_users_inviter_user_id`;
+- unique indexes `ux_teams_organization_id_lower_name`,
+  `ux_team_members_team_id_organization_member_id`, and
+  `ux_invitations_organization_id_email_pending`.
+
+Team create/rename/add/remove/delete and invitation create/accept/reject are
+single-`TemplateDbContext` PostgreSQL transactions with role/resource rechecks.
+Team name equality and uniqueness use database-side PostgreSQL `lower`; candidate
+name/email search uses escaped literal `ILIKE`, never process-culture
+`ToLower`. Candidate reads also re-read the actor role and require
+`CanManageTeams` before reading the team or query results. Team delete clears
+invitation targets before cascade. All five team mutations retry only SQLSTATE
+`40001`/`40P01`, at most three fresh transactions with authorization repeated;
+permission, validation, classified unique, and cancellation outcomes are not
+retried, and only retry exhaustion becomes `concurrency_conflict`.
+
+Invitation create holds the actor membership lock while enforcing the
+100-live-pending cap and relies on the partial unique index for recipient races.
+It samples time after the relevant locks in each attempt and derives a full
+48-hour lifetime there. Acceptance follows the shared organization lock order
+and atomically writes organization membership, optional team membership,
+accepted status, and the current unexpired session's active organization.
+Accept/reject sample fresh time after their attempt's locks, so lock waits,
+retries, invitation expiry, and session expiry share the same authoritative
+boundary. Reject changes status only when the recipient is not already a member;
+an existing member receives `invitation_recipient_already_member` and the row
+stays pending. Invitation serialization/deadlock failures retain bounded retry.
+Account deletion, organization deletion, and local scenario cleanup include the
+collaboration graph and leave no orphan team/member/invitation rows.
+
+The registered invitation notifier is a safe no-network no-op. It runs only
+after transaction commit; delivery failure cannot roll back or obscure the
+committed invitation. Caller cancellation observed after commit is deliberately
+reported as committed success plus `notification_failed`, not as a failed create
+that could invite a duplicate retry. External delivery, retry, outbox, and
+resend need a separate operational iteration.
+
+Local automation users are intentionally created with an unverified primary
+email. For deterministic black-box invitation E2E, an authenticated client may:
+
+1. get a fresh antiforgery token;
+2. `POST /api/local-auth/confirm-email` with an empty body;
+3. accept the renewed/reissued secure session cookie;
+4. re-read the generated session/invitation contract.
+
+This operation is available only in Development/Test and only when
+`LocalAutomationAuth:Enabled=true`. Production returns `404
+local_auth_disabled`, even if the flag is set. It verifies only the current local
+automation identity, is tagged local-only in OpenAPI, and is not a production
+account-verification flow. Automation and UI must never replace it with direct
+SQL or cookie mutation.
+
 ## Security audit contract
 
 Structured OAuth events contain only the closed operation/provider id, stable
@@ -320,7 +411,7 @@ backend is introduced by this iteration.
 a valid session cookie. `/api/health` and `/api/health/ready` require
 connectivity plus queryable `auth.users` and `organizations.organizations`
 relations. Operators must apply migrations through
-`20260730091827_OrganizationsMembershipOnboarding`. Health responses never
+`20260801084304_TeamsInvitations`. Health responses never
 expose connection strings or schema errors.
 
 Auth responses are never cached. Diagnose failures by stable Problem Details
@@ -329,7 +420,7 @@ backend `detail`.
 
 ## Rollback and production gate
 
-The iteration-3/4/5 migrations are additive over the clean target schema.
+The iteration-3/4/5/6 migrations are additive over the clean target schema.
 Rolling application code back may leave the new tables, columns, and indexes
 unused.
 Generated `Down` paths are destructive and restricted to disposable

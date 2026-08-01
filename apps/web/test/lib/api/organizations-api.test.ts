@@ -80,6 +80,8 @@ const organization: OrganizationDetailResponse = {
     canDeleteOrganization: true,
     canAddMembers: true,
     canUpdateMemberRoles: true,
+    canManageTeams: true,
+    canManageInvitations: true,
   },
   allowedEmailDomains: ["example.test"],
 };

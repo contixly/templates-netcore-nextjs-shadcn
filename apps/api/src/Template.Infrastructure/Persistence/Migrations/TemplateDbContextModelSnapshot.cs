@@ -353,6 +353,174 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.ToTable("openiddict_tokens", "auth");
                 });
 
+            modelBuilder.Entity("Template.Infrastructure.Collaboration.InvitationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("email");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<Guid>("InviterUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inviter_user_id");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("role");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_invitations");
+
+                    b.HasIndex("InviterUserId")
+                        .HasDatabaseName("ix_invitations_inviter_user_id");
+
+                    b.HasIndex("OrganizationId", "Email")
+                        .IsUnique()
+                        .HasDatabaseName("ux_invitations_organization_id_email_pending")
+                        .HasFilter("status = 'pending'");
+
+                    b.HasIndex("OrganizationId", "TeamId")
+                        .HasDatabaseName("ix_invitations_organization_id_team_id");
+
+                    b.HasIndex("OrganizationId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("ix_invitations_organization_id_created_at_id");
+
+                    b.HasIndex("OrganizationId", "InviterUserId", "Status", "ExpiresAt")
+                        .HasDatabaseName("ix_invitations_organization_inviter_status_expires_at");
+
+                    b.HasIndex("Email", "Status", "ExpiresAt", "CreatedAt", "Id")
+                        .IsDescending(false, false, false, true, true)
+                        .HasDatabaseName("ix_invitations_email_status_expires_at_created_at_id");
+
+                    b.ToTable("invitations", "organizations", t =>
+                        {
+                            t.HasCheckConstraint("ck_invitations_email", "char_length(email) BETWEEN 1 AND 254 AND email = lower(email)");
+
+                            t.HasCheckConstraint("ck_invitations_expiry", "expires_at > created_at");
+
+                            t.HasCheckConstraint("ck_invitations_role", "role IN ('owner', 'admin', 'member')");
+
+                            t.HasCheckConstraint("ck_invitations_status", "status IN ('pending', 'accepted', 'rejected', 'canceled')");
+                        });
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Collaboration.TeamEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_teams");
+
+                    b.HasAlternateKey("OrganizationId", "Id")
+                        .HasName("ak_teams_organization_id_id");
+
+                    b.HasIndex("OrganizationId", "CreatedAt", "Id")
+                        .HasDatabaseName("ix_teams_organization_id_created_at_id");
+
+                    b.ToTable("teams", "organizations", t =>
+                        {
+                            t.HasCheckConstraint("ck_teams_name", "char_length(name) BETWEEN 1 AND 50\nAND name = btrim(name)\nAND name ~ '^[[:alnum:] _-]+$'");
+                        });
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Collaboration.TeamMemberEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<Guid>("OrganizationMemberId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_member_id");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("team_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_team_members");
+
+                    b.HasIndex("OrganizationId", "OrganizationMemberId")
+                        .HasDatabaseName("ix_team_members_organization_id_organization_member_id");
+
+                    b.HasIndex("OrganizationId", "TeamId")
+                        .HasDatabaseName("ix_team_members_organization_id_team_id");
+
+                    b.HasIndex("TeamId", "OrganizationMemberId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_team_members_team_id_organization_member_id");
+
+                    b.HasIndex("TeamId", "JoinedAt", "Id")
+                        .HasDatabaseName("ix_team_members_team_id_joined_at_id");
+
+                    b.ToTable("team_members", "organizations");
+                });
+
             modelBuilder.Entity("Template.Infrastructure.Identity.ApplicationUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -596,6 +764,9 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.HasKey("Id")
                         .HasName("pk_members");
 
+                    b.HasAlternateKey("OrganizationId", "Id")
+                        .HasName("ak_members_organization_id_id");
+
                     b.HasIndex("OrganizationId", "UserId")
                         .IsUnique()
                         .HasDatabaseName("ux_members_organization_id_user_id");
@@ -787,6 +958,59 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Collaboration.InvitationEntity", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("InviterUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_invitations_users_inviter_user_id");
+
+                    b.HasOne("Template.Infrastructure.Organizations.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_invitations_organizations_organization_id");
+
+                    b.HasOne("Template.Infrastructure.Collaboration.TeamEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "TeamId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .HasConstraintName("fk_invitations_teams_organization_id_team_id");
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Collaboration.TeamEntity", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Organizations.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_teams_organizations_organization_id");
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Collaboration.TeamMemberEntity", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Organizations.OrganizationMemberEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "OrganizationMemberId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_team_members_members_organization_id_organization_member_id");
+
+                    b.HasOne("Template.Infrastructure.Collaboration.TeamEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId", "TeamId")
+                        .HasPrincipalKey("OrganizationId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_team_members_teams_organization_id_team_id");
                 });
 
             modelBuilder.Entity("Template.Infrastructure.Identity.ApplicationUserLogin", b =>

@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
@@ -10,6 +11,7 @@ using Template.Api.Endpoints;
 using Template.Api.Errors;
 using Template.Api.OpenApi;
 using Template.Application.Authentication;
+using Template.Application.Authentication.Ports;
 using Template.Infrastructure.Authentication;
 
 namespace Template.Api.Features.Auth;
@@ -156,6 +158,20 @@ internal sealed class AuthEndpointModule : IEndpointModule
                 StatusCodes.Status409Conflict,
                 OpenApiDefaults.ProblemContentType)
             .ProducesProtectedApiProblems();
+
+        context.Root.MapPost(
+                "/api/local-auth/confirm-email",
+                ConfirmEmailAsync)
+            .RequireAuthorization(ApiPolicies.BrowserSession)
+            .WithName("ConfirmLocalAutomationEmail")
+            .WithDescription(
+                "Development/Test only; requires LocalAutomationAuth enabled. " +
+                "Production returns 404. This is not production account verification.")
+            .RequireApiAntiforgery()
+            .WithLocalOnly()
+            .Produces<ApiResponse<AuthSessionResponse>>()
+            .ProducesBadRequestProblem()
+            .ProducesProtectedApiProblems();
     }
 
     private static async Task<IResult> CreateScenarioAsync(
@@ -295,6 +311,79 @@ internal sealed class AuthEndpointModule : IEndpointModule
             sessionId: null);
         return Results.Ok(new ApiResponse<LocalAutomationCleanupResponse>(
             new(result.Value!.DeletedOrganizations)));
+    }
+
+    private static async Task<IResult> ConfirmEmailAsync(
+        LocalAutomationAuthService auth,
+        IBrowserSessionGateway browserSessions,
+        ILogger<AuthEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        NoStore(http);
+        var current = await browserSessions.GetCurrentAsync(cancellationToken);
+        var userId = current?.User.Id.Value ?? CurrentUserId(http.User);
+        var sessionId = current?.Session.Id.Value;
+        try
+        {
+            if (http.Features.Get<IHttpRequestBodyDetectionFeature>()
+                    ?.CanHaveBody == true ||
+                http.Request.ContentLength is > 0 ||
+                http.Request.Headers.TransferEncoding.Count > 0)
+            {
+                throw new ApiProblemException(
+                    StatusCodes.Status400BadRequest,
+                    ApiProblemCodes.InvalidRequest);
+            }
+
+            var result = await auth.ConfirmEmailAsync(cancellationToken);
+            if (!result.Succeeded)
+            {
+                throw result.Failure switch
+                {
+                    AuthFailure.SessionRequired => new ApiProblemException(
+                        StatusCodes.Status401Unauthorized,
+                        ApiProblemCodes.Unauthorized),
+                    AuthFailure.LocalUserRequired => new ApiProblemException(
+                        StatusCodes.Status403Forbidden,
+                        ApiProblemCodes.LocalAuthUserRequired),
+                    _ => new InvalidOperationException(
+                        "Unexpected local email confirmation failure.")
+                };
+            }
+
+            var value = result.Value ?? throw new InvalidOperationException(
+                "Successful local email confirmation returned no session state.");
+            var response = Results.Ok(
+                new ApiResponse<AuthSessionResponse>(Map(value)));
+            AuthSecurityEvents.Write(
+                logger,
+                "local_email_confirm",
+                "succeeded",
+                userId,
+                sessionId);
+            return response;
+        }
+        catch (ApiProblemException problem)
+        {
+            AuthSecurityEvents.Write(
+                logger,
+                "local_email_confirm",
+                problem.Code,
+                userId,
+                sessionId);
+            throw;
+        }
+        catch (Exception)
+        {
+            AuthSecurityEvents.Write(
+                logger,
+                "local_email_confirm",
+                "unexpected_failure",
+                userId,
+                sessionId);
+            throw;
+        }
     }
 
     private static void ThrowCreateFailure(AuthFailure failure)

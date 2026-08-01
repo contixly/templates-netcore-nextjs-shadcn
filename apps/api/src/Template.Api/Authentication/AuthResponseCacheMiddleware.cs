@@ -8,6 +8,7 @@ internal sealed class AuthResponseCacheMiddleware(RequestDelegate next)
             context.Request.Path.StartsWithSegments("/api/v1/auth") ||
             context.Request.Path.StartsWithSegments("/api/v1/account") ||
             context.Request.Path.StartsWithSegments("/api/v1/organizations") ||
+            context.Request.Path.StartsWithSegments("/api/v1/invitations") ||
             context.Request.Path.StartsWithSegments("/api/auth"))
         {
             context.Response.Headers.CacheControl = "no-store";
