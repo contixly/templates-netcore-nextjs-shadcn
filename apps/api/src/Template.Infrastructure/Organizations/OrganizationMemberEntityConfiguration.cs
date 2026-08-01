@@ -16,6 +16,8 @@ public sealed class OrganizationMemberEntityConfiguration
                 "ck_members_role",
                 "role IN ('owner', 'admin', 'member')"));
         entity.HasKey(value => value.Id).HasName("pk_members");
+        entity.HasAlternateKey(value => new { value.OrganizationId, value.Id })
+            .HasName("ak_members_organization_id_id");
         entity.Property(value => value.Id).HasColumnName("id");
         entity.Property(value => value.OrganizationId)
             .HasColumnName("organization_id");
