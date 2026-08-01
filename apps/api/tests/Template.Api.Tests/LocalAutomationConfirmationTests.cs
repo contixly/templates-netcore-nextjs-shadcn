@@ -2,10 +2,16 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Api.Tests.Infrastructure;
+using Template.Application.Authentication;
+using Template.Application.Authentication.Ports;
+using Template.Domain.Authentication;
+using Template.Infrastructure.Identity;
 using Template.Infrastructure.Persistence;
 
 namespace Template.Api.Tests;
@@ -125,6 +131,9 @@ public sealed class LocalAutomationConfirmationTests(ApiWebApplicationFactory fa
         var scenario = await created.Content.ReadFromJsonAsync<
             LocalAuthTestClient.ScenarioEnvelope>(
                 TestContext.Current.CancellationToken);
+        var current = await client.GetFromJsonAsync<SessionEnvelope>(
+            "/api/v1/auth/session",
+            TestContext.Current.CancellationToken);
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
@@ -136,6 +145,8 @@ public sealed class LocalAutomationConfirmationTests(ApiWebApplicationFactory fa
                         false),
                     TestContext.Current.CancellationToken);
         }
+        var logs = factory.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
 
         using var response = await LocalAuthTestClient.ConfirmEmailAsync(client);
 
@@ -143,6 +154,16 @@ public sealed class LocalAutomationConfirmationTests(ApiWebApplicationFactory fa
             response,
             HttpStatusCode.Forbidden,
             "local_auth_user_required");
+        var audit = Assert.Single(
+            logs.Logs,
+            log => log.Category ==
+                "Template.Api.Features.Auth.AuthEndpointModule");
+        Assert.Equal("local_email_confirm", audit.State["AuthOperation"]);
+        Assert.Equal(
+            "local_auth_user_required",
+            audit.State["AuthOutcome"]);
+        Assert.Equal(scenario!.Data.User.Id, audit.State["UserId"]);
+        Assert.Equal(current!.Data.Session!.Id, audit.State["SessionId"]);
     }
 
     [Fact]
@@ -179,6 +200,87 @@ public sealed class LocalAutomationConfirmationTests(ApiWebApplicationFactory fa
             "local_auth_disabled");
     }
 
+    [Fact]
+    public async Task UnexpectedLocalAutomationConfirmationFailureEmitsOneSafeFinalAudit()
+    {
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ILocalIdentityGateway>();
+                services.AddScoped<ILocalIdentityGateway>(provider =>
+                    new ThrowingConfirmationIdentityGateway(
+                        new IdentityGateway(
+                            provider.GetRequiredService<
+                                UserManager<ApplicationUser>>(),
+                            provider.GetRequiredService<
+                                SignInManager<ApplicationUser>>(),
+                            provider.GetRequiredService<TimeProvider>(),
+                            provider.GetRequiredService<TemplateDbContext>())));
+            }));
+        using var client = isolated.CreateClient(ClientOptions());
+        const string email =
+            "local-agent+unexpected-confirmation@local-agent.test";
+        using var created = await LocalAuthTestClient.CreateScenarioAsync(
+            client,
+            new
+            {
+                name = "Unexpected Confirmation Actor",
+                email,
+                password = "local-unexpected-confirmation-password"
+            });
+        var scenario = await created.Content.ReadFromJsonAsync<
+            LocalAuthTestClient.ScenarioEnvelope>(
+                TestContext.Current.CancellationToken);
+        var current = await client.GetFromJsonAsync<SessionEnvelope>(
+            "/api/v1/auth/session",
+            TestContext.Current.CancellationToken);
+        var logs = isolated.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+
+        using var response = await LocalAuthTestClient.ConfirmEmailAsync(client);
+
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.InternalServerError,
+            "internal_error");
+        var audit = Assert.Single(
+            logs.Logs,
+            log => log.Category ==
+                "Template.Api.Features.Auth.AuthEndpointModule");
+        Assert.Equal("local_email_confirm", audit.State["AuthOperation"]);
+        Assert.Equal("unexpected_failure", audit.State["AuthOutcome"]);
+        Assert.Equal(scenario!.Data.User.Id, audit.State["UserId"]);
+        Assert.Equal(current!.Data.Session!.Id, audit.State["SessionId"]);
+        Assert.Equal(
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "AuthOperation",
+                "AuthOutcome",
+                "UserId",
+                "SessionId",
+                "{OriginalFormat}"
+            },
+            audit.State.Keys.ToHashSet(StringComparer.Ordinal));
+        Assert.Null(audit.Exception);
+        var responseBody = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        var renderedAudit = string.Join(
+            " ",
+            new[] { audit.Message }
+                .Concat(audit.State.Values.Select(value =>
+                    value?.ToString() ?? string.Empty)));
+        Assert.DoesNotContain(email, responseBody, StringComparison.Ordinal);
+        Assert.DoesNotContain(email, renderedAudit, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            ThrowingConfirmationIdentityGateway.SensitiveFailure,
+            responseBody,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            ThrowingConfirmationIdentityGateway.SensitiveFailure,
+            renderedAudit,
+            StringComparison.Ordinal);
+    }
+
     private static WebApplicationFactoryClientOptions ClientOptions() => new()
     {
         BaseAddress = new Uri("https://localhost"),
@@ -206,4 +308,32 @@ public sealed class LocalAutomationConfirmationTests(ApiWebApplicationFactory fa
         SessionMetadata? Session);
     private sealed record UserData(Guid Id, bool EmailVerified);
     private sealed record SessionMetadata(Guid Id);
+
+    private sealed class ThrowingConfirmationIdentityGateway(
+        ILocalIdentityGateway inner) : ILocalIdentityGateway
+    {
+        internal const string SensitiveFailure =
+            "sensitive confirmation gateway failure";
+
+        public Task<AuthUser> CreateLocalAsync(
+            LocalAutomationCredentials credentials,
+            CancellationToken cancellationToken) =>
+            inner.CreateLocalAsync(credentials, cancellationToken);
+
+        public Task<AuthUser?> CheckLocalPasswordAsync(
+            string email,
+            string password,
+            CancellationToken cancellationToken) =>
+            inner.CheckLocalPasswordAsync(email, password, cancellationToken);
+
+        public Task<AuthUser> ConfirmEmailAsync(
+            UserId userId,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(SensitiveFailure);
+
+        public Task DeleteAsync(
+            UserId userId,
+            CancellationToken cancellationToken) =>
+            inner.DeleteAsync(userId, cancellationToken);
+    }
 }

@@ -11,6 +11,7 @@ using Template.Api.Endpoints;
 using Template.Api.Errors;
 using Template.Api.OpenApi;
 using Template.Application.Authentication;
+using Template.Application.Authentication.Ports;
 using Template.Infrastructure.Authentication;
 
 namespace Template.Api.Features.Auth;
@@ -311,65 +312,75 @@ internal sealed class AuthEndpointModule : IEndpointModule
 
     private static async Task<IResult> ConfirmEmailAsync(
         LocalAutomationAuthService auth,
+        IBrowserSessionGateway browserSessions,
         ILogger<AuthEndpointModule> logger,
         HttpContext http,
         CancellationToken cancellationToken)
     {
         NoStore(http);
-        var userId = CurrentUserId(http.User);
-        if (http.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody ==
-                true ||
-            http.Request.ContentLength is > 0 ||
-            http.Request.Headers.TransferEncoding.Count > 0)
+        var current = await browserSessions.GetCurrentAsync(cancellationToken);
+        var userId = current?.User.Id.Value ?? CurrentUserId(http.User);
+        var sessionId = current?.Session.Id.Value;
+        try
+        {
+            if (http.Features.Get<IHttpRequestBodyDetectionFeature>()
+                    ?.CanHaveBody == true ||
+                http.Request.ContentLength is > 0 ||
+                http.Request.Headers.TransferEncoding.Count > 0)
+            {
+                throw new ApiProblemException(
+                    StatusCodes.Status400BadRequest,
+                    ApiProblemCodes.InvalidRequest);
+            }
+
+            var result = await auth.ConfirmEmailAsync(cancellationToken);
+            if (!result.Succeeded)
+            {
+                throw result.Failure switch
+                {
+                    AuthFailure.SessionRequired => new ApiProblemException(
+                        StatusCodes.Status401Unauthorized,
+                        ApiProblemCodes.Unauthorized),
+                    AuthFailure.LocalUserRequired => new ApiProblemException(
+                        StatusCodes.Status403Forbidden,
+                        ApiProblemCodes.LocalAuthUserRequired),
+                    _ => new InvalidOperationException(
+                        "Unexpected local email confirmation failure.")
+                };
+            }
+
+            var value = result.Value ?? throw new InvalidOperationException(
+                "Successful local email confirmation returned no session state.");
+            var response = Results.Ok(
+                new ApiResponse<AuthSessionResponse>(Map(value)));
+            AuthSecurityEvents.Write(
+                logger,
+                "local_email_confirm",
+                "succeeded",
+                userId,
+                sessionId);
+            return response;
+        }
+        catch (ApiProblemException problem)
         {
             AuthSecurityEvents.Write(
                 logger,
                 "local_email_confirm",
-                ApiProblemCodes.InvalidRequest,
+                problem.Code,
                 userId,
-                sessionId: null);
-            throw new ApiProblemException(
-                StatusCodes.Status400BadRequest,
-                ApiProblemCodes.InvalidRequest);
+                sessionId);
+            throw;
         }
-
-        var result = await auth.ConfirmEmailAsync(cancellationToken);
-        if (!result.Succeeded)
+        catch (Exception)
         {
-            var outcome = result.Failure switch
-            {
-                AuthFailure.SessionRequired => ApiProblemCodes.Unauthorized,
-                AuthFailure.LocalUserRequired =>
-                    ApiProblemCodes.LocalAuthUserRequired,
-                _ => "unexpected_failure"
-            };
             AuthSecurityEvents.Write(
                 logger,
                 "local_email_confirm",
-                outcome,
+                "unexpected_failure",
                 userId,
-                sessionId: null);
-            throw result.Failure switch
-            {
-                AuthFailure.SessionRequired => new ApiProblemException(
-                    StatusCodes.Status401Unauthorized,
-                    ApiProblemCodes.Unauthorized),
-                AuthFailure.LocalUserRequired => new ApiProblemException(
-                    StatusCodes.Status403Forbidden,
-                    ApiProblemCodes.LocalAuthUserRequired),
-                _ => new InvalidOperationException(
-                    "Unexpected local email confirmation failure.")
-            };
+                sessionId);
+            throw;
         }
-
-        var value = result.Value!;
-        AuthSecurityEvents.Write(
-            logger,
-            "local_email_confirm",
-            "succeeded",
-            value.User!.Id.Value,
-            value.Session!.Id.Value);
-        return Results.Ok(new ApiResponse<AuthSessionResponse>(Map(value)));
     }
 
     private static void ThrowCreateFailure(AuthFailure failure)
