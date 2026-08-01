@@ -110,7 +110,7 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
             "Foreign Organization Paging");
         var first = Invitation("10000000-0000-4000-8000-000000000005");
         var second = Invitation("10000000-0000-4000-8000-000000000004");
-        var third = Invitation("10000000-0000-4000-8000-000000000009");
+        var third = Invitation("10000000-0000-4000-8000-000000000003");
         var fourth = Invitation("10000000-0000-4000-8000-000000000008");
         var fifth = Invitation("10000000-0000-4000-8000-000000000001");
         var newest = InvitationStoreFixture.Now.AddMinutes(-1);
@@ -132,7 +132,7 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
             owner,
             "org-page-3@example.test",
             invitationId: third,
-            createdAt: middle);
+            createdAt: newest);
         await fixture.SeedInvitationAsync(
             organization,
             owner,
