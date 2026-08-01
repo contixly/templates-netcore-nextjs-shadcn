@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 
@@ -16,6 +17,7 @@ import SettingsInvitationsPage from "@/src/app/(site)/w/[organizationKey]/settin
 import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
 import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
 import { InvitationDecision } from "@/src/components/collaboration/invitation-decision";
+import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
 import { getAccountInvitations } from "@/src/lib/api/generated/sdk.gen";
@@ -27,6 +29,7 @@ import type {
   InvitationDecisionResponse,
   InvitationResponse,
   OrganizationDetailResponse,
+  TeamResponse,
 } from "@/src/lib/api/generated/types.gen";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { withMessages } from "@/test/support/render";
@@ -129,6 +132,21 @@ const decision: InvitationDecisionResponse = {
   invitation,
   state: "pending",
   canRespond: true,
+};
+
+const firstTeam: TeamResponse = {
+  id: "01900000-0000-7000-8000-000000000201",
+  organizationId: organization.id,
+  name: "First-page team",
+  memberCount: 0,
+  members: { items: [], nextCursor: null },
+  createdAt: "2026-08-01T00:00:00Z",
+  updatedAt: "2026-08-01T00:00:00Z",
+};
+const secondTeam: TeamResponse = {
+  ...firstTeam,
+  id: "01900000-0000-7000-8000-000000000202",
+  name: "Second-page team",
 };
 
 function findElementByType(
@@ -270,6 +288,102 @@ it("loads authorized activity and team choices through the REST loaders", async 
     id: organization.id,
     currentRole: "owner",
   });
+});
+
+it("loads every team page and makes a later-page team selectable without duplicates", async () => {
+  jest
+    .mocked(loadTeams)
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [firstTeam], nextCursor: "teams-page-2" },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: {
+        items: [{ ...firstTeam, name: "First-page team updated" }, secondTeam],
+        nextCursor: null,
+      },
+    });
+
+  render(
+    withMessages(
+      await SettingsInvitationsPage({
+        params: Promise.resolve({ organizationKey: organization.canonicalKey }),
+      }),
+    ),
+  );
+
+  expect(loadTeams).toHaveBeenNthCalledWith(1, organization.id, { limit: 100 });
+  expect(loadTeams).toHaveBeenNthCalledWith(2, organization.id, {
+    cursor: "teams-page-2",
+    limit: 100,
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
+  const dialog = screen.getByRole("dialog", {
+    name: "Invite a workspace member",
+  });
+  fireEvent.click(within(dialog).getByRole("combobox", { name: "Team" }));
+  expect(
+    screen.getByRole("option", { name: "Second-page team" }),
+  ).toBeVisible();
+  expect(
+    screen.getAllByRole("option", { name: "First-page team updated" }),
+  ).toHaveLength(1);
+  expect(
+    screen.queryByRole("option", { name: "First-page team" }),
+  ).not.toBeInTheDocument();
+});
+
+it("returns the stable page failure when a later team page cannot be loaded", async () => {
+  const failure = {
+    kind: "problem" as const,
+    code: "team_permission_denied",
+    status: 403,
+    traceId: "trace-team-page",
+  };
+  jest
+    .mocked(loadTeams)
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [firstTeam], nextCursor: "teams-page-2" },
+    })
+    .mockResolvedValueOnce({ ok: false, failure });
+
+  const page = await SettingsInvitationsPage({
+    params: Promise.resolve({ organizationKey: organization.canonicalKey }),
+  });
+  const renderedFailure = findElementByType(page, OrganizationFailure);
+
+  expect(renderedFailure).not.toBeNull();
+  expect((renderedFailure!.props as { failure: unknown }).failure).toEqual(
+    failure,
+  );
+  expect(loadTeams).toHaveBeenCalledTimes(2);
+});
+
+it("fails safely instead of following a repeated team cursor", async () => {
+  jest
+    .mocked(loadTeams)
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [firstTeam], nextCursor: "repeated-team-cursor" },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [secondTeam], nextCursor: "repeated-team-cursor" },
+    });
+
+  const page = await SettingsInvitationsPage({
+    params: Promise.resolve({ organizationKey: organization.canonicalKey }),
+  });
+  const renderedFailure = findElementByType(page, OrganizationFailure);
+
+  expect(renderedFailure).not.toBeNull();
+  expect((renderedFailure!.props as { failure: unknown }).failure).toEqual({
+    kind: "network",
+    code: "api_unavailable",
+  });
+  expect(loadTeams).toHaveBeenCalledTimes(2);
 });
 
 it("uses only the account invitation loader and exposes the paged account list", async () => {

@@ -1220,6 +1220,7 @@ it("keeps a confirmed member add over a stale embedded RSC page until a newer ra
   const staleRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
   const currentRecovery =
     deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const teamRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
   jest.mocked(getTeamMemberCandidates).mockResolvedValue({
     data: { data: { items: [bobCandidate], nextCursor: null } },
   } as Awaited<ReturnType<typeof getTeamMemberCandidates>>);
@@ -1235,6 +1236,9 @@ it("keeps a confirmed member add over a stale embedded RSC page until a newer ra
     .mockReturnValueOnce(
       currentRecovery.promise as ReturnType<typeof getTeamMembers>,
     );
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(teamRecovery.promise as ReturnType<typeof getTeams>);
   const view = renderManager();
 
   fireEvent.click(
@@ -1282,6 +1286,7 @@ it("keeps a confirmed member add over a stale embedded RSC page until a newer ra
   expect(screen.queryByText("Bob stale embedded RSC")).not.toBeInTheDocument();
   expect(screen.getByText("2 members")).toBeVisible();
   await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
 
   await act(async () => {
     staleRecovery.resolve({
@@ -1301,6 +1306,13 @@ it("keeps a confirmed member add over a stale embedded RSC page until a newer ra
 
   expect(await screen.findByText("Bob from raw GET")).toBeVisible();
   expect(addBrowserTeamMember).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    teamRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await teamRecovery.promise;
+  });
 });
 
 it("lets a causally newer member continuation acknowledge an exact added membership row", async () => {
@@ -1377,6 +1389,346 @@ it("lets a causally newer member continuation acknowledge an exact added members
   expect(addBrowserTeamMember).toHaveBeenCalledTimes(1);
 });
 
+it("keeps a confirmed add count over stale RSC data until a newer team projection rebases it", async () => {
+  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...member,
+    id: `membership-add-count-${index}`,
+    userId: `user-add-count-${index}`,
+    name: `Existing member ${index}`,
+    email: `existing-${index}@example.test`,
+  }));
+  const bobCandidate = {
+    memberId: "organization-membership-add-count",
+    userId: "user-add-count",
+    name: "Bob count confirmation",
+    email: "bob-count@example.test",
+    imageUrl: null,
+    role: "member" as const,
+    joinedAt: "2026-08-01T00:00:00Z",
+  };
+  const bobMember = {
+    ...member,
+    id: "team-membership-add-count",
+    userId: bobCandidate.userId,
+    name: bobCandidate.name,
+    email: bobCandidate.email,
+    role: bobCandidate.role,
+  };
+  const initialTeam = {
+    ...team,
+    memberCount: 50,
+    members: { items: [member], nextCursor: "embedded-add-count" },
+  };
+  const staleMembers = {
+    items: [{ ...member }],
+    nextCursor: "stale-embedded-add-count",
+  };
+  const memberRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const newerTeamProjection = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const staleRscMemberRecovery =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  jest.mocked(getTeamMemberCandidates).mockResolvedValue({
+    data: { data: { items: [bobCandidate], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getTeamMemberCandidates>>);
+  jest.mocked(addBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: bobMember,
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      memberRecovery.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      staleRscMemberRecovery.promise as ReturnType<typeof getTeamMembers>,
+    );
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(
+      newerTeamProjection.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [initialTeam], nextCursor: null }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add member to Platform" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Find a workspace member"), {
+    target: { value: "bob" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+  fireEvent.click(
+    await within(dialog).findByRole("button", {
+      name: "Add Bob count confirmation",
+    }),
+  );
+  expect(await screen.findByText("51 members")).toBeVisible();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    memberRecovery.resolve({
+      data: {
+        data: { items: firstPage, nextCursor: "add-count-next" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await memberRecovery.promise;
+  });
+  expect(
+    await screen.findByRole("button", { name: "Load more members" }),
+  ).toBeVisible();
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{
+          items: [{ ...initialTeam, members: staleMembers }],
+          nextCursor: null,
+        }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+
+  expect(screen.getByText("51 members")).toBeVisible();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+  await act(async () => {
+    staleRscMemberRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await staleRscMemberRecovery.promise;
+  });
+  await act(async () => {
+    newerTeamProjection.resolve({
+      data: {
+        data: {
+          items: [{ ...initialTeam, memberCount: 52, members: staleMembers }],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getTeams>>);
+    await newerTeamProjection.promise;
+  });
+
+  expect(await screen.findByText("52 members")).toBeVisible();
+  expect(addBrowserTeamMember).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a complete member traversal count over a delayed stale RSC projection until a newer team read", async () => {
+  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...member,
+    id: `membership-remove-count-${index}`,
+    userId: `user-remove-count-${index}`,
+    name: `Remaining member ${index}`,
+    email: `remaining-${index}@example.test`,
+  }));
+  const tail = Array.from({ length: 2 }, (_, index) => ({
+    ...member,
+    id: `membership-remove-count-tail-${index}`,
+    userId: `user-remove-count-tail-${index}`,
+    name: `Concurrent member ${index}`,
+    email: `concurrent-${index}@example.test`,
+  }));
+  const continuation = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const memberRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const newerTeamProjection = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const initialTeam = {
+    ...team,
+    memberCount: 52,
+    members: { items: [member], nextCursor: "embedded-remove-count" },
+  };
+  jest.mocked(removeBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id, userId: member.userId },
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      memberRecovery.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      continuation.promise as ReturnType<typeof getTeamMembers>,
+    );
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(
+      newerTeamProjection.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [initialTeam], nextCursor: null }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Alice Admin" }));
+  expect(await screen.findByText("51 members")).toBeVisible();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    memberRecovery.resolve({
+      data: {
+        data: { items: firstPage, nextCursor: "remove-count-next" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await memberRecovery.promise;
+  });
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+  const delayedStaleRscPage = {
+    items: [{ ...initialTeam, memberCount: 51 }],
+    nextCursor: null,
+  };
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more members" }),
+  );
+  await act(async () => {
+    continuation.resolve({
+      data: { data: { items: tail, nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await continuation.promise;
+  });
+
+  expect(await screen.findByText("52 members")).toBeVisible();
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={delayedStaleRscPage}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+
+  expect(screen.getByText("52 members")).toBeVisible();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    newerTeamProjection.resolve({
+      data: {
+        data: {
+          items: [{ ...initialTeam, memberCount: 53 }],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getTeams>>);
+    await newerTeamProjection.promise;
+  });
+
+  expect(await screen.findByText("53 members")).toBeVisible();
+  expect(getTeams).toHaveBeenCalledTimes(1);
+  expect(removeBrowserTeamMember).toHaveBeenCalledTimes(1);
+});
+
+it("does not let an older overlapping team projection regress an authoritative member traversal count", async () => {
+  const firstPage = Array.from({ length: 50 }, (_, index) => ({
+    ...member,
+    id: `membership-overlap-count-${index}`,
+    userId: `user-overlap-count-${index}`,
+    name: `Remaining overlap member ${index}`,
+    email: `remaining-overlap-${index}@example.test`,
+  }));
+  const tail = Array.from({ length: 2 }, (_, index) => ({
+    ...member,
+    id: `membership-overlap-count-tail-${index}`,
+    userId: `user-overlap-count-tail-${index}`,
+    name: `Concurrent overlap member ${index}`,
+    email: `concurrent-overlap-${index}@example.test`,
+  }));
+  const initialTeam = {
+    ...team,
+    memberCount: 52,
+    members: { items: [member], nextCursor: "embedded-overlap-count" },
+  };
+  const firstMemberPage =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const lastMemberPage = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const olderTeamProjection = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const newerTeamProjection = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  jest.mocked(removeBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id, userId: member.userId },
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      firstMemberPage.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      lastMemberPage.promise as ReturnType<typeof getTeamMembers>,
+    );
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(
+      olderTeamProjection.promise as ReturnType<typeof getTeams>,
+    )
+    .mockReturnValueOnce(
+      newerTeamProjection.promise as ReturnType<typeof getTeams>,
+    );
+  renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [initialTeam], nextCursor: "older-team-cursor" }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Alice Admin" }));
+  expect(await screen.findByText("51 members")).toBeVisible();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+  await act(async () => {
+    firstMemberPage.resolve({
+      data: {
+        data: { items: firstPage, nextCursor: "overlap-member-cursor" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await firstMemberPage.promise;
+  });
+  await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more teams" }));
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await act(async () => {
+    lastMemberPage.resolve({
+      data: { data: { items: tail, nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await lastMemberPage.promise;
+  });
+  expect(await screen.findByText("52 members")).toBeVisible();
+
+  await act(async () => {
+    olderTeamProjection.resolve({
+      data: {
+        data: {
+          items: [{ ...initialTeam, memberCount: 51 }],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getTeams>>);
+    await olderTeamProjection.promise;
+  });
+
+  expect(screen.getByText("52 members")).toBeVisible();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(2));
+  await act(async () => {
+    newerTeamProjection.resolve({
+      data: {
+        data: {
+          items: [{ ...initialTeam, memberCount: 53 }],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getTeams>>);
+    await newerTeamProjection.promise;
+  });
+
+  expect(await screen.findByText("53 members")).toBeVisible();
+  expect(getTeams).toHaveBeenCalledTimes(2);
+  expect(removeBrowserTeamMember).toHaveBeenCalledTimes(1);
+});
+
 it("keeps a confirmed member removal over a stale embedded RSC page when recovery fails", async () => {
   const staleRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
   const currentRecovery =
@@ -1440,12 +1792,10 @@ it("keeps a confirmed member removal over a stale embedded RSC page when recover
 it("does not acknowledge a confirmed member removal from absence on a tail continuation", async () => {
   const staleRscRecovery =
     deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
-  const otherMember = {
-    ...member,
-    id: "membership-remove-tail-other",
-    userId: "user-remove-tail-other",
-    name: "Other member",
-    email: "other-member@example.test",
+  const staleTeamRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const initialTeam = {
+    ...team,
+    members: { items: [member], nextCursor: "embedded-remove-tail" },
   };
   jest.mocked(removeBrowserTeamMember).mockResolvedValue({
     ok: true,
@@ -1454,9 +1804,8 @@ it("does not acknowledge a confirmed member removal from absence on a tail conti
   jest
     .mocked(getTeamMembers)
     .mockResolvedValueOnce({
-      data: {
-        data: { items: [otherMember], nextCursor: "remove-tail-cursor" },
-      },
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
     } as unknown as Awaited<ReturnType<typeof getTeamMembers>>)
     .mockResolvedValueOnce({
       data: { data: { items: [], nextCursor: null } },
@@ -1464,7 +1813,17 @@ it("does not acknowledge a confirmed member removal from absence on a tail conti
     .mockReturnValueOnce(
       staleRscRecovery.promise as ReturnType<typeof getTeamMembers>,
     );
-  const view = renderManager();
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(
+      staleTeamRecovery.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [initialTeam], nextCursor: null }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
 
   fireEvent.click(screen.getByRole("button", { name: "Remove Alice Admin" }));
   fireEvent.click(
@@ -1491,12 +1850,18 @@ it("does not acknowledge a confirmed member removal from absence on a tail conti
 
   expect(screen.queryByText(member.name)).not.toBeInTheDocument();
   await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(3));
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
   await act(async () => {
     staleRscRecovery.resolve({
       error: { code: "api_unavailable" },
       response: { status: 503 } as Response,
     } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
     await staleRscRecovery.promise;
+    staleTeamRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await staleTeamRecovery.promise;
   });
   expect(removeBrowserTeamMember).toHaveBeenCalledTimes(1);
 });

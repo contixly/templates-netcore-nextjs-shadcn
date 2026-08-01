@@ -2643,6 +2643,63 @@ remain unchanged. The immutable reference and inactive OpenSpec state remain
 guarded. This commit is local: push, merge, and a new automatic review of the
 round-2 head remain unobserved and pending.
 
+### PR #7 automatic-review round 3 observed acceptance 2026-08-02
+
+Automatic review of `a3f9f6a681e030c73a9c813c2d03c04f94b7678c`
+raised two required findings. Comment `3696600112` found that the invitation
+settings selector exposed only the first 100 teams, so a valid later-page team
+could not be targeted. Comment `3696600113` found that member-count recovery
+treated one generated member page as complete authority, so teams with more than
+50 members could keep or later regain an incorrect count.
+
+The invitation settings page now exhausts generated team pages at limit 100,
+de-duplicates by immutable team id while retaining the newest projection, and
+fails safely on a later-page failure, empty cursor, or cursor cycle. The helper
+uses the existing request-bound generated server loader, so `no-store`, cookie
+allow-listing, correlation, and suppressed session renewal remain unchanged.
+
+Member recovery now computes absence and count authority only from a complete
+de-duplicated generated traversal. A partial first page and an embedded/RSC
+cursor cannot establish full coverage. Confirmed add/remove counts are
+generation-stamped and survive stale RSC input until a newer generated team row
+rebases them. Scoped local review additionally found and fixed two cross-resource
+races: an older overlapping generated team GET could regress the completed
+member-traversal count from **52 to 51**, and a delayed RSC team projection could
+do the same. Completing a member traversal now advances team-mutation authority;
+both older generated reads and delayed RSC input are discarded for count
+purposes and queue one current generated team replacement.
+
+Strict RED evidence is recorded per controlled scenario without combining
+incompatible runs:
+
+- the invitation loader added **3 failing cases** for later-page selection and
+  de-duplication, later-page failure, and repeated-cursor safety;
+- in the original member-count review reproduction, the add scenario timed out,
+  while the remove scenario failed later at its expected **52** count;
+- the overlapping generated-team-GET regression observed **52 → 51**; and
+- the delayed-RSC regression independently observed **52 → 51**.
+
+Focused GREEN was invitation pages **14/14**, invitation pages plus create-dialog
+coverage **20/20**, and TeamDirectory **39/39**. Final integrated acceptance was:
+
+| PR-round-3 gate | Наблюдаемый результат |
+| --- | --- |
+| focused Jest | PASS; invitation pages **14/14** (`real 2.03s`), combined invitation focus **20/20** (`real 1.82s`), TeamDirectory **39/39** (`real 2.67s`) |
+| full Jest | PASS; **61/61 suites, 511/511 tests**, 0 snapshots; `real 12.77s` |
+| format/lint/typecheck/boundaries | PASS; Prettier clean (`real 2.34s`); ESLint 0 errors/10 inherited compile-time-assertion warnings (`real 5.26s`); typegen/TypeScript clean (`real 1.85s`); boundaries **5/5** and source scan clean (`real 1.55s`) |
+| clean production build | PASS; Next.js 16.2.11, **23/23** generation, standalone server present; `real 11.16s` |
+| Playwright Chromium | PASS on the first final attempts; collaboration/invitation/settings focus **2/2** (`real 50.19s`); full **16 passed, 5 opt-in provider tests skipped, 0 failed** (`real 88.22s`) |
+| OpenAPI/generated client | PASS; `npm run api:check` current/deterministic (`real 0.82s`); contract unchanged with SHA-256 `bb10782ff8d515c0d871a2cf58edcbf6075c25c3a55dd0ea36a046550b5c67c8` |
+| repository/protection guards | PASS; whitespace, immutable `template/` working/range/status/untracked, inactive exact OpenSpec state, unchanged API/contract scope, and protected architecture/source scans clean |
+
+No .NET source, API contract, generated SDK artifact, database schema, migration,
+package, or E2E source changed in this round. The round-2 `a3f9f6a` full .NET
+acceptance therefore remains applicable: Application **262/262**, API **601/601**,
+total **863/863**, with no failures or skips. No known cold-compilation,
+hidden-tree selector, or time-budget retry was needed in these final E2E runs.
+This is local evidence only; push, merge, and a new automatic review of the
+round-3 commit remain unobserved and pending.
+
 ## 9. Правило обновления этого документа
 
 Перед стартом очередной итерации уточняются только её scope, зависимости, risks и acceptance criteria. Изменение порядка или архитектурных решений фиксируется здесь отдельной записью с причиной; незавершённые задачи не «перепрыгивают» в следующую итерацию без явного решения.

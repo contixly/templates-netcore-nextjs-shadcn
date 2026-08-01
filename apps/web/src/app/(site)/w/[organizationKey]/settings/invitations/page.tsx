@@ -6,8 +6,8 @@ import { InvitationActivity } from "@/src/components/collaboration/invitation-ac
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
+import { loadAllTeams } from "@/src/lib/api/collaboration/server/load-all-teams";
 import { loadOrganizationInvitations } from "@/src/lib/api/collaboration/server/load-organization-invitations";
-import { loadTeams } from "@/src/lib/api/collaboration/server/load-teams";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 
 type InvitationSettingsPageProps = Readonly<{
@@ -52,7 +52,7 @@ export default async function InvitationSettingsPage({
 
   const [invitations, teams] = await Promise.all([
     loadOrganizationInvitations(organization.data.id, { limit: 20 }),
-    loadTeams(organization.data.id, { limit: 100 }),
+    loadAllTeams(organization.data.id),
   ]);
   if (!invitations.ok)
     return <OrganizationFailure failure={invitations.failure} />;
@@ -71,7 +71,7 @@ export default async function InvitationSettingsPage({
           id: organization.data.id,
           currentRole: organization.data.currentRole,
         }}
-        teams={teams.data.items.map((team) => ({
+        teams={teams.data.map((team) => ({
           id: team.id,
           name: team.name,
         }))}

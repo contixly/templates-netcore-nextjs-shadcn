@@ -82,6 +82,11 @@ type ConfirmedMemberMutation = Readonly<{
   confirmedAfterReadGeneration: number;
 }>;
 
+type ConfirmedMemberCount = Readonly<{
+  count: number;
+  confirmedAfterReadGeneration: number;
+}>;
+
 type ConfirmedTeamMutation =
   | Readonly<{
       action: "created" | "renamed";
@@ -269,6 +274,9 @@ function TeamMemberDirectory({
   const activeMemberRead = useRef<number | null>(null);
   const memberMutationGeneration = useRef(0);
   const queuedMemberRecovery = useRef(false);
+  const generatedMemberCoverage = useRef<readonly TeamMemberResponse[] | null>(
+    null,
+  );
   const confirmedMemberMutationsRef = useRef(
     new Map<string, ConfirmedMemberMutation>(),
   );
@@ -293,6 +301,7 @@ function TeamMemberDirectory({
   useInsertionEffect(() => {
     memberReadGeneration.current += 1;
     activeMemberRead.current = null;
+    generatedMemberCoverage.current = null;
     queuedMemberRecovery.current = confirmedMemberMutationsRef.current.size > 0;
   }, [team.members]);
 
@@ -375,22 +384,47 @@ function TeamMemberDirectory({
         if (replace) setRefreshFailure(true);
         else setPartialFailure(true);
       } else {
+        let acknowledgementPage = result.data;
+        let authoritativeAbsence = false;
         if (replace) {
-          setMembers(
-            mergeUniqueById([], result.data.items, (member) => member.id),
+          const replacement = mergeUniqueById(
+            [],
+            result.data.items,
+            (member) => member.id,
           );
+          generatedMemberCoverage.current = replacement;
+          setMembers(replacement);
           if (result.data.nextCursor === null) {
-            onMemberCountReconciled(team.id, result.data.items.length);
+            authoritativeAbsence = true;
+            acknowledgementPage = { ...result.data, items: [...replacement] };
+            onMemberCountReconciled(team.id, replacement.length);
           }
         } else {
           setMembers((current) =>
             mergeUniqueById(current, result.data.items, (member) => member.id),
           );
+          const generatedCoverage = generatedMemberCoverage.current;
+          if (generatedCoverage !== null) {
+            const accumulated = mergeUniqueById(
+              generatedCoverage,
+              result.data.items,
+              (member) => member.id,
+            );
+            generatedMemberCoverage.current = accumulated;
+            if (result.data.nextCursor === null) {
+              authoritativeAbsence = true;
+              acknowledgementPage = {
+                ...result.data,
+                items: [...accumulated],
+              };
+              onMemberCountReconciled(team.id, accumulated.length);
+            }
+          }
         }
         acknowledgeMemberMutations(
-          result.data,
+          acknowledgementPage,
           readGeneration,
-          replace && result.data.nextCursor === null,
+          authoritativeAbsence,
         );
         setNextCursor(result.data.nextCursor);
         setPartialFailure(false);
@@ -418,6 +452,7 @@ function TeamMemberDirectory({
   ) {
     if (!lifecycle.attached.current) return;
     memberMutationGeneration.current += 1;
+    generatedMemberCoverage.current = null;
     confirmMemberMutation(action, member);
     setSavedMessage(
       action === "added"
@@ -840,6 +875,9 @@ export function TeamDirectory({
   const confirmedTeamMutationsRef = useRef(
     new Map<string, ConfirmedTeamMutation>(),
   );
+  const confirmedMemberCountsRef = useRef(
+    new Map<string, ConfirmedMemberCount>(),
+  );
   const [teams, setTeams] = useState<readonly TeamResponse[]>(
     mergeUniqueById([], initialPage.items, (team) => team.id),
   );
@@ -853,13 +891,15 @@ export function TeamDirectory({
   const [refreshFailure, setRefreshFailure] = useState(false);
   const [serverPage, setServerPage] = useState(initialPage);
   const [confirmedMemberCounts, setConfirmedMemberCounts] = useState<
-    ReadonlyMap<string, number>
+    ReadonlyMap<string, ConfirmedMemberCount>
   >(new Map());
 
   useInsertionEffect(() => {
     teamReadGeneration.current += 1;
     activeTeamRead.current = null;
-    queuedTeamRecovery.current = confirmedTeamMutationsRef.current.size > 0;
+    queuedTeamRecovery.current =
+      confirmedTeamMutationsRef.current.size > 0 ||
+      confirmedMemberCountsRef.current.size > 0;
   }, [initialPage]);
 
   if (serverPage !== initialPage) {
@@ -879,7 +919,7 @@ export function TeamDirectory({
     const confirmedCount = confirmedMemberCounts.get(team.id);
     return confirmedCount === undefined
       ? team
-      : { ...team, memberCount: confirmedCount };
+      : { ...team, memberCount: confirmedCount.count };
   });
 
   function teamMutationId(mutation: ConfirmedTeamMutation): string {
@@ -925,6 +965,26 @@ export function TeamDirectory({
     if (remaining.size === current.size) return;
     confirmedTeamMutationsRef.current = remaining;
     setConfirmedTeamMutations(remaining);
+  }
+
+  function acknowledgeMemberCountProjections(
+    page: TeamPageResponse,
+    readGeneration: number,
+  ) {
+    const returnedIds = new Set(page.items.map((team) => team.id));
+    const current = confirmedMemberCountsRef.current;
+    const remaining = new Map(current);
+    for (const [teamId, overlay] of current) {
+      if (
+        readGeneration > overlay.confirmedAfterReadGeneration &&
+        returnedIds.has(teamId)
+      ) {
+        remaining.delete(teamId);
+      }
+    }
+    if (remaining.size === current.size) return;
+    confirmedMemberCountsRef.current = remaining;
+    setConfirmedMemberCounts(remaining);
   }
 
   async function readTeams(
@@ -973,6 +1033,7 @@ export function TeamDirectory({
             readGeneration,
             !cursor && reconcileFirstPage && result.data.nextCursor === null,
           );
+          acknowledgeMemberCountProjections(result.data, readGeneration);
         }
         setRefreshFailure(false);
         setPartialFailure(false);
@@ -1013,21 +1074,26 @@ export function TeamDirectory({
   }
 
   function changeMemberCount(teamId: string, delta: number) {
-    setConfirmedMemberCounts((current) => {
-      const team = teamsWithConfirmedMemberCounts.find(
-        (candidate) => candidate.id === teamId,
-      );
-      if (!team) return current;
-      const confirmed = new Map(current);
-      confirmed.set(
-        teamId,
-        Math.max(0, (current.get(teamId) ?? team.memberCount) + delta),
-      );
-      return confirmed;
+    const current = confirmedMemberCountsRef.current;
+    const team = teamsWithConfirmedMemberCounts.find(
+      (candidate) => candidate.id === teamId,
+    );
+    if (!team) return;
+    teamMutationGeneration.current += 1;
+    const confirmed = new Map(current);
+    confirmed.set(teamId, {
+      count: Math.max(
+        0,
+        (current.get(teamId)?.count ?? team.memberCount) + delta,
+      ),
+      confirmedAfterReadGeneration: teamReadGeneration.current,
     });
+    confirmedMemberCountsRef.current = confirmed;
+    setConfirmedMemberCounts(confirmed);
   }
 
   function reconcileMemberCount(teamId: string, count: number) {
+    teamMutationGeneration.current += 1;
     setTeams((current) =>
       current.map((team) =>
         team.id === teamId ? { ...team, memberCount: count } : team,
@@ -1043,12 +1109,13 @@ export function TeamDirectory({
       confirmedTeamMutationsRef.current = confirmed;
       setConfirmedTeamMutations(confirmed);
     }
-    setConfirmedMemberCounts((current) => {
-      if (!current.has(teamId)) return current;
-      const confirmed = new Map(current);
-      confirmed.delete(teamId);
-      return confirmed;
+    const confirmed = new Map(confirmedMemberCountsRef.current);
+    confirmed.set(teamId, {
+      count,
+      confirmedAfterReadGeneration: teamReadGeneration.current,
     });
+    confirmedMemberCountsRef.current = confirmed;
+    setConfirmedMemberCounts(confirmed);
   }
 
   return (

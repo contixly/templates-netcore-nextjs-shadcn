@@ -518,10 +518,28 @@ fails. React Activity/different-resource guards prevent a hidden, unmounted, or
 replaced component's late completion from updating state or navigating.
 Confirmed create, rename, and add overlays retire only when a causally newer
 browser read returns the same immutable row (and the confirmed name for rename).
-Delete and remove absence is authoritative only on an exhaustive replacement
-first page, never on a continuation or non-exhaustive page. An incoming RSC page
-cannot acknowledge an overlay directly; it advances the read generation and
-queues a current browser GET while the local authority remains projected.
+Delete absence is authoritative only on an exhaustive replacement first page.
+Remove absence is authoritative on an exhaustive generated first-page
+replacement or on the terminal page of a complete de-duplicated traversal that
+began with such a replacement; an embedded/RSC cursor or tail-only continuation
+never establishes that coverage. An incoming RSC page cannot acknowledge an
+overlay directly; it advances the read generation and queues a current browser
+GET while the local authority remains projected.
+
+Confirmed member-count projections are generation-stamped. Stale RSC data
+cannot acknowledge or erase a saved add/remove count and instead queues a
+generated team recovery. A causally newer generated team page containing the
+same immutable team retires the count overlay and rebases to that projection,
+including concurrent membership changes. A complete generated member traversal
+is also authoritative: its de-duplicated size reconciles the count, advances the
+team-projection generation, and remains projected as generation-stamped local
+authority. A delayed RSC payload cannot erase that traversal count and queues a
+generated team recovery instead. Any overlapping team GET that began before the
+traversal became authoritative is discarded and queues one current replacement
+GET; only a later team GET containing the immutable team may retire/rebase the
+count. This cross-resource generation boundary prevents an older team or RSC
+projection from regressing a newer member count without treating RSC or partial
+pagination as authority.
 Named regions/dialogs, explicit labels/descriptions, bounded fields, disabled
 pending states, focus behavior, and team/person-specific accessible names are
 part of the component contract.
@@ -529,11 +547,16 @@ part of the component contract.
 ### Invitation activity and creation
 
 `/w/{organizationKey}/settings/invitations` server-loads invitation activity at
-limit 20 and the team selector at limit 100. Admin/owner users can filter by
-pending, accepted, rejected, canceled, or expired, load opaque-cursor
-continuations, and create workspace-only or team-targeted invitations. Admins
-may assign member/admin; owners may also assign owner. A new filter is a
-transactional first-page replacement: it clears prior-filter items/cursor,
+limit 20 and exhausts the generated team collection in 100-row opaque-cursor
+pages for the selector, without an overall team-count cap. Every team page uses
+the request-bound generated SDK loader with `no-store` and suppressed session
+renewal. Duplicate immutable team IDs are reconciled without duplicate options;
+a continuation failure, empty cursor, or cursor cycle fails the page safely.
+Admin/owner users can filter by pending, accepted, rejected, canceled, or
+expired, load opaque-cursor continuations, and create workspace-only or
+team-targeted invitations. Admins may assign member/admin; owners may also
+assign owner. A new filter is a transactional first-page replacement: it clears
+prior-filter items/cursor,
 retains the requested filter on failure for GET-only Retry, and ignores stale
 overlapping responses. A continuation failure preserves visible activity.
 Create confirmation is also a read-generation boundary. The confirmed pending
