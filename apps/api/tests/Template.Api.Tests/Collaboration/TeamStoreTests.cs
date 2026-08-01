@@ -213,7 +213,7 @@ public sealed class TeamStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
-    public async Task Team_list_uses_stable_positions_and_embeds_first_fifty_members()
+    public async Task Team_list_batches_member_pages_with_constant_query_count()
     {
         await using var fixture = await TeamStoreFixture.CreateAsync(postgres);
         var owner = await fixture.CreateUserAsync("page-owner@team.test");
@@ -258,19 +258,25 @@ public sealed class TeamStoreTests(PostgreSqlContainerFixture postgres)
                 TeamStoreFixture.Now.AddMinutes(3));
         }
 
+        fixture.ResetCommandCount();
         var pageOne = await fixture.Store.ListAsync(
             owner.UserId,
             organization,
             after: null,
             limit: 2,
             TestContext.Current.CancellationToken);
+        var twoTeamQueryCount = fixture.CommandCount;
+        fixture.ResetCommandCount();
         var pageTwo = await fixture.Store.ListAsync(
             owner.UserId,
             organization,
             pageOne.Value!.Next,
             limit: 2,
             TestContext.Current.CancellationToken);
+        var oneTeamQueryCount = fixture.CommandCount;
 
+        Assert.Equal(3, twoTeamQueryCount);
+        Assert.Equal(twoTeamQueryCount, oneTeamQueryCount);
         Assert.Equal(new[] { first, second }, pageOne.Value.Items.Select(x => x.Id));
         Assert.Equal(third, Assert.Single(pageTwo.Value!.Items).Id);
         Assert.Null(pageTwo.Value.Next);
@@ -534,9 +540,11 @@ internal sealed class TeamStoreFixture : IAsyncDisposable
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<TimeProvider>(new FixedTeamTimeProvider(Now));
         services.AddSingleton<TeamMutationStartBarrier>();
+        services.AddSingleton<TeamCommandCounter>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
             options.AddInterceptors(
-                provider.GetRequiredService<TeamMutationStartBarrier>()));
+                provider.GetRequiredService<TeamMutationStartBarrier>(),
+                provider.GetRequiredService<TeamCommandCounter>()));
         services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         var provider = services.BuildServiceProvider();
 
@@ -568,6 +576,12 @@ internal sealed class TeamStoreFixture : IAsyncDisposable
     internal bool MutationPairWasCoordinated =>
         _services.GetRequiredService<TeamMutationStartBarrier>()
             .WasCoordinated;
+
+    internal void ResetCommandCount() =>
+        _services.GetRequiredService<TeamCommandCounter>().Reset();
+
+    internal int CommandCount =>
+        _services.GetRequiredService<TeamCommandCounter>().Count;
 
     internal async Task<TeamOperationResult<TeamSummary>> CreateTeamAsync(
         TeamActor actor,
@@ -858,4 +872,24 @@ internal sealed class TeamMutationStartBarrier : DbCommandInterceptor
 
     private static TaskCompletionSource NewSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+internal sealed class TeamCommandCounter : DbCommandInterceptor
+{
+    private int _count;
+
+    internal int Count => Volatile.Read(ref _count);
+
+    internal void Reset() => Interlocked.Exchange(ref _count, 0);
+
+    public override ValueTask<InterceptionResult<DbDataReader>>
+        ReaderExecutingAsync(
+            DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+    {
+        Interlocked.Increment(ref _count);
+        return ValueTask.FromResult(result);
+    }
 }

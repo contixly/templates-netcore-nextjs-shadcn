@@ -64,23 +64,19 @@ internal sealed class EfTeamStore(
                         .ToArrayAsync(transactionCancellationToken);
                     var hasMore = rows.Length > limit;
                     var pageRows = hasMore ? rows[..limit] : rows;
+                    var embeddedMembers =
+                        await ReadEmbeddedMemberPagesAsync(
+                            organizationId.Value,
+                            pageRows.Select(team => team.Id).ToArray(),
+                            transactionCancellationToken);
                     var items = new List<TeamStoreSummary>(pageRows.Length);
                     foreach (var row in pageRows)
                     {
-                        var members = await ReadMemberPageAsync(
-                            organizationId.Value,
-                            row.Id,
-                            after: null,
-                            EmbeddedMemberLimit,
-                            transactionCancellationToken);
-                        var memberCount = await db.TeamMembers.AsNoTracking()
-                            .CountAsync(
-                                member =>
-                                    member.OrganizationId ==
-                                    organizationId.Value &&
-                                    member.TeamId == row.Id,
-                                transactionCancellationToken);
-                        items.Add(MapStoreSummary(row, memberCount, members));
+                        var embedded = embeddedMembers[row.Id];
+                        items.Add(MapStoreSummary(
+                            row,
+                            embedded.MemberCount,
+                            embedded.Members));
                     }
 
                     var next = hasMore
@@ -743,6 +739,102 @@ internal sealed class EfTeamStore(
         return new(items, next);
     }
 
+    private async Task<IReadOnlyDictionary<Guid, EmbeddedMemberProjection>>
+        ReadEmbeddedMemberPagesAsync(
+            Guid organizationId,
+            Guid[] teamIds,
+            CancellationToken cancellationToken)
+    {
+        var pages = teamIds.ToDictionary(
+            teamId => teamId,
+            _ => new EmbeddedMemberProjection(
+                MemberCount: 0,
+                new TeamStorePage<
+                    TeamMemberView,
+                    TeamMemberCursorPosition>([], null)));
+        if (teamIds.Length == 0)
+        {
+            return pages;
+        }
+
+        var maximumRowNumber = EmbeddedMemberLimit + 1;
+        var rows = await db.Database.SqlQuery<EmbeddedMemberReadRow>(
+                $"""
+                 SELECT ranked.team_id AS "TeamId",
+                        ranked.id AS "Id",
+                        ranked.user_id AS "UserId",
+                        ranked.name AS "Name",
+                        ranked.email AS "Email",
+                        ranked.image_url AS "ImageUrl",
+                        ranked.role AS "Role",
+                        ranked.organization_joined_at AS "OrganizationJoinedAt",
+                        ranked.team_joined_at AS "TeamJoinedAt",
+                        ranked.member_count AS "MemberCount",
+                        ranked.row_number AS "RowNumber"
+                 FROM (
+                     SELECT team_member.team_id,
+                            team_member.id,
+                            organization_member.user_id,
+                            "user".display_name AS name,
+                            COALESCE("user".email, '') AS email,
+                            "user".image_url,
+                            organization_member.role,
+                            organization_member.joined_at AS organization_joined_at,
+                            team_member.joined_at AS team_joined_at,
+                            CAST(COUNT(*) OVER (
+                                PARTITION BY team_member.team_id) AS integer)
+                                AS member_count,
+                            CAST(ROW_NUMBER() OVER (
+                                PARTITION BY team_member.team_id
+                                ORDER BY team_member.joined_at, team_member.id)
+                                AS integer) AS row_number
+                     FROM organizations.team_members AS team_member
+                     INNER JOIN organizations.members AS organization_member
+                         ON organization_member.organization_id =
+                            team_member.organization_id
+                        AND organization_member.id =
+                            team_member.organization_member_id
+                     INNER JOIN auth.users AS "user"
+                         ON "user".id = organization_member.user_id
+                     WHERE team_member.organization_id = {organizationId}
+                       AND team_member.team_id = ANY ({teamIds})
+                 ) AS ranked
+                 WHERE ranked.row_number <= {maximumRowNumber}
+                 """)
+            .ToArrayAsync(cancellationToken);
+
+        foreach (var group in rows.GroupBy(row => row.TeamId))
+        {
+            var orderedRows = group
+                .OrderBy(row => row.TeamJoinedAt)
+                .ThenBy(row => row.Id)
+                .ToArray();
+            var memberCount = orderedRows[0].MemberCount;
+            var pageRows = orderedRows.Take(EmbeddedMemberLimit).ToArray();
+            var members = pageRows.Select(row => MapMember(new(
+                row.Id,
+                row.UserId,
+                row.Name,
+                row.Email,
+                row.ImageUrl,
+                row.Role,
+                row.OrganizationJoinedAt,
+                row.TeamJoinedAt))).ToArray();
+            var next = memberCount > EmbeddedMemberLimit
+                ? new TeamMemberCursorPosition(
+                    pageRows[^1].TeamJoinedAt,
+                    new TeamMemberId(pageRows[^1].Id))
+                : null;
+            pages[group.Key] = new EmbeddedMemberProjection(
+                memberCount,
+                new TeamStorePage<
+                    TeamMemberView,
+                    TeamMemberCursorPosition>(members, next));
+        }
+
+        return pages;
+    }
+
     private async Task<T> ExecuteSnapshotReadAsync<T>(
         Func<CancellationToken, Task<T>> action,
         CancellationToken cancellationToken)
@@ -1010,4 +1102,23 @@ internal sealed class EfTeamStore(
         string Name,
         string Email,
         string? ImageUrl);
+
+    private sealed record EmbeddedMemberProjection(
+        int MemberCount,
+        TeamStorePage<TeamMemberView, TeamMemberCursorPosition> Members);
+
+    private sealed class EmbeddedMemberReadRow
+    {
+        public Guid TeamId { get; set; }
+        public Guid Id { get; set; }
+        public Guid UserId { get; set; }
+        public required string Name { get; set; }
+        public required string Email { get; set; }
+        public string? ImageUrl { get; set; }
+        public required string Role { get; set; }
+        public DateTimeOffset OrganizationJoinedAt { get; set; }
+        public DateTimeOffset TeamJoinedAt { get; set; }
+        public int MemberCount { get; set; }
+        public int RowNumber { get; set; }
+    }
 }
