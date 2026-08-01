@@ -209,118 +209,71 @@ public sealed class CollaborationSecurityTests(ApiWebApplicationFactory factory)
     }
 
     [Theory]
-    [InlineData("POST")]
-    [InlineData("PATCH")]
-    public async Task Team_name_requests_reject_unknown_malformed_and_non_json_bodies(
-        string method)
+    [MemberData(nameof(TeamMutationKinds))]
+    public async Task Every_team_mutation_rejects_unsafe_bodies_before_storage_without_leaking(
+        TeamMutationKind kind)
     {
-        using var client = factory.CreateApiClient();
-        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+        var store = new BoundaryProbeTeamStore();
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ITeamStore>();
+                services.AddSingleton<ITeamStore>(store);
+            }));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        var actor = await OrganizationEndpointTestSupport.CreateScenarioAsync(
             client,
-            "Strict Team Owner",
-            $"local-agent+strict-team-{Guid.NewGuid():N}@local-agent.test");
-        var path = method == "POST"
-            ? $"/api/v1/organizations/{Guid.NewGuid():D}/teams"
-            : $"/api/v1/organizations/{Guid.NewGuid():D}/teams/{Guid.NewGuid():D}";
-
-        using var unknown = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
-            client,
-            new HttpMethod(method),
-            path,
-            "{\"name\":\"Sensitive Strict Team\",\"unknown\":true}",
-            "application/json");
-        await OrganizationEndpointTestSupport.AssertProblemAsync(
-            unknown,
-            HttpStatusCode.BadRequest,
-            "invalid_request");
-        using var malformed = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
-            client,
-            new HttpMethod(method),
-            path,
-            "{\"name\":",
-            "application/json");
-        await OrganizationEndpointTestSupport.AssertProblemAsync(
-            malformed,
-            HttpStatusCode.BadRequest,
-            "invalid_request");
-        using var nonJson = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
-            client,
-            new HttpMethod(method),
-            path,
-            "{\"name\":\"Sensitive Strict Team\"}",
-            "text/plain");
-        await OrganizationEndpointTestSupport.AssertProblemAsync(
-            nonJson,
-            HttpStatusCode.BadRequest,
-            "invalid_request");
-    }
-
-    [Fact]
-    public async Task Add_member_rejects_unknown_json_fields()
-    {
-        using var client = factory.CreateApiClient();
-        await OrganizationEndpointTestSupport.CreateScenarioAsync(
-            client,
-            "Strict Team Member Owner",
-            "local-agent+strict-team-member@local-agent.test");
-        using var response = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
-            client,
-            HttpMethod.Post,
-            $"/api/v1/organizations/{Guid.NewGuid():D}/teams/{Guid.NewGuid():D}/members",
-            $"{{\"userId\":\"{Guid.NewGuid():D}\",\"unknown\":true}}",
-            "application/json");
-
-        await OrganizationEndpointTestSupport.AssertProblemAsync(
-            response,
-            HttpStatusCode.BadRequest,
-            "invalid_request");
-        using var malformed = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
-            client,
-            HttpMethod.Post,
-            $"/api/v1/organizations/{Guid.NewGuid():D}/teams/{Guid.NewGuid():D}/members",
-            "{\"userId\":",
-            "application/json");
-        await OrganizationEndpointTestSupport.AssertProblemAsync(
-            malformed,
-            HttpStatusCode.BadRequest,
-            "invalid_request");
-        using var nonJson = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
-            client,
-            HttpMethod.Post,
-            $"/api/v1/organizations/{Guid.NewGuid():D}/teams/{Guid.NewGuid():D}/members",
-            $"{{\"userId\":\"{Guid.NewGuid():D}\"}}",
-            "text/plain");
-        await OrganizationEndpointTestSupport.AssertProblemAsync(
-            nonJson,
-            HttpStatusCode.BadRequest,
-            "invalid_request");
-        OrganizationEndpointTestSupport.AssertNoStore(response, malformed, nonJson);
-        Assert.Equal(
-            3,
-            factory.Services.GetRequiredService<CapturedLogProvider>().Logs.Count(
-                log => log.Category == CollaborationLogCategory &&
-                    Equals(
-                        "invalid_request",
-                        log.State["CollaborationOutcome"])));
-    }
-
-    [Theory]
-    [InlineData("/api/v1/organizations/0198a7ac-d0f8-7832-b711-211f56c57701/teams/0198a7ac-d0f8-7832-b711-211f56c57702")]
-    [InlineData("/api/v1/organizations/0198a7ac-d0f8-7832-b711-211f56c57701/teams/0198a7ac-d0f8-7832-b711-211f56c57702/members/0198a7ac-d0f8-7832-b711-211f56c57703")]
-    public async Task Bodyless_team_deletes_reject_unexpected_request_bodies(
-        string path)
-    {
-        using var client = factory.CreateApiClient();
-        await OrganizationEndpointTestSupport.CreateScenarioAsync(
-            client,
-            "Bodyless Delete Owner",
-            $"local-agent+bodyless-delete-{Guid.NewGuid():N}@local-agent.test");
+            "Strict Mutation Owner",
+            $"local-agent+strict-mutation-{kind}-{Guid.NewGuid():N}@local-agent.test");
+        var organizationId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var targetUserId = Guid.NewGuid();
+        var sentinel = $"SENSITIVE-TEAM-BODY-{kind}-{Guid.NewGuid():N}";
+        var teamPath =
+            $"/api/v1/organizations/{organizationId:D}/teams/{teamId:D}";
+        var (method, path, body, operation) = kind switch
+        {
+            TeamMutationKind.Create => (
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/teams",
+                $"{{\"name\":\"Boundary Team\",\"unknown\":\"{sentinel}\"}}",
+                "team_create"),
+            TeamMutationKind.Update => (
+                HttpMethod.Patch,
+                teamPath,
+                $"{{\"name\":\"Boundary Team\",\"unknown\":\"{sentinel}\"}}",
+                "team_update"),
+            TeamMutationKind.Delete => (
+                HttpMethod.Delete,
+                teamPath,
+                $"{{\"unexpected\":\"{sentinel}\"}}",
+                "team_delete"),
+            TeamMutationKind.AddMember => (
+                HttpMethod.Post,
+                $"{teamPath}/members",
+                $"{{\"userId\":\"{targetUserId:D}\",\"unknown\":\"{sentinel}\"}}",
+                "team_member_add"),
+            TeamMutationKind.RemoveMember => (
+                HttpMethod.Delete,
+                $"{teamPath}/members/{targetUserId:D}",
+                $"{{\"unexpected\":\"{sentinel}\"}}",
+                "team_member_remove"),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+        var logs = isolated.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
 
         using var response = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
             client,
-            HttpMethod.Delete,
+            method,
             path,
-            "{\"unexpected\":true}",
+            body,
             "application/json");
 
         await OrganizationEndpointTestSupport.AssertProblemAsync(
@@ -328,12 +281,35 @@ public sealed class CollaborationSecurityTests(ApiWebApplicationFactory factory)
             HttpStatusCode.BadRequest,
             "invalid_request");
         OrganizationEndpointTestSupport.AssertNoStore(response);
-        AssertSingleFinalAudit(
-            factory.Services.GetRequiredService<CapturedLogProvider>(),
-            path.Contains("/members/", StringComparison.Ordinal)
-                ? "team_member_remove"
-                : "team_delete",
-            "invalid_request");
+        Assert.Equal(0, store.CallCount);
+        var audit = AssertSingleFinalAudit(logs, operation, "invalid_request");
+        Assert.Equal(actor.UserId, audit.State["UserId"]);
+        Assert.Equal(
+            new HashSet<string>(StringComparer.Ordinal)
+            {
+                "CollaborationOperation",
+                "CollaborationOutcome",
+                "UserId",
+                "SessionId",
+                "OrganizationId",
+                "TeamId",
+                "TargetUserId",
+                "ResultCount",
+                "{OriginalFormat}"
+            },
+            audit.State.Keys.ToHashSet(StringComparer.Ordinal));
+        Assert.Equal(
+            new HashSet<string>(StringComparer.Ordinal) { "TraceId" },
+            audit.Scope.Keys.ToHashSet(StringComparer.Ordinal));
+        Assert.DoesNotContain(
+            sentinel,
+            await response.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            sentinel,
+            RenderedLogs(logs),
+            StringComparison.Ordinal);
     }
 
     [Theory]
@@ -964,7 +940,7 @@ public sealed class CollaborationSecurityTests(ApiWebApplicationFactory factory)
             StringComparison.Ordinal);
     }
 
-    private static void AssertSingleFinalAudit(
+    private static CapturedLog AssertSingleFinalAudit(
         CapturedLogProvider logs,
         string operation,
         string outcome)
@@ -979,6 +955,7 @@ public sealed class CollaborationSecurityTests(ApiWebApplicationFactory factory)
         Assert.IsType<Guid>(audit.State["SessionId"]);
         Assert.False(string.IsNullOrWhiteSpace(audit.Scope["TraceId"]?.ToString()));
         Assert.Null(audit.Exception);
+        return audit;
     }
 
     private sealed class BoundaryProbeTeamStore : ITeamStore
