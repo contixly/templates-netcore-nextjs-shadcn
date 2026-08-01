@@ -120,6 +120,30 @@ internal sealed class IdentityGateway(
         return result.Succeeded ? Map(user) : null;
     }
 
+    public async Task<AuthUser> ConfirmEmailAsync(
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var user = await users.FindByIdAsync(userId.Value.ToString());
+        if (user is null || !user.IsLocalAutomation)
+        {
+            throw new InvalidOperationException(
+                "The local automation identity is no longer available.");
+        }
+
+        user.EmailConfirmed = true;
+        user.UpdatedAt = timeProvider.GetUtcNow();
+        var result = await users.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(
+                "Identity email confirmation failed unexpectedly.");
+        }
+
+        return Map(user);
+    }
+
     public async Task DeleteAsync(UserId userId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

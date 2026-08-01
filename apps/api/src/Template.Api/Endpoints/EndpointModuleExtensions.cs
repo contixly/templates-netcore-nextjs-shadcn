@@ -19,6 +19,7 @@ internal static class EndpointModuleExtensions
         services.AddSingleton<IEndpointModule, AccountEndpointModule>();
         services.AddSingleton<IEndpointModule, OrganizationEndpointModule>();
         services.AddSingleton<IEndpointModule, TeamEndpointModule>();
+        services.AddSingleton<IEndpointModule, InvitationEndpointModule>();
         services.AddSingleton<IEndpointModule, HealthEndpointModule>();
         services.AddSingleton<IEndpointModule, SystemEndpointModule>();
         return services;

@@ -63,6 +63,18 @@ internal static class LocalAuthTestClient
             TestContext.Current.CancellationToken);
     }
 
+    internal static async Task<HttpResponseMessage> ConfirmEmailAsync(
+        HttpClient client)
+    {
+        var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "/api/local-auth/confirm-email");
+        request.Headers.Add("X-CSRF-TOKEN", await GetCsrfAsync(client));
+        return await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+    }
+
     internal sealed record CsrfEnvelope(CsrfData Data);
     internal sealed record CsrfData(string RequestToken);
     internal sealed record ScenarioEnvelope(ScenarioData Data);

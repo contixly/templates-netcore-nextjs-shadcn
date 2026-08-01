@@ -66,4 +66,24 @@ internal static class ApiProblemCodes
     internal const string TeamMemberNotFound = "team_member_not_found";
     internal const string TeamMemberAlreadyExists =
         "team_member_already_exists";
+    internal const string InvitationNotFound = "invitation_not_found";
+    internal const string InvitationPermissionDenied =
+        "invitation_permission_denied";
+    internal const string InvitationAlreadyExists =
+        "invitation_already_exists";
+    internal const string InvitationRecipientAlreadyMember =
+        "invitation_recipient_already_member";
+    internal const string InvitationTeamInvalid = "invitation_team_invalid";
+    internal const string InvitationDomainRestricted =
+        "invitation_domain_restricted";
+    internal const string InvitationRecipientMismatch =
+        "invitation_recipient_mismatch";
+    internal const string InvitationEmailVerificationRequired =
+        "invitation_email_verification_required";
+    internal const string InvitationExpired = "invitation_expired";
+    internal const string InvitationNotPending = "invitation_not_pending";
+    internal const string InvitationMembershipConflict =
+        "invitation_membership_conflict";
+    internal const string InvitationLimitReached =
+        "invitation_limit_reached";
 }

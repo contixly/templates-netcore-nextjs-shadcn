@@ -1,19 +1,26 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Options;
 using Template.Api.Errors;
+using Template.Api.Features.Collaboration;
+using Template.Application.Authentication.Ports;
 
 namespace Template.Api.Authentication;
 
 internal static class AuthRateLimitPolicies
 {
+    internal static readonly object ExternalOAuthCallbackPreAuthenticationLease =
+        new();
     internal const string LocalAutomationCreate = "LocalAutomationCreate";
     internal const string LocalAutomationSignIn = "LocalAutomationSignIn";
     internal const string ExternalOAuthChallenge = "ExternalOAuthChallenge";
     internal const string ExternalOAuthCallback = "ExternalOAuthCallback";
+    internal const string InvitationCreate = "InvitationCreate";
+    internal const string InvitationDecision = "InvitationDecision";
 }
 
 internal sealed class ExternalOAuthSecurityOptions
@@ -115,6 +122,14 @@ internal static class AuthSecurityServiceCollectionExtensions
                 AuthRateLimitPolicies.ExternalOAuthCallback,
                 context =>
                 {
+                    if (context.Items.ContainsKey(
+                            AuthRateLimitPolicies
+                                .ExternalOAuthCallbackPreAuthenticationLease))
+                    {
+                        return RateLimitPartition.GetNoLimiter(
+                            "pre-authentication-callback-lease");
+                    }
+
                     var external = context.RequestServices
                         .GetRequiredService<
                             IOptions<ExternalOAuthSecurityOptions>>()
@@ -143,9 +158,22 @@ internal static class AuthSecurityServiceCollectionExtensions
                                     QueueLimit = 0
                                 })));
                 });
+            options.AddPolicy(
+                AuthRateLimitPolicies.InvitationCreate,
+                context => UserPartition(
+                    context,
+                    permitLimit: 20,
+                    TimeSpan.FromMinutes(1)));
+            options.AddPolicy(
+                AuthRateLimitPolicies.InvitationDecision,
+                context => UserPartition(
+                    context,
+                    permitLimit: 30,
+                    TimeSpan.FromMinutes(1)));
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
             options.OnRejected = async (rejected, cancellationToken) =>
             {
+                rejected.HttpContext.Response.Headers.CacheControl = "no-store";
                 if (rejected.Lease.TryGetMetadata(
                         MetadataName.RetryAfter,
                         out var retryAfter))
@@ -162,6 +190,9 @@ internal static class AuthSecurityServiceCollectionExtensions
                     Status = StatusCodes.Status429TooManyRequests
                 };
                 details.Extensions["code"] = ApiProblemCodes.RateLimited;
+                await AuditInvitationRateLimitAsync(
+                    rejected.HttpContext,
+                    cancellationToken);
                 await rejected.HttpContext.RequestServices
                     .GetRequiredService<IProblemDetailsService>()
                     .TryWriteAsync(new ProblemDetailsContext
@@ -187,4 +218,75 @@ internal static class AuthSecurityServiceCollectionExtensions
                 QueueLimit = 0,
                 Window = window
             });
+
+    private static RateLimitPartition<string> UserPartition(
+        HttpContext context,
+        int permitLimit,
+        TimeSpan window)
+    {
+        var claims = context.User.FindAll(ClaimTypes.NameIdentifier).ToArray();
+        var key = claims.Length == 1 &&
+            Guid.TryParseExact(claims[0].Value, "D", out var userId) &&
+            userId != Guid.Empty &&
+            string.Equals(
+                claims[0].Value,
+                userId.ToString("D"),
+                StringComparison.Ordinal)
+                ? $"user:{userId:D}"
+                : $"ip:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            key,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = permitLimit,
+                QueueLimit = 0,
+                Window = window
+            });
+    }
+
+    private static async Task AuditInvitationRateLimitAsync(
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        var metadata = http.GetEndpoint()?.Metadata
+            .GetMetadata<InvitationRateLimitAuditMetadata>();
+        if (metadata is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+                http.RequestServices
+                    .GetRequiredService<IBrowserSessionGateway>(),
+                http.User,
+                cancellationToken);
+            var organizationId = metadata.OrganizationRouteValueName is null
+                ? null
+                : CollaborationEndpointBoundary.CanonicalOpaqueId(
+                    http.Request.RouteValues[
+                        metadata.OrganizationRouteValueName]?.ToString());
+            var invitationId = metadata.InvitationRouteValueName is null
+                ? null
+                : CollaborationEndpointBoundary.CanonicalOpaqueId(
+                    http.Request.RouteValues[
+                        metadata.InvitationRouteValueName]?.ToString());
+            CollaborationEndpointBoundary.WriteInvitation(
+                http.RequestServices
+                    .GetRequiredService<ILogger<InvitationEndpointModule>>(),
+                metadata.Operation,
+                ApiProblemCodes.RateLimited,
+                actor,
+                organizationId,
+                teamId: null,
+                invitationId);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // A limiter rejection remains safe when a stale session cannot be
+            // resolved for its optional collaboration audit.
+        }
+    }
 }
