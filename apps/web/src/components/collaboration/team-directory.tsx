@@ -455,6 +455,18 @@ function TeamMemberCandidateDialog({
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pendingCandidate, setPendingCandidate] = useState<string | null>(null);
 
+  function closeAndReset() {
+    requestEpoch.current += 1;
+    setOpen(false);
+    setQuery("");
+    setSearchedQuery("");
+    setCandidates([]);
+    setNextCursor(null);
+    setLoading(false);
+    setFailure(null);
+    setPendingCandidate(null);
+  }
+
   async function search(event?: FormEvent<HTMLFormElement>, cursor?: string) {
     event?.preventDefault();
     const normalizedQuery = (cursor ? searchedQuery : query)
@@ -514,10 +526,7 @@ function TeamMemberCandidateDialog({
       setFailure(result.failure);
       return;
     }
-    setCandidates((current) =>
-      current.filter((item) => item.userId !== candidate.userId),
-    );
-    setOpen(false);
+    closeAndReset();
     await onConfirmed(result.data);
   }
 
@@ -539,15 +548,8 @@ function TeamMemberCandidateDialog({
       open={open}
       onOpenChange={(next) => {
         if (mutationInFlight.current.size === 0) {
-          setOpen(next);
-          if (!next) {
-            requestEpoch.current += 1;
-            setQuery("");
-            setSearchedQuery("");
-            setCandidates([]);
-            setNextCursor(null);
-            setFailure(null);
-          }
+          if (next) setOpen(true);
+          else closeAndReset();
         }
       }}
     >

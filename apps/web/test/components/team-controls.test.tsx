@@ -354,6 +354,100 @@ it("discards candidate search completion after the dialog closes", async () => {
   );
   dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
   expect(within(dialog).queryByText("Stale Bob")).not.toBeInTheDocument();
+  expect(within(dialog).getByRole("button", { name: "Search" })).toBeEnabled();
+  expect(
+    within(dialog).queryByRole("button", { name: "Searching" }),
+  ).not.toBeInTheDocument();
+  expect(within(dialog).getByLabelText("Find a workspace member")).toHaveValue(
+    "",
+  );
+});
+
+it("invalidates an in-flight candidate continuation when a successful add closes the dialog", async () => {
+  const bob = {
+    memberId: "member-2",
+    userId: "user-2",
+    name: "Bob Member",
+    email: "bob@example.test",
+    imageUrl: null,
+    role: "member" as const,
+    joinedAt: "2026-08-01T00:00:00Z",
+  };
+  const continuation =
+    deferred<Awaited<ReturnType<typeof getTeamMemberCandidates>>>();
+  jest
+    .mocked(getTeamMemberCandidates)
+    .mockResolvedValueOnce({
+      data: { data: { items: [bob], nextCursor: "candidate-next" } },
+    } as Awaited<ReturnType<typeof getTeamMemberCandidates>>)
+    .mockReturnValueOnce(
+      continuation.promise as ReturnType<typeof getTeamMemberCandidates>,
+    );
+  jest.mocked(addBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: {
+      ...member,
+      id: "membership-2",
+      userId: bob.userId,
+      name: bob.name,
+      email: bob.email,
+      role: bob.role,
+    },
+  });
+  renderManager();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add member to Platform" }),
+  );
+  let dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Find a workspace member"), {
+    target: { value: "bob" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+  expect(await within(dialog).findByText("Bob Member")).toBeVisible();
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Load more candidates" }),
+  );
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Add Bob Member" }),
+  );
+  expect(await screen.findByText("Member added to the team.")).toBeVisible();
+  expect(
+    screen.queryByRole("dialog", { name: "Add member to Platform" }),
+  ).not.toBeInTheDocument();
+
+  continuation.resolve({
+    data: {
+      data: {
+        items: [
+          {
+            ...bob,
+            memberId: "member-3",
+            userId: "user-3",
+            name: "Stale Carol",
+          },
+        ],
+        nextCursor: "stale-next",
+      },
+    },
+  } as Awaited<ReturnType<typeof getTeamMemberCandidates>>);
+  await waitFor(() =>
+    expect(screen.queryByText("Stale Carol")).not.toBeInTheDocument(),
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add member to Platform" }),
+  );
+  dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
+  expect(within(dialog).getByRole("button", { name: "Search" })).toBeEnabled();
+  expect(within(dialog).getByLabelText("Find a workspace member")).toHaveValue(
+    "",
+  );
+  expect(within(dialog).queryByText("Bob Member")).not.toBeInTheDocument();
+  expect(within(dialog).queryByText("Stale Carol")).not.toBeInTheDocument();
+  expect(
+    within(dialog).queryByRole("button", { name: "Load more candidates" }),
+  ).not.toBeInTheDocument();
 });
 
 it("discards candidate results when the query changes before completion", async () => {
