@@ -167,6 +167,11 @@ it("shows only a validated same-origin returned link and reports copy failure sa
   );
 
   const link = await within(dialog).findByLabelText("Invitation link");
+  expect(
+    within(dialog).getByText(
+      "No invitation email is sent in this iteration. Copy and share the link manually.",
+    ),
+  ).toBeVisible();
   expect(link).toHaveValue(
     new URL(createdInvitation.invitationPath, window.location.origin).href,
   );
@@ -189,13 +194,66 @@ it("shows only a validated same-origin returned link and reports copy failure sa
   ).toBeVisible();
 });
 
-it("does not expose or copy an unexpected cross-origin invitation path", async () => {
+it("preserves committed creation while suppressing an unexpected cross-origin invitation path", async () => {
   createInvitation.mockResolvedValue({
     ok: true,
     data: {
       ...createdInvitation,
       invitationPath: "//attacker.example/invite/x",
     },
+  });
+  const confirmed = jest.fn();
+  renderWithMessages(
+    <InvitationCreateDialog
+      currentRole="owner"
+      onConfirmed={confirmed}
+      organizationId={createdInvitation.organizationId}
+      teams={[]}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
+  const dialog = screen.getByRole("dialog", {
+    name: "Invite a workspace member",
+  });
+  fireEvent.change(within(dialog).getByLabelText("Email address"), {
+    target: { value: createdInvitation.email },
+  });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create invitation" }),
+  );
+
+  expect(
+    await within(dialog).findByText(
+      "The invitation was created, but its share link was unsafe. Review invitation activity and share a validated link manually.",
+    ),
+  ).toBeVisible();
+  expect(within(dialog).getByText("Invitation created.")).toBeVisible();
+  expect(
+    within(dialog).getByText(
+      "No invitation email is sent in this iteration. Copy and share the link manually.",
+    ),
+  ).toBeVisible();
+  expect(
+    within(dialog).queryByLabelText("Invitation link"),
+  ).not.toBeInTheDocument();
+  expect(
+    within(dialog).queryByRole("button", { name: "Create invitation" }),
+  ).not.toBeInTheDocument();
+  expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
+  expect(confirmed).toHaveBeenCalledWith(
+    expect.objectContaining({ id: createdInvitation.id }),
+  );
+  expect(createInvitation).toHaveBeenCalledTimes(1);
+});
+
+it("preserves the stable notification warning without exposing provider detail", async () => {
+  createInvitation.mockResolvedValue({
+    ok: true,
+    data: Object.assign({}, createdInvitation, {
+      warning: "notification_failed",
+      providerDetail: "private mail provider exception",
+    }),
   });
   renderWithMessages(
     <InvitationCreateDialog
@@ -219,11 +277,15 @@ it("does not expose or copy an unexpected cross-origin invitation path", async (
 
   expect(
     await within(dialog).findByText(
-      "The collaboration request could not be completed.",
+      "No invitation email is sent in this iteration. Copy and share the link manually.",
     ),
   ).toBeVisible();
   expect(
-    within(dialog).queryByLabelText("Invitation link"),
+    within(dialog).getByText(
+      "The invitation was saved, but notification delivery failed. Share the link manually.",
+    ),
+  ).toBeVisible();
+  expect(
+    within(dialog).queryByText("private mail provider exception"),
   ).not.toBeInTheDocument();
-  expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
 });

@@ -132,6 +132,89 @@ it("never discloses invitation details for a recipient mismatch", () => {
   }
 });
 
+it("purges a mounted invitation projection when account state changes to recipient mismatch", () => {
+  const view = renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+  expect(screen.getByText(invitation.organizationName)).toBeVisible();
+
+  view.rerender(
+    withMessages(
+      <InvitationDecision
+        decision={{
+          invitation: null,
+          state: "recipient-mismatch",
+          canRespond: false,
+        }}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    ),
+  );
+
+  expect(
+    screen.getByText(
+      "This invitation is not available for the current account.",
+    ),
+  ).toBeVisible();
+  for (const secret of [
+    invitation.organizationName,
+    invitation.email,
+    invitation.inviterName,
+    invitation.teamName!,
+  ]) {
+    expect(screen.queryByText(secret)).not.toBeInTheDocument();
+  }
+});
+
+it("invalidates an in-flight accept when mounted account state changes to mismatch", async () => {
+  const mutation =
+    deferred<Awaited<ReturnType<typeof acceptBrowserInvitation>>>();
+  acceptInvitation.mockReturnValue(mutation.promise);
+  const view = renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
+
+  view.rerender(
+    withMessages(
+      <InvitationDecision
+        decision={{
+          invitation,
+          state: "recipient-mismatch",
+          canRespond: false,
+        }}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    ),
+  );
+  expect(
+    screen.queryByText(invitation.organizationName),
+  ).not.toBeInTheDocument();
+
+  await act(async () => {
+    mutation.resolve({
+      ok: true,
+      data: {
+        invitationId: invitation.id,
+        organizationId: invitation.organizationId,
+        canonicalOrganizationKey: "must-not-navigate",
+      },
+    });
+    await mutation.promise;
+  });
+  expect(replace).not.toHaveBeenCalled();
+});
+
 it("shows local email confirmation only when the API capability and state allow it", () => {
   const decision = {
     ...pending,
@@ -252,18 +335,254 @@ it("allows only a verified actionable pending invitation to accept and uses the 
       localEmailConfirmationAvailable={false}
     />,
   );
+  const action = screen.getByRole("button", { name: "Accept invitation" });
   expect(screen.getByText("Acme")).toBeVisible();
   expect(screen.getByText("Platform")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
+  fireEvent.click(action);
 
   await waitFor(() =>
     expect(replace).toHaveBeenCalledWith("/w/canonical%20key/dashboard"),
   );
+  expect(screen.getByText("This invitation has been accepted.")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Accept invitation" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Reject invitation" }),
+  ).not.toBeInTheDocument();
   expect(acceptInvitation).toHaveBeenCalledWith(
     { id: "browser-client" },
     invitation.id,
   );
   expect(replace).toHaveBeenCalledTimes(1);
+  fireEvent.click(action);
+  expect(acceptInvitation).toHaveBeenCalledTimes(1);
+});
+
+it("keeps accepted state terminal when client navigation throws", async () => {
+  acceptInvitation.mockResolvedValue({
+    ok: true,
+    data: {
+      invitationId: invitation.id,
+      organizationId: invitation.organizationId,
+      canonicalOrganizationKey: "acme",
+    },
+  });
+  replace.mockImplementationOnce(() => {
+    throw new Error("private navigation failure");
+  });
+  renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
+  expect(
+    await screen.findByText("This invitation has been accepted."),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Accept invitation" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("private navigation failure"),
+  ).not.toBeInTheDocument();
+  expect(acceptInvitation).toHaveBeenCalledTimes(1);
+});
+
+it.each([
+  ["invitation_expired", "This invitation has expired."],
+  [
+    "invitation_domain_restricted",
+    "The workspace email policy no longer allows this invitation.",
+  ],
+  [
+    "invitation_email_verification_required",
+    "Verify the invited email address before responding.",
+  ],
+] as const)(
+  "turns the terminal %s mutation failure into a non-replayable read-only state",
+  async (code, message) => {
+    acceptInvitation.mockResolvedValue({
+      ok: false,
+      failure: { kind: "problem", code, status: 409 },
+    });
+    renderWithMessages(
+      <InvitationDecision
+        decision={pending}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    );
+    const action = screen.getByRole("button", { name: "Accept invitation" });
+
+    fireEvent.click(action);
+    expect(await screen.findByText(message)).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Accept invitation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reject invitation" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(action);
+    expect(acceptInvitation).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("reconciles invitation_not_pending once and remains non-actionable when that read fails", async () => {
+  rejectInvitation.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "invitation_not_pending",
+      status: 409,
+    },
+  });
+  loadDecision.mockResolvedValue({
+    error: { detail: "private reconciliation failure" },
+    response: { status: 503 } as Response,
+  } as Awaited<ReturnType<typeof getInvitationDecision>>);
+  renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+  const action = screen.getByRole("button", { name: "Reject invitation" });
+
+  fireEvent.click(action);
+  expect(
+    await screen.findByText("This invitation has already been resolved."),
+  ).toBeVisible();
+  expect(
+    await screen.findByText(
+      "The latest invitation state could not be loaded. Response actions remain disabled.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByText("private reconciliation failure"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Reject invitation" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(action);
+  expect(rejectInvitation).toHaveBeenCalledTimes(1);
+  expect(loadDecision).toHaveBeenCalledTimes(1);
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(loadDecision).toHaveBeenCalledTimes(2));
+  expect(rejectInvitation).toHaveBeenCalledTimes(1);
+});
+
+it("does not trust an actionable pending read after invitation_not_pending", async () => {
+  acceptInvitation.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "invitation_not_pending",
+      status: 409,
+    },
+  });
+  loadDecision.mockResolvedValue({
+    data: { data: pending },
+  } as Awaited<ReturnType<typeof getInvitationDecision>>);
+  renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
+  await waitFor(() => expect(loadDecision).toHaveBeenCalledTimes(1));
+  expect(
+    screen.queryByRole("button", { name: "Accept invitation" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Reject invitation" }),
+  ).not.toBeInTheDocument();
+  expect(acceptInvitation).toHaveBeenCalledTimes(1);
+  expect(
+    screen.getByText(
+      "The latest invitation state could not be loaded. Response actions remain disabled.",
+    ),
+  ).toBeVisible();
+});
+
+it("purges details immediately when a mutation reports recipient mismatch", async () => {
+  rejectInvitation.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "invitation_recipient_mismatch",
+      status: 403,
+    },
+  });
+  renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+  const action = screen.getByRole("button", { name: "Reject invitation" });
+
+  fireEvent.click(action);
+  expect(
+    await screen.findByText(
+      "This invitation is not available for the current account.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByText(invitation.organizationName),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText(invitation.email)).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Reject invitation" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(action);
+  expect(rejectInvitation).toHaveBeenCalledTimes(1);
+});
+
+it("purges details when a post-rejection refresh reports recipient mismatch", async () => {
+  rejectInvitation.mockResolvedValue({
+    ok: true,
+    data: {
+      invitation: {
+        ...invitation,
+        status: "rejected",
+        displayState: "rejected",
+      },
+      state: "rejected",
+      canRespond: false,
+    },
+  });
+  loadDecision.mockResolvedValue({
+    error: { code: "invitation_recipient_mismatch" },
+    response: { status: 403 } as Response,
+  } as Awaited<ReturnType<typeof getInvitationDecision>>);
+  renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Reject invitation" }));
+  expect(
+    await screen.findByText(
+      "This invitation is not available for the current account.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByText(invitation.organizationName),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText(invitation.email)).not.toBeInTheDocument();
 });
 
 it("does not render response actions when the account is not verified even if canRespond is inconsistent", () => {
@@ -359,11 +678,27 @@ it("defers one accept navigation while Activity-hidden and discards it after a d
 
   const stale = deferred<Awaited<ReturnType<typeof acceptBrowserInvitation>>>();
   acceptInvitation.mockReturnValue(stale.promise);
-  fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
-  const replacementInvitation = {
+  const secondInvitation = {
     ...invitation,
     id: "invite-2",
     email: "two@example.test",
+  };
+  view.rerender(
+    withMessages(
+      <Activity mode="visible">
+        <InvitationDecision
+          decision={{ ...pending, invitation: secondInvitation }}
+          emailVerified
+          localEmailConfirmationAvailable={false}
+        />
+      </Activity>,
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
+  const replacementInvitation = {
+    ...invitation,
+    id: "invite-3",
+    email: "three@example.test",
   };
   view.rerender(
     withMessages(
@@ -380,7 +715,7 @@ it("defers one accept navigation while Activity-hidden and discards it after a d
     stale.resolve({
       ok: true,
       data: {
-        invitationId: invitation.id,
+        invitationId: secondInvitation.id,
         organizationId: invitation.organizationId,
         canonicalOrganizationKey: "stale",
       },

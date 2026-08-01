@@ -16,6 +16,13 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
+import {
+  failureIsRepresentedByDecision,
+  isInvitationNotPendingFailure,
+  recipientMismatchDecision,
+  sanitizeInvitationDecision,
+  terminalInvitationDecision,
+} from "@/src/features/collaboration/invitation-decision-failure";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { confirmLocalAutomationEmail } from "@/src/lib/api/auth/browser/confirm-local-automation-email";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -32,6 +39,7 @@ import type {
 import type { ApiFailure } from "@/src/lib/api/result";
 
 type PendingAction = "accept" | "confirm" | "reject" | "refresh" | null;
+type RefreshFailure = "not-pending" | "reconcile" | "saved" | null;
 
 function formattedDate(value: string, locale: string): string {
   const date = new Date(value);
@@ -113,16 +121,22 @@ function stableFailureMessage(
 
 function DecisionFailure({
   failure,
-}: Readonly<{ failure: ApiFailure | null }>) {
+  messageCoveredByState,
+}: Readonly<{
+  failure: ApiFailure | null;
+  messageCoveredByState: boolean;
+}>) {
   const t = useTranslations("collaboration.failures");
   if (!failure) return null;
+  const traceId = failure.kind === "problem" ? failure.traceId : undefined;
+  if (messageCoveredByState && !traceId) return null;
   return (
     <Alert variant="destructive">
-      <AlertTitle>{stableFailureMessage(failure, t)}</AlertTitle>
-      {failure.kind === "problem" && failure.traceId ? (
-        <AlertDescription>
-          {t("trace", { traceId: failure.traceId })}
-        </AlertDescription>
+      {messageCoveredByState ? null : (
+        <AlertTitle>{stableFailureMessage(failure, t)}</AlertTitle>
+      )}
+      {traceId ? (
+        <AlertDescription>{t("trace", { traceId })}</AlertDescription>
       ) : null}
     </Alert>
   );
@@ -141,15 +155,16 @@ export function InvitationDecision({
   const roles = useTranslations("collaboration.invitations.roles");
   const locale = useLocale();
   const router = useRouter();
-  const serverIdentity = serverDecision.invitation?.id ?? null;
+  const safeServerDecision = sanitizeInvitationDecision(serverDecision);
+  const serverIdentity = safeServerDecision.invitation?.id ?? null;
   const lifecycle = useInvitationLifecycle(serverIdentity);
   const [lastServerDecision, setLastServerDecision] = useState(serverDecision);
-  const [decision, setDecision] = useState(serverDecision);
+  const [decision, setDecision] = useState(safeServerDecision);
   const [lastEmailVerified, setLastEmailVerified] = useState(emailVerified);
   const [verified, setVerified] = useState(emailVerified);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
-  const [refreshFailure, setRefreshFailure] = useState(false);
+  const [refreshFailure, setRefreshFailure] = useState<RefreshFailure>(null);
   const mutationInFlight = useRef(false);
 
   useInsertionEffect(() => {
@@ -158,10 +173,10 @@ export function InvitationDecision({
 
   if (lastServerDecision !== serverDecision) {
     setLastServerDecision(serverDecision);
-    setDecision(serverDecision);
+    setDecision(safeServerDecision);
     setPendingAction(null);
     setFailure(null);
-    setRefreshFailure(false);
+    setRefreshFailure(null);
   }
   if (lastEmailVerified !== emailVerified) {
     setLastEmailVerified(emailVerified);
@@ -184,7 +199,10 @@ export function InvitationDecision({
     lifecycle.runOrQueue(invitationId, run);
   }
 
-  async function refreshDecision(invitationId: string) {
+  async function refreshDecision(
+    invitationId: string,
+    failureKind: Exclude<RefreshFailure, null> = "saved",
+  ) {
     if (!isCurrent(invitationId)) return false;
     setPendingAction("refresh");
     try {
@@ -195,31 +213,69 @@ export function InvitationDecision({
       });
       if (!isCurrent(invitationId)) return false;
       if (result.data === undefined) {
-        normalizeApiFailure(result.error, result.response);
-        setRefreshFailure(true);
+        const normalized = normalizeApiFailure(result.error, result.response);
+        const mismatch = recipientMismatchDecision(normalized);
+        if (mismatch) {
+          setDecision(mismatch);
+          setFailure(null);
+          setRefreshFailure(null);
+          return false;
+        }
+        setRefreshFailure(failureKind);
         return false;
       }
-      const refreshed = result.data.data;
+      const refreshed = sanitizeInvitationDecision(result.data.data);
+      if (failureKind === "not-pending" && refreshed.state === "pending") {
+        setRefreshFailure("not-pending");
+        return false;
+      }
       if (
         refreshed.invitation !== null &&
         refreshed.invitation.id !== invitationId
       ) {
-        setRefreshFailure(true);
+        setRefreshFailure(failureKind);
         return false;
       }
       setDecision(refreshed);
-      setRefreshFailure(false);
+      setFailure(null);
+      setRefreshFailure(null);
       safelyRunOrQueue(invitationId, () => {
         if (lifecycle.isCurrent(invitationId)) router.refresh();
       });
       return true;
     } catch (error) {
       normalizeApiFailure(error);
-      if (isCurrent(invitationId)) setRefreshFailure(true);
+      if (isCurrent(invitationId)) setRefreshFailure(failureKind);
       return false;
     } finally {
       if (isCurrent(invitationId)) setPendingAction(null);
     }
+  }
+
+  async function settleMutationFailure(
+    mutationFailure: ApiFailure,
+    currentInvitation: InvitationResponse,
+  ) {
+    const terminal = terminalInvitationDecision(
+      mutationFailure,
+      currentInvitation,
+    );
+    if (terminal) {
+      setDecision(terminal);
+      setFailure(
+        terminal.state === "recipient-mismatch" ? null : mutationFailure,
+      );
+      setRefreshFailure(null);
+      return;
+    }
+    if (isInvitationNotPendingFailure(mutationFailure)) {
+      setDecision((current) => ({ ...current, canRespond: false }));
+      setFailure(mutationFailure);
+      setRefreshFailure(null);
+      await refreshDecision(currentInvitation.id, "not-pending");
+      return;
+    }
+    setFailure(mutationFailure);
   }
 
   async function accept() {
@@ -233,21 +289,37 @@ export function InvitationDecision({
       invitationId,
     );
     if (!isCurrent(invitationId)) return;
-    mutationInFlight.current = false;
     setPendingAction(null);
     if (!result.ok) {
-      setFailure(result.failure);
+      mutationInFlight.current = false;
+      await settleMutationFailure(result.failure, invitation);
       return;
     }
     if (result.data.invitationId !== invitationId) {
       setFailure({ kind: "network", code: "api_unavailable" });
+      mutationInFlight.current = false;
       return;
     }
+    setDecision({
+      invitation: {
+        ...invitation,
+        status: "accepted",
+        displayState: "accepted",
+      },
+      state: "accepted",
+      canRespond: false,
+    });
+    setRefreshFailure(null);
     safelyRunOrQueue(invitationId, () => {
       if (!lifecycle.isCurrent(invitationId)) return;
-      router.replace(
-        organizationRoutes.dashboard(result.data.canonicalOrganizationKey),
-      );
+      try {
+        router.replace(
+          organizationRoutes.dashboard(result.data.canonicalOrganizationKey),
+        );
+      } catch {
+        // The committed terminal projection remains authoritative when client
+        // navigation cannot start; no transport or router detail is exposed.
+      }
     });
   }
 
@@ -257,16 +329,16 @@ export function InvitationDecision({
     mutationInFlight.current = true;
     setPendingAction("reject");
     setFailure(null);
-    setRefreshFailure(false);
+    setRefreshFailure(null);
     const result = await rejectBrowserInvitation(
       createBrowserApiClient(),
       invitationId,
     );
     if (!isCurrent(invitationId)) return;
-    mutationInFlight.current = false;
     setPendingAction(null);
     if (!result.ok) {
-      setFailure(result.failure);
+      mutationInFlight.current = false;
+      await settleMutationFailure(result.failure, invitation);
       return;
     }
     if (
@@ -275,6 +347,7 @@ export function InvitationDecision({
         result.data.invitation.id !== invitationId)
     ) {
       setFailure({ kind: "network", code: "api_unavailable" });
+      mutationInFlight.current = false;
       return;
     }
     const rejectedInvitation: InvitationResponse = result.data.invitation ?? {
@@ -287,7 +360,7 @@ export function InvitationDecision({
       state: "rejected",
       canRespond: false,
     });
-    await refreshDecision(invitationId);
+    await refreshDecision(invitationId, "saved");
   }
 
   async function confirmEmail() {
@@ -316,7 +389,7 @@ export function InvitationDecision({
       return;
     }
     setVerified(true);
-    await refreshDecision(invitationId);
+    await refreshDecision(invitationId, "reconcile");
   }
 
   const stateMessageKey = {
@@ -400,15 +473,26 @@ export function InvitationDecision({
           </Alert>
         ) : null}
 
-        <DecisionFailure failure={failure} />
+        <DecisionFailure
+          failure={failure}
+          messageCoveredByState={
+            failure !== null &&
+            failureIsRepresentedByDecision(failure, decision)
+          }
+        />
         {refreshFailure ? (
           <Alert variant="destructive">
-            <AlertTitle>{t("success.refreshFailure")}</AlertTitle>
+            <AlertTitle>
+              {refreshFailure === "saved"
+                ? t("success.refreshFailure")
+                : t("success.reconciliationFailure")}
+            </AlertTitle>
             <AlertDescription>
               <Button
                 disabled={pendingAction !== null}
                 onClick={() =>
-                  invitation && void refreshDecision(invitation.id)
+                  invitation &&
+                  void refreshDecision(invitation.id, refreshFailure)
                 }
                 type="button"
                 variant="outline"

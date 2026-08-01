@@ -351,6 +351,42 @@ it("loads a protected decision and passes verification and local API capability 
   });
 });
 
+it("maps an initial recipient-mismatch problem to the non-disclosing decision state", async () => {
+  jest.mocked(loadInvitationDecision).mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "invitation_recipient_mismatch",
+      status: 403,
+      traceId: "trace-mismatch",
+    },
+  });
+
+  const page = await InvitePage({
+    params: Promise.resolve({ invitationId: invitation.id }),
+  });
+  const component = findElementByType(page, InvitationDecision);
+
+  expect(component?.props).toMatchObject({
+    decision: {
+      invitation: null,
+      state: "recipient-mismatch",
+      canRespond: false,
+    },
+  });
+  render(withMessages(page));
+  expect(
+    screen.getByText(
+      "This invitation is not available for the current account.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByText(invitation.organizationName),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText(invitation.email)).not.toBeInTheDocument();
+  expect(screen.queryByText("trace-mismatch")).not.toBeInTheDocument();
+});
+
 it("redirects an anonymous invitation visitor back to the exact encoded route", async () => {
   jest.mocked(loadServerAuthState).mockResolvedValue({
     ok: true,

@@ -76,6 +76,20 @@ describe("fixed deployment locale", () => {
     expect(russian.collaboration.decision.actions.accept).not.toBe(
       english.collaboration.decision.actions.accept,
     );
+    expect(english.collaboration.invitations.create.noEmailWarning).toContain(
+      "No invitation email",
+    );
+    expect(russian.collaboration.invitations.create.noEmailWarning).not.toBe(
+      english.collaboration.invitations.create.noEmailWarning,
+    );
+    expect(
+      english.collaboration.invitations.create.notificationFailedWarning,
+    ).toContain("notification delivery failed");
+    expect(
+      russian.collaboration.invitations.create.notificationFailedWarning,
+    ).not.toBe(
+      english.collaboration.invitations.create.notificationFailedWarning,
+    );
     expect(Object.keys(english.collaboration.failures.codes).sort()).toEqual([
       "antiforgery_failed",
       "invitation_already_exists",

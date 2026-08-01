@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
 import { getOrganizationInvitations } from "@/src/lib/api/generated/sdk.gen";
@@ -38,6 +38,19 @@ const invitation: InvitationResponse = {
 };
 
 const listInvitations = jest.mocked(getOrganizationInvitations);
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
+function chooseFilter(name: string) {
+  fireEvent.click(screen.getByRole("combobox", { name: "Status" }));
+  fireEvent.click(screen.getByRole("option", { name }));
+}
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -155,4 +168,130 @@ it("retains visible activity when a continuation fails", async () => {
   ).toBeVisible();
   expect(screen.getByText(invitation.email)).toBeVisible();
   expect(screen.queryByText("private-detail")).not.toBeInTheDocument();
+});
+
+it("clears the previous filter transaction and retries its first page without an old cursor", async () => {
+  listInvitations
+    .mockResolvedValueOnce({
+      data: undefined,
+      error: { detail: "private filter failure" },
+      response: { status: 503 } as Response,
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>)
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "expired-2",
+              email: "expired@example.test",
+              displayState: "expired",
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+  renderWithMessages(
+    <InvitationActivity
+      initialPage={{ items: [invitation], nextCursor: "old-all-cursor" }}
+      organization={{ id: "org-1", currentRole: "owner" }}
+      teams={[]}
+    />,
+  );
+
+  chooseFilter("Expired");
+  expect(screen.queryByText(invitation.email)).not.toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      "Some invitations could not be loaded. The invitations already shown are still available.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Load more invitations" }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Retry invitation filter" }),
+  );
+  expect(await screen.findByText("expired@example.test")).toBeVisible();
+  expect(listInvitations).toHaveBeenNthCalledWith(
+    1,
+    expect.objectContaining({
+      query: { status: "expired", limit: 20 },
+    }),
+  );
+  expect(listInvitations).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({
+      query: { status: "expired", limit: 20 },
+    }),
+  );
+});
+
+it("ignores an overlapping older filter response", async () => {
+  const expiredRead =
+    deferred<Awaited<ReturnType<typeof getOrganizationInvitations>>>();
+  listInvitations
+    .mockReturnValueOnce(
+      expiredRead.promise as ReturnType<typeof getOrganizationInvitations>,
+    )
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "rejected-2",
+              email: "rejected@example.test",
+              status: "rejected",
+              displayState: "rejected",
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+  renderWithMessages(
+    <InvitationActivity
+      initialPage={{ items: [invitation], nextCursor: "all-next" }}
+      organization={{ id: "org-1", currentRole: "owner" }}
+      teams={[]}
+    />,
+  );
+
+  chooseFilter("Expired");
+  await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(1));
+  chooseFilter("Rejected");
+  expect(await screen.findByText("rejected@example.test")).toBeVisible();
+
+  await act(async () => {
+    expiredRead.resolve({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "expired-stale",
+              email: "stale-expired@example.test",
+              displayState: "expired",
+            },
+          ],
+          nextCursor: "stale-cursor",
+        },
+      },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+    await expiredRead.promise;
+  });
+
+  expect(screen.getByText("rejected@example.test")).toBeVisible();
+  expect(
+    screen.queryByText("stale-expired@example.test"),
+  ).not.toBeInTheDocument();
+  expect(listInvitations).toHaveBeenNthCalledWith(
+    2,
+    expect.objectContaining({
+      query: { status: "rejected", limit: 20 },
+    }),
+  );
 });

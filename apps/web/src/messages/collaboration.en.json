@@ -97,6 +97,7 @@
       "empty": "No invitation activity matches this filter.",
       "loadMore": "Load more invitations",
       "loadingMore": "Loading more invitations",
+      "retry": "Retry invitation filter",
       "partialFailure": "Some invitations could not be loaded. The invitations already shown are still available."
     },
     "create": {
@@ -119,7 +120,10 @@
       "link": "Invitation link",
       "copy": "Copy invitation link",
       "copied": "Invitation link copied.",
-      "copyFailure": "The invitation link could not be copied. Copy it manually."
+      "copyFailure": "The invitation link could not be copied. Copy it manually.",
+      "noEmailWarning": "No invitation email is sent in this iteration. Copy and share the link manually.",
+      "notificationFailedWarning": "The invitation was saved, but notification delivery failed. Share the link manually.",
+      "unsafeLinkWarning": "The invitation was created, but its share link was unsafe. Review invitation activity and share a validated link manually."
     },
     "filters": {
       "status": "Status",
@@ -189,7 +193,8 @@
     "success": {
       "accepted": "Invitation accepted.",
       "rejected": "Invitation rejected.",
-      "refreshFailure": "Your response was saved, but the invitation could not be refreshed."
+      "refreshFailure": "Your response was saved, but the invitation could not be refreshed.",
+      "reconciliationFailure": "The latest invitation state could not be loaded. Response actions remain disabled."
     }
   },
   "failures": {

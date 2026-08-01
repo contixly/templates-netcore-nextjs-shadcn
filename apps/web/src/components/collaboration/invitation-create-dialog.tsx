@@ -70,6 +70,10 @@ function useAttachedRef() {
   return attached;
 }
 
+function hasNotificationFailure(invitation: InvitationResponse): boolean {
+  return Reflect.get(invitation, "warning") === "notification_failed";
+}
+
 function InvitationFailureNotice({
   failure,
 }: Readonly<{ failure: ApiFailure | null }>) {
@@ -116,7 +120,6 @@ export function InvitationCreateDialog({
 }>) {
   const t = useTranslations("collaboration.invitations.create");
   const roles = useTranslations("collaboration.invitations.roles");
-  const failures = useTranslations("collaboration.failures");
   const attached = useAttachedRef();
   const inFlight = useRef(false);
   const assignableRoles: readonly InvitationRole[] =
@@ -177,11 +180,12 @@ export function InvitationCreateDialog({
       setFailure(result.failure);
       return;
     }
-    if (!invitationAbsoluteUrl(result.data.id, result.data.invitationPath)) {
-      setFailure({ kind: "network", code: "api_unavailable" });
-      return;
-    }
+    const safeLink = invitationAbsoluteUrl(
+      result.data.id,
+      result.data.invitationPath,
+    );
     setCreated(result.data);
+    setInvalidLink(!safeLink);
     await onConfirmed(result.data);
   }
 
@@ -206,31 +210,42 @@ export function InvitationCreateDialog({
           <DialogTitle>{t("title")}</DialogTitle>
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
-        {created && createdUrl ? (
+        {created ? (
           <div className="flex flex-col gap-4">
             <Alert>
               <AlertTitle>{t("created")}</AlertTitle>
             </Alert>
-            <Field>
-              <FieldLabel htmlFor={`invitation-link-${created.id}`}>
-                {t("link")}
-              </FieldLabel>
-              <Input
-                id={`invitation-link-${created.id}`}
-                readOnly
-                value={createdUrl}
-              />
-            </Field>
-            <InvitationCopyButton
-              invitationId={created.id}
-              invitationPath={created.invitationPath}
-              onInvalid={() => setInvalidLink(true)}
-            />
-            {invalidLink ? (
+            <Alert>
+              <AlertTitle>{t("noEmailWarning")}</AlertTitle>
+            </Alert>
+            {hasNotificationFailure(created) ? (
               <Alert variant="destructive">
-                <AlertTitle>{failures("generic")}</AlertTitle>
+                <AlertTitle>{t("notificationFailedWarning")}</AlertTitle>
               </Alert>
             ) : null}
+            {createdUrl && !invalidLink ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor={`invitation-link-${created.id}`}>
+                    {t("link")}
+                  </FieldLabel>
+                  <Input
+                    id={`invitation-link-${created.id}`}
+                    readOnly
+                    value={createdUrl}
+                  />
+                </Field>
+                <InvitationCopyButton
+                  invitationId={created.id}
+                  invitationPath={created.invitationPath}
+                  onInvalid={() => setInvalidLink(true)}
+                />
+              </>
+            ) : (
+              <Alert variant="destructive">
+                <AlertTitle>{t("unsafeLinkWarning")}</AlertTitle>
+              </Alert>
+            )}
             <DialogFooter>
               <DialogClose asChild>
                 <Button type="button">{t("close")}</Button>

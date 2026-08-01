@@ -2,11 +2,11 @@
 
 import { IconMail } from "@tabler/icons-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useInsertionEffect, useRef, useState } from "react";
 
 import { InvitationCopyButton } from "@/src/components/collaboration/invitation-copy-button";
 import { InvitationCreateDialog } from "@/src/components/collaboration/invitation-create-dialog";
-import { Alert, AlertTitle } from "@/src/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -106,6 +106,12 @@ export function InvitationActivity({
   const [filter, setFilter] = useState<InvitationFilter>("all");
   const [pending, setPending] = useState(false);
   const [partialFailure, setPartialFailure] = useState(false);
+  const [failedCursor, setFailedCursor] = useState<string | undefined>();
+  const requestEpoch = useRef(0);
+
+  useInsertionEffect(() => {
+    requestEpoch.current += 1;
+  }, [initialPage]);
 
   if (serverPage !== initialPage) {
     setServerPage(initialPage);
@@ -113,11 +119,18 @@ export function InvitationActivity({
     setNextCursor(initialPage.nextCursor);
     setFilter("all");
     setPartialFailure(false);
+    setFailedCursor(undefined);
   }
 
   async function read(nextFilter: InvitationFilter, cursor?: string) {
+    const request = ++requestEpoch.current;
+    if (!cursor) {
+      setItems([]);
+      setNextCursor(null);
+    }
     setPending(true);
     setPartialFailure(false);
+    setFailedCursor(undefined);
     try {
       const result = await getOrganizationInvitations({
         client: createBrowserApiClient(),
@@ -129,9 +142,11 @@ export function InvitationActivity({
           limit: 20,
         },
       });
+      if (requestEpoch.current !== request) return;
       if (result.data === undefined) {
         normalizeApiFailure(result.error, result.response);
         setPartialFailure(true);
+        setFailedCursor(cursor);
         return;
       }
       const page = result.data.data;
@@ -142,16 +157,18 @@ export function InvitationActivity({
       );
       setNextCursor(page.nextCursor);
     } catch (error) {
+      if (requestEpoch.current !== request) return;
       normalizeApiFailure(error);
       setPartialFailure(true);
+      setFailedCursor(cursor);
     } finally {
-      setPending(false);
+      if (requestEpoch.current === request) setPending(false);
     }
   }
 
   function invitationCreated(invitation: InvitationResponse) {
     if (filter === "all" || filter === invitation.displayState) {
-      setItems((current) => latestUnique([invitation], current));
+      setItems((current) => latestUnique(current, [invitation]));
     }
   }
 
@@ -163,7 +180,6 @@ export function InvitationActivity({
             {t("filters.status")}
           </FieldLabel>
           <Select
-            disabled={pending}
             onValueChange={(value) => {
               if (!filters.includes(value as InvitationFilter)) return;
               const next = value as InvitationFilter;
@@ -197,6 +213,16 @@ export function InvitationActivity({
       {partialFailure ? (
         <Alert variant="destructive">
           <AlertTitle>{t("activity.partialFailure")}</AlertTitle>
+          <AlertDescription>
+            <Button
+              disabled={pending}
+              onClick={() => void read(filter, failedCursor)}
+              type="button"
+              variant="outline"
+            >
+              {t("activity.retry")}
+            </Button>
+          </AlertDescription>
         </Alert>
       ) : null}
 
@@ -251,7 +277,7 @@ export function InvitationActivity({
         </div>
       )}
 
-      {nextCursor ? (
+      {nextCursor && !partialFailure ? (
         <Button
           disabled={pending}
           onClick={() => void read(filter, nextCursor)}

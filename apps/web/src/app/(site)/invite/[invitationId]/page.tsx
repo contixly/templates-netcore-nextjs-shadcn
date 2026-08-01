@@ -5,6 +5,7 @@ import { InvitationDecision } from "@/src/components/collaboration/invitation-de
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { authLoginUrl } from "@/src/features/authentication/sanitize-auth-redirect";
 import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
+import { recipientMismatchDecision } from "@/src/features/collaboration/invitation-decision-failure";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
 import { loadInvitationDecision } from "@/src/lib/api/collaboration/server/load-invitation-decision";
 
@@ -32,7 +33,20 @@ export default async function InvitationDecisionPage({
   }
 
   const decision = await loadInvitationDecision(invitationId);
-  if (!decision.ok) return <OrganizationFailure failure={decision.failure} />;
+  if (!decision.ok) {
+    const mismatch = recipientMismatchDecision(decision.failure);
+    if (!mismatch) return <OrganizationFailure failure={decision.failure} />;
+    return (
+      <main className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
+        <InvitationDecision
+          key={invitationId}
+          decision={mismatch}
+          emailVerified={auth.data.session.user.emailVerified}
+          localEmailConfirmationAvailable={false}
+        />
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
