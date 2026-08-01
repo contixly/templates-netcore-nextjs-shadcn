@@ -37,13 +37,20 @@ export async function WorkspaceOrganizationSwitcherSlot({
     <OrganizationSwitcher
       activeOrganizationId={session.data.session.activeOrganizationId}
       currentOrganization={{
+        canManageInvitations:
+          organization.data.capabilities.canManageInvitations,
         canonicalKey: organization.data.canonicalKey,
         id: organization.data.id,
         name: organization.data.name,
       }}
       nextCursor={organizations.data.nextCursor}
       organizations={organizations.data.items.map(
-        ({ canonicalKey, id, name }) => ({ canonicalKey, id, name }),
+        ({ capabilities, canonicalKey, id, name }) => ({
+          canManageInvitations: capabilities.canManageInvitations,
+          canonicalKey,
+          id,
+          name,
+        }),
       )}
     />
   );

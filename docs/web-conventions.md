@@ -469,5 +469,9 @@ Workspace settings navigation always exposes Teams and exposes Invitations only
 from the current server-projected `canManageInvitations` capability. Account
 navigation always exposes Invitations, and zero-workspace onboarding links to
 the same account invitation review route without depending on an organization.
-Workspace switching preserves both collaboration settings suffixes just like
-the existing workspace/users/roles settings destinations.
+Workspace switching always preserves the Teams suffix. It preserves the
+Invitations suffix only when the selected target organization's compact server
+projection has `canManageInvitations`; otherwise it navigates to the selected
+canonical workspace root. The switcher serializes only that target boolean,
+never derives the decision from the current organization's capability, and does
+not expose the rest of the target capability object.

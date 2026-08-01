@@ -33,8 +33,13 @@ export function isOrganizationSwitchPreservablePath(
 export function resolveOrganizationSwitchHref(
   currentPathname: string | null | undefined,
   organizationKey: string,
+  canManageInvitations: boolean,
 ): Route {
   const suffix = getPreservableSuffix(currentPathname);
+
+  if (suffix === "/settings/invitations" && !canManageInvitations) {
+    return organizationRoutes.workspace(organizationKey);
+  }
 
   if (suffix === undefined) {
     return organizationRoutes.dashboard(organizationKey);
