@@ -137,6 +137,8 @@ const capabilities = {
   canDeleteOrganization: true,
   canAddMembers: true,
   canUpdateMemberRoles: true,
+  canManageTeams: true,
+  canManageInvitations: true,
 };
 const acme = {
   id: "01900000-0000-7000-8000-000000000010",
@@ -440,6 +442,8 @@ it("serializes compact actor, organization, and member views into the users clie
     capabilities: {
       canAddMembers: true,
       canUpdateMemberRoles: true,
+      canManageTeams: true,
+      canManageInvitations: true,
     },
   });
   expect(directory.props.initialPage).toEqual({
@@ -949,6 +953,8 @@ it.each(["add", "role"] as const)(
           ...detail.capabilities,
           canAddMembers: false,
           canUpdateMemberRoles: false,
+          canManageTeams: false,
+          canManageInvitations: false,
         },
       },
       { items: [currentMember, memberA], nextCursor: null },
@@ -1222,6 +1228,8 @@ it("remounts dirty workspace settings when the same slug resolves to a different
       canDeleteOrganization: false,
       canAddMembers: false,
       canUpdateMemberRoles: false,
+      canManageTeams: false,
+      canManageInvitations: false,
     },
   } satisfies OrganizationDetailResponse;
   const firstForm = await loadWorkspaceSettingsForm(detail);

@@ -43,6 +43,8 @@ const capabilities = {
   canDeleteOrganization: true,
   canAddMembers: true,
   canUpdateMemberRoles: true,
+  canManageTeams: true,
+  canManageInvitations: true,
 };
 
 function summary(

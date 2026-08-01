@@ -575,6 +575,8 @@ test.describe.serial("organization full-stack workflows", () => {
         canDeleteOrganization: true,
         canAddMembers: true,
         canUpdateMemberRoles: true,
+        canManageTeams: true,
+        canManageInvitations: true,
       },
     });
     await page.route("**/api/v1/organizations?cursor=*", async (route) => {

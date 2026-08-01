@@ -5,10 +5,16 @@ import { resolve } from "node:path";
 
 import {
   addOrganizationMember,
+  addTeamMember,
+  acceptInvitation,
   challengeExternalAuth,
+  confirmLocalAutomationEmail,
+  createTeam,
   createOrganization,
   createLocalAutomationScenario,
+  createInvitation,
   deleteAccount,
+  deleteTeam,
   deleteOrganization,
   deleteLocalAutomationScenario,
   disconnectAccountProvider,
@@ -20,16 +26,25 @@ import {
   getAuthSession,
   getOrganizationByKey,
   getOrganizationMembers,
+  getOrganizationInvitations,
+  getAccountInvitations,
+  getInvitationDecision,
   getOrganizations,
   getSystemStatus,
+  getTeamMemberCandidates,
+  getTeamMembers,
+  getTeams,
   logout,
   revokeAccountSession,
   revokeOtherAccountSessions,
+  rejectInvitation,
+  removeTeamMember,
   setActiveOrganization,
   signInLocalAutomation,
   updateAccountProfile,
   updateOrganization,
   updateOrganizationMemberRole,
+  updateTeam,
 } from "@/src/lib/api/generated";
 
 describe("generated system status SDK", () => {
@@ -53,6 +68,24 @@ describe("generated system status SDK", () => {
       "GetSystemStatus",
     );
     expect(getSystemStatus).toEqual(expect.any(Function));
+  });
+
+  it("tracks every collaboration and local-confirmation operation", () => {
+    expect(getTeams).toEqual(expect.any(Function));
+    expect(createTeam).toEqual(expect.any(Function));
+    expect(updateTeam).toEqual(expect.any(Function));
+    expect(deleteTeam).toEqual(expect.any(Function));
+    expect(getTeamMembers).toEqual(expect.any(Function));
+    expect(addTeamMember).toEqual(expect.any(Function));
+    expect(removeTeamMember).toEqual(expect.any(Function));
+    expect(getTeamMemberCandidates).toEqual(expect.any(Function));
+    expect(getOrganizationInvitations).toEqual(expect.any(Function));
+    expect(createInvitation).toEqual(expect.any(Function));
+    expect(getAccountInvitations).toEqual(expect.any(Function));
+    expect(getInvitationDecision).toEqual(expect.any(Function));
+    expect(acceptInvitation).toEqual(expect.any(Function));
+    expect(rejectInvitation).toEqual(expect.any(Function));
+    expect(confirmLocalAutomationEmail).toEqual(expect.any(Function));
   });
 
   it("tracks every iteration-3 auth operation", () => {
@@ -104,6 +137,38 @@ describe("generated system status SDK", () => {
       GetOrganizationMembersErrors: [400, 401, 404, 405, 409, 500],
       AddOrganizationMemberErrors: [400, 401, 403, 404, 405, 409, 500],
       UpdateOrganizationMemberRoleErrors: [400, 401, 403, 404, 405, 409, 500],
+    } as const;
+
+    for (const [typeName, statuses] of Object.entries(expected)) {
+      expect(generatedErrorStatuses(generatedTypes, typeName)).toEqual(
+        statuses,
+      );
+    }
+  });
+
+  it("generates exact collaboration and local-confirmation error unions", () => {
+    const generatedTypes = readFileSync(
+      resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
+      "utf8",
+    );
+    const standard = [400, 401, 403, 404, 405, 409, 500];
+    const rateLimited = [400, 401, 403, 404, 405, 409, 429, 500];
+    const expected = {
+      GetTeamsErrors: standard,
+      CreateTeamErrors: standard,
+      UpdateTeamErrors: standard,
+      DeleteTeamErrors: standard,
+      GetTeamMembersErrors: standard,
+      AddTeamMemberErrors: standard,
+      RemoveTeamMemberErrors: standard,
+      GetTeamMemberCandidatesErrors: standard,
+      GetOrganizationInvitationsErrors: standard,
+      CreateInvitationErrors: rateLimited,
+      GetAccountInvitationsErrors: standard,
+      GetInvitationDecisionErrors: standard,
+      AcceptInvitationErrors: rateLimited,
+      RejectInvitationErrors: rateLimited,
+      ConfirmLocalAutomationEmailErrors: [400, 401, 403, 404, 405, 500],
     } as const;
 
     for (const [typeName, statuses] of Object.entries(expected)) {

@@ -68,7 +68,25 @@ internal sealed class ApiContractSchemaTransformer : IOpenApiSchemaTransformer
         "member_already_exists",
         "member_role_unchanged",
         "role_assignment_forbidden",
-        "member_domain_acknowledgement_required"
+        "member_domain_acknowledgement_required",
+        "team_not_found",
+        "team_permission_denied",
+        "team_name_conflict",
+        "team_name_unchanged",
+        "team_member_not_found",
+        "team_member_already_exists",
+        "invitation_not_found",
+        "invitation_permission_denied",
+        "invitation_already_exists",
+        "invitation_recipient_already_member",
+        "invitation_team_invalid",
+        "invitation_domain_restricted",
+        "invitation_recipient_mismatch",
+        "invitation_email_verification_required",
+        "invitation_expired",
+        "invitation_not_pending",
+        "invitation_membership_conflict",
+        "invitation_limit_reached"
     ];
 
     private const string LocalAutomationEmailPattern =

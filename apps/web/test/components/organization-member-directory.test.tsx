@@ -52,6 +52,8 @@ const organization = {
     canDeleteOrganization: true,
     canAddMembers: true,
     canUpdateMemberRoles: true,
+    canManageTeams: true,
+    canManageInvitations: true,
   },
   allowedEmailDomains: ["example.com"],
 } satisfies OrganizationDetailResponse;
