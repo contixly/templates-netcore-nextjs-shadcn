@@ -1,9 +1,11 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 6 — Teams и invitations — implementation scope и
-локальная Task-14 acceptance-проверка завершены по наблюдаемым результатам
-ниже. Automatic review этого head, push и merge не наблюдались и не заявляются.
+**Текущая итерация:** 6 — Teams и invitations — принята для reviewed
+implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: automatic
+review не нашёл major issues, все 11 review threads resolved, PR #7 ready и
+mergeable. Документационный evidence-commit с этой записью ещё должен быть
+отправлен и автоматически проверен; его review result не заявляется заранее.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -201,7 +203,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 **Выход:** пользователь может создать/select organization и управлять членами в пределах разрешений; маршруты `/workspaces` и `/w/[organizationKey]/**` работают через API.
 **Reference:** `template/src/features/organizations`, `template/src/features/workspaces` (organization-related actions and repositories).
 
-### Итерация 6 — Teams и invitations **(implementation scope и локальная Task-14 acceptance завершены; automatic review не наблюдался)**
+### Итерация 6 — Teams и invitations **(reviewed implementation head принят; documentation closure ожидает review)**
 
 **Цель:** восстановить collaboration workflows как отдельный вертикальный срез.
 
@@ -290,7 +292,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                      |
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
-| 6 — teams и invitations                           | Локально принята | Teams/team membership, invitation activity/create/accept/reject, 48-hour security lifecycle, PostgreSQL migration, REST/OpenAPI/generated SDK, settings/account/decision UI and deterministic multi-user E2E implemented. Task-14 local verification completed with the observed evidence below; automatic review, push, and merge remain unobserved. |
+| 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7–12                                                 | Не начаты | API keys and `x-api-key` remain iteration 7, product dashboard iteration 9, Aspire iteration 10, and production proxy/container iterations 11–12; iteration 6 does not pre-implement them. |
 
 ## Acceptance evidence: итерация 1
@@ -2229,8 +2231,10 @@ clean.
 **Scope/status:** the Teams and invitations vertical slice is implemented from
 Domain through PostgreSQL, browser REST/OpenAPI/generated SDK, Next.js settings/
 account/decision UI, and deterministic multi-user E2E. This section records the
-local implementation/acceptance state only. No future push, PR merge, automatic
-review, or review-thread closure is predicted.
+observed accepted implementation/review state through
+`6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`. The documentation-only evidence
+update that records that state still requires push and its own fresh automatic
+review; no result for that future review or PR merge is predicted.
 
 ### Reference → API → UI → test mapping
 
@@ -2697,8 +2701,29 @@ package, or E2E source changed in this round. The round-2 `a3f9f6a` full .NET
 acceptance therefore remains applicable: Application **262/262**, API **601/601**,
 total **863/863**, with no failures or skips. No known cold-compilation,
 hidden-tree selector, or time-budget retry was needed in these final E2E runs.
-This is local evidence only; push, merge, and a new automatic review of the
-round-3 commit remain unobserved and pending.
+At this local round-3 checkpoint, push, merge, and a new automatic review were
+still unobserved; the closure below records the subsequent implementation-head
+review evidence.
+
+### PR #7 implementation-head automatic-review clean closure 2026-08-02
+
+PR #7's automatic reviewer completed a clean review of implementation head
+`6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d` (reviewed commit
+`6f17d7708e`). The bot issue comment has node id
+`IC_kwDOThDXX88AAAABMyxOEA`, database id
+[`5153508880`](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/7#issuecomment-5153508880),
+and creation time `2026-08-01T21:24:58Z`. Its exact leading result line was:
+`Codex Review: Didn't find any major issues. :tada:`
+
+The GraphQL review-thread snapshot observed all **11/11 threads resolved** and
+**0 unresolved**. At the same observation PR #7 was ready rather than draft and
+mergeable. These facts complete automatic-review acceptance for the exact
+implementation head above; they do not describe or predict a different commit.
+
+This documentation-only evidence update records that already observed state.
+Its commit will be pushed and automatically reviewed next, so this section does
+not claim that the documentation commit itself has been reviewed, remains clean,
+or has any future review result.
 
 ## 9. Правило обновления этого документа
 
