@@ -109,16 +109,18 @@ class OrganizationScenario {
     return scenario;
   }
 
-  organizationCreated(scenario: TrackedLocalAutomationScenario, count = 1) {
-    for (let index = 0; index < count; index += 1) {
-      this.#registry.organizationCreated(scenario.teardown);
-    }
+  organizationCreated(
+    scenario: TrackedLocalAutomationScenario,
+    organizationId?: string,
+  ) {
+    this.#registry.organizationCreated(scenario.teardown, organizationId);
   }
 
-  organizationDeleted(scenario: TrackedLocalAutomationScenario, count = 1) {
-    for (let index = 0; index < count; index += 1) {
-      this.#registry.organizationDeleted(scenario.teardown);
-    }
+  organizationDeleted(
+    scenario: TrackedLocalAutomationScenario,
+    organizationId?: string,
+  ) {
+    this.#registry.organizationDeleted(scenario.teardown, organizationId);
   }
 
   async createOrganization(
@@ -127,7 +129,7 @@ class OrganizationScenario {
     name: string,
   ): Promise<OrganizationDetailResponse> {
     const organization = await createGeneratedOrganization(request, name);
-    this.organizationCreated(scenario);
+    this.organizationCreated(scenario, organization.id);
     return organization;
   }
 
@@ -140,7 +142,7 @@ class OrganizationScenario {
       request,
       organization,
     );
-    this.organizationDeleted(scenario);
+    this.organizationDeleted(scenario, organization.id);
     return organizationId;
   }
 }

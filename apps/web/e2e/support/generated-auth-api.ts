@@ -3,6 +3,7 @@ import type { APIRequestContext } from "@playwright/test";
 import {
   createLocalAutomationScenario,
   deleteLocalAutomationScenario,
+  confirmLocalAutomationEmail,
   getAccount,
   getAccountSessions,
   getAuthCsrf,
@@ -40,7 +41,9 @@ async function sharedCookieHeader(
     : undefined;
 }
 
-function createPlaywrightFetch(request: APIRequestContext): typeof fetch {
+export function createPlaywrightFetch(
+  request: APIRequestContext,
+): typeof fetch {
   return async (input, init) => {
     const source = input instanceof Request ? input : new Request(input, init);
     const url = new URL(source.url);
@@ -149,6 +152,22 @@ export async function cleanupLocalAutomationUser(request: APIRequestContext) {
   if (!result.data) {
     throw new Error(
       `Local cleanup failed with ${result.response?.status ?? 0}.`,
+    );
+  }
+  return result.data.data;
+}
+
+export async function confirmGeneratedLocalAutomationEmail(
+  request: APIRequestContext,
+) {
+  const client = clientFor(request);
+  const result = await confirmLocalAutomationEmail({
+    client,
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!result.data) {
+    throw new Error(
+      `Local email confirmation failed with ${result.response?.status ?? 0}.`,
     );
   }
   return result.data.data;

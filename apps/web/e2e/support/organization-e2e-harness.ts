@@ -10,6 +10,7 @@ type TeardownAction = Readonly<{
 export type TrackedLocalUser = {
   expectedDeletedOrganizations: number;
   readonly label: string;
+  readonly organizationIds: Set<string>;
 };
 
 export class LocalAutomationScenarioCreationError extends Error {
@@ -105,6 +106,7 @@ export class OrganizationTeardownRegistry {
     const tracked: TrackedLocalUser = {
       expectedDeletedOrganizations: 0,
       label,
+      organizationIds: new Set(),
     };
     this.#actions.push({
       label,
@@ -128,11 +130,26 @@ export class OrganizationTeardownRegistry {
     this.#createdUsers.add(user);
   }
 
-  organizationCreated(user: TrackedLocalUser) {
+  organizationCreated(user: TrackedLocalUser, organizationId?: string) {
+    if (organizationId) {
+      if (user.organizationIds.has(organizationId)) {
+        throw new Error(
+          `${user.label} organization ${organizationId} was already accounted as created`,
+        );
+      }
+      user.organizationIds.add(organizationId);
+    }
     user.expectedDeletedOrganizations += 1;
   }
 
-  organizationDeleted(user: TrackedLocalUser) {
+  organizationDeleted(user: TrackedLocalUser, organizationId?: string) {
+    if (organizationId) {
+      if (!user.organizationIds.delete(organizationId)) {
+        throw new Error(
+          `${user.label} organization ${organizationId} was not accounted as created`,
+        );
+      }
+    }
     user.expectedDeletedOrganizations -= 1;
   }
 

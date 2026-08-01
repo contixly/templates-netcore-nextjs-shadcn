@@ -76,6 +76,8 @@ export default defineConfig({
         ASPNETCORE_URLS: apiOrigin,
         ...externalAuthenticationEnvironment(),
         LocalAutomationAuth__Enabled: "true",
+        LocalAutomationAuth__CreateRateLimitPerMinute: "200",
+        LocalAutomationAuth__SignInRateLimitPerFiveMinutes: "200",
       },
       reuseExistingServer: false,
       timeout: 180_000,
