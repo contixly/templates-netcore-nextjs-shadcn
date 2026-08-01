@@ -87,8 +87,10 @@
       "title": "Invitations",
       "description": "Review invitations sent to your verified email addresses.",
       "loading": "Loading invitations",
+      "listLabel": "Pending invitations",
       "emptyTitle": "No pending invitations",
-      "emptyDescription": "There are no invitations waiting for your response."
+      "emptyDescription": "There are no invitations waiting for your response.",
+      "partialFailure": "Some invitations could not be loaded. The invitations already shown are still available."
     },
     "activity": {
       "label": "Invitation activity",
@@ -102,15 +104,22 @@
       "title": "Invite a workspace member",
       "description": "Choose a role and optionally add the recipient to a team after acceptance.",
       "email": "Email address",
+      "emailHint": "Enter a valid email address of at most 254 characters.",
+      "emailInvalid": "Enter a valid email address.",
       "role": "Workspace role",
       "team": "Team",
       "noTeam": "No team",
+      "teamHint": "Leave this empty for a workspace-only invitation.",
+      "noTeamsAvailable": "No teams are available; this invitation will be workspace-only.",
       "submit": "Create invitation",
       "submitting": "Creating invitation",
       "cancel": "Cancel",
+      "close": "Close",
       "created": "Invitation created.",
+      "link": "Invitation link",
       "copy": "Copy invitation link",
-      "copied": "Invitation link copied."
+      "copied": "Invitation link copied.",
+      "copyFailure": "The invitation link could not be copied. Copy it manually."
     },
     "filters": {
       "status": "Status",
@@ -158,7 +167,24 @@
       "accepting": "Accepting invitation",
       "reject": "Reject invitation",
       "rejecting": "Rejecting invitation",
-      "openWorkspace": "Open workspace"
+      "openWorkspace": "Open workspace",
+      "viewInvitations": "View invitations",
+      "retry": "Retry",
+      "refreshing": "Refreshing invitation"
+    },
+    "details": {
+      "workspace": "Workspace",
+      "email": "Invited email",
+      "role": "Role",
+      "team": "Team",
+      "noTeam": "Workspace only",
+      "inviter": "Invited by",
+      "expires": "Expires"
+    },
+    "localConfirmation": {
+      "warning": "This email confirmation is available in development and test environments only.",
+      "confirm": "Confirm email for local testing",
+      "confirming": "Confirming email"
     },
     "success": {
       "accepted": "Invitation accepted.",

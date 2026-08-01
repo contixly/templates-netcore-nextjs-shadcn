@@ -6,6 +6,7 @@ import { OrganizationOnboarding } from "@/src/components/organizations/organizat
 import { applicationRoutes } from "@/src/features/application/application-routes";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
+import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
 
 export default async function WelcomePage() {
@@ -46,5 +47,10 @@ export default async function WelcomePage() {
     redirect(applicationRoutes.dashboard);
   }
 
-  return <OrganizationOnboarding />;
+  const invitations = await loadAccountInvitations({ limit: 20 });
+  return (
+    <OrganizationOnboarding
+      initialInvitations={invitations.ok ? invitations.data : undefined}
+    />
+  );
 }

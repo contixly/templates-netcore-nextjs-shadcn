@@ -1,0 +1,381 @@
+import { fireEvent, render, screen } from "@testing-library/react";
+import { isValidElement, type ReactElement, type ReactNode } from "react";
+
+import InviteSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/invite/[invitationId]/page";
+import AccountInvitationsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/user/invitations/page";
+import SettingsInvitationsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/invitations/page";
+import InvitePage from "@/src/app/(site)/invite/[invitationId]/page";
+import AccountInvitationsPage from "@/src/app/(site)/user/invitations/page";
+import SettingsInvitationsPage from "@/src/app/(site)/w/[organizationKey]/settings/invitations/page";
+import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
+import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
+import { InvitationDecision } from "@/src/components/collaboration/invitation-decision";
+import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
+import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
+import { getAccountInvitations } from "@/src/lib/api/generated/sdk.gen";
+import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
+import { loadInvitationDecision } from "@/src/lib/api/collaboration/server/load-invitation-decision";
+import { loadOrganizationInvitations } from "@/src/lib/api/collaboration/server/load-organization-invitations";
+import { loadTeams } from "@/src/lib/api/collaboration/server/load-teams";
+import type {
+  InvitationDecisionResponse,
+  InvitationResponse,
+  OrganizationDetailResponse,
+} from "@/src/lib/api/generated/types.gen";
+import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
+import { withMessages } from "@/test/support/render";
+
+jest.mock("next/server", () => ({ connection: jest.fn() }));
+jest.mock("next/navigation", () => ({
+  forbidden: jest.fn(() => {
+    throw new Error("NEXT_FORBIDDEN");
+  }),
+  redirect: jest.fn((href: string) => {
+    throw new Error(`NEXT_REDIRECT:${href}`);
+  }),
+  useRouter: () => ({ refresh: jest.fn(), replace: jest.fn() }),
+}));
+jest.mock("next-intl/server", () => ({
+  getTranslations: async () => (key: string) =>
+    ({
+      title: "Invitations",
+      description: "Invitation description",
+    })[key] ?? key,
+}));
+jest.mock("@/src/lib/api/auth/server/load-server-auth-state", () => ({
+  loadServerAuthState: jest.fn(),
+}));
+jest.mock("@/src/features/authentication/load-protected-session", () => ({
+  loadProtectedSession: jest.fn(),
+}));
+jest.mock("@/src/lib/api/browser/client", () => ({
+  createBrowserApiClient: () => ({ id: "browser-client" }),
+}));
+jest.mock("@/src/lib/api/generated/sdk.gen", () => ({
+  getAccountInvitations: jest.fn(),
+}));
+jest.mock("@/src/lib/api/auth/server/load-server-auth-session", () => ({
+  loadServerAuthSession: jest.fn(),
+}));
+jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
+  loadOrganization: jest.fn(),
+}));
+jest.mock("@/src/lib/api/collaboration/server/load-teams", () => ({
+  loadTeams: jest.fn(),
+}));
+jest.mock(
+  "@/src/lib/api/collaboration/server/load-organization-invitations",
+  () => ({ loadOrganizationInvitations: jest.fn() }),
+);
+jest.mock(
+  "@/src/lib/api/collaboration/server/load-account-invitations",
+  () => ({ loadAccountInvitations: jest.fn() }),
+);
+jest.mock(
+  "@/src/lib/api/collaboration/server/load-invitation-decision",
+  () => ({ loadInvitationDecision: jest.fn() }),
+);
+jest.mock(
+  "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/workspace-organization-switcher",
+  () => ({
+    WorkspaceOrganizationSwitcherSlot: () => <span>workspace switcher</span>,
+  }),
+);
+
+const organization: OrganizationDetailResponse = {
+  id: "org-1",
+  name: "Acme",
+  slug: "acme",
+  canonicalKey: "acme",
+  createdAt: "2026-08-01T00:00:00Z",
+  updatedAt: "2026-08-01T00:00:00Z",
+  currentRole: "owner",
+  capabilities: {
+    canUpdateOrganization: true,
+    canDeleteOrganization: true,
+    canAddMembers: true,
+    canUpdateMemberRoles: true,
+    canManageTeams: true,
+    canManageInvitations: true,
+  },
+  allowedEmailDomains: [],
+};
+
+const invitation: InvitationResponse = {
+  id: "01900000-0000-7000-8000-000000000101",
+  organizationId: organization.id,
+  organizationName: organization.name,
+  canonicalOrganizationKey: organization.canonicalKey,
+  teamId: null,
+  teamName: null,
+  email: "invitee@example.test",
+  role: "member",
+  status: "pending",
+  displayState: "pending",
+  expiresAt: "2026-08-03T12:00:00Z",
+  createdAt: "2026-08-01T12:00:00Z",
+  inviterId: "user-1",
+  inviterName: "Owner",
+  invitationPath: "/invite/01900000-0000-7000-8000-000000000101",
+};
+
+const decision: InvitationDecisionResponse = {
+  invitation,
+  state: "pending",
+  canRespond: true,
+};
+
+function findElementByType(
+  node: ReactNode,
+  type: ReactElement["type"],
+): ReactElement | null {
+  if (!isValidElement(node)) return null;
+  if (node.type === type) return node;
+  const children = (node.props as { children?: ReactNode }).children;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    const found = findElementByType(child, type);
+    if (found) return found;
+  }
+  return null;
+}
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.mocked(loadProtectedSession).mockResolvedValue({
+    ok: true,
+    data: {
+      authenticated: true,
+      user: {
+        id: "user-1",
+        name: "Owner",
+        email: "owner@example.test",
+        emailVerified: true,
+        image: null,
+      },
+      session: {
+        id: "session-owner",
+        createdAt: "2026-08-01T00:00:00Z",
+        updatedAt: "2026-08-01T00:00:00Z",
+        expiresAt: "2026-08-02T00:00:00Z",
+        activeOrganizationId: organization.id,
+      },
+    },
+  });
+  jest
+    .mocked(loadOrganization)
+    .mockResolvedValue({ ok: true, data: organization });
+  jest.mocked(loadOrganizationInvitations).mockResolvedValue({
+    ok: true,
+    data: { items: [invitation], nextCursor: "activity-next" },
+  });
+  jest.mocked(loadTeams).mockResolvedValue({
+    ok: true,
+    data: { items: [], nextCursor: null },
+  });
+  jest.mocked(loadAccountInvitations).mockResolvedValue({
+    ok: true,
+    data: { items: [invitation], nextCursor: null },
+  });
+  jest
+    .mocked(loadInvitationDecision)
+    .mockResolvedValue({ ok: true, data: decision });
+  jest.mocked(loadServerAuthState).mockResolvedValue({
+    ok: true,
+    data: {
+      capabilities: { localAutomationEnabled: false, providers: [] },
+      session: {
+        authenticated: true,
+        user: {
+          id: "user-2",
+          name: "Invitee",
+          email: invitation.email,
+          emailVerified: true,
+          image: null,
+        },
+        session: {
+          id: "session-1",
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+          expiresAt: "2026-08-02T00:00:00Z",
+          activeOrganizationId: null,
+        },
+      },
+    },
+  });
+});
+
+it("forbids an ordinary member without loading or disclosing invitation activity", async () => {
+  jest.mocked(loadOrganization).mockResolvedValue({
+    ok: true,
+    data: {
+      ...organization,
+      canonicalKey: "private-canonical-key",
+      currentRole: "member",
+      capabilities: {
+        ...organization.capabilities,
+        canManageInvitations: false,
+      },
+    },
+  });
+
+  await expect(
+    SettingsInvitationsPage({
+      params: Promise.resolve({ organizationKey: "opaque-alias" }),
+    }),
+  ).rejects.toThrow("NEXT_FORBIDDEN");
+  expect(loadOrganizationInvitations).not.toHaveBeenCalled();
+  expect(loadTeams).not.toHaveBeenCalled();
+  expect(jest.requireMock("next/navigation").redirect).not.toHaveBeenCalled();
+});
+
+it("canonicalizes an authorized settings route before loading activity", async () => {
+  jest.mocked(loadOrganization).mockResolvedValue({
+    ok: true,
+    data: { ...organization, canonicalKey: "canonical-acme" },
+  });
+  await expect(
+    SettingsInvitationsPage({
+      params: Promise.resolve({ organizationKey: organization.id }),
+    }),
+  ).rejects.toThrow("NEXT_REDIRECT:/w/canonical-acme/settings/invitations");
+  expect(loadOrganizationInvitations).not.toHaveBeenCalled();
+});
+
+it("loads authorized activity and team choices through the REST loaders", async () => {
+  const page = await SettingsInvitationsPage({
+    params: Promise.resolve({ organizationKey: organization.canonicalKey }),
+  });
+  const activity = findElementByType(page, InvitationActivity);
+
+  expect(loadOrganizationInvitations).toHaveBeenCalledWith(organization.id, {
+    limit: 20,
+  });
+  expect(loadTeams).toHaveBeenCalledWith(organization.id, { limit: 100 });
+  expect(activity?.key).toBe(organization.id);
+  expect((activity?.props as { organization: unknown }).organization).toEqual({
+    id: organization.id,
+    currentRole: "owner",
+  });
+});
+
+it("uses only the account invitation loader and exposes the paged account list", async () => {
+  const page = await AccountInvitationsPage();
+  const list = findElementByType(page, AccountInvitationList);
+  expect(loadAccountInvitations).toHaveBeenCalledWith({ limit: 20 });
+  expect(loadOrganization).not.toHaveBeenCalled();
+  expect((list?.props as { initialPage: unknown }).initialPage).toEqual({
+    items: [invitation],
+    nextCursor: null,
+  });
+});
+
+it("renders the account empty state returned by the account-only endpoint", async () => {
+  jest.mocked(loadAccountInvitations).mockResolvedValue({
+    ok: true,
+    data: { items: [], nextCursor: null },
+  });
+  render(withMessages(await AccountInvitationsPage()));
+  expect(screen.getByText("No pending invitations")).toBeVisible();
+  expect(
+    screen.queryByRole("link", { name: "Review invitation" }),
+  ).not.toBeInTheDocument();
+});
+
+it("pages account invitations through the generated account operation", async () => {
+  jest.mocked(getAccountInvitations).mockResolvedValue({
+    data: {
+      data: {
+        items: [
+          {
+            ...invitation,
+            id: "invite-2",
+            organizationName: "Second workspace",
+          },
+        ],
+        nextCursor: null,
+      },
+    },
+  } as Awaited<ReturnType<typeof getAccountInvitations>>);
+  render(
+    withMessages(
+      <AccountInvitationList
+        initialPage={{ items: [invitation], nextCursor: "account-next" }}
+      />,
+    ),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Load more invitations" }),
+  );
+  expect(await screen.findByText("Second workspace")).toBeVisible();
+  expect(getAccountInvitations).toHaveBeenCalledWith(
+    expect.objectContaining({
+      query: { cursor: "account-next", limit: 20 },
+    }),
+  );
+});
+
+it("loads a protected decision and passes verification and local API capability gates", async () => {
+  jest.mocked(loadServerAuthState).mockResolvedValue({
+    ok: true,
+    data: {
+      capabilities: { localAutomationEnabled: true, providers: [] },
+      session: {
+        authenticated: true,
+        user: {
+          id: "user-2",
+          name: "Invitee",
+          email: invitation.email,
+          emailVerified: false,
+          image: null,
+        },
+        session: {
+          id: "session-1",
+          createdAt: "2026-08-01T00:00:00Z",
+          updatedAt: "2026-08-01T00:00:00Z",
+          expiresAt: "2026-08-02T00:00:00Z",
+          activeOrganizationId: null,
+        },
+      },
+    },
+  });
+  const page = await InvitePage({
+    params: Promise.resolve({ invitationId: invitation.id }),
+  });
+  const component = findElementByType(page, InvitationDecision);
+  expect(loadInvitationDecision).toHaveBeenCalledWith(invitation.id);
+  expect(component?.key).toBe(invitation.id);
+  expect(component?.props).toMatchObject({
+    decision,
+    emailVerified: false,
+    localEmailConfirmationAvailable: true,
+  });
+});
+
+it("redirects an anonymous invitation visitor back to the exact encoded route", async () => {
+  jest.mocked(loadServerAuthState).mockResolvedValue({
+    ok: true,
+    data: {
+      capabilities: { localAutomationEnabled: false, providers: [] },
+      session: { authenticated: false, user: null, session: null },
+    },
+  });
+  await expect(
+    InvitePage({ params: Promise.resolve({ invitationId: "invite/id" }) }),
+  ).rejects.toThrow(
+    "NEXT_REDIRECT:/auth/login?redirect=%2Finvite%2Finvite%252Fid",
+  );
+  expect(loadInvitationDecision).not.toHaveBeenCalled();
+});
+
+it("provides empty switcher slots for both account and decision routes and a workspace slot for settings", () => {
+  const accountSlot = AccountInvitationsSwitcherSlot();
+  const inviteSlot = InviteSwitcherSlot();
+  expect(accountSlot).toBeNull();
+  expect(inviteSlot).toBeNull();
+  render(
+    <SettingsInvitationsSwitcherSlot
+      params={Promise.resolve({ organizationKey: "acme" })}
+    />,
+  );
+  expect(screen.getByText("workspace switcher")).toBeVisible();
+});

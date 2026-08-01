@@ -10,7 +10,9 @@ import WorkspacesError from "@/src/app/(site)/workspaces/error";
 import WorkspacesLoading from "@/src/app/(site)/workspaces/loading";
 import WorkspacesPage from "@/src/app/(site)/workspaces/page";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
+import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
 import type {
+  InvitationResponse,
   OrganizationDetailResponse,
   OrganizationSummaryResponse,
 } from "@/src/lib/api/generated/types.gen";
@@ -51,6 +53,10 @@ jest.mock("next-intl/server", () => ({
 jest.mock("@/src/lib/api/auth/server/load-server-auth-session", () => ({
   loadServerAuthSession: jest.fn(),
 }));
+jest.mock(
+  "@/src/lib/api/collaboration/server/load-account-invitations",
+  () => ({ loadAccountInvitations: jest.fn() }),
+);
 jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
   loadOrganization: jest.fn(),
 }));
@@ -69,6 +75,7 @@ const forbidden = jest.mocked(jest.requireMock("next/navigation").forbidden);
 const loadSession = jest.mocked(loadServerAuthSession);
 const loadDetail = jest.mocked(loadOrganization);
 const loadList = jest.mocked(loadOrganizations);
+const loadInvitations = jest.mocked(loadAccountInvitations);
 
 const capabilities = {
   canUpdateOrganization: true,
@@ -92,6 +99,23 @@ const acmeDetail = {
   ...acme,
   allowedEmailDomains: [],
 } satisfies OrganizationDetailResponse;
+const invitation = {
+  id: "01900000-0000-7000-8000-000000000101",
+  organizationId: acme.id,
+  organizationName: acme.name,
+  canonicalOrganizationKey: acme.canonicalKey,
+  teamId: null,
+  teamName: null,
+  email: "user@example.test",
+  role: "member",
+  status: "pending",
+  displayState: "pending",
+  expiresAt: "2026-08-03T12:00:00Z",
+  createdAt: "2026-08-01T12:00:00Z",
+  inviterId: "owner-id",
+  inviterName: "Owner",
+  invitationPath: "/invite/01900000-0000-7000-8000-000000000101",
+} satisfies InvitationResponse;
 
 function authenticated(activeOrganizationId: string | null) {
   loadSession.mockResolvedValue({
@@ -131,6 +155,10 @@ beforeEach(() => {
     data: { items: [acme], nextCursor: null },
   });
   loadDetail.mockResolvedValue({ ok: true, data: acmeDetail });
+  loadInvitations.mockResolvedValue({
+    ok: true,
+    data: { items: [], nextCursor: null },
+  });
 });
 
 it("redirects existing-organization welcome through the dashboard", async () => {
@@ -184,6 +212,24 @@ it("renders zero-organization onboarding on welcome", async () => {
   expect(
     screen.getByRole("heading", { name: "Create your first workspace" }),
   ).toBeVisible();
+});
+
+it("reuses the paged account invitation list in zero-workspace onboarding", async () => {
+  loadList.mockResolvedValue({
+    ok: true,
+    data: { items: [], nextCursor: null },
+  });
+  loadInvitations.mockResolvedValue({
+    ok: true,
+    data: { items: [invitation], nextCursor: null },
+  });
+
+  renderWithMessages(await WelcomePage());
+  expect(loadInvitations).toHaveBeenCalledWith({ limit: 20 });
+  expect(screen.getByText("Acme")).toBeVisible();
+  expect(
+    screen.getByRole("link", { name: "Review invitation" }),
+  ).toHaveAttribute("href", `/invite/${invitation.id}`);
 });
 
 it("routes zero-organization dashboard to welcome", async () => {
