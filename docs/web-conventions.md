@@ -441,38 +441,137 @@ code to localized guidance to promote another owner or share ownership before
 retrying. A safe trace id remains visible when supplied; the API result remains
 authoritative.
 
-## Collaboration REST adapters (iteration 6)
+## Collaboration UI (iteration 6)
 
-Collaboration route values are centralized and encode each dynamic segment:
-`/w/{key}/settings/teams`, `/w/{key}/settings/invitations`,
-`/user/invitations`, and `/invite/{id}`. Page rendering, canonical workspace
-redirects, protected not-found/forbidden behavior, and interactive controls are
-owned by the later collaboration UI slices; the adapter slice does not add
-placeholder pages or Next Route Handlers.
+Collaboration route values are centralized and percent-encode every dynamic
+segment:
 
-Team and invitation Server Component loaders use only generated SDK operations
-through `createServerApiClient`. They copy only the request cookie and
-correlation id through the shared forwarding allow-list, set
-`X-Template-Session-Renewal: suppress`, remain `no-store`, and return safe
-`ApiResult<T>` values. They never forward `Authorization` or arbitrary incoming
-headers.
+- `/w/{organizationKey}/settings/teams`;
+- `/w/{organizationKey}/settings/invitations`;
+- `/user/invitations`;
+- `/invite/{invitationId}`.
 
-Browser collaboration writes use the relative same-origin generated client and
-the shared `runCsrfMutation` boundary. Each create/update/delete/add/remove or
-accept/reject operation obtains a fresh CSRF value before invoking the generated
-operation; generated metadata owns method, JSON content type, request shape,
-path serialization, and response envelope decoding. Adapters expose only stable
-normalized failure codes and safe trace ids. No proxy action, handwritten DTO,
-raw `fetch`, bearer storage, Server Action, Prisma, or Better Auth path exists.
+There are no Next Route Handlers, Server Actions, Prisma/Better Auth paths,
+handwritten transport DTOs, raw collaboration `fetch` calls, bearer storage, or
+direct database access. All server reads and browser mutations use the committed
+generated REST SDK.
 
-Workspace settings navigation always exposes Teams and exposes Invitations only
-from the current server-projected `canManageInvitations` capability. Account
-navigation always exposes Invitations, and zero-workspace onboarding links to
-the same account invitation review route without depending on an organization.
-Workspace switching always preserves the Teams suffix. It preserves the
-Invitations suffix only when the selected target organization's compact server
-projection has `canManageInvitations`; otherwise it navigates to the selected
-canonical workspace dashboard directly, without an intermediate workspace-root
-redirect. The switcher serializes only that target boolean, never derives the
-decision from the current organization's capability, and does not expose the
-rest of the target capability object.
+### Loading and navigation
+
+Team/member/candidate, organization/account invitation, and invitation-decision
+Server Component loaders call generated operations through
+`createServerApiClient`. They forward only the allow-listed cookie and
+correlation id, set `X-Template-Session-Renewal: suppress`, use `no-store`, and
+return normalized `ApiResult<T>` values. They never forward `Authorization` or
+arbitrary incoming headers. The shared protected client boundary performs the
+visible browser renewal instead.
+
+Workspace settings always exposes Teams. Invitations is exposed only when the
+current server projection says `canManageInvitations`; account navigation always
+exposes Invitations, and zero-workspace onboarding offers Review Invitations
+without making account routes organization-dependent. The workspace switcher
+preserves the Teams suffix. It preserves the Invitations suffix only when the
+target organization's compact server projection grants
+`canManageInvitations`; otherwise it routes directly to that target's canonical
+dashboard, without an intermediate private settings redirect.
+
+Both settings pages resolve session and organization detail before feature data.
+A successfully resolved noncanonical key redirects to the returned canonical
+slug. The invitation settings page applies `canManageInvitations` before
+canonical redirect or activity/team reads, so a denied member receives the
+existing protected forbidden page without private canonical-key or activity
+disclosure. Team settings is readable by every organization member.
+
+### Teams settings
+
+`/w/{organizationKey}/settings/teams` server-loads the first team page with a
+limit of 20 and keys its client directory by immutable organization ID. Each
+team renders the API's embedded first member page; dedicated generated member
+reads continue from its cursor. Members see team names, counts, roles, and
+composition plus a read-only notice. Administrators and owners additionally see
+create, rename, confirmed delete, candidate search/page/add, and remove
+controls. No active-team state, control, or copy exists.
+
+Team continuation appends without discarding confirmed pages and retries the
+same opaque cursor after a safe read failure. Member continuation starts from
+each embedded page and uses limit 50. Candidate search trims/caps the query at
+100 characters, requests 20 at a time, preserves the query through continuation,
+and invalidates stale/in-flight results when the dialog closes or the search
+changes. Duplicate IDs are reconciled by immutable identity.
+
+Mutation responses become local authority before a recovery read. Create,
+rename, delete, add, and remove remain visibly committed when a subsequent
+refresh fails; Retry performs only a generated GET and never resends the
+mutation. React Activity/different-resource guards prevent a hidden, unmounted,
+or replaced component's late completion from updating state or navigating.
+Named regions/dialogs, explicit labels/descriptions, bounded fields, disabled
+pending states, focus behavior, and team/person-specific accessible names are
+part of the component contract.
+
+### Invitation activity and creation
+
+`/w/{organizationKey}/settings/invitations` server-loads invitation activity at
+limit 20 and the team selector at limit 100. Admin/owner users can filter by
+pending, accepted, rejected, canceled, or expired, load opaque-cursor
+continuations, and create workspace-only or team-targeted invitations. Admins
+may assign member/admin; owners may also assign owner. A new filter is a
+transactional first-page replacement: it clears prior-filter items/cursor,
+retains the requested filter on failure for GET-only Retry, and ignores stale
+overlapping responses. A continuation failure preserves visible activity.
+
+The browser validates the email and selected generated team locally, but the API
+remains authoritative for domain, duplicate, membership, permission, and role
+rules. A successful `InvitationResponse` is committed even if refresh,
+clipboard, or link projection fails; the form cannot repeat the POST. Every
+success says that no email was sent and requires manual sharing. Exact
+`notification_failed` adds one fixed warning; unknown warning/provider detail is
+ignored.
+
+The browser resolves `invitationPath` against `window.location.origin` and shows
+or copies it only when it is credential-free, query/hash-free, same-origin, and
+exactly the encoded `/invite/{invitationId}` path for the returned ID. An unsafe
+path is never shown/copied, but the committed invitation remains visible with
+manual recovery guidance. Clipboard errors are mapped to fixed localized copy
+and neither links nor clipboard/provider text enter logs or browser storage.
+
+### Account list and invitation decisions
+
+`/user/invitations` loads only the account invitation collection (limit 20), not
+organization detail. It shows unexpired pending invitations for the current
+primary email and inaccessible organizations, with workspace/team/role/expiry,
+exact decision links, pagination, an empty state, and safe partial-failure
+recovery. Zero-workspace `/welcome` reuses that collection while suppressing its
+empty card; a supplemental invitation read failure never blocks onboarding.
+
+`/invite/{invitationId}` maps the server/typed failure state as follows:
+
+| State | UI behavior |
+| --- | --- |
+| `pending` | show details; accept/reject only when verified and `canRespond` |
+| `accepted`, `rejected`, `canceled`, `expired` | terminal read-only state |
+| `recipient-mismatch` | generic forbidden copy; purge/hide all invitation details |
+| `email-verification-required` | verification guidance; local confirmation only when the server advertises local automation |
+| `domain-restricted` | read-only policy state |
+| `already-member` | read-only state plus canonical workspace link |
+
+Anonymous decision access returns to login with the exact encoded invitation
+path. Accept commits an accepted/non-actionable local projection before routing
+to the encoded canonical organization dashboard. If navigation throws or is
+delayed, it never repeats POST. Reject commits rejected locally, then performs a
+GET reconciliation; failed or still-actionable reconciliation remains
+non-actionable and Retry is GET-only. `invitation_not_pending` similarly disables
+mutations before reconciliation. A recipient-mismatch response or failure
+immediately purges all prior workspace/email/team/inviter details and makes late
+mutation completions inert.
+
+Every browser collaboration mutation obtains a fresh CSRF value through
+`runCsrfMutation` before the generated operation. Local email confirmation uses
+the generated `confirmLocalAutomationEmail` operation, only in the advertised
+unverified local-automation state, and reloads eligibility after the renewed
+session response. E2E never mutates email verification directly in PostgreSQL.
+
+All known stable collaboration codes map to fixed shape-identical en/ru catalog
+copy. Unknown, network, thrown, and malformed-success cases use generic safe
+copy. Components may inspect only normalized `kind`, `code`, `status`, and safe
+`traceId`; raw Problem Details `detail`, exception messages, clipboard errors,
+email/link text, and notifier/provider detail are never rendered.

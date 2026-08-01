@@ -562,3 +562,161 @@ The `organizations` schema contains `organizations`, `members`, and
 indexed, and an FK to `organizations.organizations` with `SET NULL`. The active
 preference is persistent session state, outside the protected ticket, and is
 preserved across ticket renewal.
+
+## Teams and invitations (iteration 6)
+
+Iteration 6 adds 15 browser-session operations: eight team operations, six
+invitation operations, and one explicitly local-only email-confirmation
+operation. These are browser REST endpoints even though they use the versioned
+`/api/v1` prefix; API-key authentication and the machine-facing public surface
+remain iteration 7.
+
+All collaboration operations require `Api.BrowserSession` and return
+`Cache-Control: no-store`. Every unsafe method requires the normal antiforgery
+cookie plus `X-CSRF-TOKEN`; `DELETE` team operations and invitation decision
+`POST`s require an empty body. JSON bodies are strict and reject unknown
+members. Successes retain the `{ "data": ... }` envelope and failures retain
+RFC Problem Details with a stable `code` and safe `traceId`.
+
+### REST surface
+
+| Method | Route | Success |
+| --- | --- | --- |
+| `GET` | `/api/v1/organizations/{organizationId}/teams?cursor=&limit=` | `200 TeamPageResponse` |
+| `POST` | `/api/v1/organizations/{organizationId}/teams` | `201 TeamResponse` |
+| `PATCH` | `/api/v1/organizations/{organizationId}/teams/{teamId}` | `200 TeamResponse` |
+| `DELETE` | `/api/v1/organizations/{organizationId}/teams/{teamId}` | `200 TeamDeletionResponse` |
+| `GET` | `/api/v1/organizations/{organizationId}/teams/{teamId}/members?cursor=&limit=` | `200 TeamMemberPageResponse` |
+| `POST` | `/api/v1/organizations/{organizationId}/teams/{teamId}/members` | `201 TeamMemberResponse` |
+| `DELETE` | `/api/v1/organizations/{organizationId}/teams/{teamId}/members/{userId}` | `200 TeamMemberRemovalResponse` |
+| `GET` | `/api/v1/organizations/{organizationId}/teams/{teamId}/member-candidates?q=&cursor=&limit=` | `200 TeamCandidatePageResponse` |
+| `GET` | `/api/v1/organizations/{organizationId}/invitations?status=&cursor=&limit=` | `200 OrganizationInvitationPageResponse` |
+| `POST` | `/api/v1/organizations/{organizationId}/invitations` | `201 InvitationResponse` |
+| `GET` | `/api/v1/account/invitations?cursor=&limit=` | `200 AccountInvitationPageResponse` |
+| `GET` | `/api/v1/invitations/{invitationId}` | `200 InvitationDecisionResponse` |
+| `POST` | `/api/v1/invitations/{invitationId}/accept` | `200 AcceptedInvitationResponse` |
+| `POST` | `/api/v1/invitations/{invitationId}/reject` | `200 InvitationDecisionResponse` |
+| `POST` | `/api/local-auth/confirm-email` | `200 AuthSessionResponse`; Development/Test local automation only |
+
+Team create/update accepts only `{ name }`; member add accepts only `{ userId
+}`. Invitation create accepts `{ email, role, teamId? }`, where null or omission
+means workspace-only. The returned `invitationPath` is the relative
+`/invite/{invitationId}` path. The API never embeds a deployment-specific UI
+origin. The existing organization-member role `PATCH` remains the only way to
+change an existing member's organization role; team membership grants no role.
+
+### Permissions and non-disclosure
+
+| Capability | `member` | `admin` | `owner` |
+| --- | ---: | ---: | ---: |
+| Read teams and composition | yes | yes | yes |
+| Create, rename, or delete teams | no | yes | yes |
+| Search candidates and add/remove team members | no | yes | yes |
+| Read organization invitation activity | no | yes | yes |
+| Invite as `member` or `admin` | no | yes | yes |
+| Invite as `owner` | no | no | yes |
+| Read/accept/reject own invitation | matching primary-email recipient | matching primary-email recipient | matching primary-email recipient |
+
+The current database membership and role are re-read inside each operation;
+server-projected capabilities are UI hints only. Missing and foreign
+organization/team/member resources use the same non-disclosing not-found
+outcomes. An invitation recipient mismatch is `403
+invitation_recipient_mismatch` and carries no invitation projection. Matching
+recipients may observe pending, accepted, rejected, canceled, expired,
+email-verification-required, domain-restricted, or already-member decision
+states. Mutation authorization is always recomputed.
+
+### Validation, filters, cursors, and failures
+
+Team names are trimmed, length `1..50`, preserve valid Unicode letters/digits
+and ordinary internal spaces, hyphen, and underscore, and reject control
+whitespace. Names are unique by `lower(name)` within an organization; a rename
+whose normalized value is unchanged conflicts. Invitation email is trimmed,
+lowercased, structurally validated, and limited to 254 characters. Role is the
+closed `owner | admin | member` enum. Optional team IDs must belong to the route
+organization, the recipient must not already be a member, current allowed-email
+domain policy must permit the address, and the actor must be allowed to assign
+the requested role.
+
+Every route/body UUID uses canonical non-empty `D` rendering. Pagination limit
+defaults to `50` and is restricted to `1..100`; the UI can choose smaller first
+pages. Candidate `q` is optional, trimmed, at most 100 characters, and performs
+a case-insensitive organization-local name/email search. Organization invitation
+`status` accepts only `pending`, `accepted`, `rejected`, `canceled`, or derived
+`expired`; omission returns all activity.
+
+All cursors are opaque, typed, versioned, checksum-protected canonical
+base64url. Teams order by `(createdAt ASC, id ASC)`, team members by `(joinedAt
+ASC, teamMemberId ASC)`, candidates by organization membership `(joinedAt ASC,
+memberId ASC)`, organization invitation activity by `(createdAt DESC, id DESC)`,
+and account invitations by `(expiresAt ASC, createdAt DESC, id DESC)`. A wrong
+collection kind/version, malformed or noncanonical encoding, corrupt checksum,
+invalid UTC timestamp, or extra bytes returns `400 invalid_cursor` before a
+persistence call. Clients pass `nextCursor` back verbatim.
+
+Stable team outcomes are `team_not_found`, `team_permission_denied`,
+`team_name_conflict`, `team_name_unchanged`, `team_member_not_found`, and
+`team_member_already_exists`. Stable invitation outcomes are
+`invitation_not_found`, `invitation_permission_denied`,
+`invitation_already_exists`, `invitation_recipient_already_member`,
+`invitation_team_invalid`, `invitation_domain_restricted`,
+`invitation_recipient_mismatch`, `invitation_email_verification_required`,
+`invitation_expired`, `invitation_not_pending`,
+`invitation_membership_conflict`, and `invitation_limit_reached`. Existing
+`validation_failed`, `invalid_cursor`, `rate_limited`, and
+`concurrency_conflict` remain applicable. Problems never disclose names,
+emails, search text, invitation links, cursor contents, database/provider text,
+or exception detail.
+
+### Transactions, lifecycle, notification, rate limits, and audit
+
+Invitation creation performs one PostgreSQL transaction that locks/rechecks the
+organization and actor membership, current role assignment, optional team,
+domain policy, existing membership, duplicate state, and the actor's cap of 100
+unexpired pending invitations in that organization. An expired pending duplicate
+is canceled only as part of inserting its replacement. A created invitation is
+pending for exactly 48 hours; expiry is derived with `expiresAt <= now`, with no
+worker or persisted `expired` status.
+
+Accept/reject lock and re-read recipient, verified-primary-email, status,
+expiry, domain, role, optional team, membership, and accessible-organization-name
+state. Lock ordering follows the existing organization discipline, including
+ordered organization/membership locks, the current session before the
+organization-name advisory lock, and bounded serialization/deadlock retries.
+Accept atomically creates the organization membership, optionally creates the
+team membership, marks the invitation accepted, and updates the accepting
+unexpired browser session's active organization. Reject atomically changes only
+the status. Accept/accept and accept/reject races have one winner and one
+`invitation_not_pending` loser. Team deletion clears invitation `teamId` history
+and deletes the team/team-member graph in one transaction; it never creates or
+changes active-team state.
+
+Only after the create transaction commits does Application invoke
+`IInvitationNotifier` with the recipient and relative path. The registered
+iteration-6 implementation is a deterministic no-network no-op behind
+`SafeInvitationNotifier`. It logs only the bounded outcome, never recipient,
+path, provider/exception detail, and converts non-caller-cancellation failures to
+`Failed`. A committed create remains `201`; the response may expose only the
+exact optional `notification_failed` warning. No notification table, outbox,
+retry worker, SMTP, or SaaS provider exists in this iteration.
+
+Invitation create is fixed-window limited to 20 requests per authenticated user
+per minute, no queue. Accept/reject share 30 requests per authenticated user per
+minute, no queue. The limits are separate from the transactional 100-live-pending
+cap. Partition keys use only the actor ID (with an unauthenticated IP fallback),
+never email, query, role, link, or invitation ID. A rejection is no-store RFC
+Problem Details with `429 rate_limited` and a safe collaboration audit.
+
+One final audit is emitted per resolved collaboration operation. Its bounded
+fields are operation, outcome, trace/correlation context, actor user/session,
+and applicable opaque organization/team/invitation IDs. It excludes names,
+emails, roles/body values, queries, paths, links, cookies, cursors, raw route
+text, and exception detail. Authentication/antiforgery failures before actor
+resolution are not mislabeled as completed domain operations.
+
+`POST /api/local-auth/confirm-email` is authenticated, CSRF-protected, empty-body,
+and tagged `local-only`/`x-local-only` in OpenAPI. It is available only in
+Development/Test with `LocalAutomationAuth:Enabled=true`; Production returns
+`404 local_auth_disabled` even if configured. It verifies only the current local
+automation user's primary email and renews/reissues that browser session. It is
+an E2E boundary, not a production verification mechanism.

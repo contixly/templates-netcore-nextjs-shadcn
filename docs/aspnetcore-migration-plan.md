@@ -1,12 +1,9 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 5 — organizations, membership и onboarding — завершена
-для наблюдаемого reviewed implementation state
-`0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`. Iteration 6 разблокирована, но
-ещё не начата и должна выполняться отдельным planned slice. Документационное
-closure ниже не заявляет ни свой будущий hash, ни результат будущего automatic
-review: после controller push требуется fresh automatic review.
+**Текущая итерация:** 6 — Teams и invitations — implementation scope и
+локальная Task-14 acceptance-проверка завершены по наблюдаемым результатам
+ниже. Automatic review этого head, push и merge не наблюдались и не заявляются.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -194,7 +191,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 выполнялся и не заявляется.
 **Reference:** `template/src/features/accounts`, `template/src/app/(protected)/(global)/user/**`.
 
-### Итерация 5 — Organizations, membership и onboarding **(round 14 historical clean; round 20 local fix pending push/re-review)**
+### Итерация 5 — Organizations, membership и onboarding **(завершена для наблюдаемого reviewed implementation state)**
 
 **Цель:** перенести core workspace behavior с новыми явными domain boundaries.
 
@@ -204,7 +201,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 **Выход:** пользователь может создать/select organization и управлять членами в пределах разрешений; маршруты `/workspaces` и `/w/[organizationKey]/**` работают через API.
 **Reference:** `template/src/features/organizations`, `template/src/features/workspaces` (organization-related actions and repositories).
 
-### Итерация 6 — Teams и invitations
+### Итерация 6 — Teams и invitations **(implementation scope и локальная Task-14 acceptance завершены; automatic review не наблюдался)**
 
 **Цель:** восстановить collaboration workflows как отдельный вертикальный срез.
 
@@ -293,7 +290,8 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                      |
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
-| 6–12                                               | Не начаты | Iteration 6 разблокирована и должна начаться только отдельным planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                            |
+| 6 — teams и invitations                           | Локально принята | Teams/team membership, invitation activity/create/accept/reject, 48-hour security lifecycle, PostgreSQL migration, REST/OpenAPI/generated SDK, settings/account/decision UI and deterministic multi-user E2E implemented. Task-14 local verification completed with the observed evidence below; automatic review, push, and merge remain unobserved. |
+| 7–12                                                 | Не начаты | API keys and `x-api-key` remain iteration 7, product dashboard iteration 9, Aspire iteration 10, and production proxy/container iterations 11–12; iteration 6 does not pre-implement them. |
 
 ## Acceptance evidence: итерация 1
 
@@ -2225,6 +2223,157 @@ This documentation-only closure claims neither its own future commit hash nor
 its own future automatic-review result. After the controller pushes it, a fresh
 automatic review is still required; the post-docs review is not already claimed
 clean.
+
+## Acceptance evidence: итерация 6
+
+**Scope/status:** the Teams and invitations vertical slice is implemented from
+Domain through PostgreSQL, browser REST/OpenAPI/generated SDK, Next.js settings/
+account/decision UI, and deterministic multi-user E2E. This section records the
+local implementation/acceptance state only. No future push, PR merge, automatic
+review, or review-thread closure is predicted.
+
+### Reference → API → UI → test mapping
+
+| Immutable reference | Target REST | Target UI | Executable evidence |
+| --- | --- | --- | --- |
+| team actions/repository and Prisma `Team` | eight team list/create/update/delete/member/candidate operations | `/w/{key}/settings/teams` | Domain/Application cursor/service tests, EF model/store/race tests, endpoint/security tests, Jest, Playwright |
+| add/remove team member and `TeamMember` | team member collection/removal and searchable candidates | team cards, paged composition, candidate dialog | tenant-qualified FK/race tests and owner/member multi-context E2E |
+| create/list invitations | organization invitation list/create | `/w/{key}/settings/invitations` | role/domain/duplicate/cap/expiry tests, filter/recovery Jest, owner/admin/member E2E |
+| pending invitation loader | account invitation collection | `/user/invitations` and zero-workspace `/welcome` CTA | recipient/isolation/keyset tests, Jest, Playwright |
+| decision loader and accept/reject actions | detail, accept, reject | `/invite/{id}` | recipient/verification/domain/atomicity/race tests, lifecycle Jest, two-page accept-race E2E |
+| Better Auth notification hook boundary | post-commit `IInvitationNotifier`; relative same-origin `invitationPath` | manual-share link and fixed no-email/warning recovery | notifier ordering/failure tests, API warning contract, clipboard/same-origin E2E |
+| reference direct test DB verification | local-only generated `POST /api/local-auth/confirm-email` | verification action only in eligible local state | Production-disable/CSRF/session-renewal API tests and generated-only E2E helper |
+| existing member-role action | existing organization-member `PATCH` | existing users role control | iteration-5 regression suite; teams never grant an organization role |
+
+### Delivered contract and durable decisions
+
+The committed OpenAPI contains 45 total operations. Iteration 6 contributes the
+15 collaboration/local operations listed in `docs/api-conventions.md`: eight
+team, six invitation, and one local-confirmation operation. They use secure
+HttpOnly browser sessions, no-store, RFC Problem Details, generated cookie
+security, and CSRF for every unsafe operation. Invitation create and decision
+rate limits are 20/user/minute and shared 30/user/minute respectively, both with
+no queue; the persistence cap is separately 100 unexpired pending invitations
+per actor/organization.
+
+The role matrix is fixed `owner | admin | member`: every member can read teams;
+admins/owners manage teams and team composition and read/create invitation
+activity; admins invite member/admin and owners may also invite owner. Only the
+matching primary-email recipient can read/respond to a decision; a mismatch
+returns no projection. Team/invitation validation, stable failures, opaque typed
+cursor orders, derived status filter, non-disclosure, and safe auditing are
+recorded in `docs/api-conventions.md`.
+
+Migration `20260801084304_TeamsInvitations` is the sixth EF migration. It adds
+`organizations.teams`, `team_members`, and `invitations`, the tenant-qualified
+member alternate key, composite tenant FKs, checks, stable cursor/cap indexes,
+the partial pending-recipient unique index, and the unique
+`(organization_id, lower(name))` expression index. Invitation IDs are random
+UUID v4; team/team-member IDs retain UUID v7 generation. There is no active-team
+session column, notification table, expiry worker, or outbox. Exact operational
+schema/rollback rules are in `docs/authentication-persistence-operations.md`.
+
+Invitation creation has an explicit 48-hour lifetime and invokes the safe no-op
+notifier only after commit. Acceptance is one PostgreSQL transaction covering
+organization membership, optional team membership, invitation accepted state,
+and current session active organization; rejection changes only status. Team
+deletion detaches historical invitation targets before cascade. Cleanup paths
+for organization/account/local users include all collaboration dependents.
+
+The Next.js UI uses only generated SDK loaders/actions. It supports read-only
+member team composition; manager create/rename/delete/search/add/remove;
+permission-gated invitation activity/create/filter/paging; account pending
+invitations; all decision states; local generated confirmation; and mutation-
+committed/GET-only recovery that never repeats a successful POST. Unsafe returned
+links and recipient mismatch purge/suppress private detail. En/ru catalogs and
+accessible named controls cover the complete slice. See
+`docs/web-conventions.md`.
+
+### Intentional differences and out of scope
+
+- Team membership references the organization-membership edge with
+  tenant-qualified database FKs rather than only a user ID.
+- Collections are typed cursor-paginated; candidates are bounded/searchable
+  rather than unbounded.
+- Expiry is explicitly 48 hours and derived; there is no periodic expiry write.
+- Invitation links are relative same-origin paths rather than configured
+  frontend absolute URLs.
+- Missing/foreign resources and recipient mismatch are more non-disclosing.
+- Accept is an explicit transaction including active organization and optional
+  team membership; active team is deliberately absent.
+- RFC Problem Details/OpenAPI/generated SDK replace Server Actions and Better
+  Auth; Playwright email confirmation uses a gated local-only generated REST
+  operation rather than direct SQL.
+- No real email provider, outbox/retry/background worker, cancel/resend UI,
+  organization-member removal, custom roles, API keys, public machine auth,
+  product dashboard, YARP/container/Aspire, old-data/session migration, or active
+  OpenSpec change/spec is included.
+
+### Task-14 observed acceptance 2026-08-01
+
+Все команды ниже запускались на рабочем дереве Task 14 после исправлений,
+вызванных самими gate-проверками. Измерения `real` наблюдались локально и не
+являются performance-бюджетом.
+
+| Gate | Наблюдаемый результат |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS/current; `real 1.02s` |
+| `dotnet build Template.sln --no-restore` | PASS; **0 warnings, 0 errors**; `real 1.41s` |
+| `dotnet test Template.sln --no-restore` | PASS; Application **257/257**, API **580/580**, итого **837/837**, 0 failed/skipped; `real 120.34s` |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS/clean; `real 10.81s` |
+| transitive NuGet vulnerable scan | PASS; 0 vulnerable packages во всех 7 solution projects; `real 6.05s` |
+| EF pending-model check | PASS; model совпадает с migrations; `real 3.69s` |
+| EF idempotent script | PASS; `/tmp/template-iteration6-final.sql` **30,706 bytes**, SHA-256 `00d417ced14a107b94b16c62979ea9b1117d753988e29696e6acce4b3625d220`; required team/invitation identifiers present; `real 2.73s` |
+| PostgreSQL 18.4 | PASS; Testcontainer model fixture **12/12** (`real 7.70s`); отдельная fresh `postgres:18.4` проверка дважды применила idempotent script, увидела 6 migrations и все новые FK/check/index names, затем down-script вернул 5 migrations, удалил три collaboration tables и сохранил `organizations.members` |
+| deterministic OpenAPI | PASS; после удаления canonical `v1.json` второй exact export действительно regenerated файл и `cmp` подтвердил byte identity; SHA-256 `fdfbe74c39a42c018ca35555c504c1078a30558b82d41415bf4da2bdb9503010`; **45** total operations, из них **15** iteration-6 collaboration/local operations |
+| generated web client | PASS; `npm run api:check`, 4 generated files deterministic/current; `real 0.88s` |
+| production dependency audit | PASS; `npm audit --omit=dev` — **0 vulnerabilities**; `real 1.00s` |
+| complete dependency audit | EXPECTED NONZERO/RECORDED; one **high**, development-only `brace-expansion` advisory `GHSA-mh99-v99m-4gvg` in root and nested `glob` development trees; production audit remains clean; fix is available through `npm audit fix` but dependency refresh is not folded into this slice |
+| web static gates | PASS; boundaries **5/5** (`real 1.40s`), Prettier clean (`1.92s`), ESLint 0 errors and 10 existing compile-time-assertion unused warnings (`4.77s`), typecheck/typegen (`2.02s`) |
+| Jest | PASS; **61/61 suites**, **474/474 tests**, 0 snapshots; `real 10.63s` |
+| clean Next production build | PASS; Next.js **16.2.11**, 23/23 page generation and `.next/standalone/server.js` present; `real 7.43s` |
+| Playwright | PASS; focused collaboration **2/2**, focused organizations **5/5**; final default 5-worker suite **16 passed, 5 opt-in live-provider tests skipped, 0 failed**; `real 60.47s` |
+
+Verification exposed two test/tooling defects and they were fixed test-first or
+with focused red/green evidence rather than hidden:
+
+1. The required OpenAPI sequence initially lost `v1.json`: the package's
+   incremental cache considered export current after the project target had
+   normalized `Template.Api.json` to `v1.json`. A new architecture test first
+   failed **0/1**, then passed **1/1** after the project invalidated the package
+   cache only when generated export is enabled and canonical output is missing.
+   The exact two-export/delete/compare sequence then passed and did not change
+   the committed contract.
+2. A first full 5-worker Playwright run reported **15 passed, 5 skipped, 1
+   failed** because a global exact-text locator matched both the visible
+   collaboration tree and a hidden React Activity copy. Scoping to the visible
+   named region passed focused collaboration **2/2**. A second full run reached
+   the same pre-existing selector defect in organization E2E (**12 passed, 5
+   skipped, 1 failed, 3 did not run**); network evidence showed successful `200`
+   pages, and scoping that assertion to `main` passed focused organizations
+   **5/5**. The fresh full suite then passed **16/16 deterministic tests**, with
+   only the 5 intentionally opt-in live-provider tests skipped. Product behavior
+   was not changed by either selector hardening.
+
+The exact schema inspection found checks `ck_invitations_{email,expiry,role,status}`
+and `ck_teams_name`; tenant/team/user FKs; primary, alternate, cursor, lookup,
+cap, pending-recipient, team-member and lower-name indexes including
+`ux_teams_organization_id_lower_name` with `lower(name)`. Script application was
+idempotent and rollback was explicitly exercised. The production dependency
+set and NuGet set are clean; the recorded development-only advisory and opt-in
+live OAuth skip are the only verification concerns. The intentional functional
+differences/out-of-scope list above remains unchanged.
+
+Repository guards passed after recording this evidence: no whitespace errors,
+no working-tree or branch-range change/untracked file under immutable
+`template/`, and no active OpenSpec change or spec. Contract/generated checks
+were clean. This is a local acceptance result only; automatic review, push and
+merge remain unobserved.
+
+**Next gate:** controller-owned push and automatic review of that exact head.
+Iteration 7 API keys/public machine authentication does not start until
+iteration 6's review state is observed and accepted; no review result is claimed
+here.
 
 ## 9. Правило обновления этого документа
 

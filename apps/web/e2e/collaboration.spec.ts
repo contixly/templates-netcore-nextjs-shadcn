@@ -695,11 +695,14 @@ test.describe("collaboration full-stack workflows", () => {
     await winner!.page.goto(
       `/w/${encodeURIComponent(organization.canonicalKey)}/settings/teams`,
     );
+    const acceptedTeamDirectory = winner!.page.getByRole("region", {
+      name: "Workspace teams",
+    });
     await expect(
-      winner!.page.getByText("E2E Invitation Team", { exact: true }),
+      acceptedTeamDirectory.getByText("E2E Invitation Team", { exact: true }),
     ).toBeVisible();
     await expect(
-      winner!.page.getByText(identities.acceptingInvitee.email, {
+      acceptedTeamDirectory.getByText(identities.acceptingInvitee.email, {
         exact: true,
       }),
     ).toBeVisible();

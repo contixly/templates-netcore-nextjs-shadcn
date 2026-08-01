@@ -52,6 +52,38 @@ public sealed class ArchitectureBoundaryTests
         Assert.Contains("EfApplicationUnitOfWork", names);
     }
 
+    [Fact]
+    public void OpenApi_export_invalidates_its_cache_when_the_canonical_output_is_missing()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var project = System.Xml.Linq.XDocument.Load(
+            Path.Combine(
+                repositoryRoot,
+                "apps",
+                "api",
+                "src",
+                "Template.Api",
+                "Template.Api.csproj"));
+        var target = Assert.Single(
+            project.Descendants("Target"),
+            element => string.Equals(
+                (string?)element.Attribute("Name"),
+                "InvalidateMissingOpenApiDocumentCache",
+                StringComparison.Ordinal));
+
+        Assert.Equal(
+            "GenerateOpenApiDocuments",
+            (string?)target.Attribute("BeforeTargets"));
+        Assert.Contains(
+            "!Exists('$(OpenApiDocumentsDirectory)/v1.json')",
+            (string?)target.Attribute("Condition"),
+            StringComparison.Ordinal);
+        var delete = Assert.Single(target.Elements("Delete"));
+        Assert.Equal(
+            "$(_OpenApiDocumentsCache)",
+            (string?)delete.Attribute("Files"));
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);

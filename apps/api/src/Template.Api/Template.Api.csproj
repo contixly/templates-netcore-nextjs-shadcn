@@ -35,4 +35,11 @@
           DestinationFiles="$(OpenApiDocumentsDirectory)/v1.json"
           OverwriteReadOnlyFiles="true" />
   </Target>
+
+  <Target Name="InvalidateMissingOpenApiDocumentCache"
+          BeforeTargets="GenerateOpenApiDocuments"
+          Condition="'$(OpenApiGenerateDocuments)' == 'true'
+            and !Exists('$(OpenApiDocumentsDirectory)/v1.json')">
+    <Delete Files="$(_OpenApiDocumentsCache)" />
+  </Target>
 </Project>

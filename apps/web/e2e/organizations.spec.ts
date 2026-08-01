@@ -436,8 +436,9 @@ test.describe.serial("organization full-stack workflows", () => {
     ).toHaveCount(0);
 
     await memberPage.goto(`/w/${organization.canonicalKey}/settings/users`);
+    const memberSettingsMain = memberPage.getByRole("main");
     await expect(
-      memberPage.getByText(
+      memberSettingsMain.getByText(
         "Only workspace administrators and owners can add people or change roles.",
         { exact: true },
       ),
