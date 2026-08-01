@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 
 import InviteSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/invite/[invitationId]/page";
@@ -137,6 +143,14 @@ function findElementByType(
     if (found) return found;
   }
   return null;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -311,6 +325,92 @@ it("pages account invitations through the generated account operation", async ()
     expect.objectContaining({
       query: { cursor: "account-next", limit: 20 },
     }),
+  );
+});
+
+it("invalidates an outstanding account continuation when a new server page arrives", async () => {
+  const olderContinuation =
+    deferred<Awaited<ReturnType<typeof getAccountInvitations>>>();
+  jest
+    .mocked(getAccountInvitations)
+    .mockReturnValueOnce(
+      olderContinuation.promise as ReturnType<typeof getAccountInvitations>,
+    )
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "fresh-continuation",
+              organizationName: "Fresh continuation",
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getAccountInvitations>>);
+  const view = render(
+    withMessages(
+      <AccountInvitationList
+        initialPage={{ items: [invitation], nextCursor: "old-cursor" }}
+      />,
+    ),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Load more invitations" }),
+  );
+  await waitFor(() => expect(getAccountInvitations).toHaveBeenCalledTimes(1));
+
+  const freshInvitation = {
+    ...invitation,
+    id: "fresh-server-page",
+    organizationName: "Fresh server page",
+  };
+  view.rerender(
+    withMessages(
+      <AccountInvitationList
+        initialPage={{
+          items: [freshInvitation],
+          nextCursor: "fresh-cursor",
+        }}
+      />,
+    ),
+  );
+  expect(screen.getByText("Fresh server page")).toBeVisible();
+  expect(
+    screen.queryByText(invitation.organizationName),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Load more invitations" }),
+  ).toBeEnabled();
+
+  await act(async () => {
+    olderContinuation.resolve({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "stale-continuation",
+              organizationName: "Stale continuation",
+            },
+          ],
+          nextCursor: "stale-cursor",
+        },
+      },
+    } as Awaited<ReturnType<typeof getAccountInvitations>>);
+    await olderContinuation.promise;
+  });
+  expect(screen.queryByText("Stale continuation")).not.toBeInTheDocument();
+  expect(screen.getByText("Fresh server page")).toBeVisible();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Load more invitations" }),
+  );
+  expect(await screen.findByText("Fresh continuation")).toBeVisible();
+  expect(getAccountInvitations).toHaveBeenLastCalledWith(
+    expect.objectContaining({ query: { cursor: "fresh-cursor", limit: 20 } }),
   );
 });
 

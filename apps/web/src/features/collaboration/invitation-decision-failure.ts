@@ -54,6 +54,8 @@ export function terminalInvitationDecision(
         state: "email-verification-required",
         canRespond: false,
       };
+    case "invitation_recipient_already_member":
+      return { invitation, state: "already-member", canRespond: false };
     default:
       return null;
   }
@@ -81,6 +83,8 @@ export function failureIsRepresentedByDecision(
       return decision.state === "domain-restricted";
     case "invitation_email_verification_required":
       return decision.state === "email-verification-required";
+    case "invitation_recipient_already_member":
+      return decision.state === "already-member";
     default:
       return false;
   }

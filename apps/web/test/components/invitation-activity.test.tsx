@@ -1,6 +1,13 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
+import { createBrowserInvitation } from "@/src/lib/api/collaboration/browser/collaboration-mutations";
 import { getOrganizationInvitations } from "@/src/lib/api/generated/sdk.gen";
 import type { InvitationResponse } from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages } from "@/test/support/render";
@@ -38,6 +45,7 @@ const invitation: InvitationResponse = {
 };
 
 const listInvitations = jest.mocked(getOrganizationInvitations);
+const createInvitation = jest.mocked(createBrowserInvitation);
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -294,4 +302,90 @@ it("ignores an overlapping older filter response", async () => {
       query: { status: "rejected", limit: 20 },
     }),
   );
+});
+
+it("keeps a confirmed pending invitation over an older filter read and only overlays matching filters", async () => {
+  const olderPendingRead =
+    deferred<Awaited<ReturnType<typeof getOrganizationInvitations>>>();
+  const latestPendingRead =
+    deferred<Awaited<ReturnType<typeof getOrganizationInvitations>>>();
+  const created = {
+    ...invitation,
+    id: "01900000-0000-7000-8000-000000000102",
+    email: "created@example.test",
+  };
+  createInvitation.mockResolvedValue({ ok: true, data: created });
+  listInvitations
+    .mockReturnValueOnce(
+      olderPendingRead.promise as ReturnType<typeof getOrganizationInvitations>,
+    )
+    .mockReturnValueOnce(
+      latestPendingRead.promise as ReturnType<
+        typeof getOrganizationInvitations
+      >,
+    )
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "accepted-1",
+              email: "accepted@example.test",
+              status: "accepted",
+              displayState: "accepted",
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+  renderWithMessages(
+    <InvitationActivity
+      initialPage={{ items: [invitation], nextCursor: "all-next" }}
+      organization={{ id: "org-1", currentRole: "owner" }}
+      teams={[]}
+    />,
+  );
+
+  chooseFilter("Pending");
+  await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
+  const dialog = screen.getByRole("dialog", {
+    name: "Invite a workspace member",
+  });
+  fireEvent.change(within(dialog).getByLabelText("Email address"), {
+    target: { value: created.email },
+  });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create invitation" }),
+  );
+
+  expect(await screen.findByText(created.email)).toBeVisible();
+  expect(
+    within(dialog).queryByRole("button", { name: "Create invitation" }),
+  ).not.toBeInTheDocument();
+  expect(createInvitation).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    olderPendingRead.resolve({
+      data: { data: { items: [invitation], nextCursor: "stale-next" } },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+    await olderPendingRead.promise;
+  });
+  await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(2));
+  expect(screen.getByText(created.email)).toBeVisible();
+
+  await act(async () => {
+    latestPendingRead.resolve({
+      data: { data: { items: [invitation], nextCursor: null } },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+    await latestPendingRead.promise;
+  });
+  expect(screen.getByText(created.email)).toBeVisible();
+
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  chooseFilter("Accepted");
+  expect(await screen.findByText("accepted@example.test")).toBeVisible();
+  expect(screen.queryByText(created.email)).not.toBeInTheDocument();
 });

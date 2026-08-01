@@ -3,7 +3,7 @@
 import { IconMail } from "@tabler/icons-react";
 import Link from "next/link";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useInsertionEffect, useRef, useState } from "react";
 
 import { Alert, AlertTitle } from "@/src/components/ui/alert";
 import { Badge } from "@/src/components/ui/badge";
@@ -67,16 +67,26 @@ export function AccountInvitationList({
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
   const [pending, setPending] = useState(false);
   const [partialFailure, setPartialFailure] = useState(false);
+  const requestGeneration = useRef(0);
+
+  useInsertionEffect(() => {
+    requestGeneration.current += 1;
+    return () => {
+      requestGeneration.current += 1;
+    };
+  }, [initialPage]);
 
   if (serverPage !== initialPage) {
     setServerPage(initialPage);
     setItems(appendUnique([], initialPage.items));
     setNextCursor(initialPage.nextCursor);
+    setPending(false);
     setPartialFailure(false);
   }
 
   async function loadMore() {
     if (!nextCursor || pending) return;
+    const generation = ++requestGeneration.current;
     setPending(true);
     setPartialFailure(false);
     try {
@@ -85,6 +95,7 @@ export function AccountInvitationList({
         cache: "no-store",
         query: { cursor: nextCursor, limit: 20 },
       });
+      if (requestGeneration.current !== generation) return;
       if (result.data === undefined) {
         normalizeApiFailure(result.error, result.response);
         setPartialFailure(true);
@@ -93,10 +104,11 @@ export function AccountInvitationList({
       setItems((current) => appendUnique(current, result.data!.data.items));
       setNextCursor(result.data.data.nextCursor);
     } catch (error) {
+      if (requestGeneration.current !== generation) return;
       normalizeApiFailure(error);
       setPartialFailure(true);
     } finally {
-      setPending(false);
+      if (requestGeneration.current === generation) setPending(false);
     }
   }
 

@@ -2478,6 +2478,47 @@ Iteration 7 API keys/public machine authentication does not start until
 iteration 6's review state is observed and accepted; no review result is claimed
 here.
 
+### PR #7 automatic-review round 1 observed acceptance 2026-08-01
+
+Automatic review of `b40f10246a82e3898d10c22aa8c65d374a3f2578`
+identified three browser concurrency/terminal-state defects. The strict focused
+RED was **3/3 suites failed, 4 failed / 40 passed**: a pre-create pending-filter
+GET suppressed the confirmed row and never reconciled, accept and reject kept
+`invitation_recipient_already_member` actionable, and an old account
+continuation kept the replacement server page pending and could later append its
+stale row/cursor.
+
+The repair keeps confirmed create authority as a pending overlay only for
+`all`/`pending`, rejects older relevant read generations, and queues one latest
+GET reconciliation without replaying POST. Accept/reject now map the exact
+already-member code to the non-actionable state while retaining the matching
+safe workspace projection/link. Account server-page replacement advances a read
+generation and resets pending state; stale completion and `finally` paths are
+inert. No raw fetch, Server Action, handwritten collaboration DTO, contract,
+generated SDK, database, or immutable-reference change was introduced.
+
+| PR-round-1 gate | Наблюдаемый результат |
+| --- | --- |
+| focused Jest GREEN | PASS; **3/3 suites, 44/44 tests**, 0 snapshots; `real 2.28s` |
+| format/lint/typecheck | PASS; Prettier clean (`1.95s`); ESLint 0 errors and 10 inherited compile-time-assertion warnings (`3.99s`); Next typegen/TypeScript clean (`1.93s`) |
+| boundaries | PASS; **5/5** and source scan clean; `real 1.36s` |
+| full Jest | PASS; **61/61 suites, 487/487 tests**, 0 snapshots; `real 10.88s` |
+| clean production build | PASS; Next.js 16.2.11, **23/23** generation, standalone server present; `real 8.26s` |
+| Playwright Chromium | final focused collaboration **2/2** (`real 36.51s`); full **16 passed, 5 opt-in live-provider tests skipped, 0 failed** (`real 65.29s`) |
+
+The first focused Playwright attempt recorded **1 passed / 1 failed** because a
+page-global exact-text locator intermittently matched React Activity's hidden
+copy as well as the visible `<main>` copy. The screenshot and accessibility
+snapshot showed the intended visible decision state. With no source change, the
+immediate focused rerun passed **2/2**, and the subsequent five-worker full suite
+also passed. This remains a non-product test-selector concern; acceptance totals
+above use the final observed runs and do not claim the five opt-in live-provider
+screens.
+
+The immutable `template/`, inactive OpenSpec state, contract, and generated SDK
+remain unchanged. Push, merge, and a later automatic review of the corrected
+head remain unobserved and are not claimed.
+
 ## 9. Правило обновления этого документа
 
 Перед стартом очередной итерации уточняются только её scope, зависимости, risks и acceptance criteria. Изменение порядка или архитектурных решений фиксируется здесь отдельной записью с причиной; незавершённые задачи не «перепрыгивают» в следующую итерацию без явного решения.

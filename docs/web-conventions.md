@@ -530,6 +530,13 @@ may assign member/admin; owners may also assign owner. A new filter is a
 transactional first-page replacement: it clears prior-filter items/cursor,
 retains the requested filter on failure for GET-only Retry, and ignores stale
 overlapping responses. A continuation failure preserves visible activity.
+Create confirmation is also a read-generation boundary. The confirmed pending
+row is overlaid only in `all` and `pending`, never in accepted/rejected/canceled/
+expired. A relevant read that started before confirmation cannot replace that
+row or its cursor state; it is discarded and queues one latest first-page GET.
+The mutation projection remains visible if that reconciliation is delayed,
+fails, or has not yet observed the committed row, and Retry/reconciliation stay
+GET-only so the browser never encourages a duplicate create.
 
 The browser validates the email and selected generated team locally, but the API
 remains authoritative for domain, duplicate, membership, permission, and role
@@ -554,6 +561,10 @@ primary email and inaccessible organizations, with workspace/team/role/expiry,
 exact decision links, pagination, an empty state, and safe partial-failure
 recovery. Zero-workspace `/welcome` reuses that collection while suppressing its
 empty card; a supplemental invitation read failure never blocks onboarding.
+Every server `initialPage` replacement advances the account-list request
+generation, resets pending/failure state and adopts the new items/cursor. A
+continuation from the prior generation cannot append items, replace the new
+cursor, or clear a newer pending state from its `finally` path.
 
 `/invite/{invitationId}` maps the server/typed failure state as follows:
 
@@ -575,6 +586,11 @@ non-actionable and Retry is GET-only. `invitation_not_pending` similarly disable
 mutations before reconciliation. A recipient-mismatch response or failure
 immediately purges all prior workspace/email/team/inviter details and makes late
 mutation completions inert.
+Exact `invitation_recipient_already_member` from either accept or reject
+projects the current matching invitation as terminal `already-member` with
+`canRespond: false`. It retains only that already-safe invitation projection and
+its encoded canonical workspace link, never uses the recipient-mismatch
+projection, and never repeats the decision POST.
 
 Every browser collaboration mutation obtains a fresh CSRF value through
 `runCsrfMutation` before the generated operation. Local email confirmation uses

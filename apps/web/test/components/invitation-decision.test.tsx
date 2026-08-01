@@ -108,6 +108,60 @@ it.each([
   },
 );
 
+it.each([
+  ["accept", acceptInvitation, "Accept invitation"],
+  ["reject", rejectInvitation, "Reject invitation"],
+] as const)(
+  "turns an already-member %s failure into a safe linked terminal state",
+  async (_action, mutation, actionName) => {
+    mutation.mockResolvedValue({
+      ok: false,
+      failure: {
+        kind: "problem",
+        code: "invitation_recipient_already_member",
+        status: 409,
+      },
+    });
+    renderWithMessages(
+      <InvitationDecision
+        decision={pending}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    );
+    const action = screen.getByRole("button", { name: actionName });
+
+    fireEvent.click(action);
+    expect(
+      await screen.findByText("You already have access to this workspace."),
+    ).toBeVisible();
+    expect(screen.getByText(invitation.organizationName)).toBeVisible();
+    expect(screen.getByText(invitation.email)).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Open workspace" }),
+    ).toHaveAttribute("href", "/w/acme-canonical/dashboard");
+    expect(
+      screen.queryByText(
+        "This invitation is not available for the current account.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("The collaboration request could not be completed."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("invitation_recipient_already_member"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Accept invitation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reject invitation" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(action);
+    expect(mutation).toHaveBeenCalledTimes(1);
+  },
+);
+
 it("never discloses invitation details for a recipient mismatch", () => {
   renderWithMessages(
     <InvitationDecision

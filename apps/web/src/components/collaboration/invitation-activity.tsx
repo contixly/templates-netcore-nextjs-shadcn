@@ -56,6 +56,10 @@ const filters: readonly InvitationFilter[] = [
   "expired",
 ];
 
+function includesConfirmedInvitation(filter: InvitationFilter): boolean {
+  return filter === "all" || filter === "pending";
+}
+
 function latestUnique(
   current: readonly InvitationResponse[],
   incoming: readonly InvitationResponse[],
@@ -108,24 +112,62 @@ export function InvitationActivity({
   const [partialFailure, setPartialFailure] = useState(false);
   const [failedCursor, setFailedCursor] = useState<string | undefined>();
   const requestEpoch = useRef(0);
+  const activeRequest = useRef<
+    Readonly<{ epoch: number; filter: InvitationFilter }> | undefined
+  >(undefined);
+  const confirmedGeneration = useRef(0);
+  const confirmedInvitations = useRef(new Map<string, InvitationResponse>());
+  const queuedReconciliation = useRef(false);
+  const filterRef = useRef<InvitationFilter>("all");
 
   useInsertionEffect(() => {
     requestEpoch.current += 1;
+    activeRequest.current = undefined;
+    queuedReconciliation.current = false;
+    confirmedInvitations.current.clear();
+    filterRef.current = "all";
+    return () => {
+      requestEpoch.current += 1;
+      activeRequest.current = undefined;
+      queuedReconciliation.current = false;
+    };
   }, [initialPage]);
+
+  function withConfirmedInvitations(
+    nextFilter: InvitationFilter,
+    authoritative: readonly InvitationResponse[],
+  ): InvitationResponse[] {
+    for (const item of authoritative) {
+      confirmedInvitations.current.delete(item.id);
+    }
+    return includesConfirmedInvitation(nextFilter)
+      ? latestUnique(authoritative, [...confirmedInvitations.current.values()])
+      : latestUnique([], authoritative);
+  }
 
   if (serverPage !== initialPage) {
     setServerPage(initialPage);
     setItems(latestUnique([], initialPage.items));
     setNextCursor(initialPage.nextCursor);
     setFilter("all");
+    setPending(false);
     setPartialFailure(false);
     setFailedCursor(undefined);
   }
 
-  async function read(nextFilter: InvitationFilter, cursor?: string) {
+  async function read(
+    nextFilter: InvitationFilter,
+    cursor?: string,
+    reconciliation = false,
+  ) {
     const request = ++requestEpoch.current;
-    if (!cursor) {
-      setItems([]);
+    const mutationGeneration = confirmedGeneration.current;
+    activeRequest.current = { epoch: request, filter: nextFilter };
+    if (includesConfirmedInvitation(nextFilter)) {
+      queuedReconciliation.current = false;
+    }
+    if (!cursor && !reconciliation) {
+      setItems(withConfirmedInvitations(nextFilter, []));
       setNextCursor(null);
     }
     setPending(true);
@@ -143,6 +185,13 @@ export function InvitationActivity({
         },
       });
       if (requestEpoch.current !== request) return;
+      if (
+        includesConfirmedInvitation(nextFilter) &&
+        confirmedGeneration.current !== mutationGeneration
+      ) {
+        queuedReconciliation.current = true;
+        return;
+      }
       if (result.data === undefined) {
         normalizeApiFailure(result.error, result.response);
         setPartialFailure(true);
@@ -151,24 +200,59 @@ export function InvitationActivity({
       }
       const page = result.data.data;
       setItems((current) =>
-        cursor
-          ? latestUnique(current, page.items)
-          : latestUnique([], page.items),
+        withConfirmedInvitations(
+          nextFilter,
+          cursor ? latestUnique(current, page.items) : page.items,
+        ),
       );
       setNextCursor(page.nextCursor);
     } catch (error) {
       if (requestEpoch.current !== request) return;
+      if (
+        includesConfirmedInvitation(nextFilter) &&
+        confirmedGeneration.current !== mutationGeneration
+      ) {
+        queuedReconciliation.current = true;
+        return;
+      }
       normalizeApiFailure(error);
       setPartialFailure(true);
       setFailedCursor(cursor);
     } finally {
-      if (requestEpoch.current === request) setPending(false);
+      if (requestEpoch.current === request) {
+        activeRequest.current = undefined;
+        setPending(false);
+        if (
+          queuedReconciliation.current &&
+          includesConfirmedInvitation(filterRef.current)
+        ) {
+          queuedReconciliation.current = false;
+          void read(filterRef.current, undefined, true);
+        }
+      }
     }
   }
 
   function invitationCreated(invitation: InvitationResponse) {
-    if (filter === "all" || filter === invitation.displayState) {
-      setItems((current) => latestUnique(current, [invitation]));
+    if (
+      invitation.status !== "pending" ||
+      invitation.displayState !== "pending"
+    )
+      return;
+    confirmedInvitations.current.set(invitation.id, invitation);
+    confirmedGeneration.current += 1;
+    const currentFilter = filterRef.current;
+    if (!includesConfirmedInvitation(currentFilter)) return;
+    setItems((current) => withConfirmedInvitations(currentFilter, current));
+    const active = activeRequest.current;
+    if (
+      active &&
+      active.epoch === requestEpoch.current &&
+      includesConfirmedInvitation(active.filter)
+    ) {
+      queuedReconciliation.current = true;
+    } else {
+      void read(currentFilter, undefined, true);
     }
   }
 
@@ -183,6 +267,10 @@ export function InvitationActivity({
             onValueChange={(value) => {
               if (!filters.includes(value as InvitationFilter)) return;
               const next = value as InvitationFilter;
+              filterRef.current = next;
+              if (!includesConfirmedInvitation(next)) {
+                queuedReconciliation.current = false;
+              }
               setFilter(next);
               void read(next);
             }}
