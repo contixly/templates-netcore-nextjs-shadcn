@@ -1,0 +1,718 @@
+using Microsoft.AspNetCore.Mvc;
+using Template.Api.Authentication;
+using Template.Api.Contracts;
+using Template.Api.Endpoints;
+using Template.Api.Errors;
+using Template.Api.Features.Auth;
+using Template.Api.OpenApi;
+using Template.Application.Authentication.Ports;
+using Template.Application.Collaboration;
+using Template.Domain.Authentication;
+using Template.Domain.Collaboration;
+using Template.Domain.Organizations;
+
+namespace Template.Api.Features.Collaboration;
+
+internal sealed class TeamEndpointModule : IEndpointModule
+{
+    public void MapEndpoints(EndpointRouteContext context)
+    {
+        context.VersionedApi.MapGet(
+                "/organizations/{organizationId}/teams",
+                ListTeamsAsync)
+            .WithName("GetTeams")
+            .Produces<ApiResponse<TeamPageResponse>>()
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedApi.MapPost(
+                "/organizations/{organizationId}/teams",
+                CreateTeamAsync)
+            .WithName("CreateTeam")
+            .AcceptsManuallyReadJson<TeamNameRequest>(isOptional: false)
+            .RequireApiAntiforgery()
+            .Produces<ApiResponse<TeamResponse>>(StatusCodes.Status201Created)
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedApi.MapPatch(
+                "/organizations/{organizationId}/teams/{teamId}",
+                UpdateTeamAsync)
+            .WithName("UpdateTeam")
+            .AcceptsManuallyReadJson<TeamNameRequest>(isOptional: false)
+            .RequireApiAntiforgery()
+            .Produces<ApiResponse<TeamResponse>>()
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedApi.MapDelete(
+                "/organizations/{organizationId}/teams/{teamId}",
+                DeleteTeamAsync)
+            .WithName("DeleteTeam")
+            .RequireApiAntiforgery()
+            .Produces<ApiResponse<TeamDeletionResponse>>()
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedApi.MapGet(
+                "/organizations/{organizationId}/teams/{teamId}/members",
+                ListTeamMembersAsync)
+            .WithName("GetTeamMembers")
+            .Produces<ApiResponse<TeamMemberPageResponse>>()
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedApi.MapPost(
+                "/organizations/{organizationId}/teams/{teamId}/members",
+                AddTeamMemberAsync)
+            .WithName("AddTeamMember")
+            .AcceptsManuallyReadJson<AddTeamMemberRequest>(isOptional: false)
+            .RequireApiAntiforgery()
+            .Produces<ApiResponse<TeamMemberResponse>>(
+                StatusCodes.Status201Created)
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedApi.MapDelete(
+                "/organizations/{organizationId}/teams/{teamId}/members/{userId}",
+                RemoveTeamMemberAsync)
+            .WithName("RemoveTeamMember")
+            .RequireApiAntiforgery()
+            .Produces<ApiResponse<TeamMemberRemovalResponse>>()
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedApi.MapGet(
+                "/organizations/{organizationId}/teams/{teamId}/member-candidates",
+                ListTeamCandidatesAsync)
+            .WithName("GetTeamMemberCandidates")
+            .Produces<ApiResponse<TeamCandidatePageResponse>>()
+            .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+    }
+
+    private static async Task<IResult> ListTeamsAsync(
+        string organizationId,
+        string? cursor,
+        string? limit,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            () => Task.FromResult(new TeamListBoundary(
+                CollaborationEndpointBoundary.OrganizationId(organizationId),
+                CollaborationEndpointBoundary.Cursor(http, cursor),
+                CollaborationEndpointBoundary.Limit(http, limit))),
+            "team_list",
+            actor,
+            logger,
+            organizationId);
+        var result = await teams.ListAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.Cursor,
+            boundary.Limit,
+            cancellationToken);
+        var page = RequireSuccess(
+            result,
+            "team_list",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            teamId: null,
+            targetUserId: null);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_list",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            teamId: null,
+            targetUserId: null,
+            page.Items.Count);
+        return Results.Ok(new ApiResponse<TeamPageResponse>(Map(page)));
+    }
+
+    private static async Task<IResult> CreateTeamAsync(
+        string organizationId,
+        ApiJsonRequestReader reader,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            async () =>
+            {
+                var id = CollaborationEndpointBoundary.OrganizationId(
+                    organizationId);
+                var request = await reader.ReadAsync<TeamNameRequest>(
+                    http,
+                    emptyBodyFactory: null,
+                    cancellationToken);
+                return new TeamNameBoundary(
+                    id,
+                    CollaborationEndpointBoundary.TeamName(request.Name));
+            },
+            "team_create",
+            actor,
+            logger,
+            organizationId);
+        var result = await teams.CreateAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.Name,
+            cancellationToken);
+        var team = RequireSuccess(
+            result,
+            "team_create",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            teamId: null,
+            targetUserId: null);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_create",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            team.Id.Value,
+            targetUserId: null);
+        return Results.Created(
+            $"/api/v1/organizations/{boundary.OrganizationId.Value:D}/teams/{team.Id.Value:D}",
+            new ApiResponse<TeamResponse>(Map(team)));
+    }
+
+    private static async Task<IResult> UpdateTeamAsync(
+        string organizationId,
+        string teamId,
+        ApiJsonRequestReader reader,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            async () =>
+            {
+                var organization =
+                    CollaborationEndpointBoundary.OrganizationId(
+                        organizationId);
+                var team = CollaborationEndpointBoundary.TeamId(teamId);
+                var request = await reader.ReadAsync<TeamNameRequest>(
+                    http,
+                    emptyBodyFactory: null,
+                    cancellationToken);
+                return new TeamResourceNameBoundary(
+                    organization,
+                    team,
+                    CollaborationEndpointBoundary.TeamName(request.Name));
+            },
+            "team_update",
+            actor,
+            logger,
+            organizationId,
+            teamId);
+        var result = await teams.UpdateAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.TeamId,
+            boundary.Name,
+            cancellationToken);
+        var team = RequireSuccess(
+            result,
+            "team_update",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_update",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null);
+        return Results.Ok(new ApiResponse<TeamResponse>(Map(team)));
+    }
+
+    private static async Task<IResult> DeleteTeamAsync(
+        string organizationId,
+        string teamId,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            () =>
+            {
+                var value = new TeamResourceBoundary(
+                    CollaborationEndpointBoundary.OrganizationId(organizationId),
+                    CollaborationEndpointBoundary.TeamId(teamId));
+                CollaborationEndpointBoundary.RequireEmptyBody(http);
+                return Task.FromResult(value);
+            },
+            "team_delete",
+            actor,
+            logger,
+            organizationId,
+            teamId);
+        var result = await teams.DeleteAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.TeamId,
+            cancellationToken);
+        var deletion = RequireSuccess(
+            result,
+            "team_delete",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_delete",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null);
+        return Results.Ok(new ApiResponse<TeamDeletionResponse>(
+            new(deletion.TeamId.Value)));
+    }
+
+    private static async Task<IResult> ListTeamMembersAsync(
+        string organizationId,
+        string teamId,
+        string? cursor,
+        string? limit,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            () => Task.FromResult(new TeamResourceListBoundary(
+                CollaborationEndpointBoundary.OrganizationId(organizationId),
+                CollaborationEndpointBoundary.TeamId(teamId),
+                CollaborationEndpointBoundary.Cursor(http, cursor),
+                CollaborationEndpointBoundary.Limit(http, limit))),
+            "team_members_list",
+            actor,
+            logger,
+            organizationId,
+            teamId);
+        var result = await teams.ListMembersAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.TeamId,
+            boundary.Cursor,
+            boundary.Limit,
+            cancellationToken);
+        var page = RequireSuccess(
+            result,
+            "team_members_list",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_members_list",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null,
+            page.Items.Count);
+        return Results.Ok(new ApiResponse<TeamMemberPageResponse>(Map(page)));
+    }
+
+    private static async Task<IResult> AddTeamMemberAsync(
+        string organizationId,
+        string teamId,
+        ApiJsonRequestReader reader,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            async () =>
+            {
+                var organization =
+                    CollaborationEndpointBoundary.OrganizationId(
+                        organizationId);
+                var team = CollaborationEndpointBoundary.TeamId(teamId);
+                var request = await reader.ReadAsync<AddTeamMemberRequest>(
+                    http,
+                    emptyBodyFactory: null,
+                    cancellationToken);
+                return new TeamMemberBoundary(
+                    organization,
+                    team,
+                    CollaborationEndpointBoundary.UserId(request.UserId));
+            },
+            "team_member_add",
+            actor,
+            logger,
+            organizationId,
+            teamId);
+        var result = await teams.AddMemberAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.TeamId,
+            boundary.TargetUserId,
+            cancellationToken);
+        var member = RequireSuccess(
+            result,
+            "team_member_add",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            boundary.TargetUserId.Value);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_member_add",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            boundary.TargetUserId.Value);
+        return Results.Created(
+            $"/api/v1/organizations/{boundary.OrganizationId.Value:D}/teams/{boundary.TeamId.Value:D}/members/{member.UserId.Value:D}",
+            new ApiResponse<TeamMemberResponse>(Map(member)));
+    }
+
+    private static async Task<IResult> RemoveTeamMemberAsync(
+        string organizationId,
+        string teamId,
+        string userId,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            () =>
+            {
+                var value = new TeamMemberBoundary(
+                    CollaborationEndpointBoundary.OrganizationId(organizationId),
+                    CollaborationEndpointBoundary.TeamId(teamId),
+                    CollaborationEndpointBoundary.UserId(userId));
+                CollaborationEndpointBoundary.RequireEmptyBody(http);
+                return Task.FromResult(value);
+            },
+            "team_member_remove",
+            actor,
+            logger,
+            organizationId,
+            teamId,
+            userId);
+        var result = await teams.RemoveMemberAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.TeamId,
+            boundary.TargetUserId,
+            cancellationToken);
+        var removal = RequireSuccess(
+            result,
+            "team_member_remove",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            boundary.TargetUserId.Value);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_member_remove",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            boundary.TargetUserId.Value);
+        return Results.Ok(new ApiResponse<TeamMemberRemovalResponse>(
+            new(removal.TeamId.Value, removal.UserId.Value)));
+    }
+
+    private static async Task<IResult> ListTeamCandidatesAsync(
+        string organizationId,
+        string teamId,
+        string? q,
+        string? cursor,
+        string? limit,
+        TeamService teams,
+        IBrowserSessionGateway browserSessions,
+        ILogger<TeamEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        CollaborationEndpointBoundary.NoStore(http);
+        var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
+            browserSessions,
+            http.User,
+            cancellationToken);
+        var boundary = await CollaborationEndpointBoundary.AuditAsync(
+            () => Task.FromResult(new TeamCandidateListBoundary(
+                CollaborationEndpointBoundary.OrganizationId(organizationId),
+                CollaborationEndpointBoundary.TeamId(teamId),
+                CollaborationEndpointBoundary.CandidateQuery(http, q),
+                CollaborationEndpointBoundary.Cursor(http, cursor),
+                CollaborationEndpointBoundary.Limit(http, limit))),
+            "team_candidates_list",
+            actor,
+            logger,
+            organizationId,
+            teamId);
+        var result = await teams.ListCandidatesAsync(
+            actor.UserId,
+            boundary.OrganizationId,
+            boundary.TeamId,
+            boundary.Query,
+            boundary.Cursor,
+            boundary.Limit,
+            cancellationToken);
+        var page = RequireSuccess(
+            result,
+            "team_candidates_list",
+            actor,
+            logger,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            "team_candidates_list",
+            "succeeded",
+            actor,
+            boundary.OrganizationId.Value,
+            boundary.TeamId.Value,
+            targetUserId: null,
+            page.Items.Count);
+        return Results.Ok(new ApiResponse<TeamCandidatePageResponse>(Map(page)));
+    }
+
+    private static T RequireSuccess<T>(
+        TeamOperationResult<T> result,
+        string operation,
+        CollaborationActorContext actor,
+        ILogger logger,
+        Guid? organizationId,
+        Guid? teamId,
+        Guid? targetUserId)
+        where T : class
+    {
+        if (result.Succeeded)
+        {
+            return result.Value
+                ?? throw new InvalidOperationException(
+                    "A successful team operation returned no value.");
+        }
+
+        var failure = result.Failure
+            ?? throw new InvalidOperationException(
+                "A failed team operation returned no failure.");
+        var problem = MapFailure(failure);
+        CollaborationEndpointBoundary.Write(
+            logger,
+            operation,
+            problem.Code,
+            actor,
+            organizationId,
+            teamId,
+            targetUserId);
+        throw problem;
+    }
+
+    private static ApiProblemException MapFailure(TeamFailure failure) =>
+        failure switch
+        {
+            TeamFailure.InvalidCursor => new ApiProblemException(
+                StatusCodes.Status400BadRequest,
+                ApiProblemCodes.InvalidCursor),
+            TeamFailure.NotFound => new ApiProblemException(
+                StatusCodes.Status404NotFound,
+                ApiProblemCodes.TeamNotFound),
+            TeamFailure.PermissionDenied => new ApiProblemException(
+                StatusCodes.Status403Forbidden,
+                ApiProblemCodes.TeamPermissionDenied),
+            TeamFailure.NameConflict => new ApiProblemException(
+                StatusCodes.Status409Conflict,
+                ApiProblemCodes.TeamNameConflict),
+            TeamFailure.NameUnchanged => new ApiProblemException(
+                StatusCodes.Status409Conflict,
+                ApiProblemCodes.TeamNameUnchanged),
+            TeamFailure.MemberNotFound => new ApiProblemException(
+                StatusCodes.Status404NotFound,
+                ApiProblemCodes.TeamMemberNotFound),
+            TeamFailure.MemberAlreadyExists => new ApiProblemException(
+                StatusCodes.Status409Conflict,
+                ApiProblemCodes.TeamMemberAlreadyExists),
+            TeamFailure.ConcurrencyConflict => new ApiProblemException(
+                StatusCodes.Status409Conflict,
+                ApiProblemCodes.ConcurrencyConflict),
+            TeamFailure.InvalidName => throw new InvalidOperationException(
+                "HTTP team-name validation and application validation disagreed."),
+            _ => throw new InvalidOperationException(
+                "Unexpected team operation failure.")
+        };
+
+    private static TeamPageResponse Map(TeamPage value) => new(
+        value.Items.Select(Map).ToArray(),
+        value.NextCursor);
+
+    private static TeamResponse Map(TeamSummary value) => new(
+        value.Id.Value,
+        value.OrganizationId.Value,
+        value.Name.Value,
+        value.MemberCount,
+        Map(value.Members),
+        value.CreatedAt,
+        value.UpdatedAt);
+
+    private static TeamMemberPageResponse Map(TeamMemberPage value) => new(
+        value.Items.Select(Map).ToArray(),
+        value.NextCursor);
+
+    private static TeamMemberResponse Map(TeamMemberView value) => new(
+        value.Id.Value,
+        value.UserId.Value,
+        value.Name,
+        value.Email,
+        ProjectHttpsImage(value.ImageUrl),
+        value.Role.Value,
+        value.OrganizationJoinedAt,
+        value.TeamJoinedAt);
+
+    private static TeamCandidatePageResponse Map(TeamCandidatePage value) => new(
+        value.Items.Select(Map).ToArray(),
+        value.NextCursor);
+
+    private static TeamCandidateResponse Map(TeamCandidate value) => new(
+        value.MemberId.Value,
+        value.UserId.Value,
+        value.Name,
+        value.Email,
+        ProjectHttpsImage(value.ImageUrl),
+        value.Role.Value,
+        value.JoinedAt);
+
+    private static string? ProjectHttpsImage(string? value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var image)
+        && image.Scheme == Uri.UriSchemeHttps
+        && !string.IsNullOrEmpty(image.Host)
+        && string.IsNullOrEmpty(image.UserInfo)
+            ? image.AbsoluteUri
+            : null;
+
+    private sealed record TeamListBoundary(
+        OrganizationId OrganizationId,
+        string? Cursor,
+        int Limit);
+
+    private sealed record TeamNameBoundary(
+        OrganizationId OrganizationId,
+        string Name);
+
+    private sealed record TeamResourceBoundary(
+        OrganizationId OrganizationId,
+        TeamId TeamId);
+
+    private sealed record TeamResourceNameBoundary(
+        OrganizationId OrganizationId,
+        TeamId TeamId,
+        string Name);
+
+    private sealed record TeamResourceListBoundary(
+        OrganizationId OrganizationId,
+        TeamId TeamId,
+        string? Cursor,
+        int Limit);
+
+    private sealed record TeamMemberBoundary(
+        OrganizationId OrganizationId,
+        TeamId TeamId,
+        UserId TargetUserId);
+
+    private sealed record TeamCandidateListBoundary(
+        OrganizationId OrganizationId,
+        TeamId TeamId,
+        string? Query,
+        string? Cursor,
+        int Limit);
+}

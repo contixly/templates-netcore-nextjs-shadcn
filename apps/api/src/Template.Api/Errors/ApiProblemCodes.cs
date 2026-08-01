@@ -59,4 +59,11 @@ internal static class ApiProblemCodes
         "role_assignment_forbidden";
     internal const string MemberDomainAcknowledgementRequired =
         "member_domain_acknowledgement_required";
+    internal const string TeamNotFound = "team_not_found";
+    internal const string TeamPermissionDenied = "team_permission_denied";
+    internal const string TeamNameConflict = "team_name_conflict";
+    internal const string TeamNameUnchanged = "team_name_unchanged";
+    internal const string TeamMemberNotFound = "team_member_not_found";
+    internal const string TeamMemberAlreadyExists =
+        "team_member_already_exists";
 }

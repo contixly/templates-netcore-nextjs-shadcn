@@ -206,6 +206,30 @@ internal static class ApiProblemDetailsDefaults
                     requestedCode,
                     "Organization ownership transfer required",
                     "Organization ownership must be transferred before this operation."),
+            ApiProblemCodes.TeamNotFound => new ProblemDefinition(
+                requestedCode,
+                "Team not found",
+                "The requested team was not found."),
+            ApiProblemCodes.TeamPermissionDenied => new ProblemDefinition(
+                requestedCode,
+                "Team permission denied",
+                "You do not have permission to perform this team operation."),
+            ApiProblemCodes.TeamNameConflict => new ProblemDefinition(
+                requestedCode,
+                "Team name conflict",
+                "A team in this organization already uses this name."),
+            ApiProblemCodes.TeamNameUnchanged => new ProblemDefinition(
+                requestedCode,
+                "Team name unchanged",
+                "The requested team already uses this name."),
+            ApiProblemCodes.TeamMemberNotFound => new ProblemDefinition(
+                requestedCode,
+                "Team member not found",
+                "The requested team member was not found."),
+            ApiProblemCodes.TeamMemberAlreadyExists => new ProblemDefinition(
+                requestedCode,
+                "Team member already exists",
+                "The requested user is already a member of this team."),
             _ => null
         };
         if (custom is not null)
