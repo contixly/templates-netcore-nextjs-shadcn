@@ -10,10 +10,12 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using Template.Application.Accounts.Ports;
 using Template.Application.Authentication.Ports;
+using Template.Application.Collaboration.Ports;
 using Template.Application.Common.Ports;
 using Template.Application.Organizations.Ports;
 using Template.Infrastructure.Accounts;
 using Template.Infrastructure.Authentication;
+using Template.Infrastructure.Collaboration;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Organizations;
 using AuthenticationDataProtectionOptions =
@@ -107,6 +109,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAccountStore, EfAccountStore>();
         services.AddScoped<IAccountSessionStore, EfAccountSessionStore>();
         services.AddScoped<IOrganizationStore, EfOrganizationStore>();
+        services.AddScoped<ITeamStore, EfTeamStore>();
         services.AddScoped<
             IOrganizationUserLifecycleStore,
             EfOrganizationUserLifecycleStore>();
