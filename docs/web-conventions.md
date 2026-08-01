@@ -537,6 +537,13 @@ row or its cursor state; it is discarded and queues one latest first-page GET.
 The mutation projection remains visible if that reconciliation is delayed,
 fails, or has not yet observed the committed row, and Retry/reconciliation stay
 GET-only so the browser never encourages a duplicate create.
+Only rows actually returned by the server acknowledge an overlay, by immutable
+invitation id. The local accumulated list is never acknowledgement input, so an
+unrelated continuation cannot clear a confirmed row. An RSC `initialPage` that
+does not contain every outstanding confirmed id retains those overlays and
+queues one current all-filter GET; an RSC/server row containing an exact id may
+retire only that overlay. Multiple confirmed creates therefore remain causal
+independently until each is observed by the server.
 
 The browser validates the email and selected generated team locally, but the API
 remains authoritative for domain, duplicate, membership, permission, and role

@@ -2519,6 +2519,48 @@ The immutable `template/`, inactive OpenSpec state, contract, and generated SDK
 remain unchanged. Push, merge, and a later automatic review of the corrected
 head remain unobserved and are not claimed.
 
+### PR #7 round-1 scoped causal-overlay follow-up 2026-08-01
+
+A scoped review of `b33fbe7fe247fef13c995df0c3c47d7494193eb8`
+found that the first repair did not preserve its create overlay across every
+server input. Two additional controlled regressions were added before the
+repair: the RSC replacement case failed by immediately dropping the confirmed
+email, and the isolated continuation-lifetime case failed **0/1** after an
+unrelated continuation incorrectly cleared the overlay before a later pending
+filter read.
+
+Invitation activity now stores server rows separately from unacknowledged
+mutation overlays. Only raw rows actually returned by a browser GET or RSC page
+can acknowledge the same immutable invitation id. Accumulated local rows are
+never acknowledgement evidence. A replacement RSC page acknowledges only the
+ids it contains; if confirmed ids remain, their all-filter projection stays
+visible and one current first-page GET reconciles the stale cursor/page. Browser
+request/mutation generations, all/pending-only projection, transactional
+nonmatching filters, and GET-only recovery remain intact.
+
+| Scoped follow-up gate | Наблюдаемый результат |
+| --- | --- |
+| causal RED | RSC replacement dropped its confirmed row; isolated continuation lifetime **0/1** |
+| focused invitation activity | PASS; **8/8 tests**, `real 2.34s` |
+| combined invitation focus | PASS; **3/3 suites, 46/46 tests**, `real 2.09s` |
+| format/lint/typecheck/boundaries | PASS; Prettier clean (`1.90s`); ESLint 0 errors/10 inherited warnings (`4.72s`); typecheck clean (`2.05s`); boundaries **5/5** (`1.37s`) |
+| full Jest | PASS; **61/61 suites, 489/489 tests**, 0 snapshots; `real 10.78s` |
+| clean production build | PASS; Next.js 16.2.11, **23/23** generation, standalone present; `real 7.41s` |
+| Playwright Chromium | focused collaboration **2/2** (`real 36.08s`); final full rerun **16 passed, 5 opt-in provider tests skipped, 0 failed** (`real 66.52s`) |
+
+The first final full Playwright attempt recorded **15 passed, 5 skipped, 1
+failed** (`real 61.42s`) when the collaboration decision workflow observed its
+verification prompt only in React Activity's hidden copy. The exact unchanged
+workflow had just passed in the focused **2/2** run; an immediate unchanged full
+rerun passed **16**, skipped the same five opt-in provider tests, and failed
+none. Both observations are retained here rather than presenting the retry as
+the only run.
+
+This scoped follow-up changes no decision/account-list behavior from the prior
+repair, no REST/client contract, database, package, E2E source, immutable
+reference, or OpenSpec state. Push and later automatic review remain
+unobserved.
+
 ## 9. Правило обновления этого документа
 
 Перед стартом очередной итерации уточняются только её scope, зависимости, risks и acceptance criteria. Изменение порядка или архитектурных решений фиксируется здесь отдельной записью с причиной; незавершённые задачи не «перепрыгивают» в следующую итерацию без явного решения.

@@ -2,7 +2,7 @@
 
 import { IconMail } from "@tabler/icons-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useInsertionEffect, useRef, useState } from "react";
+import { useInsertionEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { InvitationCopyButton } from "@/src/components/collaboration/invitation-copy-button";
 import { InvitationCreateDialog } from "@/src/components/collaboration/invitation-create-dialog";
@@ -108,6 +108,9 @@ export function InvitationActivity({
   );
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
   const [filter, setFilter] = useState<InvitationFilter>("all");
+  const [confirmedItems, setConfirmedItems] = useState<
+    readonly InvitationResponse[]
+  >([]);
   const [pending, setPending] = useState(false);
   const [partialFailure, setPartialFailure] = useState(false);
   const [failedCursor, setFailedCursor] = useState<string | undefined>();
@@ -116,44 +119,64 @@ export function InvitationActivity({
     Readonly<{ epoch: number; filter: InvitationFilter }> | undefined
   >(undefined);
   const confirmedGeneration = useRef(0);
-  const confirmedInvitations = useRef(new Map<string, InvitationResponse>());
+  const confirmedInvitationIds = useRef(new Set<string>());
   const queuedReconciliation = useRef(false);
+  const queuedServerPageReconciliation = useRef(false);
   const filterRef = useRef<InvitationFilter>("all");
 
   useInsertionEffect(() => {
     requestEpoch.current += 1;
     activeRequest.current = undefined;
     queuedReconciliation.current = false;
-    confirmedInvitations.current.clear();
+    for (const item of initialPage.items) {
+      confirmedInvitationIds.current.delete(item.id);
+    }
+    queuedServerPageReconciliation.current =
+      confirmedInvitationIds.current.size > 0;
     filterRef.current = "all";
     return () => {
       requestEpoch.current += 1;
       activeRequest.current = undefined;
       queuedReconciliation.current = false;
+      queuedServerPageReconciliation.current = false;
     };
   }, [initialPage]);
 
-  function withConfirmedInvitations(
-    nextFilter: InvitationFilter,
-    authoritative: readonly InvitationResponse[],
-  ): InvitationResponse[] {
-    for (const item of authoritative) {
-      confirmedInvitations.current.delete(item.id);
-    }
-    return includesConfirmedInvitation(nextFilter)
-      ? latestUnique(authoritative, [...confirmedInvitations.current.values()])
-      : latestUnique([], authoritative);
+  useLayoutEffect(() => {
+    if (!queuedServerPageReconciliation.current) return;
+    queuedServerPageReconciliation.current = false;
+    void read("all", undefined, true);
+  });
+
+  function acknowledgeConfirmedInvitations(
+    serverItems: readonly InvitationResponse[],
+  ) {
+    if (serverItems.length === 0) return;
+    const returnedIds = new Set(serverItems.map((item) => item.id));
+    for (const id of returnedIds) confirmedInvitationIds.current.delete(id);
+    setConfirmedItems((current) => {
+      const remaining = current.filter((item) => !returnedIds.has(item.id));
+      return remaining.length === current.length ? current : remaining;
+    });
   }
 
   if (serverPage !== initialPage) {
+    const returnedIds = new Set(initialPage.items.map((item) => item.id));
     setServerPage(initialPage);
     setItems(latestUnique([], initialPage.items));
+    setConfirmedItems((current) =>
+      current.filter((item) => !returnedIds.has(item.id)),
+    );
     setNextCursor(initialPage.nextCursor);
     setFilter("all");
     setPending(false);
     setPartialFailure(false);
     setFailedCursor(undefined);
   }
+
+  const visibleItems = includesConfirmedInvitation(filter)
+    ? latestUnique(items, confirmedItems)
+    : items;
 
   async function read(
     nextFilter: InvitationFilter,
@@ -167,7 +190,7 @@ export function InvitationActivity({
       queuedReconciliation.current = false;
     }
     if (!cursor && !reconciliation) {
-      setItems(withConfirmedInvitations(nextFilter, []));
+      setItems([]);
       setNextCursor(null);
     }
     setPending(true);
@@ -199,11 +222,11 @@ export function InvitationActivity({
         return;
       }
       const page = result.data.data;
+      acknowledgeConfirmedInvitations(page.items);
       setItems((current) =>
-        withConfirmedInvitations(
-          nextFilter,
-          cursor ? latestUnique(current, page.items) : page.items,
-        ),
+        cursor
+          ? latestUnique(current, page.items)
+          : latestUnique([], page.items),
       );
       setNextCursor(page.nextCursor);
     } catch (error) {
@@ -239,11 +262,11 @@ export function InvitationActivity({
       invitation.displayState !== "pending"
     )
       return;
-    confirmedInvitations.current.set(invitation.id, invitation);
+    confirmedInvitationIds.current.add(invitation.id);
     confirmedGeneration.current += 1;
+    setConfirmedItems((current) => latestUnique(current, [invitation]));
     const currentFilter = filterRef.current;
     if (!includesConfirmedInvitation(currentFilter)) return;
-    setItems((current) => withConfirmedInvitations(currentFilter, current));
     const active = activeRequest.current;
     if (
       active &&
@@ -314,7 +337,7 @@ export function InvitationActivity({
         </Alert>
       ) : null}
 
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
@@ -326,7 +349,7 @@ export function InvitationActivity({
         </Empty>
       ) : (
         <div className="flex flex-col gap-3">
-          {items.map((invitation) => (
+          {visibleItems.map((invitation) => (
             <Card key={invitation.id} size="sm">
               <CardHeader>
                 <CardTitle>{invitation.email}</CardTitle>

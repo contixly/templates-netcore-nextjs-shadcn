@@ -10,7 +10,7 @@ import { InvitationActivity } from "@/src/components/collaboration/invitation-ac
 import { createBrowserInvitation } from "@/src/lib/api/collaboration/browser/collaboration-mutations";
 import { getOrganizationInvitations } from "@/src/lib/api/generated/sdk.gen";
 import type { InvitationResponse } from "@/src/lib/api/generated/types.gen";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: jest.fn() }),
@@ -388,4 +388,172 @@ it("keeps a confirmed pending invitation over an older filter read and only over
   chooseFilter("Accepted");
   expect(await screen.findByText("accepted@example.test")).toBeVisible();
   expect(screen.queryByText(created.email)).not.toBeInTheDocument();
+});
+
+it("keeps an unacknowledged create over a stale RSC page and queues a current GET", async () => {
+  const preReplacementRecovery =
+    deferred<Awaited<ReturnType<typeof getOrganizationInvitations>>>();
+  const postReplacementRecovery =
+    deferred<Awaited<ReturnType<typeof getOrganizationInvitations>>>();
+  const created = {
+    ...invitation,
+    id: "01900000-0000-7000-8000-000000000103",
+    email: "rsc-created@example.test",
+  };
+  createInvitation.mockResolvedValue({ ok: true, data: created });
+  listInvitations
+    .mockReturnValueOnce(
+      preReplacementRecovery.promise as ReturnType<
+        typeof getOrganizationInvitations
+      >,
+    )
+    .mockReturnValueOnce(
+      postReplacementRecovery.promise as ReturnType<
+        typeof getOrganizationInvitations
+      >,
+    );
+  const view = renderWithMessages(
+    <InvitationActivity
+      initialPage={{ items: [invitation], nextCursor: "initial-next" }}
+      organization={{ id: "org-1", currentRole: "owner" }}
+      teams={[]}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
+  const dialog = screen.getByRole("dialog", {
+    name: "Invite a workspace member",
+  });
+  fireEvent.change(within(dialog).getByLabelText("Email address"), {
+    target: { value: created.email },
+  });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create invitation" }),
+  );
+  expect(await screen.findByText(created.email)).toBeVisible();
+  await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <InvitationActivity
+        initialPage={{ items: [invitation], nextCursor: "stale-rsc-next" }}
+        organization={{ id: "org-1", currentRole: "owner" }}
+        teams={[]}
+      />,
+    ),
+  );
+
+  expect(screen.getByText(created.email)).toBeVisible();
+  await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(2));
+  expect(listInvitations).toHaveBeenLastCalledWith(
+    expect.objectContaining({ query: { limit: 20 } }),
+  );
+
+  await act(async () => {
+    preReplacementRecovery.resolve({
+      data: { data: { items: [invitation], nextCursor: "older-next" } },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+    await preReplacementRecovery.promise;
+  });
+  expect(screen.getByText(created.email)).toBeVisible();
+
+  await act(async () => {
+    postReplacementRecovery.resolve({
+      data: { data: { items: [invitation], nextCursor: null } },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+    await postReplacementRecovery.promise;
+  });
+  expect(screen.getByText(created.email)).toBeVisible();
+  expect(createInvitation).toHaveBeenCalledTimes(1);
+});
+
+it("does not let an unrelated continuation acknowledge and clear a confirmed overlay", async () => {
+  const created = {
+    ...invitation,
+    id: "01900000-0000-7000-8000-000000000104",
+    email: "continued-created@example.test",
+  };
+  createInvitation.mockResolvedValue({ ok: true, data: created });
+  listInvitations
+    .mockResolvedValueOnce({
+      data: {
+        data: { items: [invitation], nextCursor: "continuation-cursor" },
+      },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>)
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "continuation-only",
+              email: "continuation@example.test",
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>)
+    .mockResolvedValueOnce({
+      data: {
+        data: {
+          items: [
+            {
+              ...invitation,
+              id: "accepted-after-continuation",
+              email: "accepted-after-continuation@example.test",
+              status: "accepted",
+              displayState: "accepted",
+            },
+          ],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>)
+    .mockResolvedValueOnce({
+      data: { data: { items: [invitation], nextCursor: null } },
+    } as Awaited<ReturnType<typeof getOrganizationInvitations>>);
+  renderWithMessages(
+    <InvitationActivity
+      initialPage={{ items: [invitation], nextCursor: null }}
+      organization={{ id: "org-1", currentRole: "owner" }}
+      teams={[]}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
+  const dialog = screen.getByRole("dialog", {
+    name: "Invite a workspace member",
+  });
+  fireEvent.change(within(dialog).getByLabelText("Email address"), {
+    target: { value: created.email },
+  });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create invitation" }),
+  );
+  expect(await screen.findByText(created.email)).toBeVisible();
+  await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(1));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Invite a workspace member" }),
+    ).not.toBeInTheDocument(),
+  );
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more invitations" }),
+  );
+  expect(await screen.findByText("continuation@example.test")).toBeVisible();
+  expect(screen.getByText(created.email)).toBeVisible();
+
+  chooseFilter("Accepted");
+  expect(
+    await screen.findByText("accepted-after-continuation@example.test"),
+  ).toBeVisible();
+  expect(screen.queryByText(created.email)).not.toBeInTheDocument();
+
+  chooseFilter("Pending");
+  await waitFor(() => expect(listInvitations).toHaveBeenCalledTimes(4));
+  expect(screen.getByText(created.email)).toBeVisible();
+  expect(createInvitation).toHaveBeenCalledTimes(1);
 });
