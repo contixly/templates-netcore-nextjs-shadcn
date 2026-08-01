@@ -46,7 +46,7 @@ public sealed class InvitationService(
     }
 
     public async Task<InvitationOperationResult<AccountInvitationPage>> ListAccountAsync(
-        UserId actorUserId,
+        InvitationActor actor,
         string? cursor,
         int limit,
         CancellationToken cancellationToken)
@@ -58,7 +58,7 @@ public sealed class InvitationService(
         }
 
         var result = await invitations.ListAccountAsync(
-            actorUserId,
+            actor,
             after,
             limit,
             timeProvider.GetUtcNow(),
@@ -75,10 +75,10 @@ public sealed class InvitationService(
     }
 
     public Task<InvitationOperationResult<InvitationDecision>> GetDecisionAsync(
-        UserId actorUserId,
+        InvitationActor actor,
         InvitationId invitationId,
         CancellationToken cancellationToken) =>
-        invitations.GetDecisionAsync(actorUserId, invitationId, timeProvider.GetUtcNow(), cancellationToken);
+        invitations.GetDecisionAsync(actor, invitationId, timeProvider.GetUtcNow(), cancellationToken);
 
     public async Task<InvitationOperationResult<InvitationView>> CreateAsync(
         CreateInvitationCommand command,
@@ -94,10 +94,19 @@ public sealed class InvitationService(
         }
 
         var invitation = RequireValue(result);
-        _ = await notifier.NotifyCreatedAsync(
-            new InvitationNotification(invitation.Email, $"/invite/{invitation.Id.Value:D}"),
-            cancellationToken);
-        return result;
+        try
+        {
+            var outcome = await notifier.NotifyCreatedAsync(
+                new InvitationNotification(invitation.Email, $"/invite/{invitation.Id.Value:D}"),
+                cancellationToken);
+            return outcome == InvitationNotificationOutcome.Failed
+                ? result with { Warning = InvitationWarnings.NotificationFailed }
+                : result;
+        }
+        catch (Exception)
+        {
+            return result with { Warning = InvitationWarnings.NotificationFailed };
+        }
     }
 
     public Task<InvitationOperationResult<AcceptedInvitation>> AcceptAsync(

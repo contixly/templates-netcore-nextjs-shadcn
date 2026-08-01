@@ -20,14 +20,14 @@ public interface IInvitationStore
     Task<InvitationOperationResult<
         InvitationStorePage<InvitationView, AccountInvitationCursorPosition>>>
         ListAccountAsync(
-            UserId actorUserId,
+            InvitationActor actor,
             AccountInvitationCursorPosition? after,
             int limit,
             DateTimeOffset now,
             CancellationToken cancellationToken);
 
     Task<InvitationOperationResult<InvitationDecision>> GetDecisionAsync(
-        UserId actorUserId,
+        InvitationActor actor,
         InvitationId invitationId,
         DateTimeOffset now,
         CancellationToken cancellationToken);

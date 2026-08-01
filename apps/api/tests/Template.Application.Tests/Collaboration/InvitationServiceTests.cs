@@ -13,6 +13,7 @@ public sealed class InvitationServiceTests
     private static readonly SessionId Session = new(Guid.Parse("00000000-0000-0000-0000-000000000003"));
     private static readonly OrganizationId Organization = new(Guid.Parse("00000000-0000-0000-0000-000000000010"));
     private static readonly InvitationId Invitation = new(Guid.Parse("00000000-0000-0000-0000-000000000020"));
+    private static readonly InvitationActor RecipientActor = new(Recipient, "recipient@example.com", true);
 
     [Fact]
     public async Task Successful_create_notifies_after_the_store_returns_success()
@@ -52,6 +53,34 @@ public sealed class InvitationServiceTests
 
         Assert.True(result.Succeeded);
         Assert.Same(invitation, result.Value);
+        Assert.Equal(1, notifier.Calls);
+        Assert.Equal("notification_failed", result.Warning);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Notification_exception_after_store_success_returns_a_safe_warning(bool cancellationStyle)
+    {
+        var invitation = InvitationTestData.View();
+        var store = new RecordingInvitationStore
+        {
+            CreateResult = InvitationOperationResult<InvitationView>.Success(invitation)
+        };
+        var notifier = new RecordingInvitationNotifier
+        {
+            CancellationFailure = cancellationStyle,
+            ExceptionToThrow = cancellationStyle
+                ? null
+                : new InvalidOperationException("provider detail must not escape")
+        };
+        var service = new InvitationService(store, notifier, TimeProvider.System);
+
+        var result = await service.CreateAsync(CreateCommand(), TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Same(invitation, result.Value);
+        Assert.Equal("notification_failed", result.Warning);
         Assert.Equal(1, notifier.Calls);
     }
 
@@ -119,7 +148,7 @@ public sealed class InvitationServiceTests
         var cursor = InvitationCursor.Encode(new OrganizationInvitationCursorPosition(
             DateTimeOffset.Parse("2026-08-01T00:00:00Z"), Invitation));
 
-        var result = await service.ListAccountAsync(Recipient, cursor, 50, TestContext.Current.CancellationToken);
+        var result = await service.ListAccountAsync(RecipientActor, cursor, 50, TestContext.Current.CancellationToken);
 
         Assert.Equal(InvitationFailure.InvalidCursor, result.Failure);
         Assert.Equal(0, store.AccountListCalls);
@@ -136,7 +165,7 @@ public sealed class InvitationServiceTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             service.ListOrganizationAsync(Actor, Organization, null, null, limit, TestContext.Current.CancellationToken));
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
-            service.ListAccountAsync(Recipient, null, limit, TestContext.Current.CancellationToken));
+            service.ListAccountAsync(RecipientActor, null, limit, TestContext.Current.CancellationToken));
 
         Assert.Equal(0, store.OrganizationListCalls);
         Assert.Equal(0, store.AccountListCalls);
@@ -149,16 +178,19 @@ public sealed class InvitationServiceTests
         var store = new RecordingInvitationStore();
         var service = new InvitationService(store, new RecordingInvitationNotifier(), new FixedTimeProvider(now));
 
-        await service.GetDecisionAsync(Recipient, Invitation, TestContext.Current.CancellationToken);
-        await service.AcceptAsync(new AcceptInvitationCommand(Recipient, Session, Invitation), TestContext.Current.CancellationToken);
-        await service.RejectAsync(new RejectInvitationCommand(Recipient, Invitation), TestContext.Current.CancellationToken);
+        await service.ListAccountAsync(RecipientActor, null, 50, TestContext.Current.CancellationToken);
+        await service.GetDecisionAsync(RecipientActor, Invitation, TestContext.Current.CancellationToken);
+        await service.AcceptAsync(new AcceptInvitationCommand(RecipientActor, Session, Invitation), TestContext.Current.CancellationToken);
+        await service.RejectAsync(new RejectInvitationCommand(RecipientActor, Invitation), TestContext.Current.CancellationToken);
 
+        Assert.Equal(now, store.LastAccountNow);
         Assert.Equal(now, store.LastDecisionNow);
         Assert.Equal(now, store.LastAcceptNow);
         Assert.Equal(now, store.LastRejectNow);
-        Assert.Equal(Recipient, store.LastDecisionActor);
-        Assert.Equal(new AcceptInvitationCommand(Recipient, Session, Invitation), store.LastAccept);
-        Assert.Equal(new RejectInvitationCommand(Recipient, Invitation), store.LastReject);
+        Assert.Equal(RecipientActor, store.LastAccountActor);
+        Assert.Equal(RecipientActor, store.LastDecisionActor);
+        Assert.Equal(new AcceptInvitationCommand(RecipientActor, Session, Invitation), store.LastAccept);
+        Assert.Equal(new RejectInvitationCommand(RecipientActor, Invitation), store.LastReject);
     }
 
     [Theory]
@@ -229,7 +261,9 @@ internal sealed class RecordingInvitationStore : IInvitationStore
     internal OrganizationInvitationCursorPosition? LastOrganizationAfter { get; private set; }
     internal InvitationDisplayState? LastOrganizationFilter { get; private set; }
     internal DateTimeOffset? LastCreateExpiresAt { get; private set; }
-    internal UserId? LastDecisionActor { get; private set; }
+    internal InvitationActor? LastAccountActor { get; private set; }
+    internal DateTimeOffset? LastAccountNow { get; private set; }
+    internal InvitationActor? LastDecisionActor { get; private set; }
     internal DateTimeOffset? LastDecisionNow { get; private set; }
     internal AcceptInvitationCommand? LastAccept { get; private set; }
     internal DateTimeOffset? LastAcceptNow { get; private set; }
@@ -244,15 +278,17 @@ internal sealed class RecordingInvitationStore : IInvitationStore
         return Task.FromResult(OrganizationListResult);
     }
 
-    public Task<InvitationOperationResult<InvitationStorePage<InvitationView, AccountInvitationCursorPosition>>> ListAccountAsync(UserId actorUserId, AccountInvitationCursorPosition? after, int limit, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<InvitationOperationResult<InvitationStorePage<InvitationView, AccountInvitationCursorPosition>>> ListAccountAsync(InvitationActor actor, AccountInvitationCursorPosition? after, int limit, DateTimeOffset now, CancellationToken cancellationToken)
     {
         AccountListCalls++;
+        LastAccountActor = actor;
+        LastAccountNow = now;
         return Task.FromResult(AccountListResult);
     }
 
-    public Task<InvitationOperationResult<InvitationDecision>> GetDecisionAsync(UserId actorUserId, InvitationId invitationId, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<InvitationOperationResult<InvitationDecision>> GetDecisionAsync(InvitationActor actor, InvitationId invitationId, DateTimeOffset now, CancellationToken cancellationToken)
     {
-        LastDecisionActor = actorUserId;
+        LastDecisionActor = actor;
         LastDecisionNow = now;
         return Task.FromResult(InvitationOperationResult<InvitationDecision>.Failed(InvitationFailure.NotFound));
     }
@@ -288,13 +324,22 @@ internal sealed class RecordingInvitationNotifier : IInvitationNotifier
     internal InvitationNotificationOutcome Result { get; set; } = InvitationNotificationOutcome.Completed;
     internal InvitationNotification? Last { get; private set; }
     internal int Calls { get; private set; }
+    internal Exception? ExceptionToThrow { get; set; }
+    internal bool CancellationFailure { get; set; }
 
     public Task<InvitationNotificationOutcome> NotifyCreatedAsync(InvitationNotification notification, CancellationToken cancellationToken)
     {
         calls?.Add("notify");
         Calls++;
         Last = notification;
-        return Task.FromResult(Result);
+        if (CancellationFailure)
+        {
+            return Task.FromCanceled<InvitationNotificationOutcome>(new CancellationToken(canceled: true));
+        }
+
+        return ExceptionToThrow is null
+            ? Task.FromResult(Result)
+            : Task.FromException<InvitationNotificationOutcome>(ExceptionToThrow);
     }
 }
 

@@ -32,6 +32,16 @@ public sealed record AcceptedInvitation(
 
 public sealed record InvitationNotification(string RecipientEmail, string InvitationPath);
 
+public sealed record InvitationActor(
+    UserId UserId,
+    string NormalizedPrimaryEmail,
+    bool IsEmailVerified);
+
+public static class InvitationWarnings
+{
+    public const string NotificationFailed = "notification_failed";
+}
+
 public enum InvitationNotificationOutcome
 {
     Completed,
@@ -84,7 +94,7 @@ public enum InvitationFailure
     ConcurrencyConflict
 }
 
-public sealed record InvitationOperationResult<T>(T? Value, InvitationFailure? Failure)
+public sealed record InvitationOperationResult<T>(T? Value, InvitationFailure? Failure, string? Warning = null)
     where T : class
 {
     public bool Succeeded => Failure is null;
@@ -115,8 +125,8 @@ public sealed record CreateInvitationCommand(
     TeamId? TeamId);
 
 public sealed record AcceptInvitationCommand(
-    UserId ActorUserId,
+    InvitationActor Actor,
     SessionId SessionId,
     InvitationId InvitationId);
 
-public sealed record RejectInvitationCommand(UserId ActorUserId, InvitationId InvitationId);
+public sealed record RejectInvitationCommand(InvitationActor Actor, InvitationId InvitationId);
