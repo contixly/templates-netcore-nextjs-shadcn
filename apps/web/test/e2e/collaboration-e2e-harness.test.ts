@@ -15,6 +15,7 @@ import {
   createGeneratedTeam,
   deleteGeneratedTeam,
   getGeneratedAccountInvitations,
+  getGeneratedOrganizationMembers,
   getGeneratedTeamMemberCandidates,
   getGeneratedTeams,
   removeGeneratedTeamMember,
@@ -34,6 +35,7 @@ import {
   deleteTeam,
   getAccountInvitations,
   getAuthCsrf,
+  getOrganizationMembers,
   getTeamMemberCandidates,
   getTeams,
   removeTeamMember,
@@ -52,6 +54,7 @@ jest.mock("@/src/lib/api/generated/sdk.gen", () => ({
   deleteTeam: jest.fn(),
   getAccountInvitations: jest.fn(),
   getAuthCsrf: jest.fn(),
+  getOrganizationMembers: jest.fn(),
   getTeamMemberCandidates: jest.fn(),
   getTeams: jest.fn(),
   removeTeamMember: jest.fn(),
@@ -236,6 +239,26 @@ it("uses generated operations for collaboration setup and returns contract ids a
   jest.mocked(getAccountInvitations).mockResolvedValue({
     data: { data: { items: [invitation], nextCursor: null } },
   } as never);
+  jest.mocked(getOrganizationMembers).mockResolvedValue({
+    data: {
+      data: {
+        items: [
+          {
+            id: member.id,
+            userId: member.userId,
+            name: member.name,
+            email: member.email,
+            imageUrl: member.imageUrl,
+            role: member.role,
+            joinedAt: member.organizationJoinedAt,
+            emailDomain: "local-agent.test",
+            isOutsideAllowedEmailDomains: false,
+          },
+        ],
+        nextCursor: null,
+      },
+    },
+  } as never);
 
   await expect(
     addGeneratedOrganizationMember(request, organizationId, userId, "member"),
@@ -270,6 +293,9 @@ it("uses generated operations for collaboration setup and returns contract ids a
   ).resolves.toMatchObject({ items: [{ id: teamId }] });
   await expect(
     getGeneratedTeamMemberCandidates(request, organizationId, teamId, "member"),
+  ).resolves.toMatchObject({ items: [{ userId }] });
+  await expect(
+    getGeneratedOrganizationMembers(request, organizationId),
   ).resolves.toMatchObject({ items: [{ userId }] });
   await expect(getGeneratedAccountInvitations(request)).resolves.toMatchObject({
     items: [{ id: invitationId }],

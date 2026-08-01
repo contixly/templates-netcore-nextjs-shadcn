@@ -9,6 +9,7 @@ import {
   getAccountInvitations,
   getInvitationDecision,
   getOrganizationInvitations,
+  getOrganizationMembers,
   getTeamMemberCandidates,
   getTeamMembers,
   getTeams,
@@ -19,6 +20,7 @@ import {
   type InvitationDecisionResponse,
   type InvitationResponse,
   type OrganizationInvitationPageResponse,
+  type OrganizationMemberPageResponse,
   type OrganizationMemberResponse,
   type TeamCandidatePageResponse,
   type TeamDeletionResponse,
@@ -244,6 +246,20 @@ export async function getGeneratedOrganizationInvitations(
     query: { limit: 100 },
   });
   if (!result.data) throw failed("organization invitation list", result);
+  return result.data.data;
+}
+
+export async function getGeneratedOrganizationMembers(
+  request: APIRequestContext,
+  organizationId: string,
+): Promise<OrganizationMemberPageResponse> {
+  const result = await getOrganizationMembers({
+    client: clientFor(request),
+    cache: "no-store",
+    path: { organizationId },
+    query: { limit: 100 },
+  });
+  if (!result.data) throw failed("organization-member list", result);
   return result.data.data;
 }
 

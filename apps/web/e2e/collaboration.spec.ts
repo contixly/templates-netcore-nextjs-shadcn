@@ -4,6 +4,8 @@ import {
   addGeneratedOrganizationMember,
   createGeneratedTeam,
   getGeneratedAccountInvitations,
+  getGeneratedOrganizationInvitations,
+  getGeneratedOrganizationMembers,
   getGeneratedTeamMemberCandidates,
   getGeneratedTeamMembers,
   getGeneratedTeams,
@@ -17,6 +19,7 @@ import {
 } from "./support/organization-test-fixture";
 
 const password = "E2E-Collaboration-123!";
+const webOrigin = "http://127.0.0.1:3127";
 const identities = {
   teamOwner: {
     name: "E2E Team Owner",
@@ -58,6 +61,11 @@ const identities = {
     email: "local-agent+collaboration-rejecting-invitee@local-agent.test",
     password,
   },
+  invitedOwner: {
+    name: "E2E Invited Owner",
+    email: "local-agent+collaboration-invited-owner@local-agent.test",
+    password,
+  },
   mismatchUser: {
     name: "E2E Invitation Outsider",
     email: "local-agent+collaboration-invitation-outsider@local-agent.test",
@@ -88,13 +96,26 @@ async function createInvitationThroughBrowser(
   page: Page,
   options: Readonly<{
     email: string;
+    roleName?: "Member" | "Administrator" | "Owner";
     teamName?: string;
   }>,
-): Promise<Readonly<{ id: string; path: string }>> {
+): Promise<Readonly<{ absoluteUrl: string; id: string; path: string }>> {
   const open = page.getByRole("button", { name: "Create invitation" });
   await expect(open).toBeEnabled();
   await open.click();
   await page.getByLabel("Email address").fill(options.email);
+  const role = page.getByRole("combobox", { name: "Workspace role" });
+  await expect(role).toContainText("Member");
+  if (options.roleName) {
+    await role.click();
+    const roleOption = page.getByRole("option", {
+      name: options.roleName,
+      exact: true,
+    });
+    await expect(roleOption).toBeVisible();
+    await roleOption.click();
+    await expect(role).toContainText(options.roleName);
+  }
   if (options.teamName) {
     await page.getByLabel("Team", { exact: true }).click();
     await page.getByRole("option", { name: options.teamName }).click();
@@ -114,14 +135,21 @@ async function createInvitationThroughBrowser(
   const invitationLink = page.getByLabel("Invitation link");
   const absolute = await invitationLink.inputValue();
   const url = new URL(absolute);
-  expect(url.origin).toBe("http://127.0.0.1:3127");
+  expect(url.origin).toBe(webOrigin);
   expect(url.pathname).toMatch(/^\/invite\/[0-9a-f-]{36}$/u);
   await page.getByRole("button", { name: "Copy invitation link" }).click();
   await expect(
     page.getByText("Invitation link copied.", { exact: true }),
   ).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+    absolute,
+  );
   await page.getByRole("button", { name: "Close", exact: true }).click();
-  return { id: url.pathname.slice("/invite/".length), path: url.pathname };
+  return {
+    absoluteUrl: absolute,
+    id: url.pathname.slice("/invite/".length),
+    path: url.pathname,
+  };
 }
 
 async function confirmLocalRecipient(page: Page, invitationPath: string) {
@@ -284,6 +312,27 @@ test.describe("collaboration full-stack workflows", () => {
     await expect(
       page.getByText("Member removed from the team.", { exact: true }),
     ).toBeVisible();
+    const ownerTeamRegion = page.getByRole("region", {
+      name: "E2E Core Team members",
+    });
+    await expect(
+      ownerTeamRegion.getByText(identities.teamMember.email, { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      ownerTeamRegion.getByRole("button", {
+        name: "Remove E2E Team Member",
+      }),
+    ).toHaveCount(0);
+    const membersAfterRemoval = await getGeneratedTeamMembers(
+      page.context().request,
+      organization.id,
+      team.id,
+    );
+    expect(
+      membersAfterRemoval.items.filter(
+        (teamMember) => teamMember.userId === memberUser.user.id,
+      ),
+    ).toHaveLength(0);
     await page.getByRole("button", { name: "Delete E2E Core Team" }).click();
     await page
       .getByRole("button", { name: "Delete team", exact: true })
@@ -314,52 +363,68 @@ test.describe("collaboration full-stack workflows", () => {
       organizationScenario,
       "rejecting invitee context",
     );
+    const invitedOwner = await createTrackedContext(
+      organizationScenario,
+      "invited owner context",
+    );
     const outsider = await createTrackedContext(
       organizationScenario,
       "mismatch outsider context",
     );
-    await accepting.context.grantPermissions([
-      "clipboard-read",
-      "clipboard-write",
-    ]);
-    await admin.context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await admin.context.grantPermissions(
+      ["clipboard-read", "clipboard-write"],
+      { origin: webOrigin },
+    );
     await page
       .context()
-      .grantPermissions(["clipboard-read", "clipboard-write"]);
+      .grantPermissions(["clipboard-read", "clipboard-write"], {
+        origin: webOrigin,
+      });
 
-    const [ownerUser, adminUser, memberUser, acceptingUser, rejectingUser] =
-      await organizationScenario.createLocalUsers([
-        organizationScenario.prepareLocalUser(
-          page.context(),
-          identities.invitationOwner,
-          "invitation owner",
-        ),
-        organizationScenario.prepareLocalUser(
-          admin.context,
-          identities.invitationAdmin,
-          "invitation admin",
-        ),
-        organizationScenario.prepareLocalUser(
-          member.context,
-          identities.invitationMember,
-          "invitation member",
-        ),
-        organizationScenario.prepareLocalUser(
-          accepting.context,
-          identities.acceptingInvitee,
-          "accepting invitee",
-        ),
-        organizationScenario.prepareLocalUser(
-          rejecting.context,
-          identities.rejectingInvitee,
-          "rejecting invitee",
-        ),
-        organizationScenario.prepareLocalUser(
-          outsider.context,
-          identities.mismatchUser,
-          "invitation outsider",
-        ),
-      ]);
+    const [
+      ownerUser,
+      adminUser,
+      memberUser,
+      acceptingUser,
+      rejectingUser,
+      invitedOwnerUser,
+    ] = await organizationScenario.createLocalUsers([
+      organizationScenario.prepareLocalUser(
+        page.context(),
+        identities.invitationOwner,
+        "invitation owner",
+      ),
+      organizationScenario.prepareLocalUser(
+        admin.context,
+        identities.invitationAdmin,
+        "invitation admin",
+      ),
+      organizationScenario.prepareLocalUser(
+        member.context,
+        identities.invitationMember,
+        "invitation member",
+      ),
+      organizationScenario.prepareLocalUser(
+        accepting.context,
+        identities.acceptingInvitee,
+        "accepting invitee",
+      ),
+      organizationScenario.prepareLocalUser(
+        rejecting.context,
+        identities.rejectingInvitee,
+        "rejecting invitee",
+      ),
+      organizationScenario.prepareLocalUser(
+        invitedOwner.context,
+        identities.invitedOwner,
+        "invited owner",
+      ),
+      organizationScenario.prepareLocalUser(
+        outsider.context,
+        identities.mismatchUser,
+        "invitation outsider",
+      ),
+    ]);
     expect(acceptingUser.user.emailVerified).toBe(false);
     expect(rejectingUser.user.emailVerified).toBe(false);
     const organization = await organizationScenario.createOrganization(
@@ -421,6 +486,67 @@ test.describe("collaboration full-stack workflows", () => {
       .getByRole("button", { name: "Cancel", exact: true })
       .click();
 
+    const forcedOwnerEmail =
+      "local-agent+collaboration-admin-forced-owner@local-agent.test";
+    await admin.page.reload();
+    await admin.page.getByRole("button", { name: "Create invitation" }).click();
+    const adminRole = admin.page.getByRole("combobox", {
+      name: "Workspace role",
+    });
+    await expect(adminRole).toContainText("Member");
+    await adminRole.click();
+    await expect(
+      admin.page.getByRole("option", { name: "Owner", exact: true }),
+    ).toHaveCount(0);
+    await admin.page.keyboard.press("Escape");
+    await admin.page.getByLabel("Email address").fill(forcedOwnerEmail);
+    const organizationInvitationsPath = `/api/v1/organizations/${organization.id}/invitations`;
+    const organizationInvitationsPattern = `**${organizationInvitationsPath}`;
+    await admin.page.route(organizationInvitationsPattern, async (route) => {
+      if (route.request().method() !== "POST") {
+        await route.continue();
+        return;
+      }
+      const originalBody = route.request().postDataJSON() as Record<
+        string,
+        unknown
+      >;
+      await route.continue({
+        postData: JSON.stringify({ ...originalBody, role: "owner" }),
+      });
+    });
+    const forcedOwnerResponsePromise = admin.page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === organizationInvitationsPath,
+    );
+    await admin.page
+      .getByRole("button", { name: "Create invitation", exact: true })
+      .click();
+    const forcedOwnerResponse = await forcedOwnerResponsePromise;
+    expect(forcedOwnerResponse.status()).toBe(403);
+    expect(await forcedOwnerResponse.json()).toMatchObject({
+      code: "invitation_permission_denied",
+    });
+    await expect(
+      admin.page.getByText(
+        "You do not have permission to manage workspace invitations.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await admin.page.unroute(organizationInvitationsPattern);
+    expect(
+      (
+        await getGeneratedOrganizationInvitations(
+          page.context().request,
+          organization.id,
+        )
+      ).items.filter((invitation) => invitation.email === forcedOwnerEmail),
+    ).toHaveLength(0);
+    await admin.page
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+
     await page.reload();
     await page.getByRole("button", { name: "Create invitation" }).click();
     await page.getByLabel("Email address").fill("outside@example.test");
@@ -442,6 +568,12 @@ test.describe("collaboration full-stack workflows", () => {
     await expect(
       member.page.getByText(identities.acceptingInvitee.email),
     ).toHaveCount(0);
+
+    await page.reload();
+    const ownerInvitation = await createInvitationThroughBrowser(page, {
+      email: identities.invitedOwner.email,
+      roleName: "Owner",
+    });
 
     await admin.page.reload();
     const rejectingInvitation = await createInvitationThroughBrowser(
@@ -490,6 +622,18 @@ test.describe("collaboration full-stack workflows", () => {
       await release;
       await route.continue();
     });
+    const acceptingDecisionResponse = accepting.page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname ===
+          `/api/v1/invitations/${acceptingInvitation.id}/accept`,
+    );
+    const raceDecisionResponse = racePage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname ===
+          `/api/v1/invitations/${acceptingInvitation.id}/accept`,
+    );
     const clicks = Promise.all([
       accepting.page.getByRole("button", { name: "Accept invitation" }).click(),
       racePage.getByRole("button", { name: "Accept invitation" }).click(),
@@ -497,45 +641,135 @@ test.describe("collaboration full-stack workflows", () => {
     await bothIntercepted;
     releaseDecisions();
     await clicks;
+    const decisionOutcomes = [
+      {
+        page: accepting.page,
+        response: await acceptingDecisionResponse,
+      },
+      { page: racePage, response: await raceDecisionResponse },
+    ];
     await accepting.context.unroute(acceptPattern);
-    const canonicalDashboard = `/w/${organization.canonicalKey}/dashboard`;
-    await expect
-      .poll(async () => {
-        const states = await Promise.all(
-          [accepting.page, racePage].map(async (candidate) => ({
-            accepted: await candidate
-              .getByText("This invitation has been accepted.", { exact: true })
-              .isVisible()
-              .catch(() => false),
-            path: new URL(candidate.url()).pathname,
-          })),
-        );
-        return states.every(
-          (state) => state.path === canonicalDashboard || state.accepted,
-        );
-      })
-      .toBe(true);
-    await accepting.page.goto(canonicalDashboard);
+    expect(
+      decisionOutcomes.map(({ response }) => response.status()).sort(),
+    ).toEqual([200, 409]);
+    const winner = decisionOutcomes.find(
+      ({ response }) => response.status() === 200,
+    );
+    const loser = decisionOutcomes.find(
+      ({ response }) => response.status() === 409,
+    );
+    expect(winner).toBeDefined();
+    expect(loser).toBeDefined();
+    expect(await winner!.response.json()).toMatchObject({
+      data: {
+        invitationId: acceptingInvitation.id,
+        organizationId: organization.id,
+        canonicalOrganizationKey: organization.canonicalKey,
+      },
+    });
+    expect(await loser!.response.json()).toMatchObject({
+      code: "invitation_not_pending",
+    });
+
+    const canonicalDashboard = `/w/${encodeURIComponent(
+      organization.canonicalKey,
+    )}/dashboard`;
+    await expect(winner!.page).toHaveURL(`${webOrigin}${canonicalDashboard}`);
     await expect(
-      accepting.page.getByRole("heading", { name: "Workspace dashboard" }),
-    ).toBeVisible();
-    await accepting.page.goto(`/w/${organization.canonicalKey}/settings/teams`);
-    await expect(
-      accepting.page.getByText("E2E Invitation Team", { exact: true }),
-    ).toBeVisible();
-    await expect(
-      accepting.page.getByText(identities.acceptingInvitee.email, {
+      loser!.page.getByText("This invitation has been accepted.", {
         exact: true,
       }),
     ).toBeVisible();
+    await expect(loser!.page).toHaveURL(
+      `${webOrigin}${acceptingInvitation.path}`,
+    );
+    await expect(
+      loser!.page.getByRole("button", { name: "Accept invitation" }),
+    ).toHaveCount(0);
+    await expect(
+      loser!.page.getByRole("button", { name: "Reject invitation" }),
+    ).toHaveCount(0);
+    await expect(
+      winner!.page.getByRole("heading", { name: "Workspace dashboard" }),
+    ).toBeVisible();
+    await winner!.page.goto(
+      `/w/${encodeURIComponent(organization.canonicalKey)}/settings/teams`,
+    );
+    await expect(
+      winner!.page.getByText("E2E Invitation Team", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      winner!.page.getByText(identities.acceptingInvitee.email, {
+        exact: true,
+      }),
+    ).toBeVisible();
+    const acceptedOrganizationMembers = await getGeneratedOrganizationMembers(
+      winner!.page.context().request,
+      organization.id,
+    );
+    expect(
+      acceptedOrganizationMembers.items.filter(
+        (item) => item.userId === acceptingUser.user.id,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        role: "member",
+        userId: acceptingUser.user.id,
+      }),
+    ]);
     const acceptedTeamMembers = await getGeneratedTeamMembers(
-      accepting.context.request,
+      winner!.page.context().request,
       organization.id,
       team.id,
     );
-    expect(acceptedTeamMembers.items.map((item) => item.userId)).toContain(
-      acceptingUser.user.id,
+    expect(
+      acceptedTeamMembers.items.filter(
+        (item) => item.userId === acceptingUser.user.id,
+      ),
+    ).toEqual([expect.objectContaining({ userId: acceptingUser.user.id })]);
+
+    await confirmLocalRecipient(invitedOwner.page, ownerInvitation.path);
+    await expect(
+      invitedOwner.page.getByText("Owner", { exact: true }),
+    ).toBeVisible();
+    await invitedOwner.page
+      .getByRole("button", { name: "Accept invitation" })
+      .click();
+    await expect(invitedOwner.page).toHaveURL(
+      `${webOrigin}/w/${encodeURIComponent(
+        organization.canonicalKey,
+      )}/dashboard`,
     );
+    const organizationMembersAfterOwnerAccept =
+      await getGeneratedOrganizationMembers(
+        invitedOwner.context.request,
+        organization.id,
+      );
+    expect(
+      organizationMembersAfterOwnerAccept.items.filter(
+        (item) => item.userId === invitedOwnerUser.user.id,
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        role: "owner",
+        userId: invitedOwnerUser.user.id,
+      }),
+    ]);
+    await page.goto(
+      `/w/${encodeURIComponent(organization.canonicalKey)}/settings/users`,
+    );
+    const invitedOwnerArticle = page.getByRole("article", {
+      name: "E2E Invited Owner workspace member",
+    });
+    await expect(invitedOwnerArticle).toContainText(
+      identities.invitedOwner.email,
+    );
+    await expect(invitedOwnerArticle).toContainText("Owner");
+    await expect(
+      invitedOwnerArticle.getByRole("combobox", {
+        name: "Role for E2E Invited Owner",
+      }),
+    ).toContainText("Owner");
 
     await confirmLocalRecipient(rejecting.page, rejectingInvitation.path);
     expect(
@@ -584,8 +818,20 @@ test.describe("collaboration full-stack workflows", () => {
       outsider.page.getByText("E2E Invitation Team", { exact: true }),
     ).toHaveCount(0);
 
+    await page.goto(
+      `/w/${encodeURIComponent(
+        organization.canonicalKey,
+      )}/settings/invitations`,
+    );
+    await expect(page.locator("html")).toHaveAttribute(
+      "data-app-hydrated",
+      "true",
+    );
     await page.getByLabel("Status", { exact: true }).click();
     await page.getByRole("option", { name: "Expired", exact: true }).click();
+    await expect(page.getByLabel("Status", { exact: true })).toContainText(
+      "Expired",
+    );
     await expect(
       page.getByText("No invitation activity matches this filter.", {
         exact: true,
