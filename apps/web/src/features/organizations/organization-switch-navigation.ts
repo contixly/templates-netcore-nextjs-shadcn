@@ -38,7 +38,7 @@ export function resolveOrganizationSwitchHref(
   const suffix = getPreservableSuffix(currentPathname);
 
   if (suffix === "/settings/invitations" && !canManageInvitations) {
-    return organizationRoutes.workspace(organizationKey);
+    return organizationRoutes.dashboard(organizationKey);
   }
 
   if (suffix === undefined) {

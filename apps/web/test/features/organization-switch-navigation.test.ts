@@ -23,14 +23,14 @@ describe("organization switch navigation", () => {
     },
   );
 
-  it("falls back invitation settings to the canonical target root when the target cannot manage invitations", () => {
+  it("falls back invitation settings directly to the target dashboard when the target cannot manage invitations", () => {
     expect(
       resolveOrganizationSwitchHref(
         "/w/owner/settings/invitations",
         "member team",
         false,
       ),
-    ).toBe("/w/member%20team");
+    ).toBe("/w/member%20team/dashboard");
   });
 
   it.each([

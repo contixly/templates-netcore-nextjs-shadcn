@@ -252,7 +252,7 @@ it("sets active context before preserving a registered route and refreshing once
 it.each([
   ["/w/old/settings/teams", false, "/w/new/settings/teams"],
   ["/w/old/settings/invitations", true, "/w/new/settings/invitations"],
-  ["/w/old/settings/invitations", false, "/w/new"],
+  ["/w/old/settings/invitations", false, "/w/new/dashboard"],
 ] as const)(
   "routes %s using only the selected target invitation capability %s",
   async (currentPathname, canManageInvitations, expected) => {
