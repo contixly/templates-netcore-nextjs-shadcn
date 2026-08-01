@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Template.Application.Accounts.Ports;
 using Template.Application.Authentication.Ports;
@@ -110,6 +111,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAccountSessionStore, EfAccountSessionStore>();
         services.AddScoped<IOrganizationStore, EfOrganizationStore>();
         services.AddScoped<ITeamStore, EfTeamStore>();
+        services.AddScoped<IInvitationStore, EfInvitationStore>();
+        services.AddSingleton<NoOpInvitationNotifier>();
+        services.AddSingleton<IInvitationNotifier>(provider =>
+            new SafeInvitationNotifier(
+                provider.GetRequiredService<NoOpInvitationNotifier>(),
+                provider.GetRequiredService<ILogger<SafeInvitationNotifier>>()));
         services.AddScoped<
             IOrganizationUserLifecycleStore,
             EfOrganizationUserLifecycleStore>();

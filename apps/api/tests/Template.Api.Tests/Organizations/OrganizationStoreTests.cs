@@ -13,8 +13,10 @@ using Template.Application.Authentication.Ports;
 using Template.Application.Organizations;
 using Template.Application.Organizations.Ports;
 using Template.Domain.Authentication;
+using Template.Domain.Collaboration;
 using Template.Domain.Organizations;
 using Template.Infrastructure.Authentication;
+using Template.Infrastructure.Collaboration;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Organizations;
 using Template.Infrastructure.Persistence;
@@ -696,6 +698,46 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             "Delete Me",
             "delete-me",
             OrganizationRole.Owner);
+        await using (var seed = fixture.CreateDbContext())
+        {
+            var membershipId = await seed.OrganizationMembers
+                .Where(row =>
+                    row.OrganizationId == first.Value &&
+                    row.UserId == owner.UserId.Value)
+                .Select(row => row.Id)
+                .SingleAsync(TestContext.Current.CancellationToken);
+            var teamId = TeamId.New(OrganizationStoreFixture.Now);
+            seed.Teams.Add(new TeamEntity
+            {
+                Id = teamId.Value,
+                OrganizationId = first.Value,
+                Name = "Delete Cascade",
+                CreatedAt = OrganizationStoreFixture.Now,
+                UpdatedAt = OrganizationStoreFixture.Now
+            });
+            seed.TeamMembers.Add(new TeamMemberEntity
+            {
+                Id = TeamMemberId.New(OrganizationStoreFixture.Now).Value,
+                OrganizationId = first.Value,
+                TeamId = teamId.Value,
+                OrganizationMemberId = membershipId,
+                JoinedAt = OrganizationStoreFixture.Now
+            });
+            seed.Invitations.Add(new InvitationEntity
+            {
+                Id = InvitationId.New().Value,
+                OrganizationId = first.Value,
+                TeamId = teamId.Value,
+                Email = "delete-cascade@example.test",
+                Role = OrganizationRole.Member.Value,
+                Status = InvitationStatus.Pending.Value,
+                InviterUserId = owner.UserId.Value,
+                CreatedAt = OrganizationStoreFixture.Now,
+                UpdatedAt = OrganizationStoreFixture.Now,
+                ExpiresAt = OrganizationStoreFixture.Now.AddHours(48)
+            });
+            await seed.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
 
         var last = await fixture.Store.DeleteAsync(
             new DeleteOrganizationCommand(owner.UserId, first, "Delete Me"),
@@ -722,6 +764,15 @@ public sealed class OrganizationStoreTests(PostgreSqlContainerFixture postgres)
             .Where(row => row.Id == owner.SessionId.Value)
             .Select(row => row.ActiveOrganizationId)
             .SingleAsync(TestContext.Current.CancellationToken));
+        Assert.False(await db.Teams.AnyAsync(
+            row => row.OrganizationId == first.Value,
+            TestContext.Current.CancellationToken));
+        Assert.False(await db.TeamMembers.AnyAsync(
+            row => row.OrganizationId == first.Value,
+            TestContext.Current.CancellationToken));
+        Assert.False(await db.Invitations.AnyAsync(
+            row => row.OrganizationId == first.Value,
+            TestContext.Current.CancellationToken));
         var page = await fixture.Store.ListAsync(
             owner.UserId,
             after: null,

@@ -10,7 +10,9 @@ using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
 using Template.Application.Organizations;
 using Template.Domain.Authentication;
+using Template.Domain.Collaboration;
 using Template.Domain.Organizations;
+using Template.Infrastructure.Collaboration;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Organizations;
 using Template.Infrastructure.Persistence;
@@ -49,12 +51,14 @@ public sealed class OrganizationUserLifecycleTests(
             await OrganizationUserLifecycleFixture.CreateAsync(postgres);
         var owner = await fixture.CreateUserAsync("owner@local-agent.test");
         var organizationId = await fixture.CreateOrganizationAsync(owner);
+        await fixture.SeedCollaborationAsync(organizationId, owner);
 
         var result = await fixture.DeleteAccountAsync(owner);
 
         Assert.True(result.Succeeded);
         Assert.False(await fixture.UserExistsAsync(owner));
         Assert.False(await fixture.OrganizationExistsAsync(organizationId));
+        Assert.Equal((0, 0, 0), await fixture.CountCollaborationRowsAsync());
     }
 
     [Fact]
@@ -120,6 +124,8 @@ public sealed class OrganizationUserLifecycleTests(
         var second = await fixture.CreateOrganizationAsync(
             owner,
             name: "Second Organization");
+        await fixture.SeedCollaborationAsync(first, owner);
+        await fixture.SeedCollaborationAsync(second, owner);
         await fixture.SetCurrentSessionAsync(owner);
 
         var result = await fixture.CleanupAsync();
@@ -129,6 +135,7 @@ public sealed class OrganizationUserLifecycleTests(
         Assert.False(await fixture.UserExistsAsync(owner));
         Assert.False(await fixture.OrganizationExistsAsync(first));
         Assert.False(await fixture.OrganizationExistsAsync(second));
+        Assert.Equal((0, 0, 0), await fixture.CountCollaborationRowsAsync());
     }
 
     [Fact]
@@ -448,6 +455,60 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
             AuthenticationMethod = BrowserAuthenticationMethods.Local
         });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
+    internal async Task SeedCollaborationAsync(
+        OrganizationId organizationId,
+        UserId owner)
+    {
+        await using var db = CreateDbContext();
+        var membershipId = await db.OrganizationMembers
+            .Where(row =>
+                row.OrganizationId == organizationId.Value &&
+                row.UserId == owner.Value)
+            .Select(row => row.Id)
+            .SingleAsync(TestContext.Current.CancellationToken);
+        var teamId = TeamId.New(Now);
+        db.Teams.Add(new TeamEntity
+        {
+            Id = teamId.Value,
+            OrganizationId = organizationId.Value,
+            Name = $"Lifecycle {Guid.NewGuid():N}",
+            CreatedAt = Now,
+            UpdatedAt = Now
+        });
+        db.TeamMembers.Add(new TeamMemberEntity
+        {
+            Id = TeamMemberId.New(Now).Value,
+            OrganizationId = organizationId.Value,
+            TeamId = teamId.Value,
+            OrganizationMemberId = membershipId,
+            JoinedAt = Now
+        });
+        db.Invitations.Add(new InvitationEntity
+        {
+            Id = InvitationId.New().Value,
+            OrganizationId = organizationId.Value,
+            TeamId = teamId.Value,
+            Email = $"invitee-{Guid.NewGuid():N}@example.test",
+            Role = OrganizationRole.Member.Value,
+            Status = InvitationStatus.Pending.Value,
+            InviterUserId = owner.Value,
+            CreatedAt = Now,
+            UpdatedAt = Now,
+            ExpiresAt = Now.AddHours(48)
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<(int Teams, int TeamMembers, int Invitations)>
+        CountCollaborationRowsAsync()
+    {
+        await using var db = CreateDbContext();
+        return (
+            await db.Teams.CountAsync(TestContext.Current.CancellationToken),
+            await db.TeamMembers.CountAsync(TestContext.Current.CancellationToken),
+            await db.Invitations.CountAsync(TestContext.Current.CancellationToken));
     }
 
     internal Task SetCurrentSessionAsync(UserId userId)
