@@ -247,7 +247,7 @@ internal sealed class CollaborationContractOperationTransformer
     private static void SetStringEnum(OpenApiSchema schema, params string[] values)
     {
         schema.Type = JsonSchemaType.String;
-        schema.Enum = [.. values.Select(value => JsonValue.Create(value)! )];
+        schema.Enum = [.. values.Select(value => JsonValue.Create(value)!)];
     }
 
     private static string ReasonPhrase(int status) => status switch

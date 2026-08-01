@@ -1,10 +1,15 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Api.Tests.Infrastructure;
 using Template.Api.Tests.Organizations;
+using Template.Application.Collaboration;
+using Template.Application.Collaboration.Ports;
 using Template.Infrastructure.Collaboration;
 using Template.Infrastructure.Persistence;
 
@@ -72,6 +77,7 @@ public sealed class InvitationEndpointTests(ApiWebApplicationFactory factory)
             "member",
             "pending",
             "pending");
+        Assert.False(created.TryGetProperty("warning", out _));
 
         using var duplicate = await SendCreateAsync(
             ownerClient,
@@ -112,6 +118,9 @@ public sealed class InvitationEndpointTests(ApiWebApplicationFactory factory)
             invitationId,
             unverifiedDecision.GetProperty("invitation").GetProperty("id")
                 .GetGuid());
+        Assert.False(
+            unverifiedDecision.GetProperty("invitation")
+                .TryGetProperty("warning", out _));
 
         using var account = await recipientClient.GetAsync(
             "/api/v1/account/invitations?limit=50",
@@ -200,6 +209,80 @@ public sealed class InvitationEndpointTests(ApiWebApplicationFactory factory)
         Assert.DoesNotContain(rejectedRecipient.Email, RenderedLogs(audits));
         Assert.DoesNotContain("member", RenderedLogs(audits));
         Assert.DoesNotContain("/invite/", RenderedLogs(audits));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CreateReturnsOnlyStableWarningAfterCommittedNotifierFailure(
+        bool throws)
+    {
+        var privateDetail = $"PRIVATE-NOTIFIER-{Guid.NewGuid():N}";
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IInvitationNotifier>();
+                services.AddSingleton<IInvitationNotifier>(
+                    new EndpointWarningNotifier(throws, privateDetail));
+            }));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        var owner = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Warning Owner",
+            $"local-agent+warning-owner-{Guid.NewGuid():N}@local-agent.test");
+        using var organization =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                $"Warning Workspace {Guid.NewGuid():N}");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(organization))
+            .GetProperty("id").GetGuid();
+        var recipient =
+            $"local-agent+warning-recipient-{Guid.NewGuid():N}@local-agent.test";
+
+        using var response = await SendCreateAsync(
+            client,
+            organizationId,
+            recipient,
+            "member");
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var responseJson = await response.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        var created = JsonDocument.Parse(responseJson).RootElement
+            .GetProperty("data");
+        var invitationId = created.GetProperty("id").GetGuid();
+        AssertInvitation(
+            created,
+            invitationId,
+            organizationId,
+            recipient,
+            "member",
+            "pending",
+            "pending");
+        Assert.Equal(
+            InvitationWarnings.NotificationFailed,
+            created.GetProperty("warning").GetString());
+        Assert.DoesNotContain(privateDetail, responseJson, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            nameof(InvalidOperationException),
+            responseJson,
+            StringComparison.Ordinal);
+
+        await using var scope = isolated.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+        Assert.True(await db.Invitations.AsNoTracking().AnyAsync(
+            invitation =>
+                invitation.Id == invitationId &&
+                invitation.OrganizationId == organizationId &&
+                invitation.InviterUserId == owner.UserId,
+            TestContext.Current.CancellationToken));
     }
 
     [Fact]
@@ -577,6 +660,20 @@ public sealed class InvitationEndpointTests(ApiWebApplicationFactory factory)
         Assert.NotEqual(
             default,
             invitation.GetProperty("createdAt").GetDateTimeOffset());
+    }
+
+    private sealed class EndpointWarningNotifier(
+        bool throws,
+        string privateDetail)
+        : IInvitationNotifier
+    {
+        public Task<InvitationNotificationOutcome> NotifyCreatedAsync(
+            InvitationNotification notification,
+            CancellationToken cancellationToken) =>
+            throws
+                ? Task.FromException<InvitationNotificationOutcome>(
+                    new InvalidOperationException(privateDetail))
+                : Task.FromResult(InvitationNotificationOutcome.Failed);
     }
 
     private static string RenderedLogs(IEnumerable<CapturedLog> logs) =>

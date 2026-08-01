@@ -27,7 +27,9 @@ internal sealed record InvitationResponse(
     DateTimeOffset CreatedAt,
     Guid InviterId,
     string InviterName,
-    string InvitationPath);
+    string InvitationPath,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? Warning = null);
 
 internal sealed record OrganizationInvitationPageResponse(
     IReadOnlyList<InvitationResponse> Items,

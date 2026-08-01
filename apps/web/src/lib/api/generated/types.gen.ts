@@ -381,6 +381,10 @@ export type InvitationResponse = {
      * Relative same-origin invitation path.
      */
     invitationPath: string;
+    /**
+     * Optional stable post-commit warning; omitted when no warning occurred.
+     */
+    warning?: 'notification_failed' | null;
 };
 
 export type LocalAutomationCleanupResponse = {

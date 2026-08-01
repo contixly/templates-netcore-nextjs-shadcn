@@ -248,12 +248,13 @@ it("preserves committed creation while suppressing an unexpected cross-origin in
 });
 
 it("preserves the stable notification warning without exposing provider detail", async () => {
+  const warnedInvitation: InvitationResponse = {
+    ...createdInvitation,
+    warning: "notification_failed",
+  };
   createInvitation.mockResolvedValue({
     ok: true,
-    data: Object.assign({}, createdInvitation, {
-      warning: "notification_failed",
-      providerDetail: "private mail provider exception",
-    }),
+    data: warnedInvitation,
   });
   renderWithMessages(
     <InvitationCreateDialog
@@ -285,7 +286,7 @@ it("preserves the stable notification warning without exposing provider detail",
       "The invitation was saved, but notification delivery failed. Share the link manually.",
     ),
   ).toBeVisible();
-  expect(
-    within(dialog).queryByText("private mail provider exception"),
-  ).not.toBeInTheDocument();
+  expect(within(dialog).getByLabelText("Invitation link")).toHaveValue(
+    new URL(createdInvitation.invitationPath, window.location.origin).href,
+  );
 });

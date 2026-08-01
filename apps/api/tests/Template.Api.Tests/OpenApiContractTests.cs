@@ -166,6 +166,21 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         AssertStringEnum(schemas["InvitationResponse"]!["properties"]!["role"]!, "member", "admin", "owner");
         AssertStringEnum(schemas["InvitationResponse"]!["properties"]!["status"]!, "pending", "accepted", "rejected", "canceled");
         AssertStringEnum(schemas["InvitationResponse"]!["properties"]!["displayState"]!, "pending", "accepted", "rejected", "canceled", "expired");
+        var invitationResponse = schemas["InvitationResponse"]!;
+        var invitationRequired = invitationResponse["required"]!.AsArray()
+            .Select(value => value!.GetValue<string>())
+            .ToArray();
+        Assert.DoesNotContain("warning", invitationRequired);
+        var warning = invitationResponse["properties"]!["warning"]!;
+        Assert.Equal(
+            new[] { "null", "string" },
+            EnumerateSchemaTypes(warning).Order(StringComparer.Ordinal));
+        var warningValues = warning["enum"]!.AsArray();
+        Assert.Equal(2, warningValues.Count);
+        Assert.Contains(warningValues, value => value is null);
+        Assert.Contains(
+            warningValues,
+            value => value?.GetValue<string>() == "notification_failed");
 
         foreach (var (schemaName, propertyName) in new[]
                  {

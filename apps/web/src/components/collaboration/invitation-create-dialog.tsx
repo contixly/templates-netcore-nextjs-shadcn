@@ -71,7 +71,7 @@ function useAttachedRef() {
 }
 
 function hasNotificationFailure(invitation: InvitationResponse): boolean {
-  return Reflect.get(invitation, "warning") === "notification_failed";
+  return invitation.warning === "notification_failed";
 }
 
 function InvitationFailureNotice({

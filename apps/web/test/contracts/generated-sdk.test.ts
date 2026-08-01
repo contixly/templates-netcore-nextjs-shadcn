@@ -70,6 +70,7 @@ import type {
   GetTeamMemberCandidatesErrors,
   GetTeamMembersErrors,
   GetTeamsErrors,
+  InvitationResponse,
   RejectInvitationErrors,
   RemoveTeamMemberErrors,
   SetActiveOrganizationErrors,
@@ -167,6 +168,12 @@ type _OrganizationErrorStatuses = [
   >,
 ];
 type _CollaborationErrorStatuses = [
+  Assert<
+    Equal<
+      InvitationResponse["warning"],
+      "notification_failed" | null | undefined
+    >
+  >,
   Assert<Equal<ErrorStatuses<GetTeamsErrors>, StandardCollaborationErrors>>,
   Assert<Equal<ErrorStatuses<CreateTeamErrors>, StandardCollaborationErrors>>,
   Assert<Equal<ErrorStatuses<UpdateTeamErrors>, StandardCollaborationErrors>>,

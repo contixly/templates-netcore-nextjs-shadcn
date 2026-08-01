@@ -2,6 +2,7 @@ using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.OpenApi;
 using Microsoft.OpenApi;
 using Template.Api.Features.Collaboration;
+using Template.Application.Collaboration;
 
 namespace Template.Api.OpenApi;
 
@@ -100,6 +101,10 @@ internal sealed class CollaborationContractSchemaTransformer : IOpenApiSchemaTra
         Role(schema, "role");
         Enum(schema, "status", InvitationStatuses);
         Enum(schema, "displayState", InvitationDisplayStates);
+        OptionalNullableEnum(
+            schema,
+            "warning",
+            InvitationWarnings.NotificationFailed);
         if (Property(schema, "invitationPath") is { } path)
         {
             path.Pattern = InvitationPathPattern;
@@ -141,7 +146,28 @@ internal sealed class CollaborationContractSchemaTransformer : IOpenApiSchemaTra
         }
 
         property.Type = JsonSchemaType.String;
-        property.Enum = [.. values.Select(value => JsonValue.Create(value)! )];
+        property.Enum = [.. values.Select(value => JsonValue.Create(value)!)];
+    }
+
+    private static void OptionalNullableEnum(
+        OpenApiSchema schema,
+        string name,
+        params string[] values)
+    {
+        if (Property(schema, name) is not { } property)
+        {
+            return;
+        }
+
+        schema.Required?.Remove(name);
+        property.Type = JsonSchemaType.String | JsonSchemaType.Null;
+        property.Enum =
+        [
+            .. values.Select(value => JsonValue.Create(value)!),
+            null!
+        ];
+        property.Description =
+            "Optional stable post-commit warning; omitted when no warning occurred.";
     }
 
     private static void TrimmedTeamName(OpenApiSchema schema, string name)

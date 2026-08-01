@@ -185,7 +185,8 @@ internal sealed class InvitationEndpointModule : IEndpointModule
                 audit.SetInvitationId(invitation.Id);
                 return Results.Created(
                     $"/api/v1/invitations/{invitation.Id.Value:D}",
-                    new ApiResponse<InvitationResponse>(Map(invitation)));
+                    new ApiResponse<InvitationResponse>(
+                        Map(invitation, StableWarning(result.Warning))));
             },
             "invitation_create",
             actor,
@@ -415,6 +416,11 @@ internal sealed class InvitationEndpointModule : IEndpointModule
         new(value.Items.Select(Map).ToArray(), value.NextCursor);
 
     private static InvitationResponse Map(InvitationView value) =>
+        Map(value, warning: null);
+
+    private static InvitationResponse Map(
+        InvitationView value,
+        string? warning) =>
         new(
             value.Id.Value,
             value.OrganizationId.Value,
@@ -430,7 +436,16 @@ internal sealed class InvitationEndpointModule : IEndpointModule
             value.CreatedAt,
             value.InviterId.Value,
             value.InviterName,
-            $"/invite/{value.Id.Value:D}");
+            $"/invite/{value.Id.Value:D}",
+            warning);
+
+    private static string? StableWarning(string? warning) =>
+        warning switch
+        {
+            InvitationWarnings.NotificationFailed =>
+                InvitationWarnings.NotificationFailed,
+            _ => null
+        };
 
     private static InvitationDecisionResponse Map(InvitationDecision value) =>
         new(
