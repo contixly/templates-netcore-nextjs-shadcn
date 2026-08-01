@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.ValueGeneration;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Organizations;
 
@@ -29,7 +30,9 @@ public sealed class InvitationEntityConfiguration
                     "expires_at > created_at");
             });
         entity.HasKey(value => value.Id).HasName("pk_invitations");
-        entity.Property(value => value.Id).HasColumnName("id");
+        entity.Property(value => value.Id)
+            .HasColumnName("id")
+            .HasValueGenerator<GuidValueGenerator>();
         entity.Property(value => value.OrganizationId)
             .HasColumnName("organization_id");
         entity.Property(value => value.TeamId).HasColumnName("team_id");

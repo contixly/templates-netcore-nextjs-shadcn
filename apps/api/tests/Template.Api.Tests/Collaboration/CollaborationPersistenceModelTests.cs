@@ -36,6 +36,29 @@ public sealed class CollaborationPersistenceModelTests(PostgreSqlContainerFixtur
     }
 
     [Fact]
+    public void Empty_invitation_ids_use_a_non_temporary_uuid_v4_fallback()
+    {
+        using var db = CreateContext();
+        var invitation = new InvitationEntity
+        {
+            OrganizationId = Guid.CreateVersion7(),
+            Email = "invitee@example.test",
+            Role = "member",
+            Status = "pending",
+            InviterUserId = Guid.CreateVersion7(),
+            ExpiresAt = Now.AddDays(2),
+            CreatedAt = Now,
+            UpdatedAt = Now
+        };
+
+        db.Invitations.Add(invitation);
+
+        Assert.NotEqual(Guid.Empty, invitation.Id);
+        Assert.Equal(4, invitation.Id.Version);
+        Assert.False(db.Entry(invitation).Property(value => value.Id).IsTemporary);
+    }
+
+    [Fact]
     public void Teams_have_tenant_key_checks_required_timestamps_and_stable_list_index()
     {
         using var db = CreateContext();
