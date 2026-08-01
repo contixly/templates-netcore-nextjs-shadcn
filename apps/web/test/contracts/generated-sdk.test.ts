@@ -48,12 +48,35 @@ import {
 } from "@/src/lib/api/generated";
 import type {
   ApiResponseOfInvitationResponse,
+  AcceptInvitationErrors,
+  AddOrganizationMemberErrors,
+  AddTeamMemberErrors,
   ConfirmLocalAutomationEmailData,
-  CreateInvitationData,
+  ConfirmLocalAutomationEmailErrors,
   CreateInvitationErrors,
+  CreateInvitationData,
   CreateInvitationResponses,
+  CreateOrganizationErrors,
+  CreateTeamErrors,
+  DeleteOrganizationErrors,
+  DeleteTeamErrors,
+  GetAccountInvitationsErrors,
+  GetInvitationDecisionErrors,
+  GetOrganizationByKeyErrors,
   GetOrganizationInvitationsData,
+  GetOrganizationInvitationsErrors,
+  GetOrganizationMembersErrors,
+  GetOrganizationsErrors,
+  GetTeamMemberCandidatesErrors,
+  GetTeamMembersErrors,
+  GetTeamsErrors,
+  RejectInvitationErrors,
+  RemoveTeamMemberErrors,
+  SetActiveOrganizationErrors,
   GetTeamMemberCandidatesData,
+  UpdateOrganizationErrors,
+  UpdateOrganizationMemberRoleErrors,
+  UpdateTeamErrors,
 } from "@/src/lib/api/generated";
 
 type Assert<T extends true> = T;
@@ -94,6 +117,39 @@ type _CreateInvitationRateErrorIsExposed = Assert<
 type _ConfirmUsesCsrfWithoutBody = Assert<
   Equal<ConfirmLocalAutomationEmailData["body"], never | undefined>
 >;
+type ErrorStatuses<Error> = keyof Error;
+type StandardCollaborationErrors = 400 | 401 | 403 | 404 | 405 | 409 | 500;
+type RateLimitedCollaborationErrors =
+  | StandardCollaborationErrors
+  | 429;
+type _OrganizationErrorStatuses = [
+  Assert<Equal<ErrorStatuses<GetOrganizationsErrors>, 400 | 401 | 405 | 500>>,
+  Assert<Equal<ErrorStatuses<CreateOrganizationErrors>, 400 | 401 | 405 | 409 | 500>>,
+  Assert<Equal<ErrorStatuses<GetOrganizationByKeyErrors>, 401 | 404 | 405 | 409 | 500>>,
+  Assert<Equal<ErrorStatuses<UpdateOrganizationErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<DeleteOrganizationErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<SetActiveOrganizationErrors>, 400 | 401 | 404 | 405 | 409 | 500>>,
+  Assert<Equal<ErrorStatuses<GetOrganizationMembersErrors>, 400 | 401 | 404 | 405 | 409 | 500>>,
+  Assert<Equal<ErrorStatuses<AddOrganizationMemberErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<UpdateOrganizationMemberRoleErrors>, StandardCollaborationErrors>>,
+];
+type _CollaborationErrorStatuses = [
+  Assert<Equal<ErrorStatuses<GetTeamsErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<CreateTeamErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<UpdateTeamErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<DeleteTeamErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<GetTeamMembersErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<AddTeamMemberErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<RemoveTeamMemberErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<GetTeamMemberCandidatesErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<GetOrganizationInvitationsErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<CreateInvitationErrors>, RateLimitedCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<GetAccountInvitationsErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<GetInvitationDecisionErrors>, StandardCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<AcceptInvitationErrors>, RateLimitedCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<RejectInvitationErrors>, RateLimitedCollaborationErrors>>,
+  Assert<Equal<ErrorStatuses<ConfirmLocalAutomationEmailErrors>, 400 | 401 | 403 | 404 | 405 | 500>>,
+];
 
 describe("generated system status SDK", () => {
   it("tracks the committed GetSystemStatus operation", () => {
@@ -180,60 +236,37 @@ describe("generated system status SDK", () => {
     expect(updateOrganizationMemberRole).toEqual(expect.any(Function));
   });
 
-  it("generates the exact organization error unions", () => {
-    const generatedTypes = readFileSync(
-      resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
-      "utf8",
-    );
-    const expected = {
-      GetOrganizationsErrors: [400, 401, 405, 500],
-      CreateOrganizationErrors: [400, 401, 405, 409, 500],
-      GetOrganizationByKeyErrors: [401, 404, 405, 409, 500],
-      UpdateOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
-      DeleteOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
-      SetActiveOrganizationErrors: [400, 401, 404, 405, 409, 500],
-      GetOrganizationMembersErrors: [400, 401, 404, 405, 409, 500],
-      AddOrganizationMemberErrors: [400, 401, 403, 404, 405, 409, 500],
-      UpdateOrganizationMemberRoleErrors: [400, 401, 403, 404, 405, 409, 500],
-    } as const;
-
-    for (const [typeName, statuses] of Object.entries(expected)) {
-      expect(generatedErrorStatuses(generatedTypes, typeName)).toEqual(
-        statuses,
-      );
-    }
-  });
-
-  it("generates exact collaboration and local-confirmation error unions", () => {
-    const generatedTypes = readFileSync(
-      resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
-      "utf8",
-    );
-    const standard = [400, 401, 403, 404, 405, 409, 500];
-    const rateLimited = [400, 401, 403, 404, 405, 409, 429, 500];
-    const expected = {
-      GetTeamsErrors: standard,
-      CreateTeamErrors: standard,
-      UpdateTeamErrors: standard,
-      DeleteTeamErrors: standard,
-      GetTeamMembersErrors: standard,
-      AddTeamMemberErrors: standard,
-      RemoveTeamMemberErrors: standard,
-      GetTeamMemberCandidatesErrors: standard,
-      GetOrganizationInvitationsErrors: standard,
-      CreateInvitationErrors: rateLimited,
-      GetAccountInvitationsErrors: standard,
-      GetInvitationDecisionErrors: standard,
-      AcceptInvitationErrors: rateLimited,
-      RejectInvitationErrors: rateLimited,
-      ConfirmLocalAutomationEmailErrors: [400, 401, 403, 404, 405, 500],
-    } as const;
-
-    for (const [typeName, statuses] of Object.entries(expected)) {
-      expect(generatedErrorStatuses(generatedTypes, typeName)).toEqual(
-        statuses,
-      );
-    }
+  it("proves generated error unions through compile-time equality", () => {
+    const validCreate: CreateInvitationData = {
+      body: { email: "invitee@example.test", role: "member", teamId: null },
+      headers: { "X-CSRF-TOKEN": "csrf" },
+      path: { organizationId: "01900000-0000-7000-8000-000000000010" },
+      url: "/api/v1/organizations/{organizationId}/invitations",
+    };
+    const validConfirm: ConfirmLocalAutomationEmailData = {
+      headers: { "X-CSRF-TOKEN": "csrf" },
+      url: "/api/local-auth/confirm-email",
+    };
+    // @ts-expect-error mutations cannot omit the CSRF request token
+    const missingCsrf: ConfirmLocalAutomationEmailData = {
+      url: "/api/local-auth/confirm-email",
+    };
+    const invalidStatus: GetOrganizationInvitationsData = {
+      path: { organizationId: "01900000-0000-7000-8000-000000000010" },
+      query: {
+        // @ts-expect-error the filter is a closed display-state union
+        status: "unknown",
+      },
+      url: "/api/v1/organizations/{organizationId}/invitations",
+    };
+    const confirmWithBody: ConfirmLocalAutomationEmailData = {
+      // @ts-expect-error confirmation accepts no request body
+      body: {},
+      headers: { "X-CSRF-TOKEN": "csrf" },
+      url: "/api/local-auth/confirm-email",
+    };
+    void [validCreate, validConfirm, missingCsrf, invalidStatus, confirmWithBody];
+    expect(true).toBe(true);
   });
 
   it("keeps protocol callbacks and provider secrets outside the UI contract", () => {
@@ -358,16 +391,6 @@ describe("generated system status SDK", () => {
 
 function schemaTypes(schema: { type: string | string[] }): string[] {
   return Array.isArray(schema.type) ? schema.type : [schema.type];
-}
-
-function generatedErrorStatuses(source: string, typeName: string): number[] {
-  const start = source.indexOf(`export type ${typeName} = {`);
-  expect(start).toBeGreaterThanOrEqual(0);
-  const end = source.indexOf("\n};", start);
-  expect(end).toBeGreaterThan(start);
-  return [...source.slice(start, end).matchAll(/^[ ]+(\d{3}):/gm)].map(
-    (match) => Number(match[1]),
-  );
 }
 
 function badRequestSchema(

@@ -235,7 +235,8 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             collaborationPaths);
 
         var operationIds = paths.AsObject().SelectMany(path => path.Value!.AsObject()
-            .Where(method => method.Key is "get" or "post" or "patch" or "put" or "delete")
+            .Where(method => method.Key is "get" or "put" or "post" or "delete" or
+                "options" or "head" or "patch" or "trace")
             .Select(method => method.Value!["operationId"]!.GetValue<string>())).ToArray();
         Assert.Equal(operationIds.Length, operationIds.Distinct(StringComparer.Ordinal).Count());
 
@@ -252,6 +253,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 }
             }
             var responses = operation["responses"]!;
+            var expectedProblems = operationId == "ConfirmLocalAutomationEmail"
+                ? new[] { "400", "401", "403", "404", "405", "500" }
+                : rateLimited
+                    ? new[] { "400", "401", "403", "404", "405", "409", "429", "500" }
+                    : new[] { "400", "401", "403", "404", "405", "409", "500" };
+            Assert.Equal(
+                new[] { success }.Concat(expectedProblems).Order(StringComparer.Ordinal),
+                responses.AsObject().Select(response => response.Key).Order(StringComparer.Ordinal));
             Assert.Equal($"#/components/schemas/{envelope}",
                 responses[success]!["content"]!["application/json"]!["schema"]!["$ref"]!.GetValue<string>());
             foreach (var response in responses.AsObject())
@@ -262,6 +271,11 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             if (mutation)
             {
                 AssertRequiredHeader(operation, "X-CSRF-TOKEN");
+            }
+            else
+            {
+                Assert.DoesNotContain(operation["parameters"]?.AsArray() ?? [], parameter =>
+                    parameter!["name"]?.GetValue<string>() == "X-CSRF-TOKEN");
             }
 
             if (operationId is "CreateTeam" or "UpdateTeam" or "AddTeamMember" or
@@ -276,7 +290,10 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
 
             if (success == "201")
             {
-                Assert.Equal("uri-reference", responses[success]!["headers"]!["Location"]!["schema"]!["format"]!.GetValue<string>());
+                var location = responses[success]!["headers"]!["Location"]!;
+                Assert.True(location["required"]!.GetValue<bool>());
+                Assert.Equal("string", location["schema"]!["type"]!.GetValue<string>());
+                Assert.Equal("uri-reference", location["schema"]!["format"]!.GetValue<string>());
             }
 
             if (rateLimited)
