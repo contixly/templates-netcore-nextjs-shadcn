@@ -46,6 +46,54 @@ import {
   updateOrganizationMemberRole,
   updateTeam,
 } from "@/src/lib/api/generated";
+import type {
+  ApiResponseOfInvitationResponse,
+  ConfirmLocalAutomationEmailData,
+  CreateInvitationData,
+  CreateInvitationErrors,
+  CreateInvitationResponses,
+  GetOrganizationInvitationsData,
+  GetTeamMemberCandidatesData,
+} from "@/src/lib/api/generated";
+
+type Assert<T extends true> = T;
+type Equal<Left, Right> =
+  (<T>() => T extends Left ? 1 : 2) extends
+  (<T>() => T extends Right ? 1 : 2)
+    ? true
+    : false;
+type _CreateInvitationBodyIsRequired = Assert<
+  Equal<undefined extends CreateInvitationData["body"] ? true : false, false>
+>;
+type _CreateInvitationTeamIsNullable = Assert<
+  null extends NonNullable<CreateInvitationData["body"]>["teamId"] ? true : false
+>;
+type _CreateInvitationCsrfIsRequired = Assert<
+  Equal<
+    CreateInvitationData["headers"]["X-CSRF-TOKEN"] extends string
+      ? true
+      : false,
+    true
+  >
+>;
+type _InvitationStatusIsExact = Assert<
+  Equal<
+    NonNullable<GetOrganizationInvitationsData["query"]>["status"],
+    "pending" | "accepted" | "rejected" | "canceled" | "expired" | undefined
+  >
+>;
+type _CandidateQueryIsOptional = Assert<
+  Equal<NonNullable<GetTeamMemberCandidatesData["query"]>["q"], string | undefined>
+>;
+type _CreateInvitationSuccessEnvelopeIsExact = Assert<
+  Equal<CreateInvitationResponses[201], ApiResponseOfInvitationResponse>
+>;
+type _CreateInvitationRateErrorIsExposed = Assert<
+  Equal<CreateInvitationErrors[429] extends object ? true : false, true>
+>;
+type _ConfirmUsesCsrfWithoutBody = Assert<
+  Equal<ConfirmLocalAutomationEmailData["body"], never | undefined>
+>;
 
 describe("generated system status SDK", () => {
   it("tracks the committed GetSystemStatus operation", () => {
@@ -86,6 +134,16 @@ describe("generated system status SDK", () => {
     expect(acceptInvitation).toEqual(expect.any(Function));
     expect(rejectInvitation).toEqual(expect.any(Function));
     expect(confirmLocalAutomationEmail).toEqual(expect.any(Function));
+  });
+
+  it("preserves the local-confirmation production-safety documentation", () => {
+    const sdk = readFileSync(
+      resolve(process.cwd(), "src/lib/api/generated/sdk.gen.ts"),
+      "utf8",
+    );
+    expect(sdk).toContain(
+      "Development/Test only; requires LocalAutomationAuth enabled. Production returns 404. This is not production account verification.",
+    );
   });
 
   it("tracks every iteration-3 auth operation", () => {

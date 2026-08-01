@@ -41,6 +41,11 @@ internal sealed class CollaborationContractOperationTransformer
 
         ApplyExactProblemResponses(operation, context.Document!, statuses);
         ApplyNoStoreResponseHeaders(operation);
+        if (operation.OperationId is "CreateInvitation" or "AcceptInvitation" or
+            "RejectInvitation")
+        {
+            ApplyRetryAfterHeader(operation);
+        }
         ApplyUuidParameter(operation, "organizationId");
         ApplyUuidParameter(operation, "teamId");
         ApplyUuidParameter(operation, "userId");
@@ -159,6 +164,27 @@ internal sealed class CollaborationContractOperationTransformer
             Required = true,
             Description = "URI reference for the created resource.",
             Schema = new OpenApiSchema { Type = JsonSchemaType.String, Format = "uri-reference" }
+        };
+    }
+
+    private static void ApplyRetryAfterHeader(OpenApiOperation operation)
+    {
+        if (operation.Responses?.TryGetValue("429", out var response) != true ||
+            response is not OpenApiResponse rateLimited)
+        {
+            return;
+        }
+
+        rateLimited.Headers ??= new Dictionary<string, IOpenApiHeader>(StringComparer.Ordinal);
+        rateLimited.Headers["Retry-After"] = new OpenApiHeader
+        {
+            Required = true,
+            Description = "Decimal integer seconds until the caller may retry.",
+            Schema = new OpenApiSchema
+            {
+                Type = JsonSchemaType.String,
+                Pattern = "^[0-9]+$"
+            }
         };
     }
 

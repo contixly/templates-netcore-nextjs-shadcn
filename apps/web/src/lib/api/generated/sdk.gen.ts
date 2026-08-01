@@ -455,6 +455,9 @@ export const signInLocalAutomation = <ThrowOnError extends boolean = false>(opti
     }
 });
 
+/**
+ * Development/Test only; requires LocalAutomationAuth enabled. Production returns 404. This is not production account verification.
+ */
 export const confirmLocalAutomationEmail = <ThrowOnError extends boolean = false>(options: Options<ConfirmLocalAutomationEmailData, ThrowOnError>): RequestResult<ConfirmLocalAutomationEmailResponses, ConfirmLocalAutomationEmailErrors, ThrowOnError> => (options.client ?? client).post<ConfirmLocalAutomationEmailResponses, ConfirmLocalAutomationEmailErrors, ThrowOnError>({
     security: [{
             in: 'cookie',

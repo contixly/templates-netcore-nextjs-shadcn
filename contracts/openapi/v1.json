@@ -4596,6 +4596,14 @@
                   ],
                   "type": "string"
                 }
+              },
+              "Retry-After": {
+                "description": "Decimal integer seconds until the caller may retry.",
+                "required": true,
+                "schema": {
+                  "pattern": "^[0-9]+$",
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -5269,6 +5277,14 @@
                   ],
                   "type": "string"
                 }
+              },
+              "Retry-After": {
+                "description": "Decimal integer seconds until the caller may retry.",
+                "required": true,
+                "schema": {
+                  "pattern": "^[0-9]+$",
+                  "type": "string"
+                }
               }
             },
             "content": {
@@ -5509,6 +5525,14 @@
                   "enum": [
                     "no-store"
                   ],
+                  "type": "string"
+                }
+              },
+              "Retry-After": {
+                "description": "Decimal integer seconds until the caller may retry.",
+                "required": true,
+                "schema": {
+                  "pattern": "^[0-9]+$",
                   "type": "string"
                 }
               }
@@ -6115,6 +6139,7 @@
         "tags": [
           "local-only"
         ],
+        "description": "Development/Test only; requires LocalAutomationAuth enabled. Production returns 404. This is not production account verification.",
         "operationId": "ConfirmLocalAutomationEmail",
         "parameters": [
           {

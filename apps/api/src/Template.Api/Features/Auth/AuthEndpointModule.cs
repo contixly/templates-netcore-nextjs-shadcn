@@ -164,6 +164,9 @@ internal sealed class AuthEndpointModule : IEndpointModule
                 ConfirmEmailAsync)
             .RequireAuthorization(ApiPolicies.BrowserSession)
             .WithName("ConfirmLocalAutomationEmail")
+            .WithDescription(
+                "Development/Test only; requires LocalAutomationAuth enabled. " +
+                "Production returns 404. This is not production account verification.")
             .RequireApiAntiforgery()
             .WithLocalOnly()
             .Produces<ApiResponse<AuthSessionResponse>>()
