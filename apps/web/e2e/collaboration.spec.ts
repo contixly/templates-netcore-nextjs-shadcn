@@ -821,10 +821,41 @@ test.describe("collaboration full-stack workflows", () => {
       outsider.page.getByText("E2E Invitation Team", { exact: true }),
     ).toHaveCount(0);
 
-    await page.goto(
-      `/w/${encodeURIComponent(
-        organization.canonicalKey,
-      )}/settings/invitations`,
+    const finalInvitationsPath = `/w/${encodeURIComponent(
+      organization.canonicalKey,
+    )}/settings/invitations`;
+    const finalSessionRefresh = page.waitForResponse((response) => {
+      const request = response.request();
+      return (
+        request.method() === "GET" &&
+        new URL(response.url()).pathname === "/api/v1/auth/session"
+      );
+    });
+    const finalRouteRefresh = page.waitForResponse((response) => {
+      const request = response.request();
+      const url = new URL(response.url());
+      const routerState = decodeURIComponent(
+        request.headers()["next-router-state-tree"] ?? "",
+      );
+      return (
+        request.method() === "GET" &&
+        url.pathname === finalInvitationsPath &&
+        url.searchParams.has("_rsc") &&
+        request.headers().rsc === "1" &&
+        routerState.includes('"refetch"')
+      );
+    });
+    await page.goto(finalInvitationsPath);
+    const [, routeRefreshResponse] = await Promise.all([
+      finalSessionRefresh,
+      finalRouteRefresh,
+    ]);
+    await routeRefreshResponse.finished();
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+        }),
     );
     await expect(page.locator("html")).toHaveAttribute(
       "data-app-hydrated",

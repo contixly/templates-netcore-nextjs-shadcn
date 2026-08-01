@@ -82,8 +82,9 @@ function FailureNotice({ failure }: Readonly<{ failure: ApiFailure | null }>) {
 
 function validateName(name: string, message: string): string | null {
   const normalized = name.trim();
-  return normalized.length === 0 ||
-    normalized.length > 50 ||
+  const scalarCount = Array.from(normalized).length;
+  return scalarCount === 0 ||
+    scalarCount > 50 ||
     !supportedTeamName.test(normalized)
     ? message
     : null;

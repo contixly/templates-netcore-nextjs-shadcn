@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Template.Api.Tests.Infrastructure;
 using Template.Application.Authentication;
 using Template.Application.Collaboration;
@@ -40,7 +41,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
                 "  RECIPIENT@ALLOWED.TEST ",
                 OrganizationRole.Admin,
                 team),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded);
@@ -315,7 +315,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
                 "recipient@example.test",
                 OrganizationRole.Member,
                 TeamId: null),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
         var list = await fixture.Store.ListOrganizationAsync(
             member.UserId,
@@ -361,19 +360,15 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var ownerRole = await fixture.Store.CreateAsync(
             new(admin.UserId, organization, "role@allowed.test", OrganizationRole.Owner, null),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
         var team = await fixture.Store.CreateAsync(
             new(owner.UserId, organization, "team@allowed.test", OrganizationRole.Member, foreignTeam),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
         var domain = await fixture.Store.CreateAsync(
             new(owner.UserId, organization, "outside@other.test", OrganizationRole.Member, null),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
         var member = await fixture.Store.CreateAsync(
             new(owner.UserId, organization, existing.Email, OrganizationRole.Member, null),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(InvitationFailure.PermissionDenied, ownerRole.Failure);
@@ -404,11 +399,9 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var replacement = await fixture.Store.CreateAsync(
             new(owner.UserId, organization, "EXPIRED@example.test", OrganizationRole.Member, null),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
         var duplicate = await fixture.Store.CreateAsync(
             new(owner.UserId, organization, "live@example.test", OrganizationRole.Member, null),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
 
         Assert.True(replacement.Succeeded);
@@ -440,7 +433,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var result = await fixture.Store.CreateAsync(
             new(owner.UserId, organization, "one-too-many@example.test", OrganizationRole.Member, null),
-            InvitationStoreFixture.Now.AddHours(48),
             TestContext.Current.CancellationToken);
 
         Assert.Equal(InvitationFailure.LimitReached, result.Failure);
@@ -621,7 +613,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
                 recipient.InvitationActor,
                 session,
                 invitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded);
@@ -669,7 +660,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var result = await fixture.Store.AcceptAsync(
             new(recipient.InvitationActor, session, invitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded);
@@ -717,7 +707,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var result = await fixture.Store.AcceptAsync(
             new(recipient.InvitationActor, session, invitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(InvitationFailure.MembershipConflict, result.Failure);
@@ -749,7 +738,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var result = await fixture.Store.AcceptAsync(
             new(recipient.InvitationActor, session, invitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(InvitationFailure.Expired, result.Failure);
@@ -798,19 +786,15 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var mismatch = await fixture.Store.AcceptAsync(
             new(stranger.InvitationActor, strangerSession, restrictedInvitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
         var verification = await fixture.Store.RejectAsync(
             new(unverified.InvitationActor, unverifiedInvitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
         var domain = await fixture.Store.AcceptAsync(
             new(recipient.InvitationActor, recipientSession, restrictedInvitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
         var status = await fixture.Store.RejectAsync(
             new(recipient.InvitationActor, terminalInvitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
 
         Assert.Equal(InvitationFailure.RecipientMismatch, mismatch.Failure);
@@ -842,7 +826,6 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
 
         var result = await fixture.Store.RejectAsync(
             new RejectInvitationCommand(recipient.InvitationActor, invitation),
-            InvitationStoreFixture.Now,
             TestContext.Current.CancellationToken);
 
         Assert.True(result.Succeeded);
@@ -854,6 +837,191 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
         Assert.False(await fixture.HasOrganizationMembershipAsync(
             organization,
             recipient));
+    }
+
+    [Fact]
+    public async Task Create_gets_a_full_48_hours_from_the_clock_after_waiting_for_the_lock()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("clock-create-owner@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Clock Create");
+        var acquiredAt = InvitationStoreFixture.Now.AddHours(6);
+        fixture.AdvanceClockOnNextPendingDuplicateLock(acquiredAt);
+
+        var result = await fixture.Store.CreateAsync(
+            new(
+                owner.UserId,
+                organization,
+                "clock-create-recipient@example.test",
+                OrganizationRole.Member,
+                TeamId: null),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(acquiredAt, result.Value!.CreatedAt);
+        Assert.Equal(acquiredAt.AddHours(48), result.Value.ExpiresAt);
+    }
+
+    [Fact]
+    public async Task Accept_rechecks_the_expiry_boundary_after_waiting_for_locks()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("clock-accept-owner@example.test");
+        var recipient = await fixture.CreateUserAsync(
+            "clock-accept-recipient@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Clock Accept");
+        var session = await fixture.CreateSessionAsync(recipient);
+        var expiresAt = InvitationStoreFixture.Now.AddMinutes(1);
+        var invitation = await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            recipient.Email,
+            expiresAt: expiresAt);
+        fixture.AdvanceClockOnNextOrganizationLock(expiresAt);
+
+        var result = await fixture.Store.AcceptAsync(
+            new(recipient.InvitationActor, session, invitation),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(InvitationFailure.Expired, result.Failure);
+        Assert.Equal(
+            InvitationStatus.Pending.Value,
+            await fixture.InvitationStatusAsync(invitation));
+        Assert.False(await fixture.HasOrganizationMembershipAsync(
+            organization,
+            recipient));
+    }
+
+    [Fact]
+    public async Task Reject_rechecks_the_expiry_boundary_after_waiting_for_locks()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("clock-reject-owner@example.test");
+        var recipient = await fixture.CreateUserAsync(
+            "clock-reject-recipient@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Clock Reject");
+        var expiresAt = InvitationStoreFixture.Now.AddMinutes(1);
+        var invitation = await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            recipient.Email,
+            expiresAt: expiresAt);
+        fixture.AdvanceClockOnNextOrganizationLock(expiresAt);
+
+        var result = await fixture.Store.RejectAsync(
+            new(recipient.InvitationActor, invitation),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(InvitationFailure.Expired, result.Failure);
+        Assert.Equal(
+            InvitationStatus.Pending.Value,
+            await fixture.InvitationStatusAsync(invitation));
+    }
+
+    [Fact]
+    public async Task Accept_rechecks_session_expiry_after_waiting_for_locks()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("clock-session-owner@example.test");
+        var recipient = await fixture.CreateUserAsync(
+            "clock-session-recipient@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Clock Session");
+        var sessionExpiresAt = InvitationStoreFixture.Now.AddMinutes(1);
+        var session = await fixture.CreateSessionAsync(
+            recipient,
+            sessionExpiresAt);
+        var invitation = await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            recipient.Email,
+            expiresAt: InvitationStoreFixture.Now.AddHours(1));
+        fixture.AdvanceClockOnNextOrganizationLock(sessionExpiresAt);
+
+        var result = await fixture.Store.AcceptAsync(
+            new(recipient.InvitationActor, session, invitation),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(InvitationFailure.NotFound, result.Failure);
+        Assert.Equal(
+            InvitationStatus.Pending.Value,
+            await fixture.InvitationStatusAsync(invitation));
+        Assert.False(await fixture.HasOrganizationMembershipAsync(
+            organization,
+            recipient));
+    }
+
+    [Fact]
+    public async Task Accept_gets_fresh_time_on_a_serialization_retry()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("clock-retry-owner@example.test");
+        var recipient = await fixture.CreateUserAsync(
+            "clock-retry-recipient@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Clock Retry");
+        var session = await fixture.CreateSessionAsync(recipient);
+        var expiresAt = InvitationStoreFixture.Now.AddMinutes(1);
+        var invitation = await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            recipient.Email,
+            expiresAt: expiresAt);
+        fixture.FailNextAllowedDomainReadWithSerialization(expiresAt);
+
+        var result = await fixture.Store.AcceptAsync(
+            new(recipient.InvitationActor, session, invitation),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(InvitationFailure.Expired, result.Failure);
+        Assert.Equal(2, fixture.OrganizationLockAttempts);
+        Assert.Equal(
+            InvitationStatus.Pending.Value,
+            await fixture.InvitationStatusAsync(invitation));
+    }
+
+    [Fact]
+    public async Task Reject_does_not_change_a_pending_invitation_for_an_existing_member()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("member-reject-owner@example.test");
+        var recipient = await fixture.CreateUserAsync(
+            "member-reject-recipient@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Member Reject");
+        var invitation = await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            recipient.Email,
+            expiresAt: InvitationStoreFixture.Now.AddMinutes(1));
+        await fixture.AddOrganizationMemberAsync(
+            organization,
+            recipient,
+            OrganizationRole.Member);
+
+        var result = await fixture.Store.RejectAsync(
+            new(recipient.InvitationActor, invitation),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(InvitationFailure.RecipientAlreadyMember, result.Failure);
+        Assert.Equal(
+            InvitationStatus.Pending.Value,
+            await fixture.InvitationStatusAsync(invitation));
     }
 
     private static InvitationId Invitation(string value) =>
@@ -902,13 +1070,17 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
-        services.AddSingleton<TimeProvider>(new InvitationTimeProvider(Now));
+        services.AddSingleton(new InvitationTimeProvider(Now));
+        services.AddSingleton<TimeProvider>(provider =>
+            provider.GetRequiredService<InvitationTimeProvider>());
         services.AddSingleton<InvitationMutationStartBarrier>();
         services.AddSingleton<InvitationCommandOrderRecorder>();
+        services.AddSingleton<InvitationClockTestInterceptor>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
             options.AddInterceptors(
                 provider.GetRequiredService<InvitationMutationStartBarrier>(),
-                provider.GetRequiredService<InvitationCommandOrderRecorder>()));
+                provider.GetRequiredService<InvitationCommandOrderRecorder>(),
+                provider.GetRequiredService<InvitationClockTestInterceptor>()));
         services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         var provider = services.BuildServiceProvider();
 
@@ -947,6 +1119,23 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
     internal IReadOnlyList<string> CommandOrder =>
         _services.GetRequiredService<InvitationCommandOrderRecorder>().Commands;
 
+    internal void AdvanceClockOnNextOrganizationLock(DateTimeOffset now) =>
+        _services.GetRequiredService<InvitationClockTestInterceptor>()
+            .AdvanceClockOnNextOrganizationLock(now);
+
+    internal void AdvanceClockOnNextPendingDuplicateLock(DateTimeOffset now) =>
+        _services.GetRequiredService<InvitationClockTestInterceptor>()
+            .AdvanceClockOnNextPendingDuplicateLock(now);
+
+    internal void FailNextAllowedDomainReadWithSerialization(
+        DateTimeOffset now) =>
+        _services.GetRequiredService<InvitationClockTestInterceptor>()
+            .FailNextAllowedDomainReadWithSerialization(now);
+
+    internal int OrganizationLockAttempts =>
+        _services.GetRequiredService<InvitationClockTestInterceptor>()
+            .OrganizationLockAttempts;
+
     internal async Task<InvitationOperationResult<InvitationView>>
         CreateInvitationAsync(
             InvitationTestActor actor,
@@ -962,7 +1151,6 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
                     email,
                     OrganizationRole.Member,
                     TeamId: null),
-                Now.AddHours(48),
                 TestContext.Current.CancellationToken);
     }
 
@@ -976,7 +1164,6 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
         return await scope.ServiceProvider.GetRequiredService<IInvitationStore>()
             .AcceptAsync(
                 new(actor.InvitationActor, sessionId, invitationId),
-                Now,
                 TestContext.Current.CancellationToken);
     }
 
@@ -989,7 +1176,6 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
         return await scope.ServiceProvider.GetRequiredService<IInvitationStore>()
             .RejectAsync(
                 new(actor.InvitationActor, invitationId),
-                Now,
                 TestContext.Current.CancellationToken);
     }
 
@@ -1133,7 +1319,8 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
     }
 
     internal async Task<SessionId> CreateSessionAsync(
-        InvitationTestActor actor)
+        InvitationTestActor actor,
+        DateTimeOffset? expiresAt = null)
     {
         var id = SessionId.New();
         await using var db = CreateDbContext();
@@ -1146,7 +1333,7 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
             ProtectedTicket = [1, 2, 3],
             CreatedAt = Now,
             UpdatedAt = Now,
-            ExpiresAt = Now.AddDays(1),
+            ExpiresAt = expiresAt ?? Now.AddDays(1),
             AuthenticationMethod = BrowserAuthenticationMethods.Local
         });
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -1256,7 +1443,94 @@ internal sealed record InvitationTestActor(
 
 internal sealed class InvitationTimeProvider(DateTimeOffset now) : TimeProvider
 {
-    public override DateTimeOffset GetUtcNow() => now;
+    private DateTimeOffset _now = now;
+
+    public override DateTimeOffset GetUtcNow() => _now;
+
+    internal void SetUtcNow(DateTimeOffset value) => _now = value;
+}
+
+internal sealed class InvitationClockTestInterceptor(
+    InvitationTimeProvider timeProvider) : DbCommandInterceptor
+{
+    private DateTimeOffset? _organizationLockTime;
+    private DateTimeOffset? _pendingDuplicateLockTime;
+    private DateTimeOffset? _serializationFailureTime;
+    private int _organizationLockAttempts;
+
+    internal int OrganizationLockAttempts =>
+        Volatile.Read(ref _organizationLockAttempts);
+
+    internal void AdvanceClockOnNextOrganizationLock(DateTimeOffset now)
+    {
+        _organizationLockTime = now;
+        Interlocked.Exchange(ref _organizationLockAttempts, 0);
+    }
+
+    internal void AdvanceClockOnNextPendingDuplicateLock(DateTimeOffset now) =>
+        _pendingDuplicateLockTime = now;
+
+    internal void FailNextAllowedDomainReadWithSerialization(
+        DateTimeOffset now)
+    {
+        _serializationFailureTime = now;
+        Interlocked.Exchange(ref _organizationLockAttempts, 0);
+    }
+
+    public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>>
+        ReaderExecutingAsync(
+            System.Data.Common.DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<System.Data.Common.DbDataReader> result,
+            CancellationToken cancellationToken = default)
+    {
+        if (IsOrganizationLock(command.CommandText))
+        {
+            Interlocked.Increment(ref _organizationLockAttempts);
+            if (_organizationLockTime is { } lockTime)
+            {
+                _organizationLockTime = null;
+                timeProvider.SetUtcNow(lockTime);
+            }
+        }
+
+        if (_pendingDuplicateLockTime is { } duplicateLockTime &&
+            command.CommandText.Contains(
+                "FROM organizations.invitations",
+                StringComparison.OrdinalIgnoreCase) &&
+            command.CommandText.Contains(
+                "status = 'pending'",
+                StringComparison.OrdinalIgnoreCase) &&
+            command.CommandText.Contains(
+                "FOR UPDATE",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            _pendingDuplicateLockTime = null;
+            timeProvider.SetUtcNow(duplicateLockTime);
+        }
+
+        if (_serializationFailureTime is { } failureTime &&
+            command.CommandText.Contains(
+                "organizations.allowed_email_domains",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            _serializationFailureTime = null;
+            timeProvider.SetUtcNow(failureTime);
+            throw new PostgresException(
+                "deterministic serialization failure",
+                "ERROR",
+                "ERROR",
+                PostgresErrorCodes.SerializationFailure);
+        }
+
+        return ValueTask.FromResult(result);
+    }
+
+    private static bool IsOrganizationLock(string commandText) =>
+        commandText.Contains(
+            "FROM organizations.organizations",
+            StringComparison.OrdinalIgnoreCase) &&
+        commandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase);
 }
 
 internal sealed class InvitationMutationStartBarrier : DbCommandInterceptor

@@ -181,7 +181,10 @@ function TeamMemberDirectory({
   const failures = useTranslations("collaboration.failures");
   const router = useRouter();
   const lifecycle = useAttachedAndVisible();
-  const memberRead = useRef(false);
+  const memberReadGeneration = useRef(0);
+  const activeMemberRead = useRef<number | null>(null);
+  const memberMutationGeneration = useRef(0);
+  const queuedMemberRecovery = useRef(false);
   const mutationInFlight = useRef(new Set<string>());
   const [members, setMembers] = useState<readonly TeamMemberResponse[]>(
     mergeUniqueById([], team.members.items, (member) => member.id),
@@ -206,8 +209,13 @@ function TeamMemberDirectory({
   }
 
   async function readMembers(cursor?: string, replace = false) {
-    if (memberRead.current) return false;
-    memberRead.current = true;
+    if (activeMemberRead.current !== null) {
+      if (replace) queuedMemberRecovery.current = true;
+      return false;
+    }
+    const readGeneration = ++memberReadGeneration.current;
+    const mutationGeneration = memberMutationGeneration.current;
+    activeMemberRead.current = readGeneration;
     setLoadingMore(true);
     setPartialFailure(false);
     const result = await runRead<TeamMemberPageResponse>(() =>
@@ -218,24 +226,35 @@ function TeamMemberDirectory({
       }),
     );
     if (!lifecycle.attached.current) return false;
-    memberRead.current = false;
+    if (activeMemberRead.current !== readGeneration) return false;
+    activeMemberRead.current = null;
     setLoadingMore(false);
-    if (!result.ok) {
-      if (replace) setRefreshFailure(true);
-      else setPartialFailure(true);
-      return false;
+    const stale = mutationGeneration !== memberMutationGeneration.current;
+    let refreshed = false;
+    if (!stale) {
+      if (!result.ok) {
+        if (replace) setRefreshFailure(true);
+        else setPartialFailure(true);
+      } else {
+        if (replace) {
+          setMembers(
+            mergeUniqueById([], result.data.items, (member) => member.id),
+          );
+        } else {
+          setMembers((current) =>
+            mergeUniqueById(current, result.data.items, (member) => member.id),
+          );
+        }
+        setNextCursor(result.data.nextCursor);
+        setPartialFailure(false);
+        setRefreshFailure(false);
+        refreshed = true;
+      }
     }
-    if (replace) {
-      setMembers(mergeUniqueById([], result.data.items, (member) => member.id));
-    } else {
-      setMembers((current) =>
-        mergeUniqueById(current, result.data.items, (member) => member.id),
-      );
-    }
-    setNextCursor(result.data.nextCursor);
-    setPartialFailure(false);
-    setRefreshFailure(false);
-    return true;
+    const recoverLatest = queuedMemberRecovery.current || stale;
+    queuedMemberRecovery.current = false;
+    if (recoverLatest) void readMembers(undefined, true);
+    return refreshed;
   }
 
   async function confirmMemberChange(
@@ -243,6 +262,7 @@ function TeamMemberDirectory({
     member: TeamMemberResponse,
   ) {
     if (!lifecycle.attached.current) return;
+    const confirmedMutationGeneration = ++memberMutationGeneration.current;
     setMembers((current) =>
       action === "added"
         ? current.some((item) => item.userId === member.userId)
@@ -258,7 +278,11 @@ function TeamMemberDirectory({
     onMemberCountChange(team.id, action === "added" ? 1 : -1);
     setMutationFailure(null);
     const refreshed = await readMembers(undefined, true);
-    if (refreshed && lifecycle.attached.current) {
+    if (
+      refreshed &&
+      lifecycle.attached.current &&
+      memberMutationGeneration.current === confirmedMutationGeneration
+    ) {
       // The mutation response is the newest authority until the next server render.
       setMembers((current) =>
         action === "added"

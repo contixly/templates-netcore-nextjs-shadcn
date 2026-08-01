@@ -10,8 +10,6 @@ public sealed class InvitationService(
     IInvitationNotifier notifier,
     TimeProvider timeProvider)
 {
-    private static readonly TimeSpan InvitationLifetime = TimeSpan.FromHours(48);
-
     public async Task<InvitationOperationResult<OrganizationInvitationPage>> ListOrganizationAsync(
         UserId actorUserId,
         OrganizationId organizationId,
@@ -86,7 +84,6 @@ public sealed class InvitationService(
     {
         var result = await invitations.CreateAsync(
             command,
-            timeProvider.GetUtcNow().Add(InvitationLifetime),
             cancellationToken);
         if (!result.Succeeded)
         {
@@ -112,12 +109,12 @@ public sealed class InvitationService(
     public Task<InvitationOperationResult<AcceptedInvitation>> AcceptAsync(
         AcceptInvitationCommand command,
         CancellationToken cancellationToken) =>
-        invitations.AcceptAsync(command, timeProvider.GetUtcNow(), cancellationToken);
+        invitations.AcceptAsync(command, cancellationToken);
 
     public Task<InvitationOperationResult<InvitationDecision>> RejectAsync(
         RejectInvitationCommand command,
         CancellationToken cancellationToken) =>
-        invitations.RejectAsync(command, timeProvider.GetUtcNow(), cancellationToken);
+        invitations.RejectAsync(command, cancellationToken);
 
     private static bool TryDecode<TPosition>(string? cursor, out TPosition? after)
         where TPosition : class

@@ -492,6 +492,12 @@ composition plus a read-only notice. Administrators and owners additionally see
 create, rename, confirmed delete, candidate search/page/add, and remove
 controls. No active-team state, control, or copy exists.
 
+Create and rename validate the normalized name with the API's `1..50` Unicode
+scalar contract. The browser counts code points rather than UTF-16 code units,
+so exactly 50 supplementary-plane letters are valid while 51 are rejected; the
+Unicode property pattern continues to reject unsupported characters and
+malformed surrogate input.
+
 Team continuation appends without discarding confirmed pages and retries the
 same opaque cursor after a safe read failure. Member continuation starts from
 each embedded page and uses limit 50. Candidate search trims/caps the query at
@@ -502,8 +508,14 @@ changes. Duplicate IDs are reconciled by immutable identity.
 Mutation responses become local authority before a recovery read. Create,
 rename, delete, add, and remove remain visibly committed when a subsequent
 refresh fails; Retry performs only a generated GET and never resends the
-mutation. React Activity/different-resource guards prevent a hidden, unmounted,
-or replaced component's late completion from updating state or navigating.
+mutation. Member reads capture both request and mutation generations. A read
+made stale by a later confirmed add/remove is discarded, cannot resurrect an
+older member projection, and queues exactly one latest replacement recovery
+while another read is active. The post-read mutation overlay is likewise applied
+only while its confirming mutation generation is still current, so an
+interleaved newer confirmation remains local authority even if its recovery
+fails. React Activity/different-resource guards prevent a hidden, unmounted, or
+replaced component's late completion from updating state or navigating.
 Named regions/dialogs, explicit labels/descriptions, bounded fields, disabled
 pending states, focus behavior, and team/person-specific accessible names are
 part of the component contract.

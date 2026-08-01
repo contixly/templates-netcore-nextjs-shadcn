@@ -13,7 +13,10 @@ import {
   getTeamMembers,
   getTeams,
 } from "@/src/lib/api/generated/sdk.gen";
-import type { TeamResponse } from "@/src/lib/api/generated/types.gen";
+import type {
+  TeamMemberResponse,
+  TeamResponse,
+} from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages } from "@/test/support/render";
 
 const refresh = jest.fn();
@@ -140,6 +143,89 @@ it("lets administrators create, rename, and confirm deletion with duplicate subm
   expect(screen.queryByText("Product")).not.toBeInTheDocument();
 });
 
+it("accepts exactly 50 supplementary-plane letters when creating and renaming teams", async () => {
+  const fiftyUnicodeScalars = "\u{10400}".repeat(50);
+  const created = {
+    ...team,
+    id: "team-2",
+    name: fiftyUnicodeScalars,
+    members: { items: [], nextCursor: null },
+    memberCount: 0,
+  };
+  jest.mocked(createBrowserTeam).mockResolvedValue({ ok: true, data: created });
+  jest.mocked(updateBrowserTeam).mockResolvedValue({
+    ok: true,
+    data: { ...team, name: fiftyUnicodeScalars },
+  });
+  renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
+  let dialog = screen.getByRole("dialog", { name: "Create team" });
+  fireEvent.change(within(dialog).getByLabelText("Team name"), {
+    target: { value: fiftyUnicodeScalars },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Create team" }));
+
+  await waitFor(() =>
+    expect(createBrowserTeam).toHaveBeenCalledWith(expect.anything(), "org-1", {
+      name: fiftyUnicodeScalars,
+    }),
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Rename Platform" }));
+  dialog = screen.getByRole("dialog", { name: "Rename Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Team name"), {
+    target: { value: fiftyUnicodeScalars },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rename team" }));
+
+  await waitFor(() =>
+    expect(updateBrowserTeam).toHaveBeenCalledWith(
+      expect.anything(),
+      "org-1",
+      "team-1",
+      { name: fiftyUnicodeScalars },
+    ),
+  );
+});
+
+it.each([
+  ["create", "\u{10400}".repeat(51)],
+  ["create", "Valid\u{1f600}"],
+  ["create", "Valid\ud800"],
+  ["rename", "\u{10400}".repeat(51)],
+  ["rename", "Valid\u{1f600}"],
+  ["rename", "Valid\ud800"],
+] as const)(
+  "rejects an invalid Unicode team name during %s",
+  async (action, name) => {
+    renderManager();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: action === "create" ? "Create team" : "Rename Platform",
+      }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: action === "create" ? "Create team" : "Rename Platform",
+    });
+    fireEvent.change(within(dialog).getByLabelText("Team name"), {
+      target: { value: name },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: action === "create" ? "Create team" : "Rename team",
+      }),
+    );
+
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
+    );
+    expect(createBrowserTeam).not.toHaveBeenCalled();
+    expect(updateBrowserTeam).not.toHaveBeenCalled();
+  },
+);
+
 it("searches and pages eligible workspace members before adding one", async () => {
   const bob = {
     memberId: "member-2",
@@ -256,6 +342,164 @@ it("keeps a confirmed removal visible and offers refresh recovery without leakin
       ),
     ).not.toBeInTheDocument(),
   );
+});
+
+it("discards an older member recovery and runs one latest recovery after a later mutation", async () => {
+  const bobCandidate = {
+    memberId: "member-2",
+    userId: "user-2",
+    name: "Bob Member",
+    email: "bob@example.test",
+    imageUrl: null,
+    role: "member" as const,
+    joinedAt: "2026-08-01T00:00:00Z",
+  };
+  const bobMember = {
+    ...member,
+    id: "membership-2",
+    userId: bobCandidate.userId,
+    name: bobCandidate.name,
+    email: bobCandidate.email,
+    role: bobCandidate.role,
+  };
+  const olderRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const latestRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  jest.mocked(getTeamMemberCandidates).mockResolvedValue({
+    data: { data: { items: [bobCandidate], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getTeamMemberCandidates>>);
+  jest.mocked(addBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: bobMember,
+  });
+  jest.mocked(removeBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id, userId: member.userId },
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      olderRecovery.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      latestRecovery.promise as ReturnType<typeof getTeamMembers>,
+    );
+  renderManager();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add member to Platform" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Find a workspace member"), {
+    target: { value: "bob" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+  fireEvent.click(
+    await within(dialog).findByRole("button", { name: "Add Bob Member" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Add member to Platform" }),
+    ).not.toBeInTheDocument(),
+  );
+  const memberDirectory = screen.getByRole("region", {
+    name: "Platform members",
+  });
+  expect(await within(memberDirectory).findByText("Bob Member")).toBeVisible();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Alice Admin" }));
+  await waitFor(() =>
+    expect(screen.queryByText("Alice Admin")).not.toBeInTheDocument(),
+  );
+  expect(getTeamMembers).toHaveBeenCalledTimes(1);
+
+  olderRecovery.resolve({
+    data: { data: { items: [member, bobMember], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getTeamMembers>>);
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText("Alice Admin")).not.toBeInTheDocument();
+
+  latestRecovery.resolve({
+    data: {
+      data: {
+        items: [{ ...bobMember, name: "Bob Reconciled" }],
+        nextCursor: null,
+      },
+    },
+  } as Awaited<ReturnType<typeof getTeamMembers>>);
+  expect(await screen.findByText("Bob Reconciled")).toBeVisible();
+  expect(screen.queryByText("Alice Admin")).not.toBeInTheDocument();
+  expect(getTeamMembers).toHaveBeenCalledTimes(2);
+});
+
+it("does not let an older post-read overlay override a newer confirmed member mutation", async () => {
+  const aliceCandidate = {
+    memberId: "organization-membership-1",
+    userId: member.userId,
+    name: member.name,
+    email: member.email,
+    imageUrl: member.imageUrl,
+    role: member.role,
+    joinedAt: member.organizationJoinedAt,
+  };
+  const olderRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const latestRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const laterAdd = deferred<Awaited<ReturnType<typeof addBrowserTeamMember>>>();
+  jest.mocked(removeBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id, userId: member.userId },
+  });
+  jest.mocked(getTeamMemberCandidates).mockResolvedValue({
+    data: { data: { items: [aliceCandidate], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getTeamMemberCandidates>>);
+  jest.mocked(addBrowserTeamMember).mockReturnValue(laterAdd.promise);
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      olderRecovery.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      latestRecovery.promise as ReturnType<typeof getTeamMembers>,
+    );
+  renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Alice Admin" }));
+  await waitFor(() =>
+    expect(screen.queryByText("Alice Admin")).not.toBeInTheDocument(),
+  );
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add member to Platform" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Find a workspace member"), {
+    target: { value: "alice" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+  fireEvent.click(
+    await within(dialog).findByRole("button", { name: "Add Alice Admin" }),
+  );
+  await waitFor(() => expect(addBrowserTeamMember).toHaveBeenCalledTimes(1));
+
+  const interleavedPage = {
+    get items(): TeamMemberResponse[] {
+      laterAdd.resolve({ ok: true, data: member });
+      return [];
+    },
+    nextCursor: null,
+  };
+  olderRecovery.resolve({
+    data: { data: interleavedPage },
+  } as Awaited<ReturnType<typeof getTeamMembers>>);
+
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.getByText("Alice Admin")).toBeVisible());
+
+  latestRecovery.resolve({
+    data: { data: { items: [member], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getTeamMembers>>);
+  await waitFor(() => expect(screen.getByText("Alice Admin")).toBeVisible());
 });
 
 it("reconciles a successful team recovery page and its continuation cursor after a saved create", async () => {

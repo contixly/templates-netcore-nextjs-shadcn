@@ -344,20 +344,35 @@ The migration's named collaboration constraints are:
 
 Team create/rename/add/remove/delete and invitation create/accept/reject are
 single-`TemplateDbContext` PostgreSQL transactions with role/resource rechecks.
-Team delete clears invitation targets before cascade. Invitation create holds
-the actor membership lock while enforcing the 100-live-pending cap and relies on
-the partial unique index for recipient races. Acceptance follows the shared
-organization lock order and atomically writes organization membership, optional
-team membership, accepted status, and the current unexpired session's active
-organization. Reject changes only status. Classified serialization/deadlock
-failures receive bounded retry and otherwise become `concurrency_conflict`.
+Team name equality and uniqueness use database-side PostgreSQL `lower`; candidate
+name/email search uses escaped literal `ILIKE`, never process-culture
+`ToLower`. Candidate reads also re-read the actor role and require
+`CanManageTeams` before reading the team or query results. Team delete clears
+invitation targets before cascade. All five team mutations retry only SQLSTATE
+`40001`/`40P01`, at most three fresh transactions with authorization repeated;
+permission, validation, classified unique, and cancellation outcomes are not
+retried, and only retry exhaustion becomes `concurrency_conflict`.
+
+Invitation create holds the actor membership lock while enforcing the
+100-live-pending cap and relies on the partial unique index for recipient races.
+It samples time after the relevant locks in each attempt and derives a full
+48-hour lifetime there. Acceptance follows the shared organization lock order
+and atomically writes organization membership, optional team membership,
+accepted status, and the current unexpired session's active organization.
+Accept/reject sample fresh time after their attempt's locks, so lock waits,
+retries, invitation expiry, and session expiry share the same authoritative
+boundary. Reject changes status only when the recipient is not already a member;
+an existing member receives `invitation_recipient_already_member` and the row
+stays pending. Invitation serialization/deadlock failures retain bounded retry.
 Account deletion, organization deletion, and local scenario cleanup include the
 collaboration graph and leave no orphan team/member/invitation rows.
 
 The registered invitation notifier is a safe no-network no-op. It runs only
 after transaction commit; delivery failure cannot roll back or obscure the
-committed invitation. External delivery, retry, outbox, cancellation, and resend
-need a separate operational iteration.
+committed invitation. Caller cancellation observed after commit is deliberately
+reported as committed success plus `notification_failed`, not as a failed create
+that could invite a duplicate retry. External delivery, retry, outbox, and
+resend need a separate operational iteration.
 
 Local automation users are intentionally created with an unverified primary
 email. For deterministic black-box invitation E2E, an authenticated client may:

@@ -19,6 +19,7 @@ internal sealed class EfTeamStore(
     : ITeamStore
 {
     private const int EmbeddedMemberLimit = 50;
+    private const int MaximumConcurrencyAttempts = 3;
 
     public async Task<
         TeamOperationResult<
@@ -105,229 +106,203 @@ internal sealed class EfTeamStore(
         CreateTeamCommand command,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return await unitOfWork.ExecuteAsync(
-                async transactionCancellationToken =>
-                {
-                    if (await LockOrganizationAsync(
-                            command.OrganizationId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return TeamOperationResult<TeamSummary>.Failed(
-                            TeamFailure.NotFound);
-                    }
-
-                    var actor = await LockMembershipAsync(
+        return await ExecuteMutationWithRetryAsync(
+            async transactionCancellationToken =>
+            {
+                if (await LockOrganizationAsync(
                         command.OrganizationId.Value,
-                        command.ActorUserId.Value,
-                        transactionCancellationToken);
-                    var authorization = AuthorizeMutation<TeamSummary>(actor);
-                    if (authorization is not null)
-                    {
-                        return authorization;
-                    }
+                        transactionCancellationToken) is null)
+                {
+                    return TeamOperationResult<TeamSummary>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    if (await TeamNameExistsAsync(
-                            command.OrganizationId.Value,
-                            command.Name.Value,
-                            excludedTeamId: null,
-                            transactionCancellationToken))
-                    {
-                        return TeamOperationResult<TeamSummary>.Failed(
-                            TeamFailure.NameConflict);
-                    }
+                var actor = await LockMembershipAsync(
+                    command.OrganizationId.Value,
+                    command.ActorUserId.Value,
+                    transactionCancellationToken);
+                var authorization = AuthorizeMutation<TeamSummary>(actor);
+                if (authorization is not null)
+                {
+                    return authorization;
+                }
 
-                    var now = timeProvider.GetUtcNow();
-                    var teamId = TeamId.New(now);
-                    db.Teams.Add(new TeamEntity
-                    {
-                        Id = teamId.Value,
-                        OrganizationId = command.OrganizationId.Value,
-                        Name = command.Name.Value,
-                        CreatedAt = now,
-                        UpdatedAt = now
-                    });
-                    return TeamOperationResult<TeamSummary>.Success(new(
-                        teamId,
-                        command.OrganizationId,
-                        command.Name,
-                        MemberCount: 0,
-                        new TeamMemberPage([], null),
-                        now,
-                        now));
-                },
-                cancellationToken);
-        }
-        catch (Exception exception) when (IsUniqueViolation(
-            exception,
-            "ux_teams_organization_id_lower_name"))
-        {
-            return TeamOperationResult<TeamSummary>.Failed(
-                TeamFailure.NameConflict);
-        }
-        catch (Exception exception) when (IsConcurrencyFailure(exception))
-        {
-            return TeamOperationResult<TeamSummary>.Failed(
-                TeamFailure.ConcurrencyConflict);
-        }
+                if (await TeamNameExistsAsync(
+                        command.OrganizationId.Value,
+                        command.Name.Value,
+                        excludedTeamId: null,
+                        transactionCancellationToken))
+                {
+                    return TeamOperationResult<TeamSummary>.Failed(
+                        TeamFailure.NameConflict);
+                }
+
+                var now = timeProvider.GetUtcNow();
+                var teamId = TeamId.New(now);
+                db.Teams.Add(new TeamEntity
+                {
+                    Id = teamId.Value,
+                    OrganizationId = command.OrganizationId.Value,
+                    Name = command.Name.Value,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+                return TeamOperationResult<TeamSummary>.Success(new(
+                    teamId,
+                    command.OrganizationId,
+                    command.Name,
+                    MemberCount: 0,
+                    new TeamMemberPage([], null),
+                    now,
+                    now));
+            },
+            exception => IsUniqueViolation(
+                exception,
+                "ux_teams_organization_id_lower_name")
+                    ? TeamFailure.NameConflict
+                    : null,
+            cancellationToken);
     }
 
     public async Task<TeamOperationResult<TeamSummary>> UpdateAsync(
         UpdateTeamCommand command,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return await unitOfWork.ExecuteAsync(
-                async transactionCancellationToken =>
+        return await ExecuteMutationWithRetryAsync(
+            async transactionCancellationToken =>
+            {
+                if (await LockOrganizationAsync(
+                        command.OrganizationId.Value,
+                        transactionCancellationToken) is null)
                 {
-                    if (await LockOrganizationAsync(
-                            command.OrganizationId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return TeamOperationResult<TeamSummary>.Failed(
-                            TeamFailure.NotFound);
-                    }
+                    return TeamOperationResult<TeamSummary>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    var actor = await LockMembershipAsync(
-                        command.OrganizationId.Value,
-                        command.ActorUserId.Value,
-                        transactionCancellationToken);
-                    var authorization = AuthorizeMutation<TeamSummary>(actor);
-                    if (authorization is not null)
-                    {
-                        return authorization;
-                    }
+                var actor = await LockMembershipAsync(
+                    command.OrganizationId.Value,
+                    command.ActorUserId.Value,
+                    transactionCancellationToken);
+                var authorization = AuthorizeMutation<TeamSummary>(actor);
+                if (authorization is not null)
+                {
+                    return authorization;
+                }
 
-                    var team = await LockTeamAsync(
-                        command.OrganizationId.Value,
-                        command.TeamId.Value,
-                        transactionCancellationToken);
-                    if (team is null)
-                    {
-                        return TeamOperationResult<TeamSummary>.Failed(
-                            TeamFailure.NotFound);
-                    }
+                var team = await LockTeamAsync(
+                    command.OrganizationId.Value,
+                    command.TeamId.Value,
+                    transactionCancellationToken);
+                if (team is null)
+                {
+                    return TeamOperationResult<TeamSummary>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    if (string.Equals(
-                            team.Name,
-                            command.Name.Value,
-                            StringComparison.Ordinal))
-                    {
-                        return TeamOperationResult<TeamSummary>.Failed(
-                            TeamFailure.NameUnchanged);
-                    }
-
-                    if (await TeamNameExistsAsync(
-                            command.OrganizationId.Value,
-                            command.Name.Value,
-                            command.TeamId.Value,
-                            transactionCancellationToken))
-                    {
-                        return TeamOperationResult<TeamSummary>.Failed(
-                            TeamFailure.NameConflict);
-                    }
-
-                    var now = timeProvider.GetUtcNow();
-                    team.Name = command.Name.Value;
-                    team.UpdatedAt = now;
-                    var members = await ReadMemberPageAsync(
+                if (await TeamNameMatchesAsync(
                         command.OrganizationId.Value,
                         command.TeamId.Value,
-                        after: null,
-                        EmbeddedMemberLimit,
+                        command.Name.Value,
+                        transactionCancellationToken))
+                {
+                    return TeamOperationResult<TeamSummary>.Failed(
+                        TeamFailure.NameUnchanged);
+                }
+
+                if (await TeamNameExistsAsync(
+                        command.OrganizationId.Value,
+                        command.Name.Value,
+                        command.TeamId.Value,
+                        transactionCancellationToken))
+                {
+                    return TeamOperationResult<TeamSummary>.Failed(
+                        TeamFailure.NameConflict);
+                }
+
+                var now = timeProvider.GetUtcNow();
+                team.Name = command.Name.Value;
+                team.UpdatedAt = now;
+                var members = await ReadMemberPageAsync(
+                    command.OrganizationId.Value,
+                    command.TeamId.Value,
+                    after: null,
+                    EmbeddedMemberLimit,
+                    transactionCancellationToken);
+                var memberCount = await db.TeamMembers.AsNoTracking()
+                    .CountAsync(
+                        member =>
+                            member.OrganizationId ==
+                            command.OrganizationId.Value &&
+                            member.TeamId == command.TeamId.Value,
                         transactionCancellationToken);
-                    var memberCount = await db.TeamMembers.AsNoTracking()
-                        .CountAsync(
-                            member =>
-                                member.OrganizationId ==
-                                command.OrganizationId.Value &&
-                                member.TeamId == command.TeamId.Value,
-                            transactionCancellationToken);
-                    return TeamOperationResult<TeamSummary>.Success(new(
-                        command.TeamId,
-                        command.OrganizationId,
-                        command.Name,
-                        memberCount,
-                        MapMemberPage(members),
-                        team.CreatedAt,
-                        now));
-                },
-                cancellationToken);
-        }
-        catch (Exception exception) when (IsUniqueViolation(
-            exception,
-            "ux_teams_organization_id_lower_name"))
-        {
-            return TeamOperationResult<TeamSummary>.Failed(
-                TeamFailure.NameConflict);
-        }
-        catch (Exception exception) when (IsConcurrencyFailure(exception))
-        {
-            return TeamOperationResult<TeamSummary>.Failed(
-                TeamFailure.ConcurrencyConflict);
-        }
+                return TeamOperationResult<TeamSummary>.Success(new(
+                    command.TeamId,
+                    command.OrganizationId,
+                    command.Name,
+                    memberCount,
+                    MapMemberPage(members),
+                    team.CreatedAt,
+                    now));
+            },
+            exception => IsUniqueViolation(
+                exception,
+                "ux_teams_organization_id_lower_name")
+                    ? TeamFailure.NameConflict
+                    : null,
+            cancellationToken);
     }
 
     public async Task<TeamOperationResult<TeamDeletion>> DeleteAsync(
         DeleteTeamCommand command,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return await unitOfWork.ExecuteAsync(
-                async transactionCancellationToken =>
+        return await ExecuteMutationWithRetryAsync(
+            async transactionCancellationToken =>
+            {
+                if (await LockOrganizationAsync(
+                        command.OrganizationId.Value,
+                        transactionCancellationToken) is null)
                 {
-                    if (await LockOrganizationAsync(
-                            command.OrganizationId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return TeamOperationResult<TeamDeletion>.Failed(
-                            TeamFailure.NotFound);
-                    }
+                    return TeamOperationResult<TeamDeletion>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    var actor = await LockMembershipAsync(
-                        command.OrganizationId.Value,
-                        command.ActorUserId.Value,
+                var actor = await LockMembershipAsync(
+                    command.OrganizationId.Value,
+                    command.ActorUserId.Value,
+                    transactionCancellationToken);
+                var authorization = AuthorizeMutation<TeamDeletion>(actor);
+                if (authorization is not null)
+                {
+                    return authorization;
+                }
+
+                var team = await LockTeamAsync(
+                    command.OrganizationId.Value,
+                    command.TeamId.Value,
+                    transactionCancellationToken);
+                if (team is null)
+                {
+                    return TeamOperationResult<TeamDeletion>.Failed(
+                        TeamFailure.NotFound);
+                }
+
+                await db.Invitations
+                    .Where(invitation =>
+                        invitation.OrganizationId ==
+                        command.OrganizationId.Value &&
+                        invitation.TeamId == command.TeamId.Value)
+                    .ExecuteUpdateAsync(
+                        setters => setters.SetProperty(
+                            invitation => invitation.TeamId,
+                            (Guid?)null),
                         transactionCancellationToken);
-                    var authorization = AuthorizeMutation<TeamDeletion>(actor);
-                    if (authorization is not null)
-                    {
-                        return authorization;
-                    }
-
-                    var team = await LockTeamAsync(
-                        command.OrganizationId.Value,
-                        command.TeamId.Value,
-                        transactionCancellationToken);
-                    if (team is null)
-                    {
-                        return TeamOperationResult<TeamDeletion>.Failed(
-                            TeamFailure.NotFound);
-                    }
-
-                    await db.Invitations
-                        .Where(invitation =>
-                            invitation.OrganizationId ==
-                            command.OrganizationId.Value &&
-                            invitation.TeamId == command.TeamId.Value)
-                        .ExecuteUpdateAsync(
-                            setters => setters.SetProperty(
-                                invitation => invitation.TeamId,
-                                (Guid?)null),
-                            transactionCancellationToken);
-                    db.Teams.Remove(team);
-                    return TeamOperationResult<TeamDeletion>.Success(
-                        new(command.TeamId));
-                },
-                cancellationToken);
-        }
-        catch (Exception exception) when (IsConcurrencyFailure(exception))
-        {
-            return TeamOperationResult<TeamDeletion>.Failed(
-                TeamFailure.ConcurrencyConflict);
-        }
+                db.Teams.Remove(team);
+                return TeamOperationResult<TeamDeletion>.Success(
+                    new(command.TeamId));
+            },
+            classifyException: null,
+            cancellationToken);
     }
 
     public async Task<
@@ -390,101 +365,91 @@ internal sealed class EfTeamStore(
         AddTeamMemberCommand command,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return await unitOfWork.ExecuteAsync(
-                async transactionCancellationToken =>
+        return await ExecuteMutationWithRetryAsync(
+            async transactionCancellationToken =>
+            {
+                if (await LockOrganizationAsync(
+                        command.OrganizationId.Value,
+                        transactionCancellationToken) is null)
                 {
-                    if (await LockOrganizationAsync(
-                            command.OrganizationId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return TeamOperationResult<TeamMemberView>.Failed(
-                            TeamFailure.NotFound);
-                    }
+                    return TeamOperationResult<TeamMemberView>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    var actor = await LockMembershipAsync(
+                var actor = await LockMembershipAsync(
+                    command.OrganizationId.Value,
+                    command.ActorUserId.Value,
+                    transactionCancellationToken);
+                var authorization = AuthorizeMutation<TeamMemberView>(actor);
+                if (authorization is not null)
+                {
+                    return authorization;
+                }
+
+                if (await LockTeamAsync(
                         command.OrganizationId.Value,
-                        command.ActorUserId.Value,
-                        transactionCancellationToken);
-                    var authorization = AuthorizeMutation<TeamMemberView>(actor);
-                    if (authorization is not null)
-                    {
-                        return authorization;
-                    }
+                        command.TeamId.Value,
+                        transactionCancellationToken) is null)
+                {
+                    return TeamOperationResult<TeamMemberView>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    if (await LockTeamAsync(
-                            command.OrganizationId.Value,
-                            command.TeamId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return TeamOperationResult<TeamMemberView>.Failed(
-                            TeamFailure.NotFound);
-                    }
+                var target = await LockMembershipAsync(
+                    command.OrganizationId.Value,
+                    command.TargetUserId.Value,
+                    transactionCancellationToken);
+                if (target is null)
+                {
+                    return TeamOperationResult<TeamMemberView>.Failed(
+                        TeamFailure.MemberNotFound);
+                }
 
-                    var target = await LockMembershipAsync(
+                if (await LockTeamMemberAsync(
                         command.OrganizationId.Value,
-                        command.TargetUserId.Value,
-                        transactionCancellationToken);
-                    if (target is null)
-                    {
-                        return TeamOperationResult<TeamMemberView>.Failed(
-                            TeamFailure.MemberNotFound);
-                    }
+                        command.TeamId.Value,
+                        target.Id,
+                        transactionCancellationToken) is not null)
+                {
+                    return TeamOperationResult<TeamMemberView>.Failed(
+                        TeamFailure.MemberAlreadyExists);
+                }
 
-                    if (await LockTeamMemberAsync(
-                            command.OrganizationId.Value,
-                            command.TeamId.Value,
-                            target.Id,
-                            transactionCancellationToken) is not null)
-                    {
-                        return TeamOperationResult<TeamMemberView>.Failed(
-                            TeamFailure.MemberAlreadyExists);
-                    }
+                var user = await ReadUserAsync(
+                    command.TargetUserId.Value,
+                    transactionCancellationToken);
+                if (user is null)
+                {
+                    return TeamOperationResult<TeamMemberView>.Failed(
+                        TeamFailure.MemberNotFound);
+                }
 
-                    var user = await ReadUserAsync(
-                        command.TargetUserId.Value,
-                        transactionCancellationToken);
-                    if (user is null)
-                    {
-                        return TeamOperationResult<TeamMemberView>.Failed(
-                            TeamFailure.MemberNotFound);
-                    }
-
-                    var now = timeProvider.GetUtcNow();
-                    var memberId = TeamMemberId.New(now);
-                    db.TeamMembers.Add(new TeamMemberEntity
-                    {
-                        Id = memberId.Value,
-                        OrganizationId = command.OrganizationId.Value,
-                        TeamId = command.TeamId.Value,
-                        OrganizationMemberId = target.Id,
-                        JoinedAt = now
-                    });
-                    return TeamOperationResult<TeamMemberView>.Success(new(
-                        memberId,
-                        command.TargetUserId,
-                        user.Name,
-                        user.Email,
-                        user.ImageUrl,
-                        ParseRole(target.Role),
-                        target.JoinedAt,
-                        now));
-                },
-                cancellationToken);
-        }
-        catch (Exception exception) when (IsUniqueViolation(
-            exception,
-            "ux_team_members_team_id_organization_member_id"))
-        {
-            return TeamOperationResult<TeamMemberView>.Failed(
-                TeamFailure.MemberAlreadyExists);
-        }
-        catch (Exception exception) when (IsConcurrencyFailure(exception))
-        {
-            return TeamOperationResult<TeamMemberView>.Failed(
-                TeamFailure.ConcurrencyConflict);
-        }
+                var now = timeProvider.GetUtcNow();
+                var memberId = TeamMemberId.New(now);
+                db.TeamMembers.Add(new TeamMemberEntity
+                {
+                    Id = memberId.Value,
+                    OrganizationId = command.OrganizationId.Value,
+                    TeamId = command.TeamId.Value,
+                    OrganizationMemberId = target.Id,
+                    JoinedAt = now
+                });
+                return TeamOperationResult<TeamMemberView>.Success(new(
+                    memberId,
+                    command.TargetUserId,
+                    user.Name,
+                    user.Email,
+                    user.ImageUrl,
+                    ParseRole(target.Role),
+                    target.JoinedAt,
+                    now));
+            },
+            exception => IsUniqueViolation(
+                exception,
+                "ux_team_members_team_id_organization_member_id")
+                    ? TeamFailure.MemberAlreadyExists
+                    : null,
+            cancellationToken);
     }
 
     public async Task<TeamOperationResult<TeamMemberRemoval>>
@@ -492,72 +457,65 @@ internal sealed class EfTeamStore(
             RemoveTeamMemberCommand command,
             CancellationToken cancellationToken)
     {
-        try
-        {
-            return await unitOfWork.ExecuteAsync(
-                async transactionCancellationToken =>
+        return await ExecuteMutationWithRetryAsync(
+            async transactionCancellationToken =>
+            {
+                if (await LockOrganizationAsync(
+                        command.OrganizationId.Value,
+                        transactionCancellationToken) is null)
                 {
-                    if (await LockOrganizationAsync(
-                            command.OrganizationId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return TeamOperationResult<TeamMemberRemoval>.Failed(
-                            TeamFailure.NotFound);
-                    }
+                    return TeamOperationResult<TeamMemberRemoval>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    var actor = await LockMembershipAsync(
-                        command.OrganizationId.Value,
-                        command.ActorUserId.Value,
-                        transactionCancellationToken);
-                    var authorization =
-                        AuthorizeMutation<TeamMemberRemoval>(actor);
-                    if (authorization is not null)
-                    {
-                        return authorization;
-                    }
+                var actor = await LockMembershipAsync(
+                    command.OrganizationId.Value,
+                    command.ActorUserId.Value,
+                    transactionCancellationToken);
+                var authorization =
+                    AuthorizeMutation<TeamMemberRemoval>(actor);
+                if (authorization is not null)
+                {
+                    return authorization;
+                }
 
-                    if (await LockTeamAsync(
-                            command.OrganizationId.Value,
-                            command.TeamId.Value,
-                            transactionCancellationToken) is null)
-                    {
-                        return TeamOperationResult<TeamMemberRemoval>.Failed(
-                            TeamFailure.NotFound);
-                    }
-
-                    var target = await LockMembershipAsync(
-                        command.OrganizationId.Value,
-                        command.TargetUserId.Value,
-                        transactionCancellationToken);
-                    if (target is null)
-                    {
-                        return TeamOperationResult<TeamMemberRemoval>.Failed(
-                            TeamFailure.MemberNotFound);
-                    }
-
-                    var teamMember = await LockTeamMemberAsync(
+                if (await LockTeamAsync(
                         command.OrganizationId.Value,
                         command.TeamId.Value,
-                        target.Id,
-                        transactionCancellationToken);
-                    if (teamMember is null)
-                    {
-                        return TeamOperationResult<TeamMemberRemoval>.Failed(
-                            TeamFailure.MemberNotFound);
-                    }
+                        transactionCancellationToken) is null)
+                {
+                    return TeamOperationResult<TeamMemberRemoval>.Failed(
+                        TeamFailure.NotFound);
+                }
 
-                    db.TeamMembers.Remove(teamMember);
-                    return TeamOperationResult<TeamMemberRemoval>.Success(new(
-                        command.TeamId,
-                        command.TargetUserId));
-                },
-                cancellationToken);
-        }
-        catch (Exception exception) when (IsConcurrencyFailure(exception))
-        {
-            return TeamOperationResult<TeamMemberRemoval>.Failed(
-                TeamFailure.ConcurrencyConflict);
-        }
+                var target = await LockMembershipAsync(
+                    command.OrganizationId.Value,
+                    command.TargetUserId.Value,
+                    transactionCancellationToken);
+                if (target is null)
+                {
+                    return TeamOperationResult<TeamMemberRemoval>.Failed(
+                        TeamFailure.MemberNotFound);
+                }
+
+                var teamMember = await LockTeamMemberAsync(
+                    command.OrganizationId.Value,
+                    command.TeamId.Value,
+                    target.Id,
+                    transactionCancellationToken);
+                if (teamMember is null)
+                {
+                    return TeamOperationResult<TeamMemberRemoval>.Failed(
+                        TeamFailure.MemberNotFound);
+                }
+
+                db.TeamMembers.Remove(teamMember);
+                return TeamOperationResult<TeamMemberRemoval>.Success(new(
+                    command.TeamId,
+                    command.TargetUserId));
+            },
+            classifyException: null,
+            cancellationToken);
     }
 
     public async Task<
@@ -578,11 +536,20 @@ internal sealed class EfTeamStore(
             return await ExecuteSnapshotReadAsync(
                 async transactionCancellationToken =>
                 {
-                    if (!await CanReadAsync(
-                            actorUserId.Value,
-                            organizationId.Value,
-                            transactionCancellationToken) ||
-                        !await TeamExistsAsync(
+                    var authorization = await AuthorizeCandidateReadAsync(
+                        actorUserId.Value,
+                        organizationId.Value,
+                        transactionCancellationToken);
+                    if (authorization is not null)
+                    {
+                        return TeamOperationResult<
+                            TeamStorePage<
+                                TeamCandidate,
+                                TeamCandidateCursorPosition>>.Failed(
+                                    authorization.Value);
+                    }
+
+                    if (!await TeamExistsAsync(
                             organizationId.Value,
                             teamId.Value,
                             transactionCancellationToken))
@@ -619,10 +586,10 @@ internal sealed class EfTeamStore(
                     var normalizedQuery = query?.Trim();
                     if (!string.IsNullOrEmpty(normalizedQuery))
                     {
-                        var loweredQuery = normalizedQuery.ToLower();
+                        var pattern = $"%{EscapeLikePattern(normalizedQuery)}%";
                         candidates = candidates.Where(candidate =>
-                            candidate.Name.ToLower().Contains(loweredQuery) ||
-                            candidate.Email.ToLower().Contains(loweredQuery));
+                            EF.Functions.ILike(candidate.Name, pattern, @"\") ||
+                            EF.Functions.ILike(candidate.Email, pattern, @"\"));
                     }
 
                     if (after is not null)
@@ -868,6 +835,42 @@ internal sealed class EfTeamStore(
         }
     }
 
+    private async Task<TeamOperationResult<T>> ExecuteMutationWithRetryAsync<T>(
+        Func<CancellationToken, Task<TeamOperationResult<T>>> action,
+        Func<Exception, TeamFailure?>? classifyException,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        for (var attempt = 1; attempt <= MaximumConcurrencyAttempts; attempt++)
+        {
+            try
+            {
+                return await unitOfWork.ExecuteAsync(action, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                var classified = classifyException?.Invoke(exception);
+                if (classified is not null)
+                {
+                    return TeamOperationResult<T>.Failed(classified.Value);
+                }
+
+                if (!IsConcurrencyFailure(exception))
+                {
+                    throw;
+                }
+
+                if (attempt == MaximumConcurrencyAttempts)
+                {
+                    return TeamOperationResult<T>.Failed(
+                        TeamFailure.ConcurrencyConflict);
+                }
+            }
+        }
+
+        return TeamOperationResult<T>.Failed(TeamFailure.ConcurrencyConflict);
+    }
+
     private Task<bool> CanReadAsync(
         Guid actorUserId,
         Guid organizationId,
@@ -894,14 +897,75 @@ internal sealed class EfTeamStore(
         Guid? excludedTeamId,
         CancellationToken cancellationToken)
     {
-        var loweredName = name.ToLower();
-        return db.Teams.AsNoTracking().AnyAsync(
-            team =>
-                team.OrganizationId == organizationId &&
-                team.Id != excludedTeamId &&
-                team.Name.ToLower() == loweredName,
-            cancellationToken);
+        return excludedTeamId is null
+            ? db.Database.SqlQuery<bool>(
+                    $"""
+                     SELECT EXISTS (
+                         SELECT 1
+                         FROM organizations.teams AS team
+                         WHERE team.organization_id = {organizationId}
+                           AND lower(team.name) = lower({name})
+                     ) AS "Value"
+                     """)
+                .SingleAsync(cancellationToken)
+            : db.Database.SqlQuery<bool>(
+                    $"""
+                     SELECT EXISTS (
+                         SELECT 1
+                         FROM organizations.teams AS team
+                         WHERE team.organization_id = {organizationId}
+                           AND team.id <> {excludedTeamId.Value}
+                           AND lower(team.name) = lower({name})
+                     ) AS "Value"
+                     """)
+                .SingleAsync(cancellationToken);
     }
+
+    private Task<bool> TeamNameMatchesAsync(
+        Guid organizationId,
+        Guid teamId,
+        string name,
+        CancellationToken cancellationToken) =>
+        db.Database.SqlQuery<bool>(
+                $"""
+                 SELECT EXISTS (
+                     SELECT 1
+                     FROM organizations.teams AS team
+                     WHERE team.organization_id = {organizationId}
+                       AND team.id = {teamId}
+                       AND lower(team.name) = lower({name})
+                 ) AS "Value"
+                 """)
+            .SingleAsync(cancellationToken);
+
+    private async Task<TeamFailure?> AuthorizeCandidateReadAsync(
+        Guid actorUserId,
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        var roleValue = await db.OrganizationMembers.AsNoTracking()
+            .Where(membership =>
+                membership.OrganizationId == organizationId &&
+                membership.UserId == actorUserId)
+            .Select(membership => membership.Role)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (roleValue is null)
+        {
+            return TeamFailure.NotFound;
+        }
+
+        return OrganizationPermissionPolicy
+            .GetCapabilities(ParseRole(roleValue))
+            .CanManageTeams
+                ? null
+                : TeamFailure.PermissionDenied;
+    }
+
+    private static string EscapeLikePattern(string value) =>
+        value
+            .Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("%", @"\%", StringComparison.Ordinal)
+            .Replace("_", @"\_", StringComparison.Ordinal);
 
     private Task<OrganizationEntity?> LockOrganizationAsync(
         Guid organizationId,

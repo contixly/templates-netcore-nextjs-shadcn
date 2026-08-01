@@ -1,8 +1,10 @@
 using System.Data.Common;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Template.Api.Tests.Infrastructure;
 using Template.Application.Collaboration;
 using Template.Application.Collaboration.Ports;
@@ -72,7 +74,7 @@ public sealed class TeamStoreTests(PostgreSqlContainerFixture postgres)
             limit: 50,
             TestContext.Current.CancellationToken);
         Assert.Equal(owner.UserId, Assert.Single(members.Value!.Items).UserId);
-        Assert.Equal(member.UserId, Assert.Single(candidates.Value!.Items).UserId);
+        Assert.Equal(TeamFailure.PermissionDenied, candidates.Failure);
     }
 
     [Fact]
@@ -201,7 +203,7 @@ public sealed class TeamStoreTests(PostgreSqlContainerFixture postgres)
             new(owner.UserId, organization, other.Value!.Id, Name("DESIGN")),
             TestContext.Current.CancellationToken);
         var unchanged = await fixture.Store.UpdateAsync(
-            new(owner.UserId, organization, first.Value!.Id, Name("Design")),
+            new(owner.UserId, organization, first.Value!.Id, Name("design")),
             TestContext.Current.CancellationToken);
 
         Assert.True(first.Succeeded);
@@ -407,6 +409,69 @@ public sealed class TeamStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task Candidate_search_uses_database_case_folding_and_treats_like_metacharacters_literally()
+    {
+        await using var fixture = await TeamStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("literal-owner@team.test");
+        var caseMatch = await fixture.CreateUserAsync(
+            "case-match@team.test",
+            "INFO Candidate");
+        var literalMatch = await fixture.CreateUserAsync(
+            "literal-match@team.test",
+            "100%_ Ready");
+        var ordinary = await fixture.CreateUserAsync(
+            "ordinary@team.test",
+            "Ordinary Candidate");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Literal Candidates");
+        foreach (var candidate in new[] { caseMatch, literalMatch, ordinary })
+        {
+            await fixture.AddOrganizationMemberAsync(
+                organization,
+                candidate,
+                OrganizationRole.Member);
+        }
+
+        var team = await fixture.SeedTeamAsync(organization, "Literal Search");
+        await fixture.SeedTeamMemberAsync(organization, team, owner);
+
+        var originalCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+            var caseResult = await fixture.Store.ListCandidatesAsync(
+                owner.UserId,
+                organization,
+                team,
+                "INFO",
+                after: null,
+                limit: 50,
+                TestContext.Current.CancellationToken);
+            var literalResult = await fixture.Store.ListCandidatesAsync(
+                owner.UserId,
+                organization,
+                team,
+                "%_",
+                after: null,
+                limit: 50,
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(
+                caseMatch.UserId,
+                Assert.Single(caseResult.Value!.Items).UserId);
+            Assert.Equal(
+                literalMatch.UserId,
+                Assert.Single(literalResult.Value!.Items).UserId);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = originalCulture;
+        }
+    }
+
+    [Fact]
     public async Task Cross_organization_membership_is_rejected_without_a_write()
     {
         await using var fixture = await TeamStoreFixture.CreateAsync(postgres);
@@ -541,10 +606,12 @@ internal sealed class TeamStoreFixture : IAsyncDisposable
         services.AddSingleton<TimeProvider>(new FixedTeamTimeProvider(Now));
         services.AddSingleton<TeamMutationStartBarrier>();
         services.AddSingleton<TeamCommandCounter>();
+        services.AddSingleton<TeamMutationFailureInterceptor>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
             options.AddInterceptors(
                 provider.GetRequiredService<TeamMutationStartBarrier>(),
-                provider.GetRequiredService<TeamCommandCounter>()));
+                provider.GetRequiredService<TeamCommandCounter>(),
+                provider.GetRequiredService<TeamMutationFailureInterceptor>()));
         services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         var provider = services.BuildServiceProvider();
 
@@ -582,6 +649,32 @@ internal sealed class TeamStoreFixture : IAsyncDisposable
 
     internal int CommandCount =>
         _services.GetRequiredService<TeamCommandCounter>().Count;
+
+    internal void FailNextMutationAfterAuthorization(
+        TeamMutationKind kind,
+        UserId actorUserId,
+        int failureCount) =>
+        _services.GetRequiredService<TeamMutationFailureInterceptor>()
+            .FailNextMutationAfterAuthorization(
+                kind,
+                actorUserId.Value,
+                failureCount);
+
+    internal void FailNextTeamInsertWithUniqueViolation(UserId actorUserId) =>
+        _services.GetRequiredService<TeamMutationFailureInterceptor>()
+            .FailNextTeamInsertWithUniqueViolation(actorUserId.Value);
+
+    internal int RetryOrganizationLockAttempts =>
+        _services.GetRequiredService<TeamMutationFailureInterceptor>()
+            .OrganizationLockAttempts;
+
+    internal int RetryAuthorizationLockAttempts =>
+        _services.GetRequiredService<TeamMutationFailureInterceptor>()
+            .AuthorizationLockAttempts;
+
+    internal int RetryTransactionCount =>
+        _services.GetRequiredService<TeamMutationFailureInterceptor>()
+            .TransactionCount;
 
     internal async Task<TeamOperationResult<TeamSummary>> CreateTeamAsync(
         TeamActor actor,
@@ -820,6 +913,15 @@ internal sealed class TeamStoreFixture : IAsyncDisposable
 
 internal sealed record TeamActor(UserId UserId);
 
+public enum TeamMutationKind
+{
+    Create,
+    Update,
+    Delete,
+    AddMember,
+    RemoveMember
+}
+
 internal sealed class FixedTeamTimeProvider(DateTimeOffset now) : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => now;
@@ -892,4 +994,171 @@ internal sealed class TeamCommandCounter : DbCommandInterceptor
         Interlocked.Increment(ref _count);
         return ValueTask.FromResult(result);
     }
+}
+
+internal sealed class TeamMutationFailureInterceptor : DbCommandInterceptor
+{
+    private readonly HashSet<Guid> _transactionIds = [];
+    private TeamMutationKind? _kind;
+    private Guid _actorUserId;
+    private int _remainingSerializationFailures;
+    private int _failUniqueInsert;
+    private int _organizationLockAttempts;
+    private int _authorizationLockAttempts;
+
+    internal int OrganizationLockAttempts =>
+        Volatile.Read(ref _organizationLockAttempts);
+
+    internal int AuthorizationLockAttempts =>
+        Volatile.Read(ref _authorizationLockAttempts);
+
+    internal int TransactionCount
+    {
+        get
+        {
+            lock (_transactionIds)
+            {
+                return _transactionIds.Count;
+            }
+        }
+    }
+
+    internal void FailNextMutationAfterAuthorization(
+        TeamMutationKind kind,
+        Guid actorUserId,
+        int failureCount)
+    {
+        Reset(actorUserId);
+        _kind = kind;
+        _remainingSerializationFailures = failureCount;
+    }
+
+    internal void FailNextTeamInsertWithUniqueViolation(Guid actorUserId)
+    {
+        Reset(actorUserId);
+        _kind = TeamMutationKind.Create;
+        Volatile.Write(ref _failUniqueInsert, 1);
+    }
+
+    public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>>
+        ReaderExecutingAsync(
+            System.Data.Common.DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<System.Data.Common.DbDataReader> result,
+            CancellationToken cancellationToken = default)
+    {
+        ObserveAttempt(command, eventData);
+        ThrowIfConfigured(command);
+        return ValueTask.FromResult(result);
+    }
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        ObserveAttempt(command, eventData);
+        ThrowIfConfigured(command);
+        return ValueTask.FromResult(result);
+    }
+
+    private void ObserveAttempt(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData)
+    {
+        if (_kind is null)
+        {
+            return;
+        }
+
+        if (IsOrganizationLock(command.CommandText))
+        {
+            Interlocked.Increment(ref _organizationLockAttempts);
+            var transactionId = eventData.Context?.Database.CurrentTransaction
+                ?.TransactionId;
+            if (transactionId is not null)
+            {
+                lock (_transactionIds)
+                {
+                    _transactionIds.Add(transactionId.Value);
+                }
+            }
+        }
+
+        if (command.CommandText.Contains(
+                "FROM organizations.members",
+                StringComparison.OrdinalIgnoreCase) &&
+            command.CommandText.Contains(
+                "FOR UPDATE",
+                StringComparison.OrdinalIgnoreCase) &&
+            command.Parameters.Cast<System.Data.Common.DbParameter>().Any(
+                parameter =>
+                    parameter.Value is Guid value && value == _actorUserId))
+        {
+            Interlocked.Increment(ref _authorizationLockAttempts);
+        }
+    }
+
+    private void ThrowIfConfigured(System.Data.Common.DbCommand command)
+    {
+        if (Volatile.Read(ref _failUniqueInsert) == 1 &&
+            command.CommandText.Contains(
+                "INSERT INTO organizations.teams",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            Volatile.Write(ref _failUniqueInsert, 0);
+            throw new PostgresException(
+                "deterministic unique violation",
+                "ERROR",
+                "ERROR",
+                PostgresErrorCodes.UniqueViolation,
+                constraintName: "ux_teams_organization_id_lower_name");
+        }
+
+        if (Volatile.Read(ref _remainingSerializationFailures) <= 0 ||
+            !IsConfiguredFailurePoint(command.CommandText))
+        {
+            return;
+        }
+
+        Interlocked.Decrement(ref _remainingSerializationFailures);
+        throw new PostgresException(
+            "deterministic serialization failure",
+            "ERROR",
+            "ERROR",
+            PostgresErrorCodes.SerializationFailure);
+    }
+
+    private bool IsConfiguredFailurePoint(string commandText) =>
+        _kind == TeamMutationKind.Create
+            ? commandText.Contains(
+                  "lower(team.name) = lower",
+                  StringComparison.OrdinalIgnoreCase)
+            : commandText.Contains(
+                  "FROM organizations.teams",
+                  StringComparison.OrdinalIgnoreCase) &&
+              commandText.Contains(
+                  "FOR UPDATE",
+                  StringComparison.OrdinalIgnoreCase);
+
+    private void Reset(Guid actorUserId)
+    {
+        _actorUserId = actorUserId;
+        _kind = null;
+        Volatile.Write(ref _remainingSerializationFailures, 0);
+        Volatile.Write(ref _failUniqueInsert, 0);
+        Interlocked.Exchange(ref _organizationLockAttempts, 0);
+        Interlocked.Exchange(ref _authorizationLockAttempts, 0);
+        lock (_transactionIds)
+        {
+            _transactionIds.Clear();
+        }
+    }
+
+    private static bool IsOrganizationLock(string commandText) =>
+        commandText.Contains(
+            "FROM organizations.organizations",
+            StringComparison.OrdinalIgnoreCase) &&
+        commandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase);
 }

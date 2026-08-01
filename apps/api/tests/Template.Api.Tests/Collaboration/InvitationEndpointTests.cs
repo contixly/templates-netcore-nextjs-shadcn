@@ -620,6 +620,70 @@ public sealed class InvitationEndpointTests(ApiWebApplicationFactory factory)
         OrganizationEndpointTestSupport.AssertNoStore(response);
     }
 
+    [Fact]
+    public async Task RejectReturnsAlreadyMemberAndLeavesTheInvitationPending()
+    {
+        using var ownerClient = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            ownerClient,
+            "Reject Guard Owner",
+            $"local-agent+reject-guard-owner-{Guid.NewGuid():N}@local-agent.test");
+        using var recipientClient = factory.CreateApiClient();
+        var recipient = await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            recipientClient,
+            "Reject Guard Recipient",
+            $"local-agent+reject-guard-recipient-{Guid.NewGuid():N}@local-agent.test");
+        using var organization =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                ownerClient,
+                "Reject Guard Workspace");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(organization))
+            .GetProperty("id").GetGuid();
+        using var create = await SendCreateAsync(
+            ownerClient,
+            organizationId,
+            recipient.Email,
+            "member");
+        var invitationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(create))
+            .GetProperty("id").GetGuid();
+        using var add = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            ownerClient,
+            HttpMethod.Post,
+            $"/api/v1/organizations/{organizationId:D}/members",
+            new { userId = recipient.UserId, role = "member" });
+        Assert.Equal(HttpStatusCode.Created, add.StatusCode);
+        using var confirm = await LocalAuthTestClient.ConfirmEmailAsync(
+            recipientClient);
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+
+        using var reject = await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+            recipientClient,
+            HttpMethod.Post,
+            $"/api/v1/invitations/{invitationId:D}/reject");
+
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            reject,
+            HttpStatusCode.Conflict,
+            "invitation_recipient_already_member");
+        using var activity = await ownerClient.GetAsync(
+            $"/api/v1/organizations/{organizationId:D}/invitations?limit=50",
+            TestContext.Current.CancellationToken);
+        var invitation = Assert.Single(
+            (await OrganizationEndpointTestSupport.ReadDataAsync(activity))
+            .GetProperty("items").EnumerateArray());
+        Assert.Equal(invitationId, invitation.GetProperty("id").GetGuid());
+        Assert.Equal("pending", invitation.GetProperty("status").GetString());
+        Assert.Equal("pending", invitation.GetProperty("displayState").GetString());
+        OrganizationEndpointTestSupport.AssertNoStore(
+            create,
+            add,
+            confirm,
+            reject,
+            activity);
+    }
+
     private static Task<HttpResponseMessage> SendCreateAsync(
         HttpClient client,
         Guid organizationId,

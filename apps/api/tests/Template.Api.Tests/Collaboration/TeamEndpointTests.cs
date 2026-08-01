@@ -281,6 +281,19 @@ public sealed class TeamEndpointTests(ApiWebApplicationFactory factory)
             TestContext.Current.CancellationToken);
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
 
+        using var candidateDenied = await memberClient.GetAsync(
+            $"/api/v1/organizations/{organizationId:D}/teams/{teamId:D}/member-candidates?q=SensitiveCandidate",
+            TestContext.Current.CancellationToken);
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            candidateDenied,
+            HttpStatusCode.Forbidden,
+            "team_permission_denied");
+        Assert.DoesNotContain(
+            "SensitiveCandidate",
+            await candidateDenied.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken),
+            StringComparison.Ordinal);
+
         using var denied =
             await OrganizationEndpointTestSupport.SendWithCsrfAsync(
                 memberClient,
@@ -294,7 +307,10 @@ public sealed class TeamEndpointTests(ApiWebApplicationFactory factory)
         var body = await denied.Content.ReadAsStringAsync(
             TestContext.Current.CancellationToken);
         Assert.DoesNotContain("Sensitive Denied Name", body);
-        OrganizationEndpointTestSupport.AssertNoStore(read, denied);
+        OrganizationEndpointTestSupport.AssertNoStore(
+            read,
+            candidateDenied,
+            denied);
     }
 
     [Fact]
@@ -334,7 +350,7 @@ public sealed class TeamEndpointTests(ApiWebApplicationFactory factory)
                 client,
                 HttpMethod.Patch,
                 $"/api/v1/organizations/{organizationId:D}/teams/{teamId:D}",
-                new { name = "Duplicate" });
+                new { name = "duplicate" });
         await OrganizationEndpointTestSupport.AssertProblemAsync(
             unchanged,
             HttpStatusCode.Conflict,

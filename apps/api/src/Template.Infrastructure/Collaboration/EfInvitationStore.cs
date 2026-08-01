@@ -21,6 +21,7 @@ internal sealed class EfInvitationStore(
 {
     private const int MaximumPendingPerInviter = 100;
     private const int MaximumConcurrencyAttempts = 3;
+    private static readonly TimeSpan InvitationLifetime = TimeSpan.FromHours(48);
     private const int OrganizationNameAdvisoryLockNamespace = 1_330_792_270;
 
     public async Task<InvitationOperationResult<
@@ -220,7 +221,6 @@ internal sealed class EfInvitationStore(
 
     public async Task<InvitationOperationResult<InvitationView>> CreateAsync(
         CreateInvitationCommand command,
-        DateTimeOffset expiresAt,
         CancellationToken cancellationToken)
     {
         try
@@ -292,11 +292,11 @@ internal sealed class EfInvitationStore(
                             InvitationFailure.RecipientAlreadyMember);
                     }
 
-                    var now = timeProvider.GetUtcNow();
                     var duplicate = await LockPendingDuplicateAsync(
                         command.OrganizationId.Value,
                         email,
                         transactionCancellationToken);
+                    var now = timeProvider.GetUtcNow();
                     if (duplicate is not null && duplicate.ExpiresAt > now)
                     {
                         return InvitationOperationResult<InvitationView>.Failed(
@@ -336,7 +336,7 @@ internal sealed class EfInvitationStore(
                         Role = command.Role.Value,
                         Status = InvitationStatus.Pending.Value,
                         InviterUserId = command.ActorUserId.Value,
-                        ExpiresAt = expiresAt,
+                        ExpiresAt = now.Add(InvitationLifetime),
                         CreatedAt = now,
                         UpdatedAt = now
                     };
@@ -368,7 +368,6 @@ internal sealed class EfInvitationStore(
 
     public async Task<InvitationOperationResult<AcceptedInvitation>> AcceptAsync(
         AcceptInvitationCommand command,
-        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= MaximumConcurrencyAttempts; attempt++)
@@ -382,7 +381,6 @@ internal sealed class EfInvitationStore(
                             command.Actor,
                             command.InvitationId,
                             command.SessionId,
-                            now,
                             transactionCancellationToken);
                         if (locked.Failure is not null)
                         {
@@ -391,11 +389,21 @@ internal sealed class EfInvitationStore(
                         }
 
                         var context = locked.Context!;
+                        var now = timeProvider.GetUtcNow();
+                        if (context.Session is null ||
+                            context.Session.ExpiresAt <= now)
+                        {
+                            return InvitationOperationResult<
+                                AcceptedInvitation>.Failed(
+                                    InvitationFailure.NotFound);
+                        }
+
                         var classification = await ClassifyMutationAsync(
                             command.Actor,
                             context,
                             now,
                             requireNoMembership: true,
+                            requireAccessibleNameAvailability: true,
                             transactionCancellationToken);
                         if (classification is not null)
                         {
@@ -476,7 +484,6 @@ internal sealed class EfInvitationStore(
 
     public async Task<InvitationOperationResult<InvitationDecision>> RejectAsync(
         RejectInvitationCommand command,
-        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= MaximumConcurrencyAttempts; attempt++)
@@ -490,7 +497,6 @@ internal sealed class EfInvitationStore(
                             command.Actor,
                             command.InvitationId,
                             sessionId: null,
-                            now,
                             transactionCancellationToken);
                         if (locked.Failure is not null)
                         {
@@ -499,11 +505,13 @@ internal sealed class EfInvitationStore(
                         }
 
                         var context = locked.Context!;
+                        var now = timeProvider.GetUtcNow();
                         var classification = await ClassifyMutationAsync(
                             command.Actor,
                             context,
                             now,
-                            requireNoMembership: false,
+                            requireNoMembership: true,
+                            requireAccessibleNameAvailability: false,
                             transactionCancellationToken);
                         if (classification is not null)
                         {
@@ -756,7 +764,6 @@ internal sealed class EfInvitationStore(
         InvitationActor actor,
         InvitationId invitationId,
         SessionId? sessionId,
-        DateTimeOffset now,
         CancellationToken cancellationToken)
     {
         var candidate = await db.Invitations.AsNoTracking()
@@ -831,7 +838,6 @@ internal sealed class EfInvitationStore(
             session = await LockCurrentSessionAsync(
                 actor.UserId.Value,
                 sessionId.Value.Value,
-                now,
                 cancellationToken);
             if (session is null)
             {
@@ -862,6 +868,7 @@ internal sealed class EfInvitationStore(
         LockedDecisionContext context,
         DateTimeOffset now,
         bool requireNoMembership,
+        bool requireAccessibleNameAvailability,
         CancellationToken cancellationToken)
     {
         var currentEmail = NormalizeEmail(
@@ -919,7 +926,8 @@ internal sealed class EfInvitationStore(
             return InvitationFailure.RecipientAlreadyMember;
         }
 
-        if (await AccessibleNameExistsAsync(
+        if (requireAccessibleNameAvailability &&
+            await AccessibleNameExistsAsync(
                 actor.UserId.Value,
                 context.Organization.Name,
                 context.Invitation.OrganizationId,
@@ -1086,7 +1094,6 @@ internal sealed class EfInvitationStore(
     private Task<AuthSessionEntity?> LockCurrentSessionAsync(
         Guid userId,
         Guid sessionId,
-        DateTimeOffset now,
         CancellationToken cancellationToken) =>
         db.Sessions
             .FromSqlInterpolated(
@@ -1095,7 +1102,6 @@ internal sealed class EfInvitationStore(
                  FROM auth.sessions
                  WHERE id = {sessionId}
                    AND user_id = {userId}
-                   AND expires_at > {now}
                  FOR UPDATE
                  """)
             .SingleOrDefaultAsync(cancellationToken);

@@ -101,15 +101,29 @@ public sealed class InvitationServiceTests
     }
 
     [Fact]
-    public async Task Create_supplies_an_exact_48_hour_expiry_from_the_time_provider()
+    public async Task Mutations_do_not_capture_application_time_before_the_store_attempt()
     {
-        var now = DateTimeOffset.Parse("2026-08-01T12:34:56Z");
         var store = new RecordingInvitationStore();
-        var service = new InvitationService(store, new RecordingInvitationNotifier(), new FixedTimeProvider(now));
+        var service = new InvitationService(
+            store,
+            new RecordingInvitationNotifier(),
+            new ThrowingTimeProvider());
 
         await service.CreateAsync(CreateCommand(), TestContext.Current.CancellationToken);
+        await service.AcceptAsync(
+            new AcceptInvitationCommand(RecipientActor, Session, Invitation),
+            TestContext.Current.CancellationToken);
+        await service.RejectAsync(
+            new RejectInvitationCommand(RecipientActor, Invitation),
+            TestContext.Current.CancellationToken);
 
-        Assert.Equal(now.AddHours(48), store.LastCreateExpiresAt);
+        Assert.Equal(CreateCommand(), store.LastCreate);
+        Assert.Equal(
+            new AcceptInvitationCommand(RecipientActor, Session, Invitation),
+            store.LastAccept);
+        Assert.Equal(
+            new RejectInvitationCommand(RecipientActor, Invitation),
+            store.LastReject);
     }
 
     [Fact]
@@ -172,7 +186,7 @@ public sealed class InvitationServiceTests
     }
 
     [Fact]
-    public async Task Decision_accept_and_reject_pass_current_time_and_typed_actor_session_and_invitation_ids()
+    public async Task Reads_pass_current_time_and_mutations_pass_typed_actor_session_and_invitation_ids()
     {
         var now = DateTimeOffset.Parse("2026-08-01T12:34:56Z");
         var store = new RecordingInvitationStore();
@@ -185,8 +199,6 @@ public sealed class InvitationServiceTests
 
         Assert.Equal(now, store.LastAccountNow);
         Assert.Equal(now, store.LastDecisionNow);
-        Assert.Equal(now, store.LastAcceptNow);
-        Assert.Equal(now, store.LastRejectNow);
         Assert.Equal(RecipientActor, store.LastAccountActor);
         Assert.Equal(RecipientActor, store.LastDecisionActor);
         Assert.Equal(new AcceptInvitationCommand(RecipientActor, Session, Invitation), store.LastAccept);
@@ -260,15 +272,13 @@ internal sealed class RecordingInvitationStore : IInvitationStore
     internal int AccountListCalls { get; private set; }
     internal OrganizationInvitationCursorPosition? LastOrganizationAfter { get; private set; }
     internal InvitationDisplayState? LastOrganizationFilter { get; private set; }
-    internal DateTimeOffset? LastCreateExpiresAt { get; private set; }
+    internal CreateInvitationCommand? LastCreate { get; private set; }
     internal InvitationActor? LastAccountActor { get; private set; }
     internal DateTimeOffset? LastAccountNow { get; private set; }
     internal InvitationActor? LastDecisionActor { get; private set; }
     internal DateTimeOffset? LastDecisionNow { get; private set; }
     internal AcceptInvitationCommand? LastAccept { get; private set; }
-    internal DateTimeOffset? LastAcceptNow { get; private set; }
     internal RejectInvitationCommand? LastReject { get; private set; }
-    internal DateTimeOffset? LastRejectNow { get; private set; }
 
     public Task<InvitationOperationResult<InvitationStorePage<InvitationView, OrganizationInvitationCursorPosition>>> ListOrganizationAsync(UserId actorUserId, OrganizationId organizationId, InvitationDisplayState? filter, OrganizationInvitationCursorPosition? after, int limit, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -293,24 +303,22 @@ internal sealed class RecordingInvitationStore : IInvitationStore
         return Task.FromResult(InvitationOperationResult<InvitationDecision>.Failed(InvitationFailure.NotFound));
     }
 
-    public Task<InvitationOperationResult<InvitationView>> CreateAsync(CreateInvitationCommand command, DateTimeOffset expiresAt, CancellationToken cancellationToken)
+    public Task<InvitationOperationResult<InvitationView>> CreateAsync(CreateInvitationCommand command, CancellationToken cancellationToken)
     {
         calls?.Add("store");
-        LastCreateExpiresAt = expiresAt;
+        LastCreate = command;
         return Task.FromResult(CreateResult);
     }
 
-    public Task<InvitationOperationResult<AcceptedInvitation>> AcceptAsync(AcceptInvitationCommand command, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<InvitationOperationResult<AcceptedInvitation>> AcceptAsync(AcceptInvitationCommand command, CancellationToken cancellationToken)
     {
         LastAccept = command;
-        LastAcceptNow = now;
         return Task.FromResult(InvitationOperationResult<AcceptedInvitation>.Failed(InvitationFailure.NotFound));
     }
 
-    public Task<InvitationOperationResult<InvitationDecision>> RejectAsync(RejectInvitationCommand command, DateTimeOffset now, CancellationToken cancellationToken)
+    public Task<InvitationOperationResult<InvitationDecision>> RejectAsync(RejectInvitationCommand command, CancellationToken cancellationToken)
     {
         LastReject = command;
-        LastRejectNow = now;
         return Task.FromResult(InvitationOperationResult<InvitationDecision>.Failed(InvitationFailure.NotFound));
     }
 }
@@ -346,4 +354,11 @@ internal sealed class RecordingInvitationNotifier : IInvitationNotifier
 internal sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => now;
+}
+
+internal sealed class ThrowingTimeProvider : TimeProvider
+{
+    public override DateTimeOffset GetUtcNow() =>
+        throw new InvalidOperationException(
+            "Application must not capture mutation time before persistence locks.");
 }

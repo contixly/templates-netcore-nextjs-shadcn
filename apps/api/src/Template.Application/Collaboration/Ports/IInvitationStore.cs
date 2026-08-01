@@ -34,16 +34,13 @@ public interface IInvitationStore
 
     Task<InvitationOperationResult<InvitationView>> CreateAsync(
         CreateInvitationCommand command,
-        DateTimeOffset expiresAt,
         CancellationToken cancellationToken);
 
     Task<InvitationOperationResult<AcceptedInvitation>> AcceptAsync(
         AcceptInvitationCommand command,
-        DateTimeOffset now,
         CancellationToken cancellationToken);
 
     Task<InvitationOperationResult<InvitationDecision>> RejectAsync(
         RejectInvitationCommand command,
-        DateTimeOffset now,
         CancellationToken cancellationToken);
 }

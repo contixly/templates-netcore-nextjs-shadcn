@@ -71,6 +71,25 @@ public sealed class TeamServiceTests
     }
 
     [Fact]
+    public async Task Update_propagates_name_unchanged_from_the_store()
+    {
+        var expected = TeamOperationResult<TeamSummary>.Failed(
+            TeamFailure.NameUnchanged);
+        var store = new RecordingTeamStore { UpdateResult = expected };
+        var service = new TeamService(store);
+
+        var result = await service.UpdateAsync(
+            Actor,
+            Organization,
+            Team,
+            "design",
+            TestContext.Current.CancellationToken);
+
+        Assert.Same(expected, result);
+        Assert.Equal(TeamFailure.NameUnchanged, result.Failure);
+    }
+
+    [Fact]
     public async Task List_decodes_team_cursor_and_encodes_only_the_store_continuation()
     {
         var after = new TeamCursorPosition(DateTimeOffset.Parse("2026-08-01T00:00:00Z"), Team);
@@ -299,6 +318,7 @@ internal static class TeamTestData
 internal sealed class RecordingTeamStore : ITeamStore
 {
     public TeamOperationResult<TeamSummary> CreateResult { get; set; } = TeamOperationResult<TeamSummary>.Failed(TeamFailure.NotFound);
+    public TeamOperationResult<TeamSummary> UpdateResult { get; set; } = TeamOperationResult<TeamSummary>.Failed(TeamFailure.NotFound);
     public TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>> ListResult { get; set; } = TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>>.Success(new([], null));
     public TeamOperationResult<TeamStorePage<TeamMemberView, TeamMemberCursorPosition>> ListMembersResult { get; set; } = TeamOperationResult<TeamStorePage<TeamMemberView, TeamMemberCursorPosition>>.Success(new([], null));
     public TeamOperationResult<TeamStorePage<TeamCandidate, TeamCandidateCursorPosition>> ListCandidatesResult { get; set; } = TeamOperationResult<TeamStorePage<TeamCandidate, TeamCandidateCursorPosition>>.Success(new([], null));
@@ -341,7 +361,7 @@ internal sealed class RecordingTeamStore : ITeamStore
     {
         UpdateCalls++;
         LastUpdate = command;
-        return Task.FromResult(TeamOperationResult<TeamSummary>.Failed(TeamFailure.NotFound));
+        return Task.FromResult(UpdateResult);
     }
 
     public Task<TeamOperationResult<TeamDeletion>> DeleteAsync(DeleteTeamCommand command, CancellationToken cancellationToken)

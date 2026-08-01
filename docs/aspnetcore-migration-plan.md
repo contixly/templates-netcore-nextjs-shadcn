@@ -2404,6 +2404,75 @@ the durable repository snapshot/check covers **16 tracked generated files**;
 acceptance evidence uses the latter unambiguous count. Automatic review, push,
 and merge of the corrected head remain unobserved.
 
+### Final-review fix wave 1 observed acceptance 2026-08-01
+
+The whole-branch review of `a39d3d586e3893a46fe8717ac15715a371efa01a`
+identified eight required corrections. This consolidated wave fixes only those
+items: manager-only candidate search, PostgreSQL-consistent case folding and
+literal search, locked per-attempt invitation time, bounded team mutation
+retries, already-member rejection, browser Unicode-scalar validation, causal
+member recovery, and branch-range whitespace/evidence. The previously triaged
+Minor UX/accessibility/test-hardening entries and the approved derived-expiry
+filter were not broadened into this wave.
+
+Strict test-first observations were:
+
+- candidate authorization/case-fold/literal-search PostgreSQL regressions failed
+  **3/3** before the store fix, then the focused store set passed **4/4** and the
+  dedicated Application `NameUnchanged` propagation passed **1/1**;
+- the six new locked-clock/already-member store cases failed before persistence
+  changes, and the already-member endpoint separately failed **0/1** with `200`
+  instead of `409`; the combined store/endpoint set then passed **7/7**, while
+  the Application mutation-time focus passed **2/2**;
+- the five team mutation retry paths plus exhaustion failed **6/6** before the
+  retry helper; the final focus passed **10/10**, including fresh transaction and
+  authorization on retry plus non-retry of permission, validation, classified
+  uniqueness, and cancellation;
+- browser team-name focus reproduced one failure (**19 passed, 1 failed**) for
+  exactly 50 supplementary-plane letters, then passed **20/20**; the delayed
+  read/later-mutation regression failed **0/1** then passed **1/1**;
+- independent review found a narrower post-read-overlay interleaving, whose new
+  deterministic regression failed **0/1** before its generation guard and passed
+  **1/1** after it. The final combined team-directory focus is **27/27**.
+
+The invitation clock is now sampled after relevant locks inside every create or
+decision attempt. Create derives a full 48-hour expiry there; accept/reject and
+session expiry use a fresh attempt-local value, including retries. All five team
+mutations retry only PostgreSQL serialization/deadlock failures for at most
+three fresh transactions, and only exhaustion becomes `concurrency_conflict`.
+Candidate search re-authorizes `CanManageTeams` from the database, uses escaped
+literal `ILIKE`, and team-name equality uses PostgreSQL `lower`. Rejecting while
+already a member returns `invitation_recipient_already_member` without changing
+the pending invitation. Post-commit caller cancellation remains intentionally a
+committed success plus `notification_failed`, so it cannot encourage a duplicate
+create retry.
+
+| Final-review-wave gate | Наблюдаемый результат |
+| --- | --- |
+| full .NET restore/build/test/format | PASS; build 0 warnings/errors; Application **262/262**, API **599/599**, total **861/861**, 0 failed/skipped; format clean |
+| focused Application/PostgreSQL/API | PASS; Application collaboration focus **50/50**; team/invitation store, concurrency, and endpoint focus **65/65**; collaboration persistence model **12/12** |
+| NuGet and EF | PASS; no vulnerable package in 7 solution projects; no pending model changes |
+| EF idempotent script | PASS; `/tmp/template-iteration6-final-fix.sql` **30,706 bytes**, unchanged SHA-256 `00d417ced14a107b94b16c62979ea9b1117d753988e29696e6acce4b3625d220`; required collaboration identifiers present |
+| exact OpenAPI/generated client | PASS; delete/re-export files are byte-identical; unchanged SHA-256 `fdfbe74c39a42c018ca35555c504c1078a30558b82d41415bf4da2bdb9503010`; **45** total/**15** iteration-6 operations; `api:check` deterministic/current |
+| production/full npm audit | production PASS with 0 vulnerabilities; full audit remains expected nonzero for one high development-only `brace-expansion` advisory `GHSA-mh99-v99m-4gvg` |
+| web static/unit/build | PASS; boundaries **5/5**, Prettier clean, ESLint 0 errors/10 inherited compile-time assertion warnings, typecheck clean, Jest **61/61 suites and 483/483 tests**, clean Next.js 16.2.11 build 23/23 with standalone server |
+| Playwright Chromium | final focused collaboration **2/2**; final full suite **16 passed, 5 opt-in live-provider tests skipped, 0 failed** |
+
+An initial focused run and the first post-fix full E2E run exposed the same
+pre-existing test timing race: the expired-filter API GET returned `200`, but
+the automatic successful browser-session `router.refresh` completed after the
+test interacted and reset the client filter to `All invitations`. The E2E now
+waits for that required session-refresh cycle before exercising client-owned
+filter state. A focused rerun passed **2/2**, and the fresh full JSON-reporter run
+recorded **16 expected, 5 skipped, 0 unexpected, 0 flaky**. This is test
+synchronization only; invitation filter product behavior and the deferred Minor
+ledger were not changed.
+
+The contract, generated SDK, and migration schema/hash did not change. The
+immutable `template/` and inactive OpenSpec state remain guarded. This is local
+acceptance evidence only; push, merge, and a new automatic review of the final
+fix-wave head remain unobserved.
+
 **Next gate:** controller-owned push and automatic review of that exact head.
 Iteration 7 API keys/public machine authentication does not start until
 iteration 6's review state is observed and accepted; no review result is claimed

@@ -620,7 +620,10 @@ change an existing member's organization role; team membership grants no role.
 The current database membership and role are re-read inside each operation;
 server-projected capabilities are UI hints only. Missing and foreign
 organization/team/member resources use the same non-disclosing not-found
-outcomes. An invitation recipient mismatch is `403
+outcomes. Candidate search performs its own database-backed manager-role check
+before reading the team or applying the supplied query: an ordinary member
+receives `403 team_permission_denied`, with no candidate or query disclosure.
+An invitation recipient mismatch is `403
 invitation_recipient_mismatch` and carries no invitation projection. Matching
 recipients may observe pending, accepted, rejected, canceled, expired,
 email-verification-required, domain-restricted, or already-member decision
@@ -634,20 +637,23 @@ space, hyphen, and underscore are valid; unsupported scalars, control
 whitespace, and malformed UTF-16 such as unpaired surrogates are rejected. This
 scalar count agrees with PostgreSQL `char_length` and the OpenAPI `\p{L}` and
 `\p{Nd}` categories without narrowing the contract. Names are unique by
-`lower(name)` within an organization; a rename whose normalized value is
-unchanged conflicts. Invitation email is trimmed, lowercased, structurally
-validated, and limited to 254 characters. Role is the closed `owner | admin |
-member` enum. Optional team IDs must belong to the route organization, the
-recipient must not already be a member, current allowed-email domain policy
-must permit the address, and the actor must be allowed to assign the requested
-role.
+PostgreSQL `lower(name)` within an organization. The same database-side
+comparison classifies a case-only rename such as `Design` to `design` as
+`team_name_unchanged`, rather than relying on process culture or reaching the
+unique index. Invitation email is trimmed, lowercased, structurally validated,
+and limited to 254 characters. Role is the closed `owner | admin | member`
+enum. Optional team IDs must belong to the route organization, the recipient
+must not already be a member, current allowed-email domain policy must permit
+the address, and the actor must be allowed to assign the requested role.
 
 Every route/body UUID uses canonical non-empty `D` rendering. Pagination limit
 defaults to `50` and is restricted to `1..100`; the UI can choose smaller first
 pages. Candidate `q` is optional, trimmed, at most 100 characters, and performs
-a case-insensitive organization-local name/email search. Organization invitation
-`status` accepts only `pending`, `accepted`, `rejected`, `canceled`, or derived
-`expired`; omission returns all activity.
+a PostgreSQL `ILIKE` organization-local name/email search. Backslash, `%`, and
+`_` are escaped so user text is always literal rather than a LIKE pattern; no
+process-culture casing participates. Organization invitation `status` accepts
+only `pending`, `accepted`, `rejected`, `canceled`, or derived `expired`;
+omission returns all activity.
 
 All cursors are opaque, typed, versioned, checksum-protected canonical
 base64url. Teams order by `(createdAt ASC, id ASC)`, team members by `(joinedAt
@@ -679,21 +685,32 @@ organization and actor membership, current role assignment, optional team,
 domain policy, existing membership, duplicate state, and the actor's cap of 100
 unexpired pending invitations in that organization. An expired pending duplicate
 is canceled only as part of inserting its replacement. A created invitation is
-pending for exactly 48 hours; expiry is derived with `expiresAt <= now`, with no
-worker or persisted `expired` status.
+pending for exactly 48 hours from a clock value sampled after all relevant locks
+inside that persistence attempt; expiry is derived with `expiresAt <= now`, with
+no worker or persisted `expired` status.
 
 Accept/reject lock and re-read recipient, verified-primary-email, status,
-expiry, domain, role, optional team, membership, and accessible-organization-name
-state. Lock ordering follows the existing organization discipline, including
-ordered organization/membership locks, the current session before the
-organization-name advisory lock, and bounded serialization/deadlock retries.
-Accept atomically creates the organization membership, optionally creates the
-team membership, marks the invitation accepted, and updates the accepting
-unexpired browser session's active organization. Reject atomically changes only
-the status. Accept/accept and accept/reject races have one winner and one
-`invitation_not_pending` loser. Team deletion clears invitation `teamId` history
-and deletes the team/team-member graph in one transaction; it never creates or
-changes active-team state.
+expiry, domain, role, optional team, and membership. Accept additionally checks
+accessible-organization-name availability and locks the current session. Lock
+ordering follows the existing organization discipline, including ordered
+organization/membership locks, the current session before the organization-name
+advisory lock, and bounded serialization/deadlock retries. Every attempt samples
+a fresh clock only after those locks, including retry and exact invitation/session
+expiry boundaries. Accept atomically creates the organization membership,
+optionally creates the team membership, marks the invitation accepted, and
+updates the accepting unexpired browser session's active organization. Reject
+changes only a still-pending invitation for a recipient who is not already a
+member; otherwise it returns `invitation_recipient_already_member` and leaves the
+invitation pending. Accept/accept and accept/reject races have one winner and one
+`invitation_not_pending` loser.
+
+Every team create/rename/delete/add-member/remove-member transaction retries
+only PostgreSQL serialization/deadlock failures, at most three attempts. Each
+attempt opens a fresh transaction and repeats resource and authorization locks;
+only exhaustion maps to `concurrency_conflict`. Permission, validation,
+classified uniqueness, and cancellation outcomes are not retried. Team deletion
+clears invitation `teamId` history and deletes the team/team-member graph in one
+transaction; it never creates or changes active-team state.
 
 Only after the create transaction commits does Application invoke
 `IInvitationNotifier` with the recipient and relative path. The registered
@@ -701,8 +718,12 @@ iteration-6 implementation is a deterministic no-network no-op behind
 `SafeInvitationNotifier`. It logs only the bounded outcome, never recipient,
 path, provider/exception detail, and converts non-caller-cancellation failures to
 `Failed`. A committed create remains `201`; the response may expose only the
-exact optional `notification_failed` warning. No notification table, outbox,
-retry worker, SMTP, or SaaS provider exists in this iteration.
+exact optional `notification_failed` warning. If caller cancellation arrives
+after commit while notification is attempted, Application intentionally converts
+that cancellation to the same successful committed response plus warning; it
+must not report the committed create as failed or encourage a duplicate retry.
+No notification table, outbox, retry worker, SMTP, or SaaS provider exists in
+this iteration.
 
 Invitation create is fixed-window limited to 20 requests per authenticated user
 per minute, no queue. Accept/reject share 30 requests per authenticated user per
