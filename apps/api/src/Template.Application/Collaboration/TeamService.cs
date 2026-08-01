@@ -28,7 +28,7 @@ public sealed class TeamService(ITeamStore teams)
 
         var page = RequireValue(result);
         return TeamOperationResult<TeamPage>.Success(new(
-            page.Items,
+            page.Items.Select(Map).ToArray(),
             page.Next is null ? null : TeamCursor.Encode(page.Next)));
     }
 
@@ -196,6 +196,17 @@ public sealed class TeamService(ITeamStore teams)
     private static T RequireValue<T>(TeamOperationResult<T> result)
         where T : class =>
         result.Value ?? throw new InvalidOperationException("A successful team result requires a value.");
+
+    private static TeamSummary Map(TeamStoreSummary team) => new(
+        team.Id,
+        team.OrganizationId,
+        team.Name,
+        team.MemberCount,
+        new TeamMemberPage(
+            team.Members.Items,
+            team.Members.Next is null ? null : TeamCursor.Encode(team.Members.Next)),
+        team.CreatedAt,
+        team.UpdatedAt);
 
     private static void ValidateLimit(int limit, string message)
     {

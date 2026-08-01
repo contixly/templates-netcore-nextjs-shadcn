@@ -6,7 +6,7 @@ namespace Template.Application.Collaboration.Ports;
 
 public interface ITeamStore
 {
-    Task<TeamOperationResult<TeamStorePage<TeamSummary, TeamCursorPosition>>> ListAsync(
+    Task<TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>>> ListAsync(
         UserId actorUserId,
         OrganizationId organizationId,
         TeamCursorPosition? after,

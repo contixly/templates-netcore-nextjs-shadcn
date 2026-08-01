@@ -32,6 +32,15 @@ public sealed record TeamSummary(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt);
 
+public sealed record TeamStoreSummary(
+    TeamId Id,
+    OrganizationId OrganizationId,
+    TeamName Name,
+    int MemberCount,
+    TeamStorePage<TeamMemberView, TeamMemberCursorPosition> Members,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt);
+
 public sealed record TeamPage(IReadOnlyList<TeamSummary> Items, string? NextCursor);
 
 public sealed record TeamMemberPage(

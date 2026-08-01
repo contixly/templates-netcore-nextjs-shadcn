@@ -79,7 +79,7 @@ public sealed class TeamServiceTests
             new TeamId(Guid.Parse("00000000-0000-0000-0000-000000000021")));
         var store = new RecordingTeamStore
         {
-            ListResult = TeamOperationResult<TeamStorePage<TeamSummary, TeamCursorPosition>>.Success(
+            ListResult = TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>>.Success(
                 new([], next))
         };
         var service = new TeamService(store);
@@ -93,6 +93,33 @@ public sealed class TeamServiceTests
         Assert.Equal(25, store.LastListLimit);
         Assert.True(TeamCursor.TryDecode(result.Value!.NextCursor, out TeamCursorPosition decoded));
         Assert.Equal(next, decoded);
+    }
+
+    [Fact]
+    public async Task List_encodes_nested_member_continuations_from_store_positions()
+    {
+        var memberNext = new TeamMemberCursorPosition(
+            DateTimeOffset.Parse("2026-08-02T00:00:00Z"),
+            new TeamMemberId(Guid.Parse("00000000-0000-0000-0000-000000000031")));
+        var store = new RecordingTeamStore
+        {
+            ListResult = TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>>.Success(
+                new([TeamTestData.StoreSummary(memberNext)], null))
+        };
+        var service = new TeamService(store);
+
+        var result = await service.ListAsync(
+            Actor,
+            Organization,
+            cursor: null,
+            limit: 50,
+            TestContext.Current.CancellationToken);
+
+        var cursor = Assert.Single(result.Value!.Items).Members.NextCursor;
+        Assert.NotNull(cursor);
+        Assert.True(TeamCursor.TryDecode(cursor, out TeamMemberCursorPosition decoded));
+        Assert.Equal(memberNext, decoded);
+        Assert.False(TeamCursor.TryDecode(cursor, out TeamCursorPosition _));
     }
 
     [Fact]
@@ -254,12 +281,25 @@ internal static class TeamTestData
             DateTimeOffset.Parse("2026-08-01T00:00:00Z"),
             DateTimeOffset.Parse("2026-08-01T00:00:00Z"));
     }
+
+    internal static TeamStoreSummary StoreSummary(TeamMemberCursorPosition? memberNext)
+    {
+        Assert.True(TeamName.TryCreate("Design", out var name));
+        return new TeamStoreSummary(
+            new TeamId(Guid.Parse("00000000-0000-0000-0000-000000000020")),
+            new OrganizationId(Guid.Parse("00000000-0000-0000-0000-000000000010")),
+            name,
+            0,
+            new([], memberNext),
+            DateTimeOffset.Parse("2026-08-01T00:00:00Z"),
+            DateTimeOffset.Parse("2026-08-01T00:00:00Z"));
+    }
 }
 
 internal sealed class RecordingTeamStore : ITeamStore
 {
     public TeamOperationResult<TeamSummary> CreateResult { get; set; } = TeamOperationResult<TeamSummary>.Failed(TeamFailure.NotFound);
-    public TeamOperationResult<TeamStorePage<TeamSummary, TeamCursorPosition>> ListResult { get; set; } = TeamOperationResult<TeamStorePage<TeamSummary, TeamCursorPosition>>.Success(new([], null));
+    public TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>> ListResult { get; set; } = TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>>.Success(new([], null));
     public TeamOperationResult<TeamStorePage<TeamMemberView, TeamMemberCursorPosition>> ListMembersResult { get; set; } = TeamOperationResult<TeamStorePage<TeamMemberView, TeamMemberCursorPosition>>.Success(new([], null));
     public TeamOperationResult<TeamStorePage<TeamCandidate, TeamCandidateCursorPosition>> ListCandidatesResult { get; set; } = TeamOperationResult<TeamStorePage<TeamCandidate, TeamCandidateCursorPosition>>.Success(new([], null));
     public int ListCalls { get; private set; }
@@ -280,7 +320,7 @@ internal sealed class RecordingTeamStore : ITeamStore
     public AddTeamMemberCommand? LastAddMember { get; private set; }
     public RemoveTeamMemberCommand? LastRemoveMember { get; private set; }
 
-    public Task<TeamOperationResult<TeamStorePage<TeamSummary, TeamCursorPosition>>> ListAsync(UserId actorUserId, OrganizationId organizationId, TeamCursorPosition? after, int limit, CancellationToken cancellationToken)
+    public Task<TeamOperationResult<TeamStorePage<TeamStoreSummary, TeamCursorPosition>>> ListAsync(UserId actorUserId, OrganizationId organizationId, TeamCursorPosition? after, int limit, CancellationToken cancellationToken)
     {
         ListCalls++;
         LastListActor = actorUserId;
