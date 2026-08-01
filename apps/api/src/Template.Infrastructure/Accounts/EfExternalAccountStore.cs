@@ -11,7 +11,7 @@ using Template.Infrastructure.Persistence;
 namespace Template.Infrastructure.Accounts;
 
 internal sealed class EfExternalAccountStore(
-    AuthDbContext db,
+    TemplateDbContext db,
     TimeProvider timeProvider)
     : IExternalAccountStore
 {

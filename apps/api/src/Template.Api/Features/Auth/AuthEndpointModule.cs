@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 using Template.Api.Authentication;
@@ -151,6 +152,9 @@ internal sealed class AuthEndpointModule : IEndpointModule
             .WithLocalOnly()
             .Produces<ApiResponse<LocalAutomationCleanupResponse>>()
             .ProducesBadRequestProblem()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
             .ProducesProtectedApiProblems();
     }
 
@@ -269,6 +273,15 @@ internal sealed class AuthEndpointModule : IEndpointModule
                 AuthFailure.LocalUserRequired => new ApiProblemException(
                     StatusCodes.Status403Forbidden,
                     ApiProblemCodes.LocalAuthUserRequired),
+                AuthFailure.OrganizationOwnershipTransferRequired =>
+                    new ApiProblemException(
+                        StatusCodes.Status409Conflict,
+                        ApiProblemCodes
+                            .OrganizationOwnershipTransferRequired),
+                AuthFailure.ConcurrencyConflict =>
+                    new ApiProblemException(
+                        StatusCodes.Status409Conflict,
+                        ApiProblemCodes.ConcurrencyConflict),
                 _ => new InvalidOperationException(
                     "Unexpected cleanup failure.")
             };
@@ -375,7 +388,8 @@ internal sealed class AuthEndpointModule : IEndpointModule
                     state.Session.Id.Value,
                     state.Session.CreatedAt,
                     state.Session.UpdatedAt,
-                    state.Session.ExpiresAt));
+                    state.Session.ExpiresAt,
+                    state.Session.ActiveOrganizationId?.Value));
 
     private static AuthUserResponse Map(AuthUser user) =>
         new(

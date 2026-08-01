@@ -3,6 +3,10 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useState, type FormEvent } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
@@ -43,6 +47,7 @@ export function ProfileForm({
 }: Readonly<{ initialAccount: AccountResponse }>) {
   const t = useTranslations("account.profile");
   const locale = useLocale();
+  const interactionReady = useInteractionReady();
   const [account, setAccount] = useState(initialAccount);
   const [displayName, setDisplayName] = useState(initialAccount.displayName);
   const [validationMessage, setValidationMessage] = useState<string | null>(
@@ -151,10 +156,11 @@ export function ProfileForm({
             <div className="flex flex-1 flex-col gap-2">
               <Label htmlFor="account-display-name">{t("displayName")}</Label>
               <Input
+                {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
                 aria-describedby="account-display-name-message"
                 aria-invalid={validationMessage ? true : undefined}
                 autoComplete="name"
-                disabled={pending}
+                disabled={!interactionReady || pending}
                 id="account-display-name"
                 maxLength={100}
                 onChange={(event) => {
@@ -177,7 +183,12 @@ export function ProfileForm({
                 {validationMessage ?? t("displayNameHint")}
               </p>
             </div>
-            <Button className="sm:mt-5" disabled={pending} type="submit">
+            <Button
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+              className="sm:mt-5"
+              disabled={!interactionReady || pending}
+              type="submit"
+            >
               {pending ? t("saving") : t("save")}
             </Button>
           </div>

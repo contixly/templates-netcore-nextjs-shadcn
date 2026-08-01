@@ -3,6 +3,10 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import { disconnectBrowserAccountProvider } from "@/src/lib/api/account/browser/account-mutations";
@@ -109,6 +113,7 @@ export function ConnectionsList({
 }: Readonly<{ initialConnections: AccountConnectionsResponse }>) {
   const t = useTranslations("account.connections");
   const locale = useLocale();
+  const interactionReady = useInteractionReady();
   const [connections, setConnections] = useState(initialConnections.items);
   const [pendingProvider, setPendingProvider] = useState<
     AccountConnectionResponse["provider"] | null
@@ -267,7 +272,8 @@ export function ConnectionsList({
             <p className="font-mono text-xs">{refreshRecovery.traceId}</p>
           ) : null}
           <Button
-            disabled={refreshing}
+            {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+            disabled={!interactionReady || refreshing}
             onClick={() => void refreshConnections(refreshRecovery.provider)}
             type="button"
             variant="outline"
@@ -343,10 +349,12 @@ export function ConnectionsList({
               <div className="shrink-0">
                 {connection.connected ? (
                   <Button
+                    {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
                     aria-label={t("disconnect", {
                       provider: connection.displayName,
                     })}
                     disabled={
+                      !interactionReady ||
                       pendingProvider !== null ||
                       refreshing ||
                       !connection.canDisconnect
@@ -365,10 +373,12 @@ export function ConnectionsList({
                   </Button>
                 ) : (
                   <Button
+                    {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
                     aria-label={t("connect", {
                       provider: connection.displayName,
                     })}
                     disabled={
+                      !interactionReady ||
                       pendingProvider !== null ||
                       refreshing ||
                       !connection.configured ||

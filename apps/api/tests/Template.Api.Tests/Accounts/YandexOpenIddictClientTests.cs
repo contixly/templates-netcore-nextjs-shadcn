@@ -83,7 +83,7 @@ public sealed class YandexOpenIddictClientTests(
 
         await using var scopeHandle = _factory.Services.CreateAsyncScope();
         var stateRows = await scopeHandle.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .OpenIddictTokens
             .AsNoTracking()
             .CountAsync(
@@ -263,7 +263,7 @@ public sealed class YandexOpenIddictClientTests(
                 await postgres.CreateDatabaseAsync(
                     TestContext.Current.CancellationToken);
             await using var scope = Services.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
                 .Database.MigrateAsync(
                     TestContext.Current.CancellationToken);
             Services.GetRequiredService<CapturedLogProvider>().Clear();
@@ -294,6 +294,12 @@ public sealed class YandexOpenIddictClientTests(
                 logging.SetMinimumLevel(LogLevel.Debug);
                 logging.AddFilter<CapturedLogProvider>(
                     level => level >= LogLevel.Debug);
+                logging.AddFilter<CapturedLogProvider>(
+                    CapturedLogProvider.AspNetCoreCategory,
+                    level => level >= LogLevel.Warning);
+                logging.AddFilter<CapturedLogProvider>(
+                    CapturedLogProvider.RawRequestHostingCategory,
+                    LogLevel.None);
             });
             builder.ConfigureAppConfiguration((_, configuration) =>
                 configuration.AddInMemoryCollection(

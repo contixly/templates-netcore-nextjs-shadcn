@@ -26,6 +26,11 @@ internal sealed class TestEndpointModule : IEndpointModule
         context.Root.MapGet("/api/testing/fault", ThrowFault)
             .ExcludeFromDescription();
 
+        context.Root.MapGet(
+                "/api/testing/fault/by-key/{organizationKey}",
+                (string organizationKey) => ThrowFault())
+            .ExcludeFromDescription();
+
         context.Root.MapGet("/api/testing/bad-request", ThrowBadRequest)
             .ExcludeFromDescription();
 

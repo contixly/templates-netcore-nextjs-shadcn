@@ -34,9 +34,39 @@ describe("fixed deployment locale", () => {
     expect(Object.keys(russian.account)).toEqual(Object.keys(english.account));
     expect(Object.keys(russian.auth)).toEqual(Object.keys(english.auth));
     expect(Object.keys(russian.common)).toEqual(Object.keys(english.common));
+    expect(Object.keys(russian.organizations)).toEqual(
+      Object.keys(english.organizations),
+    );
     expect(Object.keys(russian.system)).toEqual(Object.keys(english.system));
     expect(russian.auth.login.title).not.toBe(english.auth.login.title);
     expect(russian.system.page.title).not.toBe(english.system.page.title);
+  });
+
+  it("keeps every English and Russian organization message at the same path", async () => {
+    const [english, russian] = await Promise.all([
+      loadMessages("en"),
+      loadMessages("ru"),
+    ]);
+
+    const messagePaths = (value: unknown, prefix = ""): string[] =>
+      Object.entries(value as Record<string, unknown>).flatMap(
+        ([key, child]) => {
+          const path = prefix ? `${prefix}.${key}` : key;
+          return typeof child === "object" && child !== null
+            ? messagePaths(child, path)
+            : [path];
+        },
+      );
+
+    expect(messagePaths(russian.organizations).sort()).toEqual(
+      messagePaths(english.organizations).sort(),
+    );
+    expect(russian.organizations.onboarding.title).not.toBe(
+      english.organizations.onboarding.title,
+    );
+    expect(russian.organizations.switcher.failure).not.toBe(
+      english.organizations.switcher.failure,
+    );
   });
 
   it("keeps every English and Russian account message at the same path", async () => {
@@ -63,6 +93,12 @@ describe("fixed deployment locale", () => {
     );
     expect(russian.account.deleteAccount.confirmationLabel).not.toBe(
       english.account.deleteAccount.confirmationLabel,
+    );
+    expect(english.account.deleteAccount.ownershipTransferRequired).toContain(
+      "owner",
+    );
+    expect(russian.account.deleteAccount.ownershipTransferRequired).not.toBe(
+      english.account.deleteAccount.ownershipTransferRequired,
     );
     expect(russian.account.sessions.authenticationMethods.local).not.toBe(
       english.account.sessions.authenticationMethods.local,

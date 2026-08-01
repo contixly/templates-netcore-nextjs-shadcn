@@ -79,16 +79,16 @@ timestamps.
 
 The implemented browser authentication surface is:
 
-| Operation                                         | Access and mutation policy                                                                                    |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `GET /api/v1/auth/capabilities`                   | anonymous, no-store                                                                                           |
-| `GET /api/v1/auth/session`                        | anonymous `200` projection for both authenticated and anonymous state, no-store                               |
-| `GET /api/v1/auth/csrf`                           | anonymous, issues the paired antiforgery cookie/request token, no-store                                       |
-| `POST /api/v1/auth/logout`                        | `Api.BrowserSession` plus CSRF; revokes only the current session                                              |
-| `POST /api/v1/auth/external/{provider}/challenge` | conditional auth by intent plus CSRF; returns an API-issued HTTPS authorization URL for a configured provider |
-| `POST /api/local-auth/scenario`                   | local-only two-part gate, CSRF, 20 requests per IP per minute                                                 |
-| `POST /api/local-auth/sign-in`                    | local-only two-part gate, CSRF, 10 requests per IP per five minutes                                           |
-| `DELETE /api/local-auth/scenario`                 | local-only two-part gate, `Api.BrowserSession`, CSRF; atomically removes the local user and all sessions      |
+| Operation                                         | Access and mutation policy                                                                                                                    |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/auth/capabilities`                   | anonymous, no-store                                                                                                                           |
+| `GET /api/v1/auth/session`                        | anonymous `200` projection for both authenticated and anonymous state, no-store                                                               |
+| `GET /api/v1/auth/csrf`                           | anonymous, issues the paired antiforgery cookie/request token, no-store                                                                       |
+| `POST /api/v1/auth/logout`                        | `Api.BrowserSession` plus CSRF; revokes only the current session                                                                              |
+| `POST /api/v1/auth/external/{provider}/challenge` | conditional auth by intent plus CSRF; returns an API-issued HTTPS authorization URL for a configured provider                                 |
+| `POST /api/local-auth/scenario`                   | local-only two-part gate, CSRF, 20 requests per IP per minute                                                                                 |
+| `POST /api/local-auth/sign-in`                    | local-only two-part gate, CSRF, 10 requests per IP per five minutes                                                                           |
+| `DELETE /api/local-auth/scenario`                 | local-only two-part gate, `Api.BrowserSession`, CSRF; atomic cleanup; `409` when ownership transfer or a stable concurrency retry is required |
 
 Every auth response uses `Cache-Control: no-store`. Local operations are
 available only when the environment is `Development` or `Test` **and**
@@ -195,16 +195,16 @@ iteration.
 All account operations use `Api.BrowserSession`, return `Cache-Control:
 no-store`, and expose only typed `{ "data": ... }` projections:
 
-| Operation                                       | Mutation rule                                                                 |
-| ----------------------------------------------- | ----------------------------------------------------------------------------- |
-| `GET /api/v1/account`                           | current profile, primary/secondary verified emails, id and creation time      |
-| `PATCH /api/v1/account/profile`                 | CSRF; trimmed display name of 2–50 non-control characters                     |
-| `GET /api/v1/account/connections`               | configured providers plus connections whose runtime configuration was removed |
-| `DELETE /api/v1/account/connections/{provider}` | CSRF; atomic, ownership-checked local disconnect                              |
-| `GET /api/v1/account/sessions?cursor=&limit=`   | unexpired sessions; default 20, accepted limit 1–100                          |
-| `DELETE /api/v1/account/sessions/{sessionId}`   | CSRF; ownership-qualified; current session is rejected                        |
-| `DELETE /api/v1/account/sessions/others`        | CSRF; one set-based delete preserving the current persistent id               |
-| `DELETE /api/v1/account`                        | CSRF; strict primary-email confirmation and hard delete                       |
+| Operation                                       | Mutation rule                                                                                                 |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `GET /api/v1/account`                           | current profile, primary/secondary verified emails, id and creation time                                      |
+| `PATCH /api/v1/account/profile`                 | CSRF; trimmed display name of 2–50 non-control characters                                                     |
+| `GET /api/v1/account/connections`               | configured providers plus connections whose runtime configuration was removed                                 |
+| `DELETE /api/v1/account/connections/{provider}` | CSRF; atomic, ownership-checked local disconnect                                                              |
+| `GET /api/v1/account/sessions?cursor=&limit=`   | unexpired sessions; default 20, accepted limit 1–100                                                          |
+| `DELETE /api/v1/account/sessions/{sessionId}`   | CSRF; ownership-qualified; current session is rejected                                                        |
+| `DELETE /api/v1/account/sessions/others`        | CSRF; one set-based delete preserving the current persistent id                                               |
+| `DELETE /api/v1/account`                        | CSRF; strict primary-email confirmation and hard delete; ownership/concurrency cleanup conflicts return `409` |
 
 The normalized verified-email value is globally unique. A new anonymous
 provider subject links to the owner of a matching primary or secondary
@@ -273,9 +273,12 @@ missing/foreign ids share the same `404`.
 - Health responses expose only `status` and UTC `timestamp`.
 - Healthy responses use `200`; unhealthy readiness uses `503`.
 - Every health response uses `Cache-Control: no-store`.
-- Readiness opens `ConnectionStrings:Postgres` and requires a queryable
-  `auth.users` relation; missing configuration, connectivity, or schema returns
-  unhealthy without exposing database detail.
+- Readiness opens `ConnectionStrings:Postgres` and requires queryable
+  `auth.users` and `organizations.organizations` relations. Operators must
+  apply migrations through
+  `20260730091827_OrganizationsMembershipOnboarding`; missing configuration,
+  connectivity, or either relation returns unhealthy without exposing database
+  detail.
 - The database check is tagged `ready` and never participates in liveness.
 
 `Template.Api` never applies migrations automatically. Operators restore the
@@ -294,10 +297,25 @@ header, Problem Details `traceId`, and the `TraceId` logging scope. The response
 header is restored immediately before headers are sent, so handled exceptions
 that reset the response preserve the same correlation value.
 
-Completion logs contain method, path without query, status, elapsed milliseconds,
-and trace scope. Bodies, query values, cookies, and credential headers are not
-logged. Health completion is `Debug`; normal API success is `Information`; 4xx
-is `Warning`; 5xx is `Error`.
+Completion logs contain method, the matched route template, status, elapsed
+milliseconds, and trace scope. Unmatched API paths use the fixed
+`/api/{unmatched}` fallback, and generic exception logs reuse that safe path.
+Raw paths and route values, including name-derived organization slugs, are never
+logged. Bodies, query values, cookies, and credential headers are not logged.
+Health completion is `Debug`; normal API success is `Information`; 4xx is
+`Warning`; 5xx is `Error`.
+
+The framework request-start/finish category
+`Microsoft.AspNetCore.Hosting.Diagnostics` is disabled with `None` in both base
+and Development logging configuration, even when other ASP.NET Core Development
+diagnostics are raised to `Information`. Disabling the exact category prevents
+the Hosting logger from creating its external scope, whose `RequestPath` value
+contains the raw path and would otherwise be rendered because console scopes
+remain enabled. The integration capture provider mirrors this exact `None`
+rule alongside the broader production `Microsoft.AspNetCore` `Warning` floor,
+while retaining `Debug` events from application-owned categories. Application
+trace scopes therefore remain available without allowing a framework hosting
+scope to reintroduce raw route values into otherwise safe events.
 
 OAuth and account security audit events have a separate bounded contract:
 
@@ -384,3 +402,163 @@ git diff --exit-code -- contracts/openapi/v1.json
 Commit `contracts/openapi/v1.json` with every intentional contract change.
 Breaking field removal, semantic change, or incompatible status/auth change
 requires a documented `/api/v2` and deprecation decision.
+
+## Organizations and membership (iteration 5)
+
+All organization operations are authenticated `Api.BrowserSession` projections
+with `Cache-Control: no-store`; every unsafe operation also requires the normal
+`X-CSRF-TOKEN` antiforgery pair. Success uses the standard `{ "data": ... }`
+envelope. The strict request bodies reject unknown JSON members.
+
+| Method             | Route                                                           | Result                                                                     |
+| ------------------ | --------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `GET`              | `/api/v1/organizations?cursor=&limit=`                          | accessible organization page                                               |
+| `POST`             | `/api/v1/organizations`                                         | create organization, owner membership, and current session context (`201`) |
+| `GET`              | `/api/v1/organizations/by-key/{organizationKey}`                | accessible detail by slug or UUID key                                      |
+| `PATCH` / `DELETE` | `/api/v1/organizations/{organizationId}`                        | update; or exact-case name-confirmed deletion                              |
+| `PUT`              | `/api/v1/auth/session/active-organization`                      | set the current persistent session's active organization                   |
+| `GET` / `POST`     | `/api/v1/organizations/{organizationId}/members?cursor=&limit=` | list; or direct-add a user (`201`)                                         |
+| `PATCH`            | `/api/v1/organizations/{organizationId}/members/{memberId}`     | change the member's role                                                   |
+
+There is deliberately no member-delete operation in this slice. `GET
+/api/v1/auth/session` adds nullable `activeOrganizationId` only to the
+authenticated session projection.
+
+`owner`, `admin`, and `member` are closed organization roles—not Identity roles
+or session claims. Owners can update/delete and add/change roles, including
+owner assignment; admins can update and add/change only `member` or `admin`
+roles; members have no mutation capability. A caller cannot change their own
+role; admins cannot mutate an owner; redundant changes conflict; role changes
+preserve at least one owner. Server-computed capabilities are presentation aids,
+not authorization substitutes.
+
+Organizations use a UUID id and a canonical lower-case slug in disjoint
+namespaces. User-supplied UUID-shaped slugs are rejected after trim/lowercase
+normalization, and a UUID-shaped name-derived base is deterministically prefixed
+with `workspace-`. A UUID key resolves only by organization id; a non-UUID key
+resolves only by slug. Returned `canonicalKey` is always the slug. Organization
+detail accepts its route key as raw text, then—after actor resolution and inside
+the organization audit boundary—requires a canonical `D` UUID or canonical
+`OrganizationSlug`. UUID acceptance requires both exact-format parsing and an
+ordinal-ignore-case comparison with the parsed value's `D` rendering: published
+upper/lower ASCII hex casing remains valid, while surrounding whitespace or any
+other normalized spelling is rejected. Invalid text returns the same
+non-disclosing `404 organization_not_found`, is never logged, and never reaches
+Application or persistence. The runtime detail concurrency outcome is `409
+concurrency_conflict`, and that response is part of the exact OpenAPI operation
+and generated SDK error union. Every organization/member UUID route segment on
+PATCH/DELETE organization and GET/POST/PATCH membership operations uses the
+same render-and-compare rule after actor resolution. A noncanonical route UUID
+returns the existing `400 validation_failed` field error, emits exactly one safe
+operation audit with the invalid opaque id omitted, excludes raw/encoded route
+text from logs, and cannot reach Application or persistence. Canonical mixed or
+uppercase hex remains accepted. The detail-key, organization-id and member-id
+validators are the complete iteration-5 organization route UUID surface; typed
+body UUIDs retain their existing JSON contract. Organization pages sort by the
+actor's immutable membership edge
+`(membership.joinedAt ASC, membership.id ASC)` and member pages by
+`(member.joinedAt ASC, member.id ASC)`; the covering actor-list index is
+`(user_id, joined_at, id)`. Both use opaque typed, versioned base64url checksum
+cursors, default `50`, range `1..100`; the immutable organization-list layout
+uses a discriminator distinct from both the legacy mutable-name layout and the
+member-list layout. Clients return `nextCursor` verbatim and never construct it.
+Legacy layouts, wrong cursor kind/version, noncanonical base64url, corrupt
+checksum, out-of-range UTC ticks, and extra bytes return `400 invalid_cursor`
+before any PostgreSQL query.
+
+Both organization list operations bind the raw optional `limit` query text so
+Minimal API conversion cannot bypass actor resolution or operation auditing.
+They parse it inside the actor-aware audit boundary with invariant integer
+semantics. Malformed, overflowing, zero, and values above `100` return
+`400 validation_failed`, emit one safe audit with only actor/session and the
+applicable opaque organization id, and do not call Application/persistence.
+Anonymous requests remain authentication-first and non-audited. The public
+OpenAPI parameter remains optional `integer`/`int32`, minimum `1`, maximum
+`100`, default `50`; raw string binding is only an internal boundary technique.
+
+Generated create slugs preserve the readable `base`, `base-2`, …, `base-5`
+sequence. If all five are occupied, a truncated base plus the new public
+organization UUID in lowercase 32-hex form supplies a collision-resistant
+candidate within the 64-character slug limit. Pre-existing readable candidates
+do not consume the global unique-index race budget. That budget is bounded to
+one more selection than the five readable candidates: after an operation loses
+races for all five readable values, its sixth transaction observes those rows
+and selects its own UUID fallback. A unique violation on that final attempt
+still maps to `organization_slug_conflict`; name conflicts and PostgreSQL
+serialization/deadlock mappings are unchanged.
+
+`UpdateOrganizationRequest.allowedEmailDomains` accepts at most 100 raw JSON
+array items, inclusive. The endpoint checks this before normalization and
+de-duplication, returns the stable `400 validation_failed` problem on
+`allowedEmailDomains` for 101 or more items, and publishes `maxItems: 100`.
+
+Missing and foreign organizations intentionally share `404
+organization_not_found`; foreign/missing members likewise do not disclose
+resources. Permission failures use `organization_permission_denied` or
+`role_assignment_forbidden`. Other stable outcomes include
+`organization_name_conflict`, `organization_slug_conflict`,
+`last_organization_required`, `organization_confirmation_mismatch`,
+`target_user_not_found`, `member_not_found`, `member_already_exists`,
+`member_role_unchanged`, `member_domain_acknowledgement_required`,
+`organization_ownership_transfer_required`, `invalid_cursor`, and
+`concurrency_conflict`. The domain-acknowledgement metadata is returned only to
+authorized add-member callers and the initial warning request performs no write.
+Its `emailDomain` property is explicitly nullable when a verified email suffix
+cannot be normalized as a DNS-like domain; null is valid acknowledgement
+metadata, whereas omission or malformed metadata is not.
+An add-member request that would give its target access to another organization
+with the same PostgreSQL-lowered name also returns the existing
+`member_already_exists` problem, with no acknowledgement or conflicting
+organization/name metadata. This intentionally coalesces exact membership and
+target accessible-name conflicts so the caller cannot infer the target's
+unrelated organization graph.
+
+A single `TemplateDbContext` PostgreSQL transaction is the organization boundary:
+create serializes through the actor user, creates the organization/owner and
+sets that session's active organization atomically; update locks and rechecks
+permission while replacing domains; set-active is membership-qualified for the
+current unexpired session; delete locks the organization, actor membership and
+accessible set, requires another accessible organization, and relies on the FK
+`SET NULL`; add/change-role lock and re-evaluate all relevant membership/owner
+state. Unique indexes are authoritative for slug/member races and classified
+results are retried only where the persistence operation specifies it.
+
+Create, name-changing update, and add-member serialize the candidate normalized
+name decision with a transaction-scoped two-key PostgreSQL advisory lock before
+the exact conflict query. The reserved first key namespaces organization name
+decisions; the second uses `hashtext(lower(candidateName))`, exactly matching
+the database normalization used by the equality queries. Create checks the
+actor's accessible names; update checks every current member against other
+organizations while excluding the renamed organization; add-member checks the
+target against other organizations while excluding the receiving organization.
+Add-member locks the target user before the name advisory key, preserving the
+user-then-name order shared with target create and preventing an inverse wait.
+Every path takes at most one name key and performs non-locking indexed conflict
+queries after it, so the lock is released by transaction commit/rollback,
+including cancellation. Hash collisions may conservatively serialize different
+names but cannot create a false conflict because the exact query remains
+authoritative. Consequently disjoint member graphs may still retain the same
+case-insensitive name, while no operation can commit two equivalent names into
+one user's accessible set.
+
+Set-active performs one membership-qualified update and does not take an
+exclusive organization `FOR UPDATE` lock, so concurrent selections and
+nonmember attempts do not serialize through an organization row. The exact
+PostgreSQL `23503` race for
+`fk_sessions_organizations_active_organization_id` maps to the same
+non-disclosing not-found result when deletion wins; unrelated FK violations
+remain unhandled programming/data errors, while serialization/deadlock outcomes
+retain `concurrency_conflict`.
+
+Organization-detail and member-list reads do not acquire `FOR UPDATE` locks.
+Each authorizes and projects its organization row/role and allowed domains from
+one PostgreSQL repeatable-read snapshot, so concurrent reads progress together
+while organization deletion, access removal, or a settings update yields a
+wholly pre-change or post-change projection rather than a torn response.
+Mutation lock and recheck behavior is unchanged.
+
+The `organizations` schema contains `organizations`, `members`, and
+`allowed_email_domains`; `auth.sessions.active_organization_id` is nullable,
+indexed, and an FK to `organizations.organizations` with `SET NULL`. The active
+preference is persistent session state, outside the protected ticket, and is
+preserved across ticket renewal.

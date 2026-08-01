@@ -1,7 +1,7 @@
 using Template.Application.Accounts;
 using Template.Application.Accounts.Ports;
 using Template.Application.Authentication;
-using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
 using Template.Domain.Accounts;
 using Template.Domain.Authentication;
 
@@ -456,7 +456,7 @@ public sealed class ExternalIdentityServiceTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
-    private sealed class FakeAuthenticationUnitOfWork : IAuthenticationUnitOfWork
+    private sealed class FakeAuthenticationUnitOfWork : IApplicationUnitOfWork
     {
         public int ExecutionCount { get; private set; }
 

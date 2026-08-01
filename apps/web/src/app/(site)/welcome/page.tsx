@@ -1,0 +1,50 @@
+import { redirect } from "next/navigation";
+import { connection } from "next/server";
+
+import { OrganizationFailure } from "@/src/components/organizations/organization-list";
+import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
+import { applicationRoutes } from "@/src/features/application/application-routes";
+import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
+import { organizationRoutes } from "@/src/features/organizations/organization-routes";
+import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
+
+export default async function WelcomePage() {
+  await connection();
+  const [session, organizations] = await Promise.all([
+    loadProtectedSession(organizationRoutes.welcome),
+    loadOrganizations(),
+  ]);
+
+  if (!session.ok) {
+    return (
+      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+        <OrganizationFailure failure={session.failure} />
+      </main>
+    );
+  }
+  if (
+    session.data.authenticated !== true ||
+    !session.data.session ||
+    !session.data.user
+  ) {
+    return (
+      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+        <OrganizationFailure
+          failure={{ kind: "network", code: "api_unavailable" }}
+        />
+      </main>
+    );
+  }
+  if (!organizations.ok) {
+    return (
+      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+        <OrganizationFailure failure={organizations.failure} />
+      </main>
+    );
+  }
+  if (organizations.data.items.length > 0) {
+    redirect(applicationRoutes.dashboard);
+  }
+
+  return <OrganizationOnboarding />;
+}

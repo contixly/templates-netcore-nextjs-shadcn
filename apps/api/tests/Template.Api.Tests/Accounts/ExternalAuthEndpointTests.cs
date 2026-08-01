@@ -501,7 +501,7 @@ public sealed class ExternalAuthEndpointTests(
             "/auth/error?code=oauth_flow_context_changed",
             response.Headers.Location!.OriginalString);
         await using var scope = _factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         Assert.False(await db.UserLogins.AnyAsync(
             login => login.LoginProvider == "yandex",
             TestContext.Current.CancellationToken));
@@ -536,7 +536,7 @@ public sealed class ExternalAuthEndpointTests(
         Assert.True(session!.Data.Authenticated);
 
         await using var scope = _factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var stored = await db.Sessions.SingleAsync(
             TestContext.Current.CancellationToken);
         Assert.Equal("yandex", stored.AuthenticationMethod);
@@ -595,7 +595,7 @@ public sealed class ExternalAuthEndpointTests(
         Assert.Equal(before!.Data.Session!.Id, after!.Data.Session!.Id);
 
         await using var scope = _factory.Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var stored = await db.Sessions.SingleAsync(
             TestContext.Current.CancellationToken);
         Assert.Equal("local", stored.AuthenticationMethod);
@@ -918,7 +918,7 @@ public sealed class ExternalAuthEndpointTests(
                 await postgres.CreateDatabaseAsync(
                     TestContext.Current.CancellationToken);
             await using var scope = Services.CreateAsyncScope();
-            await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+            await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
                 .Database.MigrateAsync(
                     TestContext.Current.CancellationToken);
             Services.GetRequiredService<CapturedLogProvider>().Clear();

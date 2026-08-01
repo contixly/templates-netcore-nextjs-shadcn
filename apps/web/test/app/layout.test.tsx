@@ -6,6 +6,9 @@ import type { I18nMessages } from "@/src/i18n/messages";
 jest.mock("@/src/components/application/app-providers", () => ({
   AppProviders: "app-providers",
 }));
+jest.mock("@/src/components/application/app-hydration-marker", () => ({
+  AppHydrationMarker: "app-hydration-marker",
+}));
 
 function asElement<Props extends object>(node: ReactNode): ReactElement<Props> {
   if (typeof node !== "object" || node === null || !("type" in node)) {
@@ -42,16 +45,19 @@ describe("RootLayout", () => {
       await RootLayout({ children: <span>Content</span> }),
     );
     const body = asElement<{ children: ReactNode }>(html.props.children);
+    const [markerNode, providerNode] = body.props.children as ReactNode[];
+    const marker = asElement(markerNode);
     const provider = asElement<{
       children: ReactNode;
       locale: string;
       messages: I18nMessages;
       timeZone: string;
-    }>(body.props.children);
+    }>(providerNode);
 
     expect(html.type).toBe("html");
     expect(html.props.lang).toBe("ru");
     expect(body.type).toBe("body");
+    expect(marker.type).toBe("app-hydration-marker");
     expect(provider.type).toBe("app-providers");
     expect(provider.props.locale).toBe("ru");
     expect(provider.props.timeZone).toBe("UTC");

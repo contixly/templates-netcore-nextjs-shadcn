@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { waitForInteraction } from "./support/app-readiness";
+
 const liveSmokeEnabled = process.env.E2E_LIVE_PROVIDER_SMOKE === "1";
 
 test.use({ screenshot: "off", trace: "off", video: "off" });
@@ -64,7 +66,7 @@ test.describe("live external provider authorization screens", () => {
       const button = page.getByRole("button", {
         name: `Continue with ${provider.displayName}`,
       });
-      await expect(button).toBeEnabled();
+      await waitForInteraction(button);
       const officialHosts: string[] = [...provider.hosts];
       const officialNavigation = page.waitForURL(
         (url) => officialHosts.includes(url.hostname),

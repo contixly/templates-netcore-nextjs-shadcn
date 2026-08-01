@@ -117,13 +117,25 @@ credential sign-in and cleanup use the same generated contract and CSRF rule.
 External sign-in, provider disconnect, profile update, session revoke,
 revoke-others, and account deletion use the same CSRF-first generated-SDK
 pattern.
-After an authenticated dashboard renders, a minimal Client Component performs
-an unmarked same-origin `getAuthSession` generated-SDK call. That browser-owned
-request can receive the secure HttpOnly sliding-renewal cookie. After a
-successful read, it refreshes the current App Router route so the uncached
-Server Component projects the now-current session timestamps; failed reads
-leave the existing server-rendered state in place. JavaScript never reads or
-copies the cookie.
+After the shared site-header server guard confirms one well-formed authenticated
+projection, it mounts exactly one minimal Client Component beside the account
+navigation. That component performs one unmarked same-origin `getAuthSession`
+generated-SDK call for protected `/welcome`, `/workspaces`, `/w/**`, and
+`/user/**` surfaces. The browser-owned request can receive the secure HttpOnly
+sliding-renewal cookie; a successful read refreshes the current App Router route
+so uncached Server Components project the now-current session, while a failed
+read leaves the existing projection in place. Document-local pathname-cycle
+state prevents concurrent mounts and the successful `router.refresh()`
+same-path remount from issuing a second request in the current cycle. Each later
+App Router soft navigation to a different protected pathname starts a new
+unmarked renewal in the same document. A failed read releases its pathname
+cycle so a later remount or navigation may retry; a stale request cannot clear
+or refresh a newer pathname cycle. The transient `/dashboard` resolver clears
+the prior cycle and defers renewal to its final `/welcome` or `/w/**`
+destination, avoiding two reads for one resolver navigation. Anonymous, failed,
+and malformed server projections mount neither account navigation nor renewal.
+Individual dashboard/settings pages must not add duplicate refresh components.
+JavaScript never reads or copies the cookie.
 
 Redirect targets are normalized to safe same-origin application paths. Full
 URLs, protocol-relative `//` values, malformed escapes, repeated encoded
@@ -157,6 +169,14 @@ anonymous state from API failure, renders the safe user/session projection and
 logout, and is not the product dashboard planned for iteration 9.
 
 ## Account settings UI
+
+The site header streams its account entry below a request-time
+`connection()`/`Suspense` boundary and shows it only for a confirmed
+authenticated projection; anonymous, failed, or malformed projections fail
+closed. This visible entry is the supported path from workspace UI into the
+protected account shell and its logout control. Its cached SSR session read
+suppresses sliding renewal, and the same confirmed header guard owns the single
+browser renewal described above.
 
 The protected `/user` shell is request-time server rendered below
 `connection()`/`Suspense`. It forwards only the incoming cookie and correlation
@@ -241,6 +261,14 @@ when obsolete and expose an explicit retry. Route loading, route error,
 not-found, and provider-independent global error each have a separate boundary.
 Status changes use an accessible live region.
 
+Each interactive Client Component boundary keeps its exact first-action control
+disabled until that boundary has hydrated, then publishes
+`data-interaction-ready="true"` (organization shell controls use their
+organization-specific readiness attribute). Playwright waits for that exact
+control's readiness attribute and enabled state before clicking or typing. The
+root `data-app-hydrated` marker is not proof that descendant Client Component
+boundaries are interactive and must not be used to justify an interaction.
+
 ## Local verification
 
 From `apps/web`:
@@ -263,3 +291,152 @@ test -f .next/standalone/server.js
 
 E2E starts ASP.NET Core on `127.0.0.1:5297` and Next.js on
 `127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.
+
+## Organization-aware UI (iteration 5)
+
+Organization loaders and member loaders are generated-SDK-only SSR adapters.
+Like other cookie-bearing projections, they forward only the allow-listed
+cookie/correlation context and add `X-Template-Session-Renewal: suppress`; the
+browser's normal unmarked session read remains responsible for any sliding
+renewal. Browser organization mutations first obtain CSRF and use the generated
+SDK; raw organization `fetch` calls and hand-written DTOs are prohibited.
+
+`/dashboard` resolves the active accessible organization, otherwise the first
+organization in server ordering, otherwise redirects to `/welcome`. `/welcome`
+renders first-workspace onboarding only for zero accessible organizations;
+otherwise it redirects through `/dashboard`. `/workspaces` server-renders its
+authoritative first page at the canonical URL. Its explicit load-more button uses
+the generated organizations GET operation in the browser and the returned opaque
+cursor without changing the URL; refresh/new-tab navigation starts again at page
+one, and old cursor bookmarks redirect to `/workspaces`.
+`/w/{organizationKey}` accepts a UUID or non-UUID slug;
+both the workspace root and a direct
+`/w/{nonCanonicalOrganizationKey}/dashboard` request redirect to
+`/w/{canonicalSlug}/dashboard` after successful lookup. A deep-link read never
+changes active context. A missing key sends a zero-organization user to
+onboarding and a user with another accessible organization to `forbidden()`, so
+the API's non-disclosure result keeps the intended protected UI distinction.
+
+Workspace settings are `/w/{key}/settings/{workspace,users,roles}`. They show
+only the fixed organization roles and omit Teams, Invitations, and API Keys.
+The header's route-owned parallel switcher slot calls set-active before routing;
+it preserves known one-key settings routes and otherwise goes to the selected
+dashboard. It may skip set-active for the routed selection only when that id also
+equals the session's active preference, so an explicit deep-linked selection
+persists for later `/dashboard`. The independently loaded routed detail is
+authoritative for its organization id: it replaces a same-id first-page summary
+without changing list order, or is prepended when that id is absent. A slug
+update replaces the browser URL with the returned canonical key.
+
+The switcher treats permanent attachment, React Activity visibility, and the
+exact committed pathname generation as separate lifetimes. A selection captures
+its pathname generation before set-active transport. Actual deletion makes its
+continuation inert before local or router effects. An attached hidden completion
+settles the request lock and local state but never replays the old push; a hidden
+success queues only one refresh, drained on reveal only when that exact pathname
+generation is still current. Any intervening pathname change, including a
+change away and back while the parallel slot remains mounted or renders `null`,
+permanently discards old-path navigation and queued reconciliation. Failure can
+remain safely retryable on a preserved instance without displaying raw API
+data. A visible same-generation success keeps one suffix-preserving canonical
+push followed by one refresh, including after StrictMode lifecycle replay.
+Queued refresh protection is defense in depth: each committed pathname change
+eagerly discards the queue, and reveal also verifies the queued origin generation
+before draining it.
+
+Lists return opaque server cursors unchanged, explicitly load more, and
+de-duplicate ids. Workspace browser accumulation keeps prior pages and the last
+cursor on a safe failure, retries the same GET, and applies every incoming
+duplicate over its older entry while preserving local tail entries and confirmed
+deletion tombstones. The load-more control uses its organization-boundary
+hydration readiness marker.
+
+Organization creation uses two lifecycle signals. Insertion cleanup marks
+permanent deletion, making any later transport completion inert. Layout cleanup
+records React Activity hiding without destroying the instance: a hidden
+completion settles local request/pending state, suppresses stale push, and on
+success queues only one refresh for the originating surface. Reveal drains that
+refresh exactly once. Visible completion still performs canonical push plus
+refresh, including under StrictMode replay.
+
+Workspace settings reject exact normalized D-format UUID-shaped slugs before
+transport. They compare normalized inputs with the latest confirmed detail and
+send the exact generated PATCH request containing only dirty name, slug, and/or
+allowed-domain fields. Allowed domains have set semantics: normalized,
+de-duplicated values are compared without regard to order, so reordering alone
+neither enables Save nor adds a stale domain collection to an unrelated PATCH.
+The settings form applies the contract maximum after this normalization and
+de-duplication: 101 distinct valid domains produce a localized field error and
+no transport, while more than 100 raw comma/newline tokens that collapse to at
+most 100 distinct generated-array items remain valid. The API independently
+retains its authoritative raw JSON `maxItems: 100` boundary. A real set addition
+or removal remains dirty. A normalized no-change form keeps Save disabled; a
+successful response replaces both visible inputs and the dirty comparison
+baseline, preventing stale administrators from overwriting unrelated fields. On
+a later RSC projection, update capability is taken immediately from the latest
+server prop so demotion disables every field, removes Save, and blocks forced
+submit without overwriting a local draft or its latest mutation-confirmed
+comparison baseline. The server workspace-settings page keys this local form
+boundary by the resolved immutable organization id, never the mutable slug or
+pathname. Therefore a slug reused by another organization remounts all local
+baseline/input/feedback/pending state before that replacement can submit, while
+a fresh projection for the same id retains the mounted dirty/confirmed state and
+continues to reconcile capability from the latest prop. Each form owns separate
+attachment and visibility lifecycles. An insertion-effect cleanup marks the
+instance permanently detached during an actual keyed deletion, before
+replacement layout work; a completed mutation checks that marker immediately
+after transport and before any ref/state write or router side effect. Thus a
+late success from replaced A cannot navigate or refresh mounted B. React
+Activity preservation is different: hiding cleans layout effects and detaches
+host refs but retains state, refs, and the insertion-effect lifetime. A separate
+layout marker therefore records visibility. An attached hidden completion still
+clears its request lock and pending state and reconciles failure or the confirmed
+success baseline, but queues canonical replace/refresh without invoking either
+global router effect. Layout setup on reveal flushes that queue exactly once;
+ordinary visible and StrictMode-replayed forms keep normal completion behavior.
+
+Workspace deletion uses the same two lifetimes. Insertion cleanup permanently
+invalidates a keyed dialog and discards any queued router work. Layout cleanup
+only marks the attached dialog Activity-hidden. A hidden success clears its
+request lock, closes local dialog state, and invokes a still-live `onDeleted`
+reconciliation, but does not replace or refresh globally. Because the deleted
+settings resource cannot remain the revealed destination, it queues the
+required `/workspaces` replacement plus refresh and drains both exactly once on
+reveal; repeated hide/reveal does not replay them. Permanent deletion before
+reveal discards the queue. Hidden failure remains local and retryable without
+navigation, while visible and StrictMode success keeps immediate replace plus
+refresh. The existing immutable-id key still makes different-organization late
+completion inert.
+
+Mutation responses are immediately authoritative. A successful write followed
+by a failed refresh remains a confirmed partial success: the UI keeps a
+conservative projection and offers a GET-only refresh retry, never repeats the
+mutation. Direct member add exposes an outside-domain confirmation only for the
+typed 409 acknowledgement problem; the initial request has no write. Its
+generated `emailDomain` metadata remains `string | null`: explicit null renders
+the fixed localized unknown-domain fallback and still permits the one confirmed
+retry, while an omitted, blank, or wrong-typed value fails closed. Directory
+state also keeps the current actor separate and never renders member removal
+controls. A later RSC `initialPage` immediately replaces only member-directory
+server page zero; locally loaded continuation pages and their final cursor,
+confirmed mutation overlays/order, active generated reads, feedback, and
+GET-only recovery survive. The RSC projection has no read generation and cannot
+retire an overlay; a causally later successful generated member GET remains the
+only authority that can retire it. Member-directory continuation is an exact
+first-action organization control: its server HTML is disabled, and it becomes
+enabled only after that Client Component boundary publishes
+`data-organization-control-interaction-ready="true"`.
+
+Activity cleanup of a pending directory load-more or GET-only recovery read
+aborts/supersedes the coordinator and dispatches a matching read-generation
+cancellation. The reducer clears only that `activeRead`, preserves confirmed
+state/recovery, and produces no failure feedback, so reveal exposes a usable
+continuation/retry. A newer read cannot be cleared by older cleanup, and actual
+keyed deletion remains reducer-inert while its insertion cleanup still aborts
+any read created after the earlier hide.
+
+The account-deletion dialog keeps generic safe copy for unknown failures, but
+maps the exact typed `organization_ownership_transfer_required` Problem Details
+code to localized guidance to promote another owner or share ownership before
+retrying. A safe trace id remains visible when supplied; the API result remains
+authoritative.

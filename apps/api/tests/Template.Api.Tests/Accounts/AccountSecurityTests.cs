@@ -224,7 +224,7 @@ public sealed class AccountSecurityTests(ApiWebApplicationFactory factory)
         int keysBefore;
         await using (var beforeScope = factory.Services.CreateAsyncScope())
         {
-            var before = beforeScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var before = beforeScope.ServiceProvider.GetRequiredService<TemplateDbContext>();
             before.OpenIddictTokens.Add(new OpenIddictEntityFrameworkCoreToken
             {
                 Id = "account-reset-state-token",
@@ -242,7 +242,7 @@ public sealed class AccountSecurityTests(ApiWebApplicationFactory factory)
         await factory.ResetAuthDataAsync(TestContext.Current.CancellationToken);
 
         await using var afterScope = factory.Services.CreateAsyncScope();
-        var after = afterScope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var after = afterScope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         Assert.Equal(
             keysBefore,
             await after.DataProtectionKeys.CountAsync(
@@ -265,7 +265,7 @@ public sealed class AccountSecurityTests(ApiWebApplicationFactory factory)
     {
         await using var scope = services.CreateAsyncScope();
         var sessions = await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions
             .Where(session => session.UserId == userId)
             .OrderByDescending(session => session.CreatedAt)

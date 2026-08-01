@@ -11,8 +11,8 @@ using Template.Infrastructure.Persistence;
 
 namespace Template.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(AuthDbContext))]
-    partial class AuthDbContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(TemplateDbContext))]
+    partial class TemplateDbContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
@@ -502,12 +502,129 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.ToTable("user_logins", "auth");
                 });
 
+            modelBuilder.Entity("Template.Infrastructure.Organizations.OrganizationAllowedEmailDomainEntity", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Domain")
+                        .HasMaxLength(253)
+                        .HasColumnType("character varying(253)")
+                        .HasColumnName("domain");
+
+                    b.HasKey("OrganizationId", "Domain")
+                        .HasName("pk_allowed_email_domains");
+
+                    b.ToTable("allowed_email_domains", "organizations", t =>
+                        {
+                            t.HasCheckConstraint("ck_allowed_email_domains_domain", "char_length(domain) BETWEEN 1 AND 253 AND domain = lower(domain)");
+                        });
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Organizations.OrganizationEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_organizations");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("ux_organizations_slug");
+
+                    b.ToTable("organizations", "organizations", t =>
+                        {
+                            t.HasCheckConstraint("ck_organizations_name", "char_length(name) BETWEEN 1 AND 50");
+
+                            t.HasCheckConstraint("ck_organizations_slug", "char_length(slug) BETWEEN 1 AND 64\nAND slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'");
+                        });
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Organizations.OrganizationMemberEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("joined_at");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(6)
+                        .HasColumnType("character varying(6)")
+                        .HasColumnName("role");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_members");
+
+                    b.HasIndex("OrganizationId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("ux_members_organization_id_user_id");
+
+                    b.HasIndex("UserId", "OrganizationId")
+                        .HasDatabaseName("ix_members_user_id_organization_id");
+
+                    b.HasIndex("OrganizationId", "JoinedAt", "Id")
+                        .HasDatabaseName("ix_members_organization_id_joined_at_id");
+
+                    b.HasIndex("UserId", "JoinedAt", "Id")
+                        .HasDatabaseName("ix_members_user_id_joined_at_id");
+
+                    b.ToTable("members", "organizations", t =>
+                        {
+                            t.HasCheckConstraint("ck_members_role", "role IN ('owner', 'admin', 'member')");
+                        });
+                });
+
             modelBuilder.Entity("Template.Infrastructure.Persistence.AuthSessionEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<Guid?>("ActiveOrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("active_organization_id");
 
                     b.Property<string>("AuthenticationMethod")
                         .IsRequired()
@@ -554,6 +671,9 @@ namespace Template.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id")
                         .HasName("pk_sessions");
+
+                    b.HasIndex("ActiveOrganizationId")
+                        .HasDatabaseName("ix_sessions_active_organization_id");
 
                     b.HasIndex("ExpiresAt")
                         .HasDatabaseName("ix_sessions_expires_at");
@@ -685,8 +805,41 @@ namespace Template.Infrastructure.Persistence.Migrations
                         .HasConstraintName("fk_user_logins_user_emails_verified_email_id");
                 });
 
+            modelBuilder.Entity("Template.Infrastructure.Organizations.OrganizationAllowedEmailDomainEntity", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Organizations.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_allowed_email_domains_organizations_organization_id");
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.Organizations.OrganizationMemberEntity", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Organizations.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_members_organizations_organization_id");
+
+                    b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_members_users_user_id");
+                });
+
             modelBuilder.Entity("Template.Infrastructure.Persistence.AuthSessionEntity", b =>
                 {
+                    b.HasOne("Template.Infrastructure.Organizations.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ActiveOrganizationId")
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .HasConstraintName("fk_sessions_organizations_active_organization_id");
+
                     b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")

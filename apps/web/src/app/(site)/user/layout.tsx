@@ -5,6 +5,7 @@ import { Suspense, type ReactNode } from "react";
 
 import { AccountNav } from "@/src/components/account/account-nav";
 import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
+import { LogoutButton } from "@/src/components/authentication/logout-button";
 import { accountRoutes } from "@/src/features/account/account-routes";
 import { authLoginUrl } from "@/src/features/authentication/sanitize-auth-redirect";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
@@ -41,7 +42,12 @@ export async function AuthenticatedAccountShell({
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col md:flex-row">
-      <AccountNav />
+      <div className="w-full shrink-0 md:w-56">
+        <AccountNav />
+        <div className="border-b p-2 md:border-r">
+          <LogoutButton />
+        </div>
+      </div>
       <main className="min-w-0 flex-1 px-4 py-8 md:px-6">{children}</main>
     </div>
   );

@@ -4,6 +4,10 @@ import type { Route } from "next";
 import { useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
 
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import type { AuthProviderResponse } from "@/src/lib/api/generated";
@@ -40,6 +44,7 @@ export function ExternalProviderButtons({
   returnUrl: Route;
 }>) {
   const t = useTranslations("auth.externalProviders");
+  const interactionReady = useInteractionReady();
   const headingId = useId();
   const inFlight = useRef(false);
   const [pendingProvider, setPendingProvider] = useState<
@@ -107,13 +112,14 @@ export function ExternalProviderButtons({
 
           return (
             <Button
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
               aria-label={
                 pending
                   ? t("pending", { provider: provider.displayName })
                   : label
               }
               className="w-full"
-              disabled={pendingProvider !== null}
+              disabled={!interactionReady || pendingProvider !== null}
               key={provider.id}
               onClick={() => void start(provider)}
               type="button"

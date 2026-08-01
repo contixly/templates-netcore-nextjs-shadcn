@@ -12,7 +12,7 @@ using Template.Infrastructure.Persistence;
 
 namespace Template.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(AuthDbContext))]
+    [DbContext(typeof(TemplateDbContext))]
     [Migration("20260724142511_InitialAuthPersistence")]
     partial class InitialAuthPersistence
     {

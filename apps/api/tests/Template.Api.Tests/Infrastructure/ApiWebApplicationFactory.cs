@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Template.Api.Endpoints;
 using Template.Infrastructure.Persistence;
 
@@ -22,7 +23,7 @@ public sealed class ApiWebApplicationFactory(
         (_databaseName, _connectionString) = await postgres.CreateDatabaseAsync(
             TestContext.Current.CancellationToken);
         await using var scope = Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Database.MigrateAsync(TestContext.Current.CancellationToken);
     }
 
@@ -37,17 +38,47 @@ public sealed class ApiWebApplicationFactory(
     public async Task ResetAuthDataAsync(CancellationToken cancellationToken)
     {
         await using var scope = Services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         await db.OpenIddictTokens.ExecuteDeleteAsync(cancellationToken);
         await db.UserLogins.ExecuteDeleteAsync(cancellationToken);
         await db.UserEmails.ExecuteDeleteAsync(cancellationToken);
         await db.Sessions.ExecuteDeleteAsync(cancellationToken);
+        await db.OrganizationAllowedEmailDomains.ExecuteDeleteAsync(cancellationToken);
+        await db.OrganizationMembers.ExecuteDeleteAsync(cancellationToken);
+        await db.Organizations.ExecuteDeleteAsync(cancellationToken);
         await db.Users.ExecuteDeleteAsync(cancellationToken);
     }
 
     public Task<(string DatabaseName, string ConnectionString)>
         CreateUnmigratedDatabaseAsync(CancellationToken cancellationToken) =>
         postgres.CreateDatabaseAsync(cancellationToken);
+
+    public async Task<(string DatabaseName, string ConnectionString)>
+        CreateAuthOnlyDatabaseAsync(CancellationToken cancellationToken)
+    {
+        var database = await postgres.CreateDatabaseAsync(cancellationToken);
+        try
+        {
+            await using var connection = new NpgsqlConnection(
+                database.ConnectionString);
+            await connection.OpenAsync(cancellationToken);
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                """
+                CREATE SCHEMA auth;
+                CREATE TABLE auth.users (id uuid PRIMARY KEY);
+                """;
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            return database;
+        }
+        catch
+        {
+            await postgres.DropDatabaseAsync(
+                database.DatabaseName,
+                CancellationToken.None);
+            throw;
+        }
+    }
 
     public Task DropDatabaseAsync(
         string databaseName,
@@ -69,6 +100,12 @@ public sealed class ApiWebApplicationFactory(
         {
             logging.SetMinimumLevel(LogLevel.Debug);
             logging.AddFilter<CapturedLogProvider>(level => level >= LogLevel.Debug);
+            logging.AddFilter<CapturedLogProvider>(
+                CapturedLogProvider.AspNetCoreCategory,
+                level => level >= LogLevel.Warning);
+            logging.AddFilter<CapturedLogProvider>(
+                CapturedLogProvider.RawRequestHostingCategory,
+                LogLevel.None);
         });
         builder.ConfigureTestServices(services =>
         {

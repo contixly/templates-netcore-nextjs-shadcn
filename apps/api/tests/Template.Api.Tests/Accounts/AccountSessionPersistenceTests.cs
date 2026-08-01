@@ -55,7 +55,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
         _services = services.BuildServiceProvider();
 
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         await db.Database.MigrateAsync(TestContext.Current.CancellationToken);
         _userId = Guid.CreateVersion7();
         db.Users.Add(CreateUser(_userId, "session-owner@example.test"));
@@ -113,7 +113,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
                 TestContext.Current.CancellationToken));
 
         Assert.False(await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions.AnyAsync(TestContext.Current.CancellationToken));
     }
 
@@ -204,7 +204,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
             renewedAuthentication.Principal!
                 .FindAll(BrowserSessionClaimTypes.AuthenticationMethod)
                 .Select(claim => claim.Value));
-        var rows = await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        var rows = await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Sessions.AsNoTracking()
             .Where(row => row.UserId == _userId)
             .ToArrayAsync(TestContext.Current.CancellationToken);
@@ -215,7 +215,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
     public async Task ListingUsesSafeMetadataWithoutDeserializingTickets()
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var session = CreateSession(
             _userId,
             Now,
@@ -251,7 +251,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
     public async Task ListingOmitsExpiredSessions()
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         db.Sessions.AddRange(
             CreateSession(_userId, Now, "google", [1], 1),
             CreateSession(
@@ -276,7 +276,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
     public async Task SingleRevokeIsOwnershipQualified()
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var foreignUserId = Guid.CreateVersion7();
         db.Users.Add(CreateUser(foreignUserId, "foreign-session@example.test"));
         var foreign = CreateSession(foreignUserId, Now, "google", [1], 1);
@@ -300,7 +300,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
     public async Task CurrentSessionRevokeIsRejectedBeforeDelete()
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var current = CreateSession(_userId, Now, "github", [1], 1);
         db.Sessions.Add(current);
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
@@ -323,7 +323,7 @@ public sealed class AccountSessionPersistenceTests(PostgreSqlContainerFixture po
     public async Task RevokeOthersReturnsDeletedCountIncludingExpiredSessions()
     {
         await using var scope = _services.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var foreignUserId = Guid.CreateVersion7();
         db.Users.Add(CreateUser(foreignUserId, "other-owner@example.test"));
         var current = CreateSession(_userId, Now, "github", [1], 1);

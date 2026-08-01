@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { useInteractionReady } from "@/src/components/application/interaction-readiness";
 import {
   StatusCard,
   type StatusCardState,
@@ -9,6 +10,7 @@ import {
 import { loadBrowserSystemStatus } from "@/src/lib/api/browser/load-browser-system-status";
 
 export function BrowserSystemStatus() {
+  const interactionReady = useInteractionReady();
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<StatusCardState>({ kind: "loading" });
 
@@ -39,5 +41,12 @@ export function BrowserSystemStatus() {
     setAttempt((value) => value + 1);
   }
 
-  return <StatusCard onRetry={retry} source="browser" state={state} />;
+  return (
+    <StatusCard
+      interactionReady={interactionReady}
+      onRetry={retry}
+      source="browser"
+      state={state}
+    />
+  );
 }

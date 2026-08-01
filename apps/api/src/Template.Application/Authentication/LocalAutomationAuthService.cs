@@ -1,4 +1,6 @@
 using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
+using Template.Application.Organizations.Ports;
 
 namespace Template.Application.Authentication;
 
@@ -6,8 +8,11 @@ public sealed class LocalAutomationAuthService(
     ILocalIdentityGateway identities,
     IBrowserSessionGateway sessions,
     ILocalAutomationCredentialGenerator credentialGenerator,
-    IAuthenticationUnitOfWork transactions)
+    IApplicationUnitOfWork transactions,
+    IOrganizationUserLifecycleStore organizationLifecycle)
 {
+    private const int MaximumCleanupAttempts = 3;
+
     public async Task<AuthOperationResult<LocalAutomationScenario>> CreateScenarioAsync(
         CreateLocalScenarioInput input,
         CancellationToken cancellationToken)
@@ -121,16 +126,52 @@ public sealed class LocalAutomationAuthService(
                 AuthFailure.LocalUserRequired);
         }
 
-        return await transactions.ExecuteAsync(
-            async transactionCancellationToken =>
+        for (var attempt = 0; attempt < MaximumCleanupAttempts; attempt++)
+        {
+            try
             {
-                await identities.DeleteAsync(
-                    current.User.Id,
-                    transactionCancellationToken);
-                await sessions.SignOutAsync(transactionCancellationToken);
-                return AuthOperationResult<LocalAutomationCleanup>.Success(
-                    new LocalAutomationCleanup(DeletedOrganizations: 0));
-            },
-            cancellationToken);
+                return await transactions.ExecuteAsync(
+                    async transactionCancellationToken =>
+                    {
+                        var lifecycle = await organizationLifecycle
+                            .PrepareDeletionAsync(
+                                current.User.Id,
+                                transactionCancellationToken);
+                        if (lifecycle.OwnershipTransferRequired)
+                        {
+                            return AuthOperationResult<
+                                LocalAutomationCleanup>.Failed(
+                                AuthFailure
+                                    .OrganizationOwnershipTransferRequired);
+                        }
+
+                        await identities.DeleteAsync(
+                            current.User.Id,
+                            transactionCancellationToken);
+                        await sessions.SignOutAsync(
+                            transactionCancellationToken);
+                        return AuthOperationResult<
+                            LocalAutomationCleanup>.Success(
+                            new LocalAutomationCleanup(
+                                DeletedOrganizations:
+                                    lifecycle.DeletedOrganizations));
+                    },
+                    cancellationToken);
+            }
+            catch (OrganizationUserLifecycleConcurrencyException)
+                when (attempt < MaximumCleanupAttempts - 1)
+            {
+                // Re-run cleanup after the failed unit of work has rolled back
+                // every lifecycle lock and write.
+            }
+            catch (OrganizationUserLifecycleConcurrencyException)
+            {
+                return AuthOperationResult<LocalAutomationCleanup>.Failed(
+                    AuthFailure.ConcurrencyConflict);
+            }
+        }
+
+        return AuthOperationResult<LocalAutomationCleanup>.Failed(
+            AuthFailure.ConcurrencyConflict);
     }
 }

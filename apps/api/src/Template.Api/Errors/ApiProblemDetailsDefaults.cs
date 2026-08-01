@@ -146,6 +146,66 @@ internal static class ApiProblemDetailsDefaults
                 requestedCode,
                 "Concurrent update conflict",
                 "The resource changed concurrently; retry the operation."),
+            ApiProblemCodes.OrganizationNotFound => new ProblemDefinition(
+                requestedCode,
+                "Organization not found",
+                "The requested organization was not found."),
+            ApiProblemCodes.OrganizationPermissionDenied =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Organization permission denied",
+                    "You do not have permission to perform this organization operation."),
+            ApiProblemCodes.OrganizationNameConflict =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Organization name conflict",
+                    "An accessible organization already uses this name."),
+            ApiProblemCodes.OrganizationSlugConflict =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Organization slug conflict",
+                    "An organization already uses this slug."),
+            ApiProblemCodes.LastOrganizationRequired =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Another organization is required",
+                    "The last accessible organization cannot be deleted."),
+            ApiProblemCodes.OrganizationConfirmationMismatch =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Organization confirmation mismatch",
+                    "The organization confirmation name does not match."),
+            ApiProblemCodes.MemberNotFound => new ProblemDefinition(
+                requestedCode,
+                "Member not found",
+                "The requested organization member was not found."),
+            ApiProblemCodes.TargetUserNotFound => new ProblemDefinition(
+                requestedCode,
+                "Target user not found",
+                "The requested target user was not found."),
+            ApiProblemCodes.MemberAlreadyExists => new ProblemDefinition(
+                requestedCode,
+                "Member already exists",
+                "The target user is already an organization member."),
+            ApiProblemCodes.MemberRoleUnchanged => new ProblemDefinition(
+                requestedCode,
+                "Member role unchanged",
+                "The requested organization member already has this role."),
+            ApiProblemCodes.RoleAssignmentForbidden =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Role assignment forbidden",
+                    "The requested organization role change is not permitted."),
+            ApiProblemCodes.MemberDomainAcknowledgementRequired =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Email domain acknowledgement required",
+                    "The target user's email domain is outside the organization's allowed domains."),
+            ApiProblemCodes.OrganizationOwnershipTransferRequired =>
+                new ProblemDefinition(
+                    requestedCode,
+                    "Organization ownership transfer required",
+                    "Organization ownership must be transferred before this operation."),
             _ => null
         };
         if (custom is not null)

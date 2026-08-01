@@ -434,11 +434,11 @@ public sealed class DataProtectionPersistenceTests(
         return database;
     }
 
-    private static AuthDbContext CreateContext(string connectionString)
+    private static TemplateDbContext CreateContext(string connectionString)
     {
-        var options = new DbContextOptionsBuilder<AuthDbContext>();
-        AuthDbContext.Configure(options, connectionString);
-        return new AuthDbContext(options.Options);
+        var options = new DbContextOptionsBuilder<TemplateDbContext>();
+        TemplateDbContext.Configure(options, connectionString);
+        return new TemplateDbContext(options.Options);
     }
 
     private static IConfiguration CreateProductionConfiguration(

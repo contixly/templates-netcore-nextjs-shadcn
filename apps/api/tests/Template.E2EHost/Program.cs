@@ -28,9 +28,9 @@ await using var postgres = new PostgreSqlBuilder("postgres:18.4")
 await postgres.StartAsync(shutdown.Token);
 
 var connectionString = postgres.GetConnectionString();
-var databaseOptions = new DbContextOptionsBuilder<AuthDbContext>();
-AuthDbContext.Configure(databaseOptions, connectionString);
-await using (var database = new AuthDbContext(databaseOptions.Options))
+var databaseOptions = new DbContextOptionsBuilder<TemplateDbContext>();
+TemplateDbContext.Configure(databaseOptions, connectionString);
+await using (var database = new TemplateDbContext(databaseOptions.Options))
 {
     await database.Database.MigrateAsync(shutdown.Token);
 }
@@ -56,6 +56,7 @@ api.StartInfo.ArgumentList.Add("run");
 api.StartInfo.ArgumentList.Add("--no-launch-profile");
 api.StartInfo.ArgumentList.Add("--project");
 api.StartInfo.ArgumentList.Add(apiProject);
+api.StartInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Test";
 api.StartInfo.Environment["ConnectionStrings__Postgres"] = connectionString;
 api.StartInfo.Environment["LocalAutomationAuth__Enabled"] = "true";
 api.StartInfo.Environment["Testing__AssumeHttpsBoundary"] = "true";

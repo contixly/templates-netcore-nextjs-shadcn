@@ -1,0 +1,227 @@
+{
+  "onboarding": {
+    "title": "Create your first workspace",
+    "description": "You do not have access to any workspaces yet. Create one to open the application.",
+    "createAction": "Create Workspace",
+    "accountAction": "Account settings"
+  },
+  "createDialog": {
+    "title": "Create New Workspace",
+    "description": "Create a workspace for a separate product context.",
+    "trigger": "Create New Workspace",
+    "nameLabel": "Workspace name",
+    "namePlaceholder": "e.g., Work, Personal, Projects",
+    "nameHint": "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
+    "validation": {
+      "required": "Enter a workspace name.",
+      "tooLong": "Use 50 characters or fewer.",
+      "invalidCharacters": "Use letters, numbers, spaces, hyphens, or underscores."
+    },
+    "apiValidation": "Check the workspace name and try again.",
+    "cancel": "Cancel",
+    "submit": "Create",
+    "pending": "Creating",
+    "failure": "The workspace could not be created.",
+    "nameConflict": "Choose a different workspace name."
+  },
+  "list": {
+    "emptyTitle": "No workspaces yet",
+    "emptyDescription": "Create your first workspace to get started.",
+    "loadMore": "Load more workspaces",
+    "loadingMore": "Loading more workspaces",
+    "partialFailureTitle": "Some workspaces could not be loaded.",
+    "partialFailureDescription": "The workspaces already shown are still available. Try loading more again later."
+  },
+  "roles": {
+    "owner": "Owner",
+    "admin": "Administrator",
+    "member": "Member"
+  },
+  "card": {
+    "accessibleName": "{name} workspace",
+    "slugLabel": "Slug",
+    "roleLabel": "Role: {role}",
+    "settings": "Settings",
+    "open": "Open workspace"
+  },
+  "switcher": {
+    "current": "Current workspace: {name}",
+    "title": "Switch workspace",
+    "description": "Choose an accessible workspace.",
+    "switchTo": "Switch to {name}",
+    "pending": "Switching",
+    "manage": "Manage workspaces",
+    "loadMore": "Load more workspaces",
+    "failure": "Unable to switch workspaces right now."
+  },
+  "settings": {
+    "navigation": {
+      "label": "Workspace settings",
+      "workspace": "Workspace",
+      "users": "Users",
+      "roles": "Roles",
+      "loading": "Loading workspace settings"
+    },
+    "pages": {
+      "workspace": {
+        "title": "Workspace settings",
+        "description": "Manage workspace identity and domain policy."
+      },
+      "users": {
+        "title": "Workspace users",
+        "description": "Review members and update built-in roles when permitted."
+      },
+      "roles": {
+        "title": "Workspace roles",
+        "description": "Review the fixed role model for this workspace."
+      }
+    },
+    "workspace": {
+      "identityTitle": "Workspace identity",
+      "identityDescription": "Update the workspace name, canonical slug, and allowed email domains.",
+      "dangerTitle": "Delete workspace",
+      "dangerDescription": "Permanently delete this workspace when another accessible workspace remains."
+    },
+    "form": {
+      "nameLabel": "Workspace Name",
+      "nameHint": "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
+      "slugLabel": "Workspace Slug",
+      "slugHint": "Use lowercase letters and numbers separated by single hyphens.",
+      "domainsLabel": "Allowed Email Domains",
+      "domainsHint": "Enter exact domains on separate lines or separated by commas. Leave empty to allow every domain.",
+      "domainsPreview": "Normalized domains: {domains}",
+      "domainsNone": "none",
+      "readOnlyTitle": "Read-only workspace settings",
+      "readOnlyDescription": "Only workspace administrators and owners can change these details.",
+      "save": "Save",
+      "saving": "Saving",
+      "success": "Workspace settings saved.",
+      "validation": {
+        "nameRequired": "Enter a workspace name.",
+        "nameInvalid": "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
+        "slugInvalid": "Use 1–64 lowercase letters or numbers separated by single hyphens.",
+        "domainsInvalid": "Enter valid exact email domains such as example.com.",
+        "domainsTooMany": "Use no more than 100 distinct email domains."
+      },
+      "failures": {
+        "nameConflict": "Choose a different workspace name.",
+        "slugConflict": "Choose a different workspace slug.",
+        "permissionDenied": "You no longer have permission to update this workspace.",
+        "validation": "Check the workspace details and try again.",
+        "concurrency": "The workspace changed elsewhere. Review the current values and try again.",
+        "generic": "The workspace could not be updated."
+      }
+    },
+    "deleteDialog": {
+      "trigger": "Delete workspace",
+      "title": "Delete workspace?",
+      "description": "This action cannot be undone. The workspace and its memberships will be permanently removed.",
+      "confirmationLabel": "Type \"{name}\" to confirm",
+      "confirmationHint": "The name must match exactly, including capitalization.",
+      "cancel": "Cancel",
+      "confirm": "Permanently delete workspace",
+      "deleting": "Deleting workspace",
+      "failures": {
+        "lastOrganization": "Keep at least one accessible workspace.",
+        "confirmationMismatch": "Type the workspace name exactly as shown.",
+        "permissionDenied": "You no longer have permission to delete this workspace.",
+        "concurrency": "The workspace changed elsewhere. Review it and try again.",
+        "generic": "The workspace could not be deleted."
+      }
+    },
+    "addMemberDialog": {
+      "trigger": "Add member",
+      "title": "Add existing user",
+      "description": "Add an existing account by its exact user ID and choose a built-in role.",
+      "userIdLabel": "User ID",
+      "userIdHint": "Use the exact UUID shown for the existing account.",
+      "userIdInvalid": "Enter an exact UUID user ID.",
+      "roleLabel": "Role",
+      "roleHint": "Only roles you are allowed to assign are available.",
+      "roleInvalid": "Choose an available role.",
+      "domainWarningTitle": "Email domain outside policy",
+      "domainWarningDescription": "{email} ({domain}) is outside the active allowed domains: {domains}. Confirm to add this user anyway.",
+      "unknownEmailDomain": "unknown domain",
+      "cancel": "Cancel",
+      "add": "Add",
+      "adding": "Adding",
+      "confirm": "Confirm add",
+      "failures": {
+        "userNotFound": "No existing account matches that user ID.",
+        "alreadyMember": "That user is already a workspace member.",
+        "roleForbidden": "You cannot assign the selected role.",
+        "permissionDenied": "You no longer have permission to add members.",
+        "validation": "Check the user ID and role, then try again.",
+        "concurrency": "Workspace membership changed elsewhere. Try again.",
+        "generic": "The member could not be added."
+      }
+    },
+    "members": {
+      "outsideSummaryTitle": "Members outside allowed domains",
+      "outsideSummaryDescription": "{count, plural, one {# visible member is} other {# visible members are}} outside the active domain policy. Existing memberships are unchanged.",
+      "outsidePolicy": "Outside domain policy",
+      "currentTitle": "Your access",
+      "currentDescription": "Your own workspace membership is shown separately and cannot be changed here.",
+      "you": "You",
+      "othersTitle": "Other members",
+      "othersDescription": "Members other than you remain in the order returned by the workspace directory.",
+      "readOnly": "Only workspace administrators and owners can add people or change roles.",
+      "emptyTitle": "No other members",
+      "emptyDescription": "You are the only visible member in this workspace.",
+      "memberLabel": "{name} workspace member",
+      "joined": "Joined {date}",
+      "roleLabel": "Role for {name}",
+      "loadMore": "Load more members",
+      "loadingMore": "Loading members",
+      "loadFailure": "Members could not be loaded.",
+      "addSuccess": "Member added.",
+      "roleSuccess": "Member role updated.",
+      "refreshFailure": "The member change was saved, but the directory could not be refreshed.",
+      "retryRefresh": "Retry member directory refresh",
+      "refreshing": "Refreshing member directory",
+      "roleFailures": {
+        "unchanged": "Choose a different role.",
+        "forbidden": "You cannot assign that role to this member.",
+        "notFound": "This member is no longer available.",
+        "concurrency": "Workspace membership changed elsewhere. Try again.",
+        "generic": "The member role could not be updated."
+      }
+    },
+    "roles": {
+      "owner": {
+        "title": "Owner",
+        "summary": "Full workspace administration.",
+        "description": "Owners can update settings, add members, assign every built-in role, and delete the workspace when another accessible workspace remains."
+      },
+      "admin": {
+        "title": "Administrator",
+        "summary": "Workspace and member administration without ownership control.",
+        "description": "Administrators can update settings, add members, and assign Member or Administrator. They cannot assign or change Owner."
+      },
+      "member": {
+        "title": "Member",
+        "summary": "Read-only workspace administration context.",
+        "description": "Members can review safe workspace and directory details but cannot update settings, add members, change roles, or delete the workspace."
+      },
+      "fixedNotice": "These three roles are fixed for this release. Custom roles are not available."
+    }
+  },
+  "pages": {
+    "workspaces": {
+      "title": "Workspaces",
+      "description": "Create and open your accessible workspaces.",
+      "loading": "Loading workspaces"
+    },
+    "dashboard": {
+      "title": "Workspace dashboard",
+      "description": "Current workspace context.",
+      "name": "Workspace",
+      "slug": "Slug",
+      "loading": "Loading workspace dashboard"
+    }
+  },
+  "failure": {
+    "title": "Workspaces are unavailable",
+    "description": "Try again later."
+  }
+}

@@ -8,6 +8,10 @@ namespace Template.Api.Tests;
 public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     : IClassFixture<ApiWebApplicationFactory>
 {
+    private const string CanonicalUuidPattern =
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
+        "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+
     [Fact]
     public async Task TestHostPublishesVersionedOpenApi31Contract()
     {
@@ -141,6 +145,29 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
 
         var schemes = document["components"]!["securitySchemes"]!.AsObject();
         Assert.Equal(["cookieAuth"], schemes.Select(pair => pair.Key).ToArray());
+    }
+
+    [Fact]
+    public async Task AccountCleanupOperationsPublishReachableConflictProblems()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var paths = document["paths"]!;
+
+        foreach (var operation in new[]
+                 {
+                     paths["/api/v1/account"]!["delete"]!,
+                     paths["/api/local-auth/scenario"]!["delete"]!
+                 })
+        {
+            var conflict = operation["responses"]!["409"];
+            Assert.NotNull(conflict);
+            AssertSchemaReference(
+                conflict,
+                "ProblemDetails");
+        }
     }
 
     [Fact]
@@ -647,6 +674,509 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task OrganizationOperationsPublishStableIdsCookieCsrfAndExactResponses()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        var operations = new[]
+        {
+            new
+            {
+                Path = "/api/v1/organizations",
+                Method = "get",
+                OperationId = "GetOrganizations",
+                SuccessStatus = "200",
+                Envelope = "ApiResponseOfOrganizationPageResponse",
+                ProblemStatuses = new[] { "400", "401", "405", "500" },
+                Mutation = false,
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations",
+                Method = "post",
+                OperationId = "CreateOrganization",
+                SuccessStatus = "201",
+                Envelope = "ApiResponseOfOrganizationDetailResponse",
+                ProblemStatuses = new[] { "400", "401", "405", "409", "500" },
+                Mutation = true,
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations/by-key/{organizationKey}",
+                Method = "get",
+                OperationId = "GetOrganizationByKey",
+                SuccessStatus = "200",
+                Envelope = "ApiResponseOfOrganizationDetailResponse",
+                ProblemStatuses = new[] { "401", "404", "405", "409", "500" },
+                Mutation = false,
+                BadRequestIsUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}",
+                Method = "patch",
+                OperationId = "UpdateOrganization",
+                SuccessStatus = "200",
+                Envelope = "ApiResponseOfOrganizationDetailResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                Mutation = true,
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}",
+                Method = "delete",
+                OperationId = "DeleteOrganization",
+                SuccessStatus = "200",
+                Envelope = "ApiResponseOfOrganizationDeletionResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                Mutation = true,
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/auth/session/active-organization",
+                Method = "put",
+                OperationId = "SetActiveOrganization",
+                SuccessStatus = "200",
+                Envelope = "ApiResponseOfActiveOrganizationResponse",
+                ProblemStatuses = new[] { "400", "401", "404", "405", "409", "500" },
+                Mutation = true,
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}/members",
+                Method = "get",
+                OperationId = "GetOrganizationMembers",
+                SuccessStatus = "200",
+                Envelope = "ApiResponseOfOrganizationMemberPageResponse",
+                ProblemStatuses = new[] { "400", "401", "404", "405", "409", "500" },
+                Mutation = false,
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}/members",
+                Method = "post",
+                OperationId = "AddOrganizationMember",
+                SuccessStatus = "201",
+                Envelope = "ApiResponseOfOrganizationMemberResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                Mutation = true,
+                BadRequestIsUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}/members/{memberId}",
+                Method = "patch",
+                OperationId = "UpdateOrganizationMemberRole",
+                SuccessStatus = "200",
+                Envelope = "ApiResponseOfOrganizationMemberResponse",
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "500" },
+                Mutation = true,
+                BadRequestIsUnion = true
+            }
+        };
+
+        foreach (var expected in operations)
+        {
+            var operation = AssertOperation(
+                document,
+                expected.Path,
+                expected.Method,
+                expected.OperationId);
+            AssertCookieSecurity(operation);
+            if (expected.Mutation)
+            {
+                AssertRequiredHeader(operation, "X-CSRF-TOKEN");
+                Assert.True(
+                    operation["requestBody"]!["required"]!.GetValue<bool>());
+                Assert.Equal(
+                    ["application/json"],
+                    operation["requestBody"]!["content"]!.AsObject()
+                        .Select(content => content.Key)
+                        .ToArray());
+            }
+
+            var responses = operation["responses"]!;
+            Assert.Equal(
+                new[] { expected.SuccessStatus }
+                    .Concat(expected.ProblemStatuses)
+                    .Order(StringComparer.Ordinal),
+                responses.AsObject().Select(response => response.Key)
+                    .Order(StringComparer.Ordinal));
+            Assert.Equal(
+                $"#/components/schemas/{expected.Envelope}",
+                responses[expected.SuccessStatus]!["content"]!["application/json"]!
+                    ["schema"]!["$ref"]!.GetValue<string>());
+
+            foreach (var status in expected.ProblemStatuses)
+            {
+                if (status == "400" && expected.BadRequestIsUnion)
+                {
+                    AssertSchemaUnion(
+                        responses[status]!,
+                        "ProblemDetails",
+                        "HttpValidationProblemDetails");
+                }
+                else
+                {
+                    AssertSchemaReference(
+                        responses[status]!,
+                        "ProblemDetails");
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task OrganizationMemberListPublishesItsConcurrencyConflictButNoForbiddenResponse()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var responses = AssertOperation(
+            document,
+            "/api/v1/organizations/{organizationId}/members",
+            "get",
+            "GetOrganizationMembers")["responses"]!;
+
+        Assert.NotNull(responses["409"]);
+        AssertSchemaReference(responses["409"]!, "ProblemDetails");
+        Assert.Null(responses["403"]);
+    }
+
+    [Fact]
+    public async Task OrganizationCreatedResponsesPublishRequiredLocationHeaders()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        foreach (var operation in new[]
+                 {
+                     AssertOperation(
+                         document,
+                         "/api/v1/organizations",
+                         "post",
+                         "CreateOrganization"),
+                     AssertOperation(
+                         document,
+                         "/api/v1/organizations/{organizationId}/members",
+                         "post",
+                         "AddOrganizationMember")
+                 })
+        {
+            var location = operation["responses"]!["201"]!["headers"]!["Location"]!;
+            Assert.True(location["required"]!.GetValue<bool>());
+            Assert.Equal(
+                "string",
+                location["schema"]!["type"]!.GetValue<string>());
+            Assert.Equal(
+                "uri-reference",
+                location["schema"]!["format"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
+    public async Task OrganizationKeyPublishesUuidOrCanonicalSlugAlternatives()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var operation = AssertOperation(
+            document,
+            "/api/v1/organizations/by-key/{organizationKey}",
+            "get",
+            "GetOrganizationByKey");
+        var parameter = Assert.Single(
+            operation["parameters"]!.AsArray(),
+            value => value!["name"]!.GetValue<string>() == "organizationKey");
+        var alternatives = parameter!["schema"]!["oneOf"]!.AsArray();
+        Assert.Equal(2, alternatives.Count);
+
+        var uuid = alternatives[0]!;
+        Assert.Equal("string", uuid["type"]!.GetValue<string>());
+        Assert.Equal("uuid", uuid["format"]!.GetValue<string>());
+        const string canonicalUuidPattern =
+            "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
+            "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
+        Assert.Equal(
+            canonicalUuidPattern,
+            uuid["pattern"]!.GetValue<string>());
+
+        var slug = alternatives[1]!;
+        Assert.Equal("string", slug["type"]!.GetValue<string>());
+        Assert.Equal(1, slug["minLength"]!.GetValue<int>());
+        Assert.Equal(64, slug["maxLength"]!.GetValue<int>());
+        Assert.Equal(
+            "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            slug["pattern"]!.GetValue<string>());
+        Assert.Equal(
+            "string",
+            slug["not"]!["type"]!.GetValue<string>());
+        Assert.Equal(
+            canonicalUuidPattern,
+            slug["not"]!["pattern"]!.GetValue<string>());
+        const string uuidShapedKey = "01900000-0000-7000-8000-000000000001";
+        Assert.Matches(canonicalUuidPattern, uuidShapedKey);
+        Assert.Matches(
+            slug["pattern"]!.GetValue<string>(),
+            uuidShapedKey);
+        Assert.Matches(
+            slug["not"]!["pattern"]!.GetValue<string>(),
+            uuidShapedKey);
+        Assert.Equal(
+            "Canonical organization UUID or lowercase non-UUID-shaped slug. " +
+            "UUID keys resolve only by organization ID. The response canonicalKey " +
+            "is always the preferred slug.",
+            parameter["schema"]!["description"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task OrganizationRequestsPublishStrictValidationAndClosedRoles()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+
+        foreach (var requestName in new[]
+                 {
+                     "CreateOrganizationRequest",
+                     "UpdateOrganizationRequest",
+                     "DeleteOrganizationRequest",
+                     "SetActiveOrganizationRequest",
+                     "AddOrganizationMemberRequest",
+                     "UpdateOrganizationMemberRoleRequest"
+                 })
+        {
+            Assert.False(
+                schemas[requestName]!["additionalProperties"]!.GetValue<bool>());
+        }
+
+        var create = schemas["CreateOrganizationRequest"]!;
+        AssertRequiredNonNullProperties(create, "name");
+        AssertTrimmedString(
+            create["properties"]!["name"]!,
+            minimum: 1,
+            maximum: 50);
+        var organizationNamePattern = create["properties"]!["name"]!
+            ["x-trimmed-pattern"]!.GetValue<string>();
+        Assert.Equal(
+            """^[\p{L}\p{Nd} _-]+$""",
+            organizationNamePattern);
+        Assert.Matches(organizationNamePattern, "Workspace ٣");
+        Assert.DoesNotMatch(organizationNamePattern, "Workspace Ⅻ");
+        Assert.DoesNotMatch(organizationNamePattern, "Workspace ²");
+
+        var update = schemas["UpdateOrganizationRequest"]!;
+        Assert.Equal(1, update["minProperties"]!.GetValue<int>());
+        var nonNullAlternatives = update["anyOf"]!.AsArray();
+        Assert.Equal(
+            ["name", "slug", "allowedEmailDomains"],
+            nonNullAlternatives.Select(
+                alternative => Assert.Single(
+                    alternative!["required"]!.AsArray())!.GetValue<string>()));
+        foreach (var alternative in nonNullAlternatives)
+        {
+            var propertyName = Assert.Single(
+                alternative!["required"]!.AsArray())!.GetValue<string>();
+            Assert.DoesNotContain(
+                "null",
+                EnumerateSchemaTypes(
+                    alternative["properties"]![propertyName]!));
+        }
+        AssertTrimmedString(
+            update["properties"]!["name"]!,
+            minimum: 1,
+            maximum: 50);
+        AssertTrimmedString(
+            update["properties"]!["slug"]!,
+            minimum: 1,
+            maximum: 64);
+        Assert.Equal(
+            "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            update["properties"]!["slug"]!["x-trimmed-pattern"]!
+                .GetValue<string>());
+        Assert.Equal(
+            CanonicalUuidPattern,
+            update["properties"]!["slug"]!["x-trimmed-not-pattern"]!
+                .GetValue<string>());
+        var allowedEmailDomains =
+            update["properties"]!["allowedEmailDomains"]!;
+        Assert.Equal(
+            100,
+            allowedEmailDomains["maxItems"]!.GetValue<int>());
+        var domain = allowedEmailDomains["items"]!;
+        Assert.Null(domain["maxLength"]);
+        Assert.Equal(
+            253,
+            domain["x-trimmed-max-length"]!.GetValue<int>());
+        Assert.Equal(
+            "email-domain",
+            domain["x-trimmed-format"]!.GetValue<string>());
+
+        var delete = schemas["DeleteOrganizationRequest"]!;
+        AssertRequiredNonNullProperties(delete, "confirmationName");
+        Assert.Equal(
+            1,
+            delete["properties"]!["confirmationName"]!["minLength"]!
+                .GetValue<int>());
+        Assert.Equal(
+            50,
+            delete["properties"]!["confirmationName"]!["maxLength"]!
+                .GetValue<int>());
+
+        AssertRequiredNonNullProperties(
+            schemas["SetActiveOrganizationRequest"]!,
+            "organizationId");
+        Assert.Equal(
+            "uuid",
+            schemas["SetActiveOrganizationRequest"]!["properties"]!
+                ["organizationId"]!["format"]!.GetValue<string>());
+
+        var addMember = schemas["AddOrganizationMemberRequest"]!;
+        AssertRequiredNonNullProperties(addMember, "userId", "role");
+        Assert.Equal(
+            "uuid",
+            addMember["properties"]!["userId"]!["format"]!.GetValue<string>());
+        AssertStringEnum(
+            addMember["properties"]!["role"]!,
+            "member",
+            "admin",
+            "owner");
+        AssertStringEnum(
+            schemas["UpdateOrganizationMemberRoleRequest"]!["properties"]!["role"]!,
+            "member",
+            "admin",
+            "owner");
+        AssertRequiredNonNullProperties(
+            schemas["UpdateOrganizationMemberRoleRequest"]!,
+            "role");
+    }
+
+    [Fact]
+    public async Task OrganizationProjectionsPaginationAndPathsPublishClosedSchemas()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+
+        foreach (var (schemaName, roleProperty) in new[]
+                 {
+                     ("OrganizationSummaryResponse", "currentRole"),
+                     ("OrganizationDetailResponse", "currentRole"),
+                     ("OrganizationMemberResponse", "role")
+                 })
+        {
+            AssertStringEnum(
+                schemas[schemaName]!["properties"]![roleProperty]!,
+                "member",
+                "admin",
+                "owner");
+        }
+
+        foreach (var schemaName in new[]
+                 {
+                     "OrganizationSummaryResponse",
+                     "OrganizationDetailResponse"
+                 })
+        {
+            var properties = schemas[schemaName]!["properties"]!;
+            Assert.Equal("uuid", properties["id"]!["format"]!.GetValue<string>());
+            Assert.Equal(
+                "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                properties["slug"]!["pattern"]!.GetValue<string>());
+            Assert.Equal(64, properties["slug"]!["maxLength"]!.GetValue<int>());
+            Assert.Equal(
+                CanonicalUuidPattern,
+                properties["slug"]!["not"]!["pattern"]!.GetValue<string>());
+            Assert.Equal(
+                "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+                properties["canonicalKey"]!["pattern"]!.GetValue<string>());
+            Assert.Equal(
+                CanonicalUuidPattern,
+                properties["canonicalKey"]!["not"]!["pattern"]!
+                    .GetValue<string>());
+        }
+
+        var member = schemas["OrganizationMemberResponse"]!["properties"]!;
+        Assert.Equal("uuid", member["id"]!["format"]!.GetValue<string>());
+        Assert.Equal("uuid", member["userId"]!["format"]!.GetValue<string>());
+        Assert.Equal("email", member["email"]!["format"]!.GetValue<string>());
+        Assert.Equal("uri", member["imageUrl"]!["format"]!.GetValue<string>());
+        Assert.Equal("https", member["imageUrl"]!["x-uri-scheme"]!.GetValue<string>());
+
+        AssertPagination(
+            AssertOperation(
+                document,
+                "/api/v1/organizations",
+                "get",
+                "GetOrganizations"),
+            minimum: 1,
+            maximum: 100,
+            defaultValue: 50,
+            cursorDescription:
+                "Opaque versioned cursor returned by the preceding page. " +
+                "Organizations are ordered by the actor membership's immutable " +
+                "joinedAt and membership id.");
+        AssertPagination(
+            AssertOperation(
+                document,
+                "/api/v1/organizations/{organizationId}/members",
+                "get",
+                "GetOrganizationMembers"),
+            minimum: 1,
+            maximum: 100,
+            defaultValue: 50,
+            cursorDescription:
+                "Opaque versioned cursor returned by the preceding page. " +
+                "Members are ordered by immutable joinedAt and member id.");
+
+        foreach (var (path, method, parameterName) in new[]
+                 {
+                     ("/api/v1/organizations/{organizationId}", "patch", "organizationId"),
+                     ("/api/v1/organizations/{organizationId}", "delete", "organizationId"),
+                     ("/api/v1/organizations/{organizationId}/members", "get", "organizationId"),
+                     ("/api/v1/organizations/{organizationId}/members", "post", "organizationId"),
+                     ("/api/v1/organizations/{organizationId}/members/{memberId}", "patch", "organizationId"),
+                     ("/api/v1/organizations/{organizationId}/members/{memberId}", "patch", "memberId")
+                 })
+        {
+            var parameter = Assert.Single(
+                document["paths"]![path]![method]!["parameters"]!.AsArray(),
+                value => value!["name"]!.GetValue<string>() == parameterName);
+            Assert.Equal(
+                "uuid",
+                parameter!["schema"]!["format"]!.GetValue<string>());
+        }
+
+        var problem = schemas["ProblemDetails"]!["properties"]!;
+        Assert.Contains("null", EnumerateSchemaTypes(problem["email"]!));
+        Assert.Equal("email", problem["email"]!["format"]!.GetValue<string>());
+        Assert.Contains("null", EnumerateSchemaTypes(problem["emailDomain"]!));
+        Assert.Contains(
+            "null",
+            EnumerateSchemaTypes(problem["allowedEmailDomains"]!));
+        Assert.Equal(
+            "string",
+            problem["allowedEmailDomains"]!["items"]!["type"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task ProblemDetailsPublishesEveryStablePublicCode()
     {
         using var client = factory.CreateApiClient();
@@ -685,7 +1215,20 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             "external_connection_not_found",
             "account_session_not_found",
             "current_session_cannot_be_revoked",
-            "concurrency_conflict");
+            "concurrency_conflict",
+            "organization_ownership_transfer_required",
+            "organization_not_found",
+            "organization_permission_denied",
+            "organization_name_conflict",
+            "organization_slug_conflict",
+            "last_organization_required",
+            "organization_confirmation_mismatch",
+            "member_not_found",
+            "target_user_not_found",
+            "member_already_exists",
+            "member_role_unchanged",
+            "role_assignment_forbidden",
+            "member_domain_acknowledgement_required");
     }
 
     [Fact]
@@ -1032,6 +1575,74 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         var cookie = Assert.Single(requirements[1]!.AsObject());
         Assert.Equal("cookieAuth", cookie.Key);
         Assert.Empty(cookie.Value!.AsArray());
+    }
+
+    private static JsonNode AssertOperation(
+        JsonNode document,
+        string path,
+        string method,
+        string operationId)
+    {
+        var operation = document["paths"]?[path]?[method];
+        Assert.NotNull(operation);
+        Assert.Equal(
+            operationId,
+            operation["operationId"]!.GetValue<string>());
+        return operation;
+    }
+
+    private static void AssertRequiredHeader(
+        JsonNode operation,
+        string headerName)
+    {
+        var header = Assert.Single(
+            operation["parameters"]!.AsArray(),
+            parameter => parameter!["name"]!.GetValue<string>() == headerName);
+        Assert.Equal("header", header!["in"]!.GetValue<string>());
+        Assert.True(header["required"]!.GetValue<bool>());
+        Assert.Equal("string", header["schema"]!["type"]!.GetValue<string>());
+    }
+
+    private static void AssertPagination(
+        JsonNode operation,
+        int minimum,
+        int maximum,
+        int defaultValue,
+        string cursorDescription)
+    {
+        var parameters = operation["parameters"]!.AsArray();
+        var limit = Assert.Single(
+            parameters,
+            parameter => parameter!["name"]!.GetValue<string>() == "limit");
+        Assert.Equal("integer", limit!["schema"]!["type"]!.GetValue<string>());
+        Assert.Equal("int32", limit["schema"]!["format"]!.GetValue<string>());
+        Assert.Equal(minimum, limit["schema"]!["minimum"]!.GetValue<int>());
+        Assert.Equal(maximum, limit["schema"]!["maximum"]!.GetValue<int>());
+        Assert.Equal(defaultValue, limit["schema"]!["default"]!.GetValue<int>());
+
+        var cursor = Assert.Single(
+            parameters,
+            parameter => parameter!["name"]!.GetValue<string>() == "cursor");
+        Assert.NotEqual(true, cursor!["required"]?.GetValue<bool>());
+        Assert.Equal("string", cursor["schema"]!["type"]!.GetValue<string>());
+        Assert.Equal(
+            cursorDescription,
+            cursor["schema"]!["description"]!.GetValue<string>());
+    }
+
+    private static void AssertTrimmedString(
+        JsonNode schema,
+        int minimum,
+        int maximum)
+    {
+        Assert.Null(schema["minLength"]);
+        Assert.Null(schema["maxLength"]);
+        Assert.Equal(
+            minimum,
+            schema["x-trimmed-min-length"]!.GetValue<int>());
+        Assert.Equal(
+            maximum,
+            schema["x-trimmed-max-length"]!.GetValue<int>());
     }
 
     private static void AssertStringEnum(

@@ -10,7 +10,7 @@ using Template.Infrastructure.Persistence;
 namespace Template.Infrastructure.Accounts;
 
 internal sealed class EfAccountStore(
-    AuthDbContext db,
+    TemplateDbContext db,
     TimeProvider timeProvider)
     : IAccountStore
 {
@@ -250,31 +250,9 @@ internal sealed class EfAccountStore(
 
     public async Task DeleteAsync(UserId userId, CancellationToken ct)
     {
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        try
-        {
-            await db.Users
-                .Where(row => row.Id == userId.Value)
-                .ExecuteDeleteAsync(ct);
-            await transaction.CommitAsync(ct);
-        }
-        catch
-        {
-            try
-            {
-                await transaction.RollbackAsync(CancellationToken.None);
-            }
-            catch
-            {
-                // Preserve the delete failure when rollback cannot complete.
-            }
-            finally
-            {
-                db.ChangeTracker.Clear();
-            }
-
-            throw;
-        }
+        await db.Users
+            .Where(row => row.Id == userId.Value)
+            .ExecuteDeleteAsync(ct);
     }
 
     private static ExternalProvider ParseProvider(string value) =>

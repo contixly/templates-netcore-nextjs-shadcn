@@ -18,29 +18,38 @@ internal sealed class ApiExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var (status, code, validationErrors) = exception switch
-        {
-            ApiValidationException validation => (
-                StatusCodes.Status400BadRequest,
-                ApiProblemCodes.ValidationFailed,
-                validation.Errors),
-            ApiProblemException problem => (
-                problem.StatusCode,
-                problem.Code,
-                null),
-            AntiforgeryValidationException => (
-                StatusCodes.Status400BadRequest,
-                ApiProblemCodes.AntiforgeryFailed,
-                null),
-            BadHttpRequestException badRequest => (
-                badRequest.StatusCode,
-                ApiProblemCodes.InvalidRequest,
-                null),
-            _ => (
-                StatusCodes.Status500InternalServerError,
-                ApiProblemCodes.InternalError,
-                null)
-        };
+        (
+            int status,
+            string code,
+            IReadOnlyDictionary<string, string[]>? validationErrors,
+            IReadOnlyDictionary<string, object?>? extensions) = exception switch
+            {
+                ApiValidationException validation => (
+                    StatusCodes.Status400BadRequest,
+                    ApiProblemCodes.ValidationFailed,
+                    validation.Errors,
+                    (IReadOnlyDictionary<string, object?>?)null),
+                ApiProblemException problem => (
+                    problem.StatusCode,
+                    problem.Code,
+                    (IReadOnlyDictionary<string, string[]>?)null,
+                    problem.Extensions),
+                AntiforgeryValidationException => (
+                    StatusCodes.Status400BadRequest,
+                    ApiProblemCodes.AntiforgeryFailed,
+                    (IReadOnlyDictionary<string, string[]>?)null,
+                    (IReadOnlyDictionary<string, object?>?)null),
+                BadHttpRequestException badRequest => (
+                    badRequest.StatusCode,
+                    ApiProblemCodes.InvalidRequest,
+                    (IReadOnlyDictionary<string, string[]>?)null,
+                    (IReadOnlyDictionary<string, object?>?)null),
+                _ => (
+                    StatusCodes.Status500InternalServerError,
+                    ApiProblemCodes.InternalError,
+                    (IReadOnlyDictionary<string, string[]>?)null,
+                    (IReadOnlyDictionary<string, object?>?)null)
+            };
 
         if (status >= StatusCodes.Status500InternalServerError)
         {
@@ -49,7 +58,7 @@ internal sealed class ApiExceptionHandler(
                 UnhandledExceptionEvent,
                 "Unhandled API exception {ExceptionType} for {Path} with trace {TraceId}",
                 exception.GetType().FullName ?? exception.GetType().Name,
-                httpContext.Request.Path.Value ?? "/",
+                RequestLoggingMiddleware.SafePath(httpContext),
                 CorrelationIdMiddleware.GetTraceId(httpContext));
         }
         else
@@ -66,10 +75,42 @@ internal sealed class ApiExceptionHandler(
                 Status = status
             };
         details.Extensions["code"] = code;
+        if (extensions is not null)
+        {
+            CopySafeExtensions(details, extensions);
+        }
+
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
             ProblemDetails = details
         });
+    }
+
+    private static void CopySafeExtensions(
+        ProblemDetails details,
+        IReadOnlyDictionary<string, object?> extensions)
+    {
+        foreach (var (name, value) in extensions)
+        {
+            if (name is not "email" and not "emailDomain"
+                and not "allowedEmailDomains")
+            {
+                continue;
+            }
+
+            if (value is null or string or bool
+                or byte or sbyte or short or ushort or int or uint
+                or long or ulong or float or double or decimal)
+            {
+                details.Extensions[name] = value;
+                continue;
+            }
+
+            if (value is IReadOnlyList<string> strings)
+            {
+                details.Extensions[name] = strings.ToArray();
+            }
+        }
     }
 }

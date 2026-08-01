@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Template.Api.Authentication;
 using Template.Api.Contracts;
 using Template.Api.Endpoints;
@@ -93,6 +94,9 @@ internal sealed class AccountEndpointModule : IEndpointModule
             .RequireApiAntiforgery()
             .Produces<ApiResponse<AccountDeletionResponse>>()
             .ProducesBadRequestVariants()
+            .Produces<ProblemDetails>(
+                StatusCodes.Status409Conflict,
+                OpenApiDefaults.ProblemContentType)
             .ProducesProtectedApiProblems();
     }
 
@@ -421,6 +425,22 @@ internal sealed class AccountEndpointModule : IEndpointModule
                 throw ConfirmationValidationException();
             }
 
+            if (result.Failure ==
+                AccountFailure.OrganizationOwnershipTransferRequired)
+            {
+                throw new ApiProblemException(
+                    StatusCodes.Status409Conflict,
+                    ApiProblemCodes
+                        .OrganizationOwnershipTransferRequired);
+            }
+
+            if (result.Failure == AccountFailure.ConcurrencyConflict)
+            {
+                throw new ApiProblemException(
+                    StatusCodes.Status409Conflict,
+                    ApiProblemCodes.ConcurrencyConflict);
+            }
+
             throw new ApiProblemException(
                 StatusCodes.Status401Unauthorized,
                 ApiProblemCodes.Unauthorized);
@@ -630,6 +650,8 @@ internal sealed class AccountEndpointModule : IEndpointModule
                 ApiProblemCodes.ValidationFailed,
             AccountFailure.SessionRequired =>
                 ApiProblemCodes.Unauthorized,
+            AccountFailure.OrganizationOwnershipTransferRequired =>
+                ApiProblemCodes.OrganizationOwnershipTransferRequired,
             _ => failure.ToString()
         };
 

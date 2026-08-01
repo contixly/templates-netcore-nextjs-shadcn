@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { waitForInteraction } from "./support/app-readiness";
+
 const webOrigin = "http://127.0.0.1:3127";
 const browserStatusPath = "/api/v1/system/status";
 
@@ -84,7 +86,9 @@ test("browser Problem Details is safe and retry restores success", async ({
   await expect(browserRegion).not.toContainText("Invariant internal title");
 
   await page.unroute(routePattern);
-  await browserRegion.getByRole("button", { name: "Retry" }).click();
+  const retry = browserRegion.getByRole("button", { name: "Retry" });
+  await waitForInteraction(retry);
+  await retry.click();
 
   await expect(browserRegion).toContainText("API is available");
   await expect(browserRegion).toContainText("browser");
@@ -94,7 +98,7 @@ test("theme toggle is keyboard accessible", async ({ page }) => {
   await page.goto("/");
 
   const toggle = page.getByRole("button", { name: "Switch to dark theme" });
-  await expect(toggle).toBeEnabled();
+  await waitForInteraction(toggle);
   await toggle.focus();
   await page.keyboard.press("Enter");
 

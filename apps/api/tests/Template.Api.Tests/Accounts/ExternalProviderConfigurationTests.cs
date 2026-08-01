@@ -202,8 +202,8 @@ public sealed class ExternalProviderConfigurationTests
         services.AddDataProtection();
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton(TimeProvider.System);
-        services.AddDbContext<AuthDbContext>(options =>
-            AuthDbContext.Configure(
+        services.AddDbContext<TemplateDbContext>(options =>
+            TemplateDbContext.Configure(
                 options,
                 "Host=localhost;Database=unused;Username=unused;Password=unused"));
         services.AddOpenIddictExternalClient(

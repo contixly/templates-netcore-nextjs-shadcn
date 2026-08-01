@@ -36,6 +36,9 @@ jest.mock("@/src/components/authentication/auth-api-failure", () => ({
     <section role="alert">Authentication is unavailable</section>
   ),
 }));
+jest.mock("@/src/components/authentication/logout-button", () => ({
+  LogoutButton: () => <button type="button">Log out</button>,
+}));
 
 const loadSession = jest.mocked(loadServerAuthSession);
 const redirect = jest.mocked(jest.requireMock("next/navigation").redirect);
@@ -166,6 +169,7 @@ it("renders protected children only after server-confirmed authentication", asyn
         createdAt: "2026-07-29T00:00:00Z",
         updatedAt: "2026-07-29T00:00:00Z",
         expiresAt: "2026-08-05T00:00:00Z",
+        activeOrganizationId: null,
       },
     },
   });
@@ -180,6 +184,7 @@ it("renders protected children only after server-confirmed authentication", asyn
   expect(
     screen.getByRole("navigation", { name: "Account settings" }),
   ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Log out" })).toBeVisible();
 });
 
 it("places the async auth gate below a localized suspense boundary", async () => {

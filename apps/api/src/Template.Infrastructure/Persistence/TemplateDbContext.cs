@@ -4,10 +4,11 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.EntityFrameworkCore.Models;
 using Template.Infrastructure.Identity;
+using Template.Infrastructure.Organizations;
 
 namespace Template.Infrastructure.Persistence;
 
-public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
+public sealed class TemplateDbContext(DbContextOptions<TemplateDbContext> options)
     : IdentityUserContext<
         ApplicationUser,
         Guid,
@@ -20,6 +21,11 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
 
     public DbSet<AuthSessionEntity> Sessions => Set<AuthSessionEntity>();
     public DbSet<UserEmailEntity> UserEmails => Set<UserEmailEntity>();
+    public DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
+    public DbSet<OrganizationMemberEntity> OrganizationMembers =>
+        Set<OrganizationMemberEntity>();
+    public DbSet<OrganizationAllowedEmailDomainEntity> OrganizationAllowedEmailDomains =>
+        Set<OrganizationAllowedEmailDomainEntity>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<OpenIddictEntityFrameworkCoreToken> OpenIddictTokens =>
         Set<OpenIddictEntityFrameworkCoreToken>();
@@ -37,6 +43,10 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
     {
         base.OnModelCreating(builder);
         builder.HasDefaultSchema(Schema);
+        builder.ApplyConfiguration(new OrganizationEntityConfiguration());
+        builder.ApplyConfiguration(new OrganizationMemberEntityConfiguration());
+        builder.ApplyConfiguration(
+            new OrganizationAllowedEmailDomainEntityConfiguration());
 
         builder.Entity<ApplicationUser>(entity =>
         {
@@ -155,6 +165,8 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
             entity.HasKey(value => value.Id).HasName("pk_sessions");
             entity.Property(value => value.Id).HasColumnName("id");
             entity.Property(value => value.UserId).HasColumnName("user_id");
+            entity.Property(value => value.ActiveOrganizationId)
+                .HasColumnName("active_organization_id");
             entity.Property(value => value.TicketKeyHash)
                 .HasColumnName("ticket_key_hash")
                 .HasColumnType("bytea");
@@ -185,6 +197,8 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
                 .HasDatabaseName("ux_sessions_ticket_key_hash");
             entity.HasIndex(value => value.UserId)
                 .HasDatabaseName("ix_sessions_user_id");
+            entity.HasIndex(value => value.ActiveOrganizationId)
+                .HasDatabaseName("ix_sessions_active_organization_id");
             entity.HasIndex(value => value.ExpiresAt)
                 .HasDatabaseName("ix_sessions_expires_at");
             entity.HasOne<ApplicationUser>()
@@ -192,6 +206,12 @@ public sealed class AuthDbContext(DbContextOptions<AuthDbContext> options)
                 .HasForeignKey(value => value.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_sessions_users_user_id");
+            entity.HasOne<OrganizationEntity>()
+                .WithMany()
+                .HasForeignKey(value => value.ActiveOrganizationId)
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName(
+                    "fk_sessions_organizations_active_organization_id");
         });
 
         builder.Entity<UserEmailEntity>(entity =>

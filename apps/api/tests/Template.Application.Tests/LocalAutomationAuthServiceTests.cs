@@ -1,5 +1,7 @@
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
+using Template.Application.Common.Ports;
+using Template.Application.Organizations.Ports;
 using Template.Domain.Authentication;
 
 namespace Template.Application.Tests;
@@ -15,7 +17,7 @@ public sealed class LocalAutomationAuthServiceTests
             new("First User", "local-agent+first@local-agent.test", "local-first-password"),
             new("Second User", "local-agent+second@local-agent.test", "local-second-password"));
         var transactions = new CountingUnitOfWork();
-        var service = new LocalAutomationAuthService(
+        var service = CreateService(
             identities,
             sessions,
             generator,
@@ -37,7 +39,7 @@ public sealed class LocalAutomationAuthServiceTests
     {
         var identities = new FakeIdentityGateway { DuplicateCreatesRemaining = 1 };
         var transactions = new CountingUnitOfWork();
-        var service = new LocalAutomationAuthService(
+        var service = CreateService(
             identities,
             new FakeBrowserSessionGateway(),
             new QueueCredentialGenerator(
@@ -68,7 +70,7 @@ public sealed class LocalAutomationAuthServiceTests
         };
         var sessions = new FakeBrowserSessionGateway();
         var transactions = new CountingUnitOfWork();
-        var service = new LocalAutomationAuthService(
+        var service = CreateService(
             identities,
             sessions,
             new QueueCredentialGenerator(
@@ -95,7 +97,7 @@ public sealed class LocalAutomationAuthServiceTests
     public async Task SignInOutsideNamespaceIsGenericInvalidCredentials()
     {
         var identities = new FakeIdentityGateway();
-        var service = new LocalAutomationAuthService(
+        var service = CreateService(
             identities,
             new FakeBrowserSessionGateway(),
             new QueueCredentialGenerator(
@@ -121,7 +123,7 @@ public sealed class LocalAutomationAuthServiceTests
             Current = TestIdentity.Session(isLocalAutomation: false)
         };
         var identities = new FakeIdentityGateway();
-        var service = new LocalAutomationAuthService(
+        var service = CreateService(
             identities,
             sessions,
             new QueueCredentialGenerator(
@@ -137,6 +139,154 @@ public sealed class LocalAutomationAuthServiceTests
         Assert.Equal(0, identities.DeleteAttempts);
     }
 
+    [Fact]
+    public async Task CleanupReturnsDeletedOrganizationCount()
+    {
+        var current = TestIdentity.Session(isLocalAutomation: true);
+        var sessions = new FakeBrowserSessionGateway { Current = current };
+        var identities = new FakeIdentityGateway();
+        var lifecycle = new FakeOrganizationUserLifecycleStore
+        {
+            Preparation = new(
+                DeletedOrganizations: 2,
+                OwnershipTransferRequired: false)
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(
+            identities,
+            sessions,
+            new QueueCredentialGenerator(
+                new LocalAutomationCredentials(
+                    "Generated",
+                    "local-agent+generated@local-agent.test",
+                    "local-generated-password")),
+            transactions,
+            lifecycle);
+
+        var result = await service.CleanupAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, result.Value!.DeletedOrganizations);
+        Assert.Equal(current.User.Id, Assert.Single(lifecycle.PreparedUserIds));
+        Assert.Equal(1, identities.DeleteAttempts);
+        Assert.Equal(1, sessions.SignOutCalls);
+        Assert.Equal(1, transactions.Executions);
+    }
+
+    [Fact]
+    public async Task CleanupTransferRequirementDoesNotPartiallyDeleteOrSignOut()
+    {
+        var current = TestIdentity.Session(isLocalAutomation: true);
+        var sessions = new FakeBrowserSessionGateway { Current = current };
+        var identities = new FakeIdentityGateway();
+        var lifecycle = new FakeOrganizationUserLifecycleStore
+        {
+            Preparation = new(
+                DeletedOrganizations: 0,
+                OwnershipTransferRequired: true)
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(
+            identities,
+            sessions,
+            new QueueCredentialGenerator(
+                new LocalAutomationCredentials(
+                    "Generated",
+                    "local-agent+generated@local-agent.test",
+                    "local-generated-password")),
+            transactions,
+            lifecycle);
+
+        var result = await service.CleanupAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(
+            AuthFailure.OrganizationOwnershipTransferRequired,
+            result.Failure);
+        Assert.Equal(current.User.Id, Assert.Single(lifecycle.PreparedUserIds));
+        Assert.Equal(0, identities.DeleteAttempts);
+        Assert.Equal(0, sessions.SignOutCalls);
+        Assert.Equal(1, transactions.Executions);
+    }
+
+    [Fact]
+    public async Task CleanupRetriesLifecycleMembershipDrift()
+    {
+        var current = TestIdentity.Session(isLocalAutomation: true);
+        var sessions = new FakeBrowserSessionGateway { Current = current };
+        var identities = new FakeIdentityGateway();
+        var lifecycle = new FakeOrganizationUserLifecycleStore
+        {
+            ConcurrencyFailuresRemaining = 1
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(
+            identities,
+            sessions,
+            new QueueCredentialGenerator(
+                new LocalAutomationCredentials(
+                    "Generated",
+                    "local-agent+generated@local-agent.test",
+                    "local-generated-password")),
+            transactions,
+            lifecycle);
+
+        var result = await service.CleanupAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, lifecycle.PreparedUserIds.Count);
+        Assert.Equal(1, identities.DeleteAttempts);
+        Assert.Equal(1, sessions.SignOutCalls);
+        Assert.Equal(2, transactions.Executions);
+    }
+
+    [Fact]
+    public async Task RepeatedCleanupMembershipDriftMapsConcurrency()
+    {
+        var current = TestIdentity.Session(isLocalAutomation: true);
+        var sessions = new FakeBrowserSessionGateway { Current = current };
+        var identities = new FakeIdentityGateway();
+        var lifecycle = new FakeOrganizationUserLifecycleStore
+        {
+            ConcurrencyFailuresRemaining = int.MaxValue
+        };
+        var transactions = new CountingUnitOfWork();
+        var service = CreateService(
+            identities,
+            sessions,
+            new QueueCredentialGenerator(
+                new LocalAutomationCredentials(
+                    "Generated",
+                    "local-agent+generated@local-agent.test",
+                    "local-generated-password")),
+            transactions,
+            lifecycle);
+
+        var result = await service.CleanupAsync(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(AuthFailure.ConcurrencyConflict, result.Failure);
+        Assert.Equal(3, lifecycle.PreparedUserIds.Count);
+        Assert.Equal(0, identities.DeleteAttempts);
+        Assert.Equal(0, sessions.SignOutCalls);
+        Assert.Equal(3, transactions.Executions);
+    }
+
+    private static LocalAutomationAuthService CreateService(
+        ILocalIdentityGateway identities,
+        IBrowserSessionGateway sessions,
+        ILocalAutomationCredentialGenerator generator,
+        IApplicationUnitOfWork transactions,
+        IOrganizationUserLifecycleStore? lifecycle = null) =>
+        new(
+            identities,
+            sessions,
+            generator,
+            transactions,
+            lifecycle ?? new FakeOrganizationUserLifecycleStore());
+
     private sealed class QueueCredentialGenerator(
         params LocalAutomationCredentials[] credentials)
         : ILocalAutomationCredentialGenerator
@@ -146,7 +296,7 @@ public sealed class LocalAutomationAuthServiceTests
         public LocalAutomationCredentials Generate() => _credentials.Dequeue();
     }
 
-    private sealed class CountingUnitOfWork : IAuthenticationUnitOfWork
+    private sealed class CountingUnitOfWork : IApplicationUnitOfWork
     {
         public int Executions { get; private set; }
 
@@ -234,6 +384,28 @@ public sealed class LocalAutomationAuthServiceTests
         {
             SignOutCalls++;
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeOrganizationUserLifecycleStore
+        : IOrganizationUserLifecycleStore
+    {
+        public int ConcurrencyFailuresRemaining { get; set; }
+        public OrganizationUserDeletionPreparation Preparation { get; init; } =
+            new(DeletedOrganizations: 0, OwnershipTransferRequired: false);
+        public List<UserId> PreparedUserIds { get; } = [];
+
+        public Task<OrganizationUserDeletionPreparation> PrepareDeletionAsync(
+            UserId userId,
+            CancellationToken cancellationToken)
+        {
+            PreparedUserIds.Add(userId);
+            if (ConcurrencyFailuresRemaining-- > 0)
+            {
+                throw new OrganizationUserLifecycleConcurrencyException();
+            }
+
+            return Task.FromResult(Preparation);
         }
     }
 

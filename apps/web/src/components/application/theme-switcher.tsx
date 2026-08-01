@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 
+import { INTERACTION_READY_ATTRIBUTE } from "@/src/components/application/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 
 export function ThemeSwitcher() {
@@ -19,6 +20,7 @@ export function ThemeSwitcher() {
   if (!mounted || !resolvedTheme) {
     return (
       <Button
+        {...{ [INTERACTION_READY_ATTRIBUTE]: false }}
         aria-label={t("toggle")}
         disabled
         size="icon"
@@ -36,6 +38,7 @@ export function ThemeSwitcher() {
 
   return (
     <Button
+      {...{ [INTERACTION_READY_ATTRIBUTE]: true }}
       aria-label={nextThemeLabel}
       onClick={() => setTheme(nextTheme)}
       size="icon"

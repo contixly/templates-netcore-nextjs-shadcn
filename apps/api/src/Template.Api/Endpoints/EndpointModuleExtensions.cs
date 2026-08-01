@@ -2,6 +2,7 @@ using Template.Api.Authentication;
 using Template.Api.Features.Account;
 using Template.Api.Features.Auth;
 using Template.Api.Features.Health;
+using Template.Api.Features.Organizations;
 using Template.Api.Features.System;
 
 namespace Template.Api.Endpoints;
@@ -15,6 +16,7 @@ internal static class EndpointModuleExtensions
         services.AddScoped<ExternalOAuthChallengeService>();
         services.AddSingleton<IEndpointModule, ExternalAuthEndpointModule>();
         services.AddSingleton<IEndpointModule, AccountEndpointModule>();
+        services.AddSingleton<IEndpointModule, OrganizationEndpointModule>();
         services.AddSingleton<IEndpointModule, HealthEndpointModule>();
         services.AddSingleton<IEndpointModule, SystemEndpointModule>();
         return services;

@@ -8,6 +8,8 @@ describe("applicationRoutes", () => {
       login: "/auth/login",
       authError: "/auth/error",
       dashboard: "/dashboard",
+      welcome: "/welcome",
+      workspaces: "/workspaces",
     });
   });
 

@@ -4,9 +4,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  addOrganizationMember,
   challengeExternalAuth,
+  createOrganization,
   createLocalAutomationScenario,
   deleteAccount,
+  deleteOrganization,
   deleteLocalAutomationScenario,
   disconnectAccountProvider,
   getAccount,
@@ -15,12 +18,18 @@ import {
   getAuthCapabilities,
   getAuthCsrf,
   getAuthSession,
+  getOrganizationByKey,
+  getOrganizationMembers,
+  getOrganizations,
   getSystemStatus,
   logout,
   revokeAccountSession,
   revokeOtherAccountSessions,
+  setActiveOrganization,
   signInLocalAutomation,
   updateAccountProfile,
+  updateOrganization,
+  updateOrganizationMemberRole,
 } from "@/src/lib/api/generated";
 
 describe("generated system status SDK", () => {
@@ -66,6 +75,42 @@ describe("generated system status SDK", () => {
     expect(revokeAccountSession).toEqual(expect.any(Function));
     expect(revokeOtherAccountSessions).toEqual(expect.any(Function));
     expect(deleteAccount).toEqual(expect.any(Function));
+  });
+
+  it("tracks all nine organization and membership operations", () => {
+    expect(getOrganizations).toEqual(expect.any(Function));
+    expect(createOrganization).toEqual(expect.any(Function));
+    expect(getOrganizationByKey).toEqual(expect.any(Function));
+    expect(updateOrganization).toEqual(expect.any(Function));
+    expect(deleteOrganization).toEqual(expect.any(Function));
+    expect(setActiveOrganization).toEqual(expect.any(Function));
+    expect(getOrganizationMembers).toEqual(expect.any(Function));
+    expect(addOrganizationMember).toEqual(expect.any(Function));
+    expect(updateOrganizationMemberRole).toEqual(expect.any(Function));
+  });
+
+  it("generates the exact organization error unions", () => {
+    const generatedTypes = readFileSync(
+      resolve(process.cwd(), "src/lib/api/generated/types.gen.ts"),
+      "utf8",
+    );
+    const expected = {
+      GetOrganizationsErrors: [400, 401, 405, 500],
+      CreateOrganizationErrors: [400, 401, 405, 409, 500],
+      GetOrganizationByKeyErrors: [401, 404, 405, 409, 500],
+      UpdateOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
+      DeleteOrganizationErrors: [400, 401, 403, 404, 405, 409, 500],
+      SetActiveOrganizationErrors: [400, 401, 404, 405, 409, 500],
+      GetOrganizationMembersErrors: [400, 401, 404, 405, 409, 500],
+      AddOrganizationMemberErrors: [400, 401, 403, 404, 405, 409, 500],
+      UpdateOrganizationMemberRoleErrors: [400, 401, 403, 404, 405, 409, 500],
+    } as const;
+
+    for (const [typeName, statuses] of Object.entries(expected)) {
+      expect(generatedErrorStatuses(generatedTypes, typeName)).toEqual(
+        statuses,
+      );
+    }
   });
 
   it("keeps protocol callbacks and provider secrets outside the UI contract", () => {
@@ -190,6 +235,16 @@ describe("generated system status SDK", () => {
 
 function schemaTypes(schema: { type: string | string[] }): string[] {
   return Array.isArray(schema.type) ? schema.type : [schema.type];
+}
+
+function generatedErrorStatuses(source: string, typeName: string): number[] {
+  const start = source.indexOf(`export type ${typeName} = {`);
+  expect(start).toBeGreaterThanOrEqual(0);
+  const end = source.indexOf("\n};", start);
+  expect(end).toBeGreaterThan(start);
+  return [...source.slice(start, end).matchAll(/^[ ]+(\d{3}):/gm)].map(
+    (match) => Number(match[1]),
+  );
 }
 
 function badRequestSchema(

@@ -9,6 +9,7 @@ using Template.Api.Observability;
 using Template.Api.OpenApi;
 using Template.Application.Accounts;
 using Template.Application.Authentication;
+using Template.Application.Organizations;
 using Template.Infrastructure.Health;
 using Template.Infrastructure.Persistence;
 
@@ -52,6 +53,8 @@ public static class ApiHost
         builder.Services.AddScoped<ExternalIdentityService>();
         builder.Services.AddScoped<AccountService>();
         builder.Services.AddScoped<AccountSessionService>();
+        builder.Services.AddScoped<OrganizationService>();
+        builder.Services.AddScoped<OrganizationMembershipService>();
         builder.Services
             .AddHealthChecks()
             .AddCheck<AuthDatabaseHealthCheck>(

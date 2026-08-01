@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { useInteractionReady } from "@/src/components/application/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -35,6 +36,7 @@ export function LocalAutomationLoginPanel({
 }: Readonly<{ redirectPath: Route }>) {
   const router = useRouter();
   const t = useTranslations("auth.localAutomation");
+  const interactionReady = useInteractionReady();
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
 
@@ -73,7 +75,8 @@ export function LocalAutomationLoginPanel({
         ) : null}
         <Button
           className="w-full"
-          disabled={pending}
+          data-interaction-ready={interactionReady ? "true" : undefined}
+          disabled={!interactionReady || pending}
           onClick={() => void createSession()}
           type="button"
         >

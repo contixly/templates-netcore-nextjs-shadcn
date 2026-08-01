@@ -2,7 +2,7 @@
 
 ## Scope
 
-Iterations 3 and 4 own the clean PostgreSQL `auth` schema, Identity Core users,
+Iterations 3–5 own the clean PostgreSQL `auth` schema, Identity Core users,
 verified-email and external-login records, PostgreSQL-backed browser tickets
 and OpenIddict state, the persistent Data Protection key ring, the secure
 session cookie, antiforgery, local automation auth, account lifecycle, and
@@ -71,17 +71,17 @@ dotnet tool restore
 dotnet ef database update \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --startup-project apps/api/src/Template.Api/Template.Api.csproj \
-  --context AuthDbContext
+  --context TemplateDbContext
 
 dotnet ef migrations has-pending-model-changes \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --startup-project apps/api/src/Template.Api/Template.Api.csproj \
-  --context AuthDbContext
+  --context TemplateDbContext
 
 dotnet ef migrations script --idempotent \
   --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
   --startup-project apps/api/src/Template.Api/Template.Api.csproj \
-  --context AuthDbContext
+  --context TemplateDbContext
 ```
 
 `Template.Infrastructure` is the migration target. `Template.Api` is the
@@ -97,7 +97,7 @@ project as a child process. Its explicit
 environment so the loopback HTTP listener can model the production HTTPS
 boundary required by secure antiforgery cookies.
 
-The iteration-4 migrations are additive:
+The iteration-4 and iteration-5 migrations are additive:
 
 - `20260728232503_AccountsExternalOAuth` creates `auth.user_emails`, adds
   verified-email/timestamp metadata to Identity logins, creates the Data
@@ -105,7 +105,12 @@ The iteration-4 migrations are additive:
   for each existing iteration-3 user;
 - `20260728235449_AccountSessionAuthenticationMethod` adds the bounded
   `authentication_method` session projection and backfills existing rows to
-  `local`.
+  `local`;
+- `20260730091827_OrganizationsMembershipOnboarding` creates the
+  `organizations` schema (`organizations`, `members`,
+  `allowed_email_domains`), adds the closed role/name/slug constraints and
+  indexes, and adds nullable indexed `auth.sessions.active_organization_id`
+  with an FK to `organizations.organizations` using `SET NULL`.
 
 `auth.user_emails.normalized_email` is globally unique, and a partial unique
 index permits at most one primary row per user. Identity
@@ -193,12 +198,20 @@ The combined Next.js SSR auth read uses a correlation-only client for anonymous
 capabilities and a separate cookie-bearing client for the session projection.
 SSR session reads send `X-Template-Session-Renewal: suppress`, preventing an
 invisible persisted-ticket renewal whose `Set-Cookie` cannot reach the browser;
-the capabilities hop cannot authenticate or renew at all. The authenticated
-dashboard follows with an unmarked same-origin generated-SDK session read, so
-normal half-life sliding renewal updates both PostgreSQL and the browser's
-secure HttpOnly cookie before the endpoint projects `updatedAt` and `expiresAt`.
-The response therefore describes the renewed server-side session rather than
-the pre-renewal row. Cookie-bearing account Server Component reads send the same
+the capabilities hop cannot authenticate or renew at all. After the shared site
+header confirms a complete authenticated session/user projection, exactly one
+client boundary follows with an unmarked same-origin generated-SDK session read.
+This covers protected organization and account surfaces without per-page
+duplicates, so normal half-life sliding renewal updates both PostgreSQL and the
+browser's secure HttpOnly cookie before the endpoint projects `updatedAt` and
+`expiresAt`. The response therefore describes the renewed server-side session
+rather than the pre-renewal row. A document-local pathname-cycle marker
+coalesces concurrent mounts and the success refresh/remount for one protected
+pathname, then permits each later soft navigation to a different protected
+pathname to renew again. Failure releases the current marker for retry, while
+the transient `/dashboard` resolver defers the read to its final protected
+destination. Anonymous, failed, and malformed header projections mount no
+renewal. Cookie-bearing account Server Component reads send the same
 suppression marker; unmarked browser `GET` requests keep normal sliding
 expiration.
 
@@ -265,11 +278,19 @@ Application does not depend on Infrastructure. Development/Test local-automation
 credentials do not count as a production method.
 
 Account deletion validates the confirmation against the normalized primary
-email, deletes the Identity user in a transaction, and relies on tested
-cascades for verified emails, external logins, Identity children, and every
-persistent session. Only after commit does the API expire the browser cookie.
-Organizations and API keys do not yet exist, so no cleanup counts for those
-domains are fabricated.
+email and is organization-aware in the same transaction. It locks affected
+organization rows in ascending UUID order before the user and ordered
+memberships, rechecks discovery after locking, and retries bounded membership
+set drift. A sole-member organization is deleted; a membership is removed when
+another owner remains; a sole owner of a multi-member organization receives
+`organization_ownership_transfer_required` with no partial deletion. Affected
+active-organization session preferences are cleared before cascades. Local
+automation cleanup follows the same path and returns the actual
+`deletedOrganizations` count. Only after commit does the API expire the browser
+cookie. The browser dialog recognizes only that exact ownership blocker code for
+localized promote/share-ownership guidance; every other failure retains generic
+safe copy, and a supplied trace id remains visible. API keys remain iteration 7
+and have no cleanup behavior here.
 
 Session list cursors are opaque versioned base64url values for
 `(lastSeenAt, id)` ordering with a checksum for format/corruption detection.
@@ -297,7 +318,9 @@ backend is introduced by this iteration.
 
 `/api/health/live` does not touch PostgreSQL, including when the request carries
 a valid session cookie. `/api/health` and `/api/health/ready` require
-connectivity and a queryable `auth.users` relation. Health responses never
+connectivity plus queryable `auth.users` and `organizations.organizations`
+relations. Operators must apply migrations through
+`20260730091827_OrganizationsMembershipOnboarding`. Health responses never
 expose connection strings or schema errors.
 
 Auth responses are never cached. Diagnose failures by stable Problem Details
@@ -306,8 +329,9 @@ backend `detail`.
 
 ## Rollback and production gate
 
-The iteration-3/4 migrations are additive over the clean target schema. Rolling
-application code back may leave the new tables, columns, and indexes unused.
+The iteration-3/4/5 migrations are additive over the clean target schema.
+Rolling application code back may leave the new tables, columns, and indexes
+unused.
 Generated `Down` paths are destructive and restricted to disposable
 Development/Test databases; production rollback uses restore or forward-fix
 procedures and never touches `template/`.

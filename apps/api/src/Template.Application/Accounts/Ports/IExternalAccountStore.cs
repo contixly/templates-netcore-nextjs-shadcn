@@ -6,7 +6,7 @@ namespace Template.Application.Accounts.Ports;
 
 /// <summary>
 /// Persists one external-identity reconciliation attempt. Calls that belong to
-/// an attempt run inside the same <c>IAuthenticationUnitOfWork</c> transaction.
+/// an attempt run inside the same <c>IApplicationUnitOfWork</c> transaction.
 /// </summary>
 public interface IExternalAccountStore
 {

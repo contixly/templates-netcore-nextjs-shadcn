@@ -13,6 +13,11 @@ internal sealed record CapturedLog(
 
 internal sealed class CapturedLogProvider : ILoggerProvider, ISupportExternalScope
 {
+    internal const string AspNetCoreCategory = "Microsoft.AspNetCore";
+
+    internal const string RawRequestHostingCategory =
+        "Microsoft.AspNetCore.Hosting.Diagnostics";
+
     private readonly ConcurrentQueue<CapturedLog> logs = new();
     private IExternalScopeProvider scopeProvider = new LoggerExternalScopeProvider();
 

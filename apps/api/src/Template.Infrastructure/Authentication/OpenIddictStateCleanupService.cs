@@ -22,7 +22,7 @@ public sealed class OpenIddictStateCleanupService(
         CancellationToken cancellationToken)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+        var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
         var now = timeProvider.GetUtcNow().UtcDateTime;
         var redeemedBefore = now - RedeemedRetention;
 

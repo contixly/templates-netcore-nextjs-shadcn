@@ -241,3 +241,38 @@ it("keeps the dialog recoverable after a server failure", async () => {
   expect(confirm).toBeEnabled();
   expect(assignSpy).not.toHaveBeenCalled();
 });
+
+it("explains the exact organization ownership blocker without hiding its trace", async () => {
+  deleteAccount.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "organization_ownership_transfer_required",
+      status: 409,
+      traceId: "trace-ownership-blocker",
+    },
+  });
+  renderWithMessages(
+    <DeleteAccountDialog primaryEmail="account@example.test" />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+  fireEvent.change(
+    await screen.findByRole("textbox", {
+      name: /Type account@example\.test to confirm/,
+    }),
+    { target: { value: "account@example.test" } },
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Permanently delete account" }),
+  );
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Promote another member to owner or share ownership, then try deleting your account again.",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "trace-ownership-blocker",
+  );
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+  expect(assignSpy).not.toHaveBeenCalled();
+});

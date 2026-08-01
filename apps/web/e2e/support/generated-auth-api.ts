@@ -11,6 +11,7 @@ import {
   type CreateLocalAutomationScenarioRequest,
 } from "../../src/lib/api/generated";
 import { createClient, type Client } from "../../src/lib/api/generated/client";
+import { LocalAutomationScenarioCreationError } from "./organization-e2e-harness";
 
 const webOrigin = "http://127.0.0.1:3127";
 
@@ -75,14 +76,14 @@ function createPlaywrightFetch(request: APIRequestContext): typeof fetch {
   };
 }
 
-function clientFor(request: APIRequestContext): Client {
+export function clientFor(request: APIRequestContext): Client {
   return createClient({
     baseUrl: webOrigin,
     fetch: createPlaywrightFetch(request),
   });
 }
 
-async function csrf(client: Client): Promise<string> {
+export async function csrf(client: Client): Promise<string> {
   const result = await getAuthCsrf({ client });
   if (!result.data) {
     throw new Error(
@@ -111,6 +112,34 @@ export async function signInLocalAutomationUser(
   return result.data.data;
 }
 
+export async function recoverExistingLocalAutomationUser(
+  request: APIRequestContext,
+  email: string,
+  password: string,
+) {
+  const client = clientFor(request);
+  const signIn = await signInLocalAutomation({
+    client,
+    body: { email, password },
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!signIn.data) {
+    throw new Error(
+      `Local conflict-recovery sign-in failed with ${signIn.response?.status ?? 0} (${signIn.error?.code ?? "unknown"}).`,
+    );
+  }
+
+  const cleanup = await deleteLocalAutomationScenario({
+    client,
+    headers: { "X-CSRF-TOKEN": await csrf(client) },
+  });
+  if (!cleanup.data) {
+    throw new Error(
+      `Local conflict-recovery cleanup failed with ${cleanup.response?.status ?? 0} (${cleanup.error?.code ?? "unknown"}).`,
+    );
+  }
+}
+
 export async function cleanupLocalAutomationUser(request: APIRequestContext) {
   const client = clientFor(request);
   const result = await deleteLocalAutomationScenario({
@@ -136,8 +165,9 @@ export async function createLocalAutomationUser(
     headers: { "X-CSRF-TOKEN": await csrf(client) },
   });
   if (!result.data) {
-    throw new Error(
-      `Local account creation failed with ${result.response?.status ?? 0}.`,
+    throw new LocalAutomationScenarioCreationError(
+      result.response?.status,
+      result.error?.code,
     );
   }
   return result.data.data;

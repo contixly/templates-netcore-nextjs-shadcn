@@ -1,0 +1,707 @@
+using Microsoft.EntityFrameworkCore;
+using Template.Api.Tests.Infrastructure;
+using Template.Application.Organizations;
+using Template.Domain.Organizations;
+
+namespace Template.Api.Tests.Organizations;
+
+public sealed class OrganizationConcurrencyTests(
+    PostgreSqlContainerFixture postgres)
+{
+    [Fact]
+    public async Task Last_owner_race_allows_at_most_one_demotion()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateWithTwoOwnersAsync(postgres);
+
+        var attempts = await Task.WhenAll(
+            fixture.DemoteOwnerAsync(fixture.FirstOwner),
+            fixture.DemoteOwnerAsync(fixture.SecondOwner));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(1, attempts.Count(result =>
+            result.Failure == OrganizationFailure.RoleAssignmentForbidden ||
+            result.Failure == OrganizationFailure.ConcurrencyConflict));
+        Assert.Equal(1, await fixture.CountOwnersAsync());
+    }
+
+    [Fact]
+    public async Task Disjoint_actors_may_create_the_same_case_insensitive_name()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var first = await fixture.CreateUserAndSessionAsync(
+            "slug-race-first@local-agent.test");
+        var second = await fixture.CreateUserAndSessionAsync(
+            "slug-race-second@local-agent.test");
+
+        var attempts = await Task.WhenAll(
+            fixture.CreateOrganizationAsync(first, "Collision"),
+            fixture.CreateOrganizationAsync(second, "Collision"));
+
+        Assert.All(attempts, result => Assert.True(result.Succeeded));
+        Assert.Equal(
+            ["collision", "collision-2"],
+            attempts
+                .Select(result => Assert.IsType<OrganizationDetail>(result.Value)
+                    .Slug.Value)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            2,
+            await db.Organizations.CountAsync(
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Slug_unique_race_retries_with_a_suffix()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var first = await fixture.CreateUserAndSessionAsync(
+            "slug-retry-first@local-agent.test");
+        var second = await fixture.CreateUserAndSessionAsync(
+            "slug-retry-second@local-agent.test");
+        fixture.CoordinateConcurrentSlugSelections();
+
+        var attempts = await Task.WhenAll(
+            fixture.CreateOrganizationAsync(first, "Slug Race"),
+            fixture.CreateOrganizationAsync(second, "Slug-Race"));
+
+        Assert.True(fixture.ConcurrentSlugSelectionsWereCoordinated);
+        Assert.All(attempts, result => Assert.True(result.Succeeded));
+        Assert.Equal(
+            ["slug-race", "slug-race-2"],
+            attempts
+                .Select(result => Assert.IsType<OrganizationDetail>(result.Value)
+                    .Slug.Value)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            2,
+            await db.Organizations.CountAsync(
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Six_disjoint_slug_racers_reach_the_collision_resistant_fallback()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var names = new[]
+        {
+            "Six Way Race",
+            "Six-Way Race",
+            "Six_Way Race",
+            "Six - Way Race",
+            "Six _ Way Race",
+            "Six -_ Way Race"
+        };
+        var actors = new List<OrganizationActor>();
+        foreach (var index in Enumerable.Range(1, names.Length))
+        {
+            actors.Add(await fixture.CreateUserAndSessionAsync(
+                $"slug-six-way-{index}@local-agent.test"));
+        }
+
+        Assert.All(names, name => Assert.True(
+            OrganizationNamePolicy.TryNormalize(name, out _)));
+        Assert.Equal(
+            names.Length,
+            names.Select(name => name.ToLowerInvariant()).Distinct().Count());
+        var slugBases = names.Select(OrganizationSlug.GenerateBase).ToArray();
+        Assert.All(slugBases, slugBase => Assert.Equal("six-way-race", slugBase));
+        var nameLockKeys = new List<int>();
+        foreach (var name in names)
+        {
+            nameLockKeys.Add(await fixture.NameAdvisoryLockKeyAsync(name));
+        }
+
+        Assert.Equal(nameLockKeys.Count, nameLockKeys.Distinct().Count());
+        fixture.CoordinateConcurrentSlugSelectionWaves(6, 5, 4, 3, 2);
+
+        var attempts = await Task.WhenAll(actors.Select((actor, index) =>
+            fixture.CreateOrganizationAsync(actor, names[index])));
+
+        Assert.True(fixture.ConcurrentSlugSelectionWavesWereCoordinated);
+        Assert.All(attempts, result => Assert.True(result.Succeeded));
+        var details = attempts
+            .Select(result => Assert.IsType<OrganizationDetail>(result.Value))
+            .ToArray();
+        var readable = new[]
+        {
+            "six-way-race",
+            "six-way-race-2",
+            "six-way-race-3",
+            "six-way-race-4",
+            "six-way-race-5"
+        };
+        Assert.Equal(
+            readable,
+            details
+                .Select(detail => detail.Slug.Value)
+                .Where(readable.Contains)
+                .Order(StringComparer.Ordinal)
+                .ToArray());
+        var fallback = Assert.Single(
+            details,
+            detail => !readable.Contains(detail.Slug.Value));
+        Assert.Equal(
+            $"six-way-race-{fallback.Id.Value:N}",
+            fallback.Slug.Value);
+        Assert.Equal(
+            details.Length,
+            details.Select(detail => detail.Slug.Value).Distinct().Count());
+        Assert.All(details, detail =>
+        {
+            Assert.True(
+                OrganizationSlug.TryCreate(detail.Slug.Value, out var canonical));
+            Assert.Equal(detail.Slug, canonical);
+            Assert.InRange(detail.Slug.Value.Length, 1, 64);
+        });
+
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            actors.Count,
+            await db.Organizations.CountAsync(
+                TestContext.Current.CancellationToken));
+        foreach (var (actor, index) in actors.Select((actor, index) =>
+                     (actor, index)))
+        {
+            var membership = await db.OrganizationMembers
+                .Where(row => row.UserId == actor.UserId.Value)
+                .Select(row => new { row.OrganizationId, row.Role })
+                .SingleAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(details[index].Id.Value, membership.OrganizationId);
+            Assert.Equal(OrganizationRole.Owner.Value, membership.Role);
+            Assert.Equal(
+                details[index].Id.Value,
+                await db.Sessions
+                    .Where(row => row.Id == actor.SessionId.Value)
+                    .Select(row => row.ActiveOrganizationId)
+                    .SingleAsync(TestContext.Current.CancellationToken));
+        }
+    }
+
+    [Fact]
+    public async Task Same_actor_create_race_is_idempotent_at_the_name_boundary()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "name-race@local-agent.test");
+
+        var attempts = await Task.WhenAll(
+            fixture.CreateOrganizationAsync(actor, "Same Name"),
+            fixture.CreateOrganizationAsync(actor, "same name"));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.NameConflict));
+        Assert.Equal(1, await fixture.CountAccessibleOrganizationsAsync(actor));
+    }
+
+    [Fact]
+    public async Task Concurrent_renames_share_one_case_insensitive_actor_namespace()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "rename-race@local-agent.test");
+        var first = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Rename First",
+            "rename-first",
+            OrganizationRole.Owner);
+        var second = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Rename Second",
+            "rename-second",
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentNameChecks();
+
+        var attempts = await Task.WhenAll(
+            fixture.UpdateOrganizationAsync(actor, first, "Shared Name"),
+            fixture.UpdateOrganizationAsync(actor, second, "sHARED nAME"));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.NameConflict));
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.Organizations.CountAsync(
+                row => row.Name.ToLower() == "shared name",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Concurrent_renames_by_different_shared_actors_serialize_the_name_namespace()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var firstActor = await fixture.CreateUserAndSessionAsync(
+            "shared-name-first@local-agent.test");
+        var secondActor = await fixture.CreateUserAndSessionAsync(
+            "shared-name-second@local-agent.test");
+        var first = await fixture.SeedOrganizationForAsync(
+            firstActor,
+            "Shared First",
+            "shared-first",
+            OrganizationRole.Owner);
+        var second = await fixture.SeedOrganizationForAsync(
+            secondActor,
+            "Shared Second",
+            "shared-second",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            first,
+            secondActor,
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            second,
+            firstActor,
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentNameChecks();
+
+        var attempts = await Task.WhenAll(
+            fixture.UpdateOrganizationAsync(
+                firstActor,
+                first,
+                "Shared Across Actors"),
+            fixture.UpdateOrganizationAsync(
+                secondActor,
+                second,
+                "sHARED aCROSS aCTORS"));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.NameConflict));
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.Organizations.CountAsync(
+                row => row.Name.ToLower() == "shared across actors",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Update_and_create_share_one_case_insensitive_actor_namespace()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "update-create-race@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            actor,
+            "Update Target",
+            "update-target",
+            OrganizationRole.Owner);
+        fixture.CoordinateConcurrentNameChecks();
+
+        var update = fixture.UpdateOrganizationAsync(
+            actor,
+            target,
+            "Shared Name");
+        var create = fixture.CreateOrganizationAsync(
+            actor,
+            "sHARED nAME");
+        await Task.WhenAll(update, create);
+
+        var attempts = new[]
+        {
+            await update,
+            await create
+        };
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.NameConflict));
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(
+            1,
+            await db.Organizations.CountAsync(
+                row => row.Name.ToLower() == "shared name",
+                TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task Concurrent_deletes_preserve_one_accessible_organization()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "delete-race@local-agent.test");
+        var first = await fixture.SeedOrganizationForAsync(
+            owner,
+            "First",
+            "first",
+            OrganizationRole.Owner);
+        var second = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Second",
+            "second",
+            OrganizationRole.Owner);
+
+        var attempts = await Task.WhenAll(
+            fixture.DeleteOrganizationAsync(owner, first, "First"),
+            fixture.DeleteOrganizationAsync(owner, second, "Second"));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(1, attempts.Count(result =>
+            result.Failure == OrganizationFailure.LastAccessibleOrganization ||
+            result.Failure == OrganizationFailure.ConcurrencyConflict));
+        Assert.Equal(1, await fixture.CountAccessibleOrganizationsAsync(owner));
+    }
+
+    [Fact]
+    public async Task Concurrent_selections_do_not_take_an_exclusive_organization_lock()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var first = await fixture.CreateUserAndSessionAsync(
+            "set-active-parallel-first@local-agent.test");
+        var second = await fixture.CreateUserAndSessionAsync(
+            "set-active-parallel-second@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            first,
+            "Parallel Selection",
+            "parallel-selection",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            target,
+            second,
+            OrganizationRole.Member);
+        await using var organizationLock =
+            await fixture.LockOrganizationForKeyShareAsync(target);
+
+        var selections = Task.WhenAll(
+            fixture.SetActiveOrganizationAsync(first, target),
+            fixture.SetActiveOrganizationAsync(second, target));
+        var completedWhileKeyShareHeld = ReferenceEquals(
+            selections,
+            await Task.WhenAny(
+                selections,
+                Task.Delay(
+                    TimeSpan.FromSeconds(1),
+                    TestContext.Current.CancellationToken)));
+        await organizationLock.ReleaseAsync();
+        var results = await selections;
+
+        Assert.True(completedWhileKeyShareHeld);
+        Assert.All(results, result => Assert.True(result.Succeeded));
+    }
+
+    [Fact]
+    public async Task Nonmember_selection_does_not_wait_on_an_organization_row_lock()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAndSessionAsync(
+            "set-active-nonmember@local-agent.test");
+        var foreign = await fixture.CreateUserAndSessionAsync(
+            "set-active-nonmember-foreign@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            foreign,
+            "Locked Foreign",
+            "locked-foreign",
+            OrganizationRole.Owner);
+        await using var organizationLock =
+            await fixture.LockOrganizationForUpdateAsync(target);
+
+        var selection = fixture.SetActiveOrganizationAsync(actor, target);
+        var completedWhileLocked = ReferenceEquals(
+            selection,
+            await Task.WhenAny(
+                selection,
+                Task.Delay(
+                    TimeSpan.FromSeconds(1),
+                    TestContext.Current.CancellationToken)));
+        await organizationLock.ReleaseAsync();
+        var result = await selection;
+
+        Assert.True(completedWhileLocked);
+        Assert.Equal(OrganizationFailure.NotFound, result.Failure);
+    }
+
+    [Fact]
+    public async Task Set_active_and_delete_interleaving_returns_not_found_instead_of_an_fk_failure()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "set-active-delete-race@local-agent.test");
+        var target = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Delete Target",
+            "delete-target",
+            OrganizationRole.Owner);
+        await fixture.SeedOrganizationForAsync(
+            owner,
+            "Remaining",
+            "remaining",
+            OrganizationRole.Owner);
+
+        await using var sessionLock =
+            await fixture.LockSessionAsync(owner.SessionId);
+        var selection = fixture.SetActiveOrganizationAsync(owner, target);
+        await fixture.WaitForSessionUpdateLockAsync();
+        var deletion = fixture.DeleteOrganizationAsync(
+            owner,
+            target,
+            "Delete Target");
+        var deletionCompletedBeforeSessionRelease = ReferenceEquals(
+            deletion,
+            await Task.WhenAny(
+                deletion,
+                Task.Delay(
+                    TimeSpan.FromSeconds(1),
+                    TestContext.Current.CancellationToken)));
+        await sessionLock.ReleaseAsync();
+
+        var deleted = await deletion;
+        var selected = await selection;
+
+        Assert.True(deletionCompletedBeforeSessionRelease);
+        Assert.True(deleted.Succeeded);
+        Assert.Equal(OrganizationFailure.NotFound, selected.Failure);
+    }
+
+    [Fact]
+    public async Task Acknowledged_duplicate_member_race_inserts_exactly_once()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAndSessionAsync(
+            "member-race-owner@local-agent.test");
+        var target = await fixture.CreateUserAndSessionAsync(
+            "member-race-target@local-agent.test");
+        var organizationId = await fixture.SeedOrganizationForAsync(
+            owner,
+            "Member Race",
+            "member-race",
+            OrganizationRole.Owner);
+
+        var attempts = await Task.WhenAll(
+            fixture.AddMemberAsync(
+                owner,
+                organizationId,
+                target,
+                OrganizationRole.Member),
+            fixture.AddMemberAsync(
+                owner,
+                organizationId,
+                target,
+                OrganizationRole.Member));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.MemberAlreadyExists));
+        Assert.Equal(
+            1,
+            await fixture.CountMembershipsAsync(
+                organizationId,
+                target.UserId));
+    }
+
+    [Fact]
+    public async Task Concurrent_adds_preserve_one_equivalent_name_per_target()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var firstOwner = await fixture.CreateUserAndSessionAsync(
+            "name-edge-first-owner@local-agent.test");
+        var secondOwner = await fixture.CreateUserAndSessionAsync(
+            "name-edge-second-owner@local-agent.test");
+        var target = await fixture.CreateUserAndSessionAsync(
+            "name-edge-target@local-agent.test");
+        var first = await fixture.SeedOrganizationForAsync(
+            firstOwner,
+            "Acme",
+            "name-edge-first",
+            OrganizationRole.Owner);
+        var second = await fixture.SeedOrganizationForAsync(
+            secondOwner,
+            "aCME",
+            "name-edge-second",
+            OrganizationRole.Owner);
+
+        var attempts = await Task.WhenAll(
+            fixture.AddMemberAsync(
+                firstOwner,
+                first,
+                target,
+                OrganizationRole.Member),
+            fixture.AddMemberAsync(
+                secondOwner,
+                second,
+                target,
+                OrganizationRole.Member));
+
+        Assert.Equal(1, attempts.Count(result => result.Succeeded));
+        Assert.Equal(
+            1,
+            attempts.Count(result =>
+                result.Failure == OrganizationFailure.MemberAlreadyExists));
+        Assert.Equal(
+            1,
+            await fixture.CountAccessibleOrganizationsByNameAsync(
+                target,
+                "ACME"));
+    }
+
+    [Fact]
+    public async Task Other_admin_rename_and_add_preserve_the_affected_member_name_graph()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var receivingOwner = await fixture.CreateUserAndSessionAsync(
+            "rename-add-receiving-owner@local-agent.test");
+        var renamingAdministrator = await fixture.CreateUserAndSessionAsync(
+            "rename-add-administrator@local-agent.test");
+        var affectedMember = await fixture.CreateUserAndSessionAsync(
+            "rename-add-member@local-agent.test");
+        var receiving = await fixture.SeedOrganizationForAsync(
+            receivingOwner,
+            "Acme",
+            "rename-add-receiving",
+            OrganizationRole.Owner);
+        var renamed = await fixture.SeedOrganizationForAsync(
+            renamingAdministrator,
+            "Beta",
+            "rename-add-target",
+            OrganizationRole.Owner);
+        await fixture.AddMembershipAsync(
+            renamed,
+            affectedMember,
+            OrganizationRole.Member);
+        using var operationCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                TestContext.Current.CancellationToken);
+        fixture.PauseNextNameCheck();
+        var rename = fixture.UpdateOrganizationWithCancellationAsync(
+            renamingAdministrator,
+            renamed,
+            "aCME",
+            operationCancellation);
+        Task<OrganizationOperationResult<OrganizationMember>>? add = null;
+        var observedAttempt = false;
+        try
+        {
+            await fixture.WaitForPausedNameCheckAsync(rename);
+            fixture.ObserveNextNameAdvisoryAttempt();
+            add = fixture.AddMemberWithCancellationAsync(
+                receivingOwner,
+                receiving,
+                affectedMember,
+                OrganizationRole.Member,
+                operationCancellation);
+            await fixture.WaitForNameAdvisoryAttemptAsync(add);
+            observedAttempt = true;
+        }
+        finally
+        {
+            fixture.ReleasePausedNameCheck();
+            if (!observedAttempt)
+            {
+                operationCancellation.Cancel();
+            }
+
+            await OrganizationStoreFixture.DrainOperationsAsync(rename, add);
+        }
+
+        var renameResult = await rename;
+        var addResult = await add!;
+
+        Assert.Equal(
+            1,
+            new[] { renameResult.Succeeded, addResult.Succeeded }
+                .Count(succeeded => succeeded));
+        Assert.True(
+            renameResult.Failure == OrganizationFailure.NameConflict ||
+            addResult.Failure == OrganizationFailure.MemberAlreadyExists);
+        Assert.Equal(
+            1,
+            await fixture.CountAccessibleOrganizationsByNameAsync(
+                affectedMember,
+                "ACME"));
+    }
+
+    [Fact]
+    public async Task Target_create_and_add_preserve_user_before_name_lock_order_and_visibility()
+    {
+        await using var fixture =
+            await OrganizationStoreFixture.CreateAsync(postgres);
+        var receivingOwner = await fixture.CreateUserAndSessionAsync(
+            "create-add-receiving-owner@local-agent.test");
+        var target = await fixture.CreateUserAndSessionAsync(
+            "create-add-target@local-agent.test");
+        var receiving = await fixture.SeedOrganizationForAsync(
+            receivingOwner,
+            "Acme",
+            "create-add-receiving",
+            OrganizationRole.Owner);
+        using var operationCancellation =
+            CancellationTokenSource.CreateLinkedTokenSource(
+                TestContext.Current.CancellationToken);
+        fixture.PauseNextNameCheck();
+        var create = fixture.CreateOrganizationWithCancellationAsync(
+            target,
+            "aCME",
+            operationCancellation);
+        Task<OrganizationOperationResult<OrganizationMember>>? add = null;
+        var observedAttempt = false;
+        try
+        {
+            await fixture.WaitForPausedNameCheckAsync(create);
+            fixture.ObserveNextUserLockAttempt();
+            add = fixture.AddMemberWithCancellationAsync(
+                receivingOwner,
+                receiving,
+                target,
+                OrganizationRole.Member,
+                operationCancellation);
+            await fixture.WaitForUserLockAttemptAsync(add);
+            observedAttempt = true;
+        }
+        finally
+        {
+            fixture.ReleasePausedNameCheck();
+            if (!observedAttempt)
+            {
+                operationCancellation.Cancel();
+            }
+
+            await OrganizationStoreFixture.DrainOperationsAsync(create, add);
+        }
+
+        var createResult = await create;
+        var addResult = await add!;
+
+        Assert.True(createResult.Succeeded);
+        Assert.Equal(
+            OrganizationFailure.MemberAlreadyExists,
+            addResult.Failure);
+        Assert.Equal(
+            1,
+            await fixture.CountAccessibleOrganizationsByNameAsync(
+                target,
+                "ACME"));
+        Assert.Equal(
+            0,
+            await fixture.CountMembershipsAsync(
+                receiving,
+                target.UserId));
+    }
+}

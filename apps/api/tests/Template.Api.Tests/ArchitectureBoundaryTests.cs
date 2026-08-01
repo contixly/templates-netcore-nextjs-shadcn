@@ -39,6 +39,19 @@ public sealed class ArchitectureBoundaryTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Persistence_context_is_named_for_the_whole_template()
+    {
+        var names = typeof(Template.Infrastructure.Persistence.TemplateDbContext)
+            .Assembly.GetTypes()
+            .Select(type => type.Name)
+            .ToArray();
+
+        Assert.Contains("TemplateDbContext", names);
+        Assert.DoesNotContain("AuthDbContext", names);
+        Assert.Contains("EfApplicationUnitOfWork", names);
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory);

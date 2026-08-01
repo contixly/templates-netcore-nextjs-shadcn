@@ -1,12 +1,18 @@
 using Template.Application.Accounts.Ports;
+using Template.Application.Common.Ports;
+using Template.Application.Organizations.Ports;
 using Template.Domain.Accounts;
 using Template.Domain.Authentication;
 
 namespace Template.Application.Accounts;
 
-public sealed class AccountService(IAccountStore accounts)
+public sealed class AccountService(
+    IAccountStore accounts,
+    IOrganizationUserLifecycleStore organizationLifecycle,
+    IApplicationUnitOfWork unitOfWork)
 {
     private const int MaximumDisconnectAttempts = 2;
+    private const int MaximumDeletionAttempts = 3;
 
     public Task<AccountSnapshot?> GetAsync(
         UserId userId,
@@ -192,8 +198,46 @@ public sealed class AccountService(IAccountStore accounts)
             return Failed<AccountDeletion>(AccountFailure.ConfirmationMismatch);
         }
 
-        await accounts.DeleteAsync(userId, cancellationToken);
-        return Succeeded(new AccountDeletion(userId));
+        for (var attempt = 0; attempt < MaximumDeletionAttempts; attempt++)
+        {
+            try
+            {
+                return await unitOfWork.ExecuteAsync(
+                    async transactionCancellationToken =>
+                    {
+                        var lifecycle = await organizationLifecycle
+                            .PrepareDeletionAsync(
+                                userId,
+                                transactionCancellationToken);
+                        if (lifecycle.OwnershipTransferRequired)
+                        {
+                            return Failed<AccountDeletion>(
+                                AccountFailure
+                                    .OrganizationOwnershipTransferRequired);
+                        }
+
+                        await accounts.DeleteAsync(
+                            userId,
+                            transactionCancellationToken);
+                        return Succeeded(new AccountDeletion(userId));
+                    },
+                    cancellationToken);
+            }
+            catch (OrganizationUserLifecycleConcurrencyException)
+                when (attempt < MaximumDeletionAttempts - 1)
+            {
+                // The membership set changed between discovery and the
+                // organization-first lock boundary. Retry from a clean
+                // transaction and classify the new complete set.
+            }
+            catch (OrganizationUserLifecycleConcurrencyException)
+            {
+                return Failed<AccountDeletion>(
+                    AccountFailure.ConcurrencyConflict);
+            }
+        }
+
+        return Failed<AccountDeletion>(AccountFailure.ConcurrencyConflict);
     }
 
     private static AccountOperationResult<T> Succeeded<T>(T value)

@@ -47,7 +47,7 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
         _services = services.BuildServiceProvider(validateScopes: true);
 
         await using var scope = _services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<AuthDbContext>()
+        await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
             .Database.MigrateAsync(TestContext.Current.CancellationToken);
     }
 
@@ -64,7 +64,7 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
     {
         await using (var scope = _services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
             db.OpenIddictTokens.AddRange(
                 Enumerable.Range(0, 501).Select(index =>
                     Token(
@@ -117,7 +117,7 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
 
         await using var verificationScope = _services.CreateAsyncScope();
         var remaining = await verificationScope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .OpenIddictTokens
             .AsNoTracking()
             .OrderBy(token => token.Id)
@@ -138,7 +138,7 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
         const string secretStateId = "secret-state-id-must-not-be-logged";
         await using (var scope = _services.CreateAsyncScope())
         {
-            var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
             db.OpenIddictTokens.Add(
                 Token(
                     secretStateId,
@@ -152,9 +152,9 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
         var services = new ServiceCollection();
         services.AddLogging(builder => builder.AddProvider(logs));
         services.AddSingleton<TimeProvider>(_timeProvider);
-        services.AddDbContext<AuthDbContext>(options =>
+        services.AddDbContext<TemplateDbContext>(options =>
         {
-            AuthDbContext.Configure(options, _connectionString);
+            TemplateDbContext.Configure(options, _connectionString);
             options.AddInterceptors(interceptor);
         });
         services.AddSingleton<OpenIddictStateCleanupService>();
@@ -170,7 +170,7 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
         await using (var verificationScope = _services.CreateAsyncScope())
         {
             Assert.True(await verificationScope.ServiceProvider
-                .GetRequiredService<AuthDbContext>()
+                .GetRequiredService<TemplateDbContext>()
                 .OpenIddictTokens
                 .AnyAsync(
                     token => token.Id == secretStateId,
@@ -183,7 +183,7 @@ public sealed class OpenIddictStateTests(PostgreSqlContainerFixture postgres)
         await using (var verificationScope = _services.CreateAsyncScope())
         {
             Assert.False(await verificationScope.ServiceProvider
-                .GetRequiredService<AuthDbContext>()
+                .GetRequiredService<TemplateDbContext>()
                 .OpenIddictTokens
                 .AnyAsync(
                     token => token.Id == secretStateId,

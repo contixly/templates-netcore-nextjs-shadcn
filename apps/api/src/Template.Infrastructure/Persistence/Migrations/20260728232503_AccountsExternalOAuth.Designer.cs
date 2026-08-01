@@ -12,7 +12,7 @@ using Template.Infrastructure.Persistence;
 
 namespace Template.Infrastructure.Persistence.Migrations
 {
-    [DbContext(typeof(AuthDbContext))]
+    [DbContext(typeof(TemplateDbContext))]
     [Migration("20260728232503_AccountsExternalOAuth")]
     partial class AccountsExternalOAuth
     {

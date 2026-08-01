@@ -23,7 +23,14 @@ public sealed class AuthDatabaseHealthCheck(IConfiguration configuration)
             await connection.OpenAsync(cancellationToken);
             await using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT EXISTS (SELECT 1 FROM auth.users LIMIT 1)";
+                """
+                SELECT
+                    EXISTS (SELECT 1 FROM auth.users LIMIT 1),
+                    EXISTS (
+                        SELECT 1
+                        FROM organizations.organizations
+                        LIMIT 1)
+                """;
             await command.ExecuteScalarAsync(cancellationToken);
             return HealthCheckResult.Healthy();
         }

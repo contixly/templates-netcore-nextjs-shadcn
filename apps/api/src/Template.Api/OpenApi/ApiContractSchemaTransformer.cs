@@ -55,7 +55,20 @@ internal sealed class ApiContractSchemaTransformer : IOpenApiSchemaTransformer
         "external_connection_not_found",
         "account_session_not_found",
         "current_session_cannot_be_revoked",
-        "concurrency_conflict"
+        "concurrency_conflict",
+        "organization_ownership_transfer_required",
+        "organization_not_found",
+        "organization_permission_denied",
+        "organization_name_conflict",
+        "organization_slug_conflict",
+        "last_organization_required",
+        "organization_confirmation_mismatch",
+        "member_not_found",
+        "target_user_not_found",
+        "member_already_exists",
+        "member_role_unchanged",
+        "role_assignment_forbidden",
+        "member_domain_acknowledgement_required"
     ];
 
     private const string LocalAutomationEmailPattern =

@@ -17,7 +17,8 @@ public sealed class BrowserSessionSlidingExpirationTests(
     : IClassFixture<ApiWebApplicationFactory>
 {
     private readonly MutableTimeProvider _time = new(
-        new DateTimeOffset(2026, 7, 24, 0, 0, 0, TimeSpan.Zero));
+        DateTimeOffset.FromUnixTimeSeconds(
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
 
     [Fact]
     public async Task SsrReadDoesNotRenewBeforeBrowserRefreshReceivesCookie()
@@ -140,7 +141,7 @@ public sealed class BrowserSessionSlidingExpirationTests(
     {
         await using var scope = application.Services.CreateAsyncScope();
         return await scope.ServiceProvider
-            .GetRequiredService<AuthDbContext>()
+            .GetRequiredService<TemplateDbContext>()
             .Sessions
             .AsNoTracking()
             .SingleAsync(
