@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Primitives;
 using Template.Api.Errors;
 using Template.Application.Authentication.Ports;
@@ -44,8 +45,8 @@ internal static class CollaborationEndpointBoundary
             current.Session.Id);
     }
 
-    internal static async Task<T> AuditAsync<T>(
-        Func<Task<T>> execute,
+    internal static async Task<IResult> AuditAsync(
+        Func<CollaborationAuditContext, Task<IResult>> execute,
         string operation,
         CollaborationActorContext actor,
         ILogger logger,
@@ -53,9 +54,23 @@ internal static class CollaborationEndpointBoundary
         string? teamId = null,
         string? targetUserId = null)
     {
+        var audit = new CollaborationAuditContext(
+            SafeOpaqueId(organizationId),
+            SafeOpaqueId(teamId),
+            SafeOpaqueId(targetUserId));
         try
         {
-            return await execute();
+            var result = await execute(audit);
+            Write(
+                logger,
+                operation,
+                "succeeded",
+                actor,
+                audit.OrganizationId,
+                audit.TeamId,
+                audit.TargetUserId,
+                audit.ResultCount);
+            return result;
         }
         catch (ApiValidationException)
         {
@@ -64,22 +79,36 @@ internal static class CollaborationEndpointBoundary
                 operation,
                 ApiProblemCodes.ValidationFailed,
                 actor,
-                SafeOpaqueId(organizationId),
-                SafeOpaqueId(teamId),
-                SafeOpaqueId(targetUserId));
+                audit.OrganizationId,
+                audit.TeamId,
+                audit.TargetUserId,
+                audit.ResultCount);
             throw;
         }
         catch (ApiProblemException problem)
-            when (problem.Code == ApiProblemCodes.InvalidRequest)
         {
             Write(
                 logger,
                 operation,
                 problem.Code,
                 actor,
-                SafeOpaqueId(organizationId),
-                SafeOpaqueId(teamId),
-                SafeOpaqueId(targetUserId));
+                audit.OrganizationId,
+                audit.TeamId,
+                audit.TargetUserId,
+                audit.ResultCount);
+            throw;
+        }
+        catch (Exception)
+        {
+            Write(
+                logger,
+                operation,
+                "unexpected_failure",
+                actor,
+                audit.OrganizationId,
+                audit.TeamId,
+                audit.TargetUserId,
+                audit.ResultCount);
             throw;
         }
     }
@@ -182,7 +211,8 @@ internal static class CollaborationEndpointBoundary
 
     internal static void RequireEmptyBody(HttpContext http)
     {
-        if (http.Request.ContentLength is > 0 ||
+        if (http.Features.Get<IHttpRequestBodyDetectionFeature>()?.CanHaveBody == true ||
+            http.Request.ContentLength is > 0 ||
             http.Request.Headers.TransferEncoding.Count > 0)
         {
             throw new ApiProblemException(
@@ -253,3 +283,26 @@ internal static class CollaborationEndpointBoundary
 internal sealed record CollaborationActorContext(
     UserId UserId,
     SessionId SessionId);
+
+internal sealed class CollaborationAuditContext(
+    Guid? organizationId,
+    Guid? teamId,
+    Guid? targetUserId)
+{
+    internal Guid? OrganizationId { get; private set; } = organizationId;
+
+    internal Guid? TeamId { get; private set; } = teamId;
+
+    internal Guid? TargetUserId { get; private set; } = targetUserId;
+
+    internal int? ResultCount { get; private set; }
+
+    internal void SetOrganizationId(OrganizationId value) =>
+        OrganizationId = value.Value;
+
+    internal void SetTeamId(TeamId value) => TeamId = value.Value;
+
+    internal void SetTargetUserId(UserId value) => TargetUserId = value.Value;
+
+    internal void SetResultCount(int value) => ResultCount = value;
+}
