@@ -11,7 +11,7 @@ const violations = [];
 const sourceExtensionPattern = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
 const routeHandlerPattern = /\/route\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
 const handwrittenTransportTypePattern =
-  /(?:interface|type)\s+(?:SystemStatusResponse|ProblemDetails|HttpValidationProblemDetails|ApiResponseOfSystemStatusResponse|AuthCapabilitiesResponse|AuthSessionResponse|AuthUserResponse|AuthSessionMetadataResponse|AuthCsrfResponse|LocalAutomationScenarioResponse|LocalAutomationCleanupResponse|CreateLocalAutomationScenarioRequest|LocalAutomationSignInRequest)\b/;
+  /(?:interface|type)\s+(?:SystemStatusResponse|ProblemDetails|HttpValidationProblemDetails|ApiResponseOfSystemStatusResponse|AuthCapabilitiesResponse|AuthSessionResponse|AuthUserResponse|AuthSessionMetadataResponse|AuthCsrfResponse|LocalAutomationScenarioResponse|LocalAutomationCleanupResponse|CreateLocalAutomationScenarioRequest|LocalAutomationSignInRequest|AcceptedInvitationResponse|AccountInvitationPageResponse|AddTeamMemberRequest|CreateInvitationRequest|InvitationDecisionResponse|InvitationResponse|OrganizationInvitationPageResponse|TeamCandidatePageResponse|TeamCandidateResponse|TeamDeletionResponse|TeamMemberPageResponse|TeamMemberRemovalResponse|TeamMemberResponse|TeamNameRequest|TeamPageResponse|TeamResponse)\b/;
 
 const forbiddenPackages = [
   "@better-auth/prisma-adapter",
@@ -113,6 +113,20 @@ for (const operation of [
   "createLocalAutomationScenario",
   "signInLocalAutomation",
   "deleteLocalAutomationScenario",
+  "getTeams",
+  "createTeam",
+  "deleteTeam",
+  "updateTeam",
+  "getTeamMembers",
+  "addTeamMember",
+  "removeTeamMember",
+  "getTeamMemberCandidates",
+  "getOrganizationInvitations",
+  "createInvitation",
+  "getAccountInvitations",
+  "getInvitationDecision",
+  "acceptInvitation",
+  "rejectInvitation",
 ]) {
   if (!new RegExp(`export const ${operation}\\b`).test(generatedSdk)) {
     violations.push(`generated ${operation} operation is missing`);

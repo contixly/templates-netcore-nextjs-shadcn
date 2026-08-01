@@ -34,12 +34,71 @@ describe("fixed deployment locale", () => {
     expect(Object.keys(russian.account)).toEqual(Object.keys(english.account));
     expect(Object.keys(russian.auth)).toEqual(Object.keys(english.auth));
     expect(Object.keys(russian.common)).toEqual(Object.keys(english.common));
+    expect(Object.keys(russian.collaboration)).toEqual(
+      Object.keys(english.collaboration),
+    );
     expect(Object.keys(russian.organizations)).toEqual(
       Object.keys(english.organizations),
     );
     expect(Object.keys(russian.system)).toEqual(Object.keys(english.system));
     expect(russian.auth.login.title).not.toBe(english.auth.login.title);
     expect(russian.system.page.title).not.toBe(english.system.page.title);
+  });
+
+  it("keeps every English and Russian collaboration message at the same path", async () => {
+    const [english, russian] = await Promise.all([
+      loadMessages("en"),
+      loadMessages("ru"),
+    ]);
+
+    const messagePaths = (value: unknown, prefix = ""): string[] =>
+      Object.entries(value as Record<string, unknown>).flatMap(
+        ([key, child]) => {
+          const path = prefix ? `${prefix}.${key}` : key;
+          return typeof child === "object" && child !== null
+            ? messagePaths(child, path)
+            : [path];
+        },
+      );
+
+    expect(messagePaths(russian.collaboration).sort()).toEqual(
+      messagePaths(english.collaboration).sort(),
+    );
+    expect(Object.keys(english.collaboration)).toEqual([
+      "teams",
+      "invitations",
+      "decision",
+      "failures",
+    ]);
+    expect(russian.collaboration.teams.page.title).not.toBe(
+      english.collaboration.teams.page.title,
+    );
+    expect(russian.collaboration.decision.actions.accept).not.toBe(
+      english.collaboration.decision.actions.accept,
+    );
+    expect(Object.keys(english.collaboration.failures.codes).sort()).toEqual([
+      "antiforgery_failed",
+      "invitation_already_exists",
+      "invitation_domain_restricted",
+      "invitation_email_verification_required",
+      "invitation_expired",
+      "invitation_limit_reached",
+      "invitation_membership_conflict",
+      "invitation_not_found",
+      "invitation_not_pending",
+      "invitation_permission_denied",
+      "invitation_recipient_already_member",
+      "invitation_recipient_mismatch",
+      "invitation_team_invalid",
+      "rate_limited",
+      "team_member_already_exists",
+      "team_member_not_found",
+      "team_name_conflict",
+      "team_name_unchanged",
+      "team_not_found",
+      "team_permission_denied",
+      "validation_failed",
+    ]);
   });
 
   it("keeps every English and Russian organization message at the same path", async () => {

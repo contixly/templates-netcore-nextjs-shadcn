@@ -3,7 +3,8 @@
     "title": "Create your first workspace",
     "description": "You do not have access to any workspaces yet. Create one to open the application.",
     "createAction": "Create Workspace",
-    "accountAction": "Account settings"
+    "accountAction": "Account settings",
+    "reviewInvitationsAction": "Review Invitations"
   },
   "createDialog": {
     "title": "Create New Workspace",
@@ -60,6 +61,8 @@
       "workspace": "Workspace",
       "users": "Users",
       "roles": "Roles",
+      "teams": "Teams",
+      "invitations": "Invitations",
       "loading": "Loading workspace settings"
     },
     "pages": {

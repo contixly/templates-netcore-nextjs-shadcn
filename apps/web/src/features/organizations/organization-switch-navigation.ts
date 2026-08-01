@@ -10,6 +10,8 @@ const preservableSuffixes = new Set([
   "/settings/workspace",
   "/settings/users",
   "/settings/roles",
+  "/settings/teams",
+  "/settings/invitations",
 ]);
 
 function getPreservableSuffix(pathname?: string | null): string | undefined {

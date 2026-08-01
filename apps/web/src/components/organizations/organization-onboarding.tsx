@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { IconUserCog } from "@tabler/icons-react";
+import { IconMail, IconUserCog } from "@tabler/icons-react";
 
 import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
 import { Button } from "@/src/components/ui/button";
@@ -31,6 +31,12 @@ export function OrganizationOnboarding() {
             <Link href={accountRoutes.profile}>
               <IconUserCog data-icon="inline-start" />
               {t("accountAction")}
+            </Link>
+          </Button>
+          <Button asChild size="lg" variant="outline">
+            <Link href={accountRoutes.invitations}>
+              <IconMail data-icon="inline-start" />
+              {t("reviewInvitationsAction")}
             </Link>
           </Button>
         </CardContent>

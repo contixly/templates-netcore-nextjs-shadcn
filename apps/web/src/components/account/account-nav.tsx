@@ -15,6 +15,11 @@ const accountNavigation = [
     destructive: false,
   },
   { href: accountRoutes.security, label: "security", destructive: false },
+  {
+    href: accountRoutes.invitations,
+    label: "invitations",
+    destructive: false,
+  },
   { href: accountRoutes.danger, label: "danger", destructive: true },
 ] as const;
 

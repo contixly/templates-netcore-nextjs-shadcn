@@ -1,0 +1,176 @@
+{
+  "teams": {
+    "page": {
+      "title": "Workspace teams",
+      "description": "Organize workspace members into teams.",
+      "loading": "Loading workspace teams"
+    },
+    "list": {
+      "label": "Workspace teams",
+      "emptyTitle": "No teams yet",
+      "emptyDescription": "Create a team to organize workspace members.",
+      "loadMore": "Load more teams",
+      "loadingMore": "Loading more teams",
+      "partialFailure": "Some teams could not be loaded. The teams already shown are still available."
+    },
+    "members": {
+      "label": "{team} members",
+      "count": "{count, plural, one {# member} other {# members}}",
+      "empty": "This team has no members.",
+      "loadMore": "Load more members",
+      "loadingMore": "Loading more members",
+      "partialFailure": "Some team members could not be loaded."
+    },
+    "candidates": {
+      "label": "Find a workspace member",
+      "placeholder": "Search by name or email",
+      "empty": "No eligible members found.",
+      "loadMore": "Load more candidates",
+      "loadingMore": "Loading more candidates"
+    },
+    "actions": {
+      "create": "Create team",
+      "creating": "Creating team",
+      "rename": "Rename team",
+      "renaming": "Renaming team",
+      "delete": "Delete team",
+      "deleting": "Deleting team",
+      "addMember": "Add member",
+      "addingMember": "Adding member",
+      "removeMember": "Remove member",
+      "removingMember": "Removing member",
+      "retry": "Retry"
+    },
+    "form": {
+      "name": "Team name",
+      "nameHint": "Use 1–50 letters, numbers, spaces, hyphens, or underscores.",
+      "cancel": "Cancel",
+      "deleteTitle": "Delete {team}?",
+      "deleteDescription": "The team will be deleted. Workspace memberships are not affected."
+    },
+    "success": {
+      "created": "Team created.",
+      "renamed": "Team renamed.",
+      "deleted": "Team deleted.",
+      "memberAdded": "Member added to the team.",
+      "memberRemoved": "Member removed from the team.",
+      "refreshFailure": "The change was saved, but the latest team data could not be loaded."
+    }
+  },
+  "invitations": {
+    "settings": {
+      "title": "Workspace invitations",
+      "description": "Invite people and review invitation activity.",
+      "loading": "Loading workspace invitations"
+    },
+    "account": {
+      "title": "Invitations",
+      "description": "Review invitations sent to your verified email addresses.",
+      "loading": "Loading invitations",
+      "emptyTitle": "No pending invitations",
+      "emptyDescription": "There are no invitations waiting for your response."
+    },
+    "activity": {
+      "label": "Invitation activity",
+      "empty": "No invitation activity matches this filter.",
+      "loadMore": "Load more invitations",
+      "loadingMore": "Loading more invitations",
+      "partialFailure": "Some invitations could not be loaded. The invitations already shown are still available."
+    },
+    "create": {
+      "open": "Create invitation",
+      "title": "Invite a workspace member",
+      "description": "Choose a role and optionally add the recipient to a team after acceptance.",
+      "email": "Email address",
+      "role": "Workspace role",
+      "team": "Team",
+      "noTeam": "No team",
+      "submit": "Create invitation",
+      "submitting": "Creating invitation",
+      "cancel": "Cancel",
+      "created": "Invitation created.",
+      "copy": "Copy invitation link",
+      "copied": "Invitation link copied."
+    },
+    "filters": {
+      "status": "Status",
+      "all": "All invitations"
+    },
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "canceled": "Canceled",
+      "expired": "Expired"
+    },
+    "roles": {
+      "member": "Member",
+      "admin": "Administrator",
+      "owner": "Owner"
+    },
+    "item": {
+      "organization": "Workspace: {organization}",
+      "team": "Team: {team}",
+      "recipient": "Recipient: {email}",
+      "inviter": "Invited by {name}",
+      "expires": "Expires {date}",
+      "review": "Review invitation"
+    }
+  },
+  "decision": {
+    "page": {
+      "title": "Review invitation",
+      "loading": "Loading invitation"
+    },
+    "states": {
+      "pending": "You have been invited to join {organization}.",
+      "accepted": "This invitation has been accepted.",
+      "rejected": "This invitation has been rejected.",
+      "canceled": "This invitation was canceled.",
+      "expired": "This invitation has expired.",
+      "recipientMismatch": "This invitation is not available for the current account.",
+      "emailVerificationRequired": "Verify the invited email address before responding.",
+      "domainRestricted": "The workspace email policy no longer allows this invitation.",
+      "alreadyMember": "You already have access to this workspace."
+    },
+    "actions": {
+      "accept": "Accept invitation",
+      "accepting": "Accepting invitation",
+      "reject": "Reject invitation",
+      "rejecting": "Rejecting invitation",
+      "openWorkspace": "Open workspace"
+    },
+    "success": {
+      "accepted": "Invitation accepted.",
+      "rejected": "Invitation rejected.",
+      "refreshFailure": "Your response was saved, but the invitation could not be refreshed."
+    }
+  },
+  "failures": {
+    "generic": "The collaboration request could not be completed.",
+    "trace": "Reference: {traceId}",
+    "codes": {
+      "antiforgery_failed": "Your security token expired. Try again.",
+      "invitation_already_exists": "A pending invitation already exists for this email address.",
+      "invitation_domain_restricted": "The recipient email domain is not allowed by this workspace.",
+      "invitation_email_verification_required": "Verify the invited email address before responding.",
+      "invitation_expired": "This invitation has expired.",
+      "invitation_limit_reached": "This workspace has reached its pending invitation limit.",
+      "invitation_membership_conflict": "The invitation could not be accepted because workspace membership changed.",
+      "invitation_not_found": "This invitation is no longer available.",
+      "invitation_not_pending": "This invitation has already been resolved.",
+      "invitation_permission_denied": "You do not have permission to manage workspace invitations.",
+      "invitation_recipient_already_member": "The recipient already belongs to this workspace.",
+      "invitation_recipient_mismatch": "This invitation is not available for the current account.",
+      "invitation_team_invalid": "Choose a valid team in this workspace.",
+      "rate_limited": "Too many requests were made. Try again later.",
+      "team_member_already_exists": "This member already belongs to the team.",
+      "team_member_not_found": "This team member is no longer available.",
+      "team_name_conflict": "Choose a different team name.",
+      "team_name_unchanged": "Enter a different team name.",
+      "team_not_found": "This team is no longer available.",
+      "team_permission_denied": "You do not have permission to manage teams.",
+      "validation_failed": "Check the entered values and try again."
+    }
+  }
+}

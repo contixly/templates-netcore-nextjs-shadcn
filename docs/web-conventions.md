@@ -440,3 +440,34 @@ maps the exact typed `organization_ownership_transfer_required` Problem Details
 code to localized guidance to promote another owner or share ownership before
 retrying. A safe trace id remains visible when supplied; the API result remains
 authoritative.
+
+## Collaboration REST adapters (iteration 6)
+
+Collaboration route values are centralized and encode each dynamic segment:
+`/w/{key}/settings/teams`, `/w/{key}/settings/invitations`,
+`/user/invitations`, and `/invite/{id}`. Page rendering, canonical workspace
+redirects, protected not-found/forbidden behavior, and interactive controls are
+owned by the later collaboration UI slices; the adapter slice does not add
+placeholder pages or Next Route Handlers.
+
+Team and invitation Server Component loaders use only generated SDK operations
+through `createServerApiClient`. They copy only the request cookie and
+correlation id through the shared forwarding allow-list, set
+`X-Template-Session-Renewal: suppress`, remain `no-store`, and return safe
+`ApiResult<T>` values. They never forward `Authorization` or arbitrary incoming
+headers.
+
+Browser collaboration writes use the relative same-origin generated client and
+the shared `runCsrfMutation` boundary. Each create/update/delete/add/remove or
+accept/reject operation obtains a fresh CSRF value before invoking the generated
+operation; generated metadata owns method, JSON content type, request shape,
+path serialization, and response envelope decoding. Adapters expose only stable
+normalized failure codes and safe trace ids. No proxy action, handwritten DTO,
+raw `fetch`, bearer storage, Server Action, Prisma, or Better Auth path exists.
+
+Workspace settings navigation always exposes Teams and exposes Invitations only
+from the current server-projected `canManageInvitations` capability. Account
+navigation always exposes Invitations, and zero-workspace onboarding links to
+the same account invitation review route without depending on an organization.
+Workspace switching preserves both collaboration settings suffixes just like
+the existing workspace/users/roles settings destinations.

@@ -81,7 +81,7 @@ it("keeps the create trigger unavailable in server HTML until its client handler
   expect(await screen.findByRole("dialog")).toBeVisible();
 });
 
-it("offers first-workspace creation and account settings without invitations", () => {
+it("offers first-workspace creation, account settings, and invitation review", () => {
   renderWithMessages(<OrganizationOnboarding />);
 
   expect(
@@ -91,8 +91,8 @@ it("offers first-workspace creation and account settings without invitations", (
     screen.getByRole("link", { name: "Account settings" }),
   ).toHaveAttribute("href", "/user/profile");
   expect(
-    screen.queryByRole("link", { name: /invitation/i }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("link", { name: "Review Invitations" }),
+  ).toHaveAttribute("href", "/user/invitations");
 });
 
 it("validates the trimmed UTF-16 name and supported characters before mutation", async () => {

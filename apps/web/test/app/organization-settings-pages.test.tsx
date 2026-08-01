@@ -301,9 +301,10 @@ beforeEach(() => {
   });
 });
 
-it("exposes only Workspace, Users, and Roles settings navigation", () => {
+it("exposes Teams to every member and Invitations to invitation managers", () => {
   renderWithMessages(
     <OrganizationSettingsNav
+      canManageInvitations
       organizationKey="acme"
       pathname="/w/acme/settings/users"
     />,
@@ -319,9 +320,31 @@ it("exposes only Workspace, Users, and Roles settings navigation", () => {
     "page",
   );
   expect(within(nav).getByRole("link", { name: "Roles" })).toBeVisible();
-  expect(within(nav).queryByText("Teams")).not.toBeInTheDocument();
-  expect(within(nav).queryByText("Invitations")).not.toBeInTheDocument();
+  expect(within(nav).getByRole("link", { name: "Teams" })).toHaveAttribute(
+    "href",
+    "/w/acme/settings/teams",
+  );
+  expect(
+    within(nav).getByRole("link", { name: "Invitations" }),
+  ).toHaveAttribute("href", "/w/acme/settings/invitations");
   expect(within(nav).queryByText("API Keys")).not.toBeInTheDocument();
+});
+
+it("keeps Teams visible but hides Invitations without the server capability", () => {
+  renderWithMessages(
+    <OrganizationSettingsNav
+      canManageInvitations={false}
+      organizationKey="acme"
+      pathname="/w/acme/settings/teams"
+    />,
+  );
+
+  const nav = screen.getByRole("navigation", { name: "Workspace settings" });
+  expect(within(nav).getByRole("link", { name: "Teams" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(within(nav).queryByText("Invitations")).not.toBeInTheDocument();
 });
 
 it("canonicalizes settings root to the returned workspace settings URL", async () => {
@@ -442,8 +465,6 @@ it("serializes compact actor, organization, and member views into the users clie
     capabilities: {
       canAddMembers: true,
       canUpdateMemberRoles: true,
-      canManageTeams: true,
-      canManageInvitations: true,
     },
   });
   expect(directory.props.initialPage).toEqual({

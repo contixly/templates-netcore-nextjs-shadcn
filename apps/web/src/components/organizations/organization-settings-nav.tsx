@@ -8,9 +8,14 @@ import { organizationRoutes } from "@/src/features/organizations/organization-ro
 import { cn } from "@/src/lib/utils";
 
 function OrganizationSettingsNavLinks({
+  canManageInvitations,
   organizationKey,
   pathname,
-}: Readonly<{ organizationKey: string; pathname: string }>) {
+}: Readonly<{
+  canManageInvitations: boolean;
+  organizationKey: string;
+  pathname: string;
+}>) {
   const t = useTranslations("organizations.settings.navigation");
   const items = [
     {
@@ -25,6 +30,18 @@ function OrganizationSettingsNavLinks({
       href: organizationRoutes.settingsRoles(organizationKey),
       label: "roles",
     },
+    {
+      href: organizationRoutes.settingsTeams(organizationKey),
+      label: "teams",
+    },
+    ...(canManageInvitations
+      ? [
+          {
+            href: organizationRoutes.settingsInvitations(organizationKey),
+            label: "invitations" as const,
+          },
+        ]
+      : []),
   ] as const;
 
   return (
@@ -58,10 +75,12 @@ function OrganizationSettingsNavLinks({
 }
 
 function CurrentOrganizationSettingsNav({
+  canManageInvitations,
   organizationKey,
-}: Readonly<{ organizationKey: string }>) {
+}: Readonly<{ canManageInvitations: boolean; organizationKey: string }>) {
   return (
     <OrganizationSettingsNavLinks
+      canManageInvitations={canManageInvitations}
       organizationKey={organizationKey}
       pathname={usePathname()}
     />
@@ -69,13 +88,22 @@ function CurrentOrganizationSettingsNav({
 }
 
 export function OrganizationSettingsNav({
+  canManageInvitations,
   organizationKey,
   pathname,
-}: Readonly<{ organizationKey: string; pathname?: string }>) {
+}: Readonly<{
+  canManageInvitations: boolean;
+  organizationKey: string;
+  pathname?: string;
+}>) {
   return pathname === undefined ? (
-    <CurrentOrganizationSettingsNav organizationKey={organizationKey} />
+    <CurrentOrganizationSettingsNav
+      canManageInvitations={canManageInvitations}
+      organizationKey={organizationKey}
+    />
   ) : (
     <OrganizationSettingsNavLinks
+      canManageInvitations={canManageInvitations}
       organizationKey={organizationKey}
       pathname={pathname}
     />

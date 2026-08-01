@@ -72,3 +72,19 @@ test("rejects handwritten authentication transport DTOs", async () => {
     /handwritten OpenAPI DTO/,
   );
 });
+
+test("rejects raw collaboration fetches", async () => {
+  await expectViolation(
+    "src/lib/api/collaboration/browser/raw-team-request.ts",
+    'export const createTeam = () => fetch("/api/v1/organizations/id/teams");',
+    /raw fetch outside generated runtime/,
+  );
+});
+
+test("rejects handwritten collaboration transport DTOs", async () => {
+  await expectViolation(
+    "src/__boundary_guard_test__/collaboration-dto.ts",
+    "export interface InvitationDecisionResponse { canRespond: boolean }",
+    /handwritten OpenAPI DTO/,
+  );
+});

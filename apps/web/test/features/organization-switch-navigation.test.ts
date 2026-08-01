@@ -11,6 +11,8 @@ describe("organization switch navigation", () => {
     ["/w/old/settings/workspace", "/w/new/settings/workspace"],
     ["/w/old/settings/users", "/w/new/settings/users"],
     ["/w/old/settings/roles", "/w/new/settings/roles"],
+    ["/w/old/settings/teams", "/w/new/settings/teams"],
+    ["/w/old/settings/invitations", "/w/new/settings/invitations"],
   ])("preserves the registered workspace path %s", (current, expected) => {
     expect(isOrganizationSwitchPreservablePath(current)).toBe(true);
     expect(resolveOrganizationSwitchHref(current, "new")).toBe(expected);
@@ -21,7 +23,6 @@ describe("organization switch navigation", () => {
     "",
     "/workspaces",
     "/w/old/custom/deep",
-    "/w/old/settings/teams",
     "/w/old/settings/users/detail",
     "/w/old/dashboard/more",
   ])("falls back to the selected dashboard for %s", (current) => {

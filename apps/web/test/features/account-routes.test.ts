@@ -9,17 +9,18 @@ jest.mock("next/navigation", () => ({
   }),
 }));
 
-it("exposes only the exact typed iteration-four account routes", () => {
+it("exposes the exact typed account routes including invitations", () => {
   expect(accountRoutes).toEqual({
     root: "/user",
     profile: "/user/profile",
     connections: "/user/connections",
     security: "/user/security",
+    invitations: "/user/invitations",
     danger: "/user/danger",
   });
 
   const typedRoutes: readonly Route[] = Object.values(accountRoutes);
-  expect(typedRoutes).toHaveLength(5);
+  expect(typedRoutes).toHaveLength(6);
 });
 
 it("redirects the account root to profile", () => {
