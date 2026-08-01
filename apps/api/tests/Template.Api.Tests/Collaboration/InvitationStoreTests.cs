@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
@@ -91,6 +92,205 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
         Assert.Equal(InvitationDisplayState.Pending, pending.Value.Items[0].DisplayState);
         Assert.Equal(invitation, Assert.Single(expired.Value!.Items).Id);
         Assert.Equal(InvitationDisplayState.Expired, expired.Value.Items[0].DisplayState);
+    }
+
+    [Fact]
+    public async Task Organization_list_pages_by_created_at_descending_then_uuid_descending()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("org-page-owner@example.test");
+        var foreignOwner = await fixture.CreateUserAsync("org-page-foreign@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Organization Paging");
+        var foreignOrganization = await fixture.CreateOrganizationAsync(
+            foreignOwner,
+            OrganizationRole.Owner,
+            "Foreign Organization Paging");
+        var first = Invitation("10000000-0000-4000-8000-000000000005");
+        var second = Invitation("10000000-0000-4000-8000-000000000004");
+        var third = Invitation("10000000-0000-4000-8000-000000000009");
+        var fourth = Invitation("10000000-0000-4000-8000-000000000008");
+        var fifth = Invitation("10000000-0000-4000-8000-000000000001");
+        var newest = InvitationStoreFixture.Now.AddMinutes(-1);
+        var middle = InvitationStoreFixture.Now.AddMinutes(-2);
+        await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            "org-page-1@example.test",
+            invitationId: first,
+            createdAt: newest);
+        await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            "org-page-2@example.test",
+            invitationId: second,
+            createdAt: newest);
+        await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            "org-page-3@example.test",
+            invitationId: third,
+            createdAt: middle);
+        await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            "org-page-4@example.test",
+            invitationId: fourth,
+            createdAt: middle);
+        await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            "org-page-5@example.test",
+            invitationId: fifth,
+            createdAt: InvitationStoreFixture.Now.AddMinutes(-3));
+        await fixture.SeedInvitationAsync(
+            foreignOrganization,
+            foreignOwner,
+            "org-page-hidden@example.test",
+            invitationId: Invitation("ffffffff-ffff-4fff-8fff-ffffffffffff"),
+            createdAt: InvitationStoreFixture.Now);
+
+        var pageOne = await fixture.Store.ListOrganizationAsync(
+            owner.UserId,
+            organization,
+            filter: null,
+            after: null,
+            limit: 2,
+            InvitationStoreFixture.Now,
+            TestContext.Current.CancellationToken);
+        var afterOne = Assert.IsType<OrganizationInvitationCursorPosition>(
+            pageOne.Value!.Next);
+        var pageTwo = await fixture.Store.ListOrganizationAsync(
+            owner.UserId,
+            organization,
+            filter: null,
+            afterOne,
+            limit: 2,
+            InvitationStoreFixture.Now,
+            TestContext.Current.CancellationToken);
+        var afterTwo = Assert.IsType<OrganizationInvitationCursorPosition>(
+            pageTwo.Value!.Next);
+        var pageThree = await fixture.Store.ListOrganizationAsync(
+            owner.UserId,
+            organization,
+            filter: null,
+            afterTwo,
+            limit: 2,
+            InvitationStoreFixture.Now,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([first, second], pageOne.Value.Items.Select(row => row.Id));
+        Assert.Equal(newest, afterOne.CreatedAt);
+        Assert.Equal(second, afterOne.Id);
+        Assert.Equal([third, fourth], pageTwo.Value.Items.Select(row => row.Id));
+        Assert.Equal(middle, afterTwo.CreatedAt);
+        Assert.Equal(fourth, afterTwo.Id);
+        Assert.Equal(fifth, Assert.Single(pageThree.Value!.Items).Id);
+        Assert.Null(pageThree.Value.Next);
+        Assert.Equal(
+            new[] { first, second, third, fourth, fifth },
+            pageOne.Value.Items
+                .Concat(pageTwo.Value.Items)
+                .Concat(pageThree.Value.Items)
+                .Select(row => row.Id));
+    }
+
+    [Fact]
+    public async Task Account_list_pages_by_expiry_ascending_then_created_and_uuid_descending()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var recipient = await fixture.CreateUserAsync("account-page-recipient@example.test");
+        var owner = await fixture.CreateUserAsync("account-page-owner@example.test");
+        var organizations = new List<OrganizationId>();
+        for (var index = 0; index < 7; index++)
+        {
+            organizations.Add(await fixture.CreateOrganizationAsync(
+                owner,
+                OrganizationRole.Owner,
+                $"Account Paging {index}"));
+        }
+
+        var first = Invitation("20000000-0000-4000-8000-000000000005");
+        var second = Invitation("20000000-0000-4000-8000-000000000004");
+        var third = Invitation("20000000-0000-4000-8000-000000000009");
+        var fourth = Invitation("20000000-0000-4000-8000-000000000008");
+        var fifth = Invitation("20000000-0000-4000-8000-000000000007");
+        var earlyExpiry = InvitationStoreFixture.Now.AddHours(1);
+        var laterExpiry = InvitationStoreFixture.Now.AddHours(2);
+        var newest = InvitationStoreFixture.Now.AddMinutes(-1);
+        await fixture.SeedInvitationAsync(
+            organizations[0], owner, recipient.Email,
+            invitationId: first, createdAt: newest, expiresAt: earlyExpiry);
+        await fixture.SeedInvitationAsync(
+            organizations[1], owner, recipient.Email,
+            invitationId: second, createdAt: newest, expiresAt: earlyExpiry);
+        await fixture.SeedInvitationAsync(
+            organizations[2], owner, recipient.Email,
+            invitationId: third,
+            createdAt: InvitationStoreFixture.Now.AddMinutes(-2),
+            expiresAt: earlyExpiry);
+        await fixture.SeedInvitationAsync(
+            organizations[3], owner, recipient.Email,
+            invitationId: fourth, createdAt: newest, expiresAt: laterExpiry);
+        await fixture.SeedInvitationAsync(
+            organizations[4], owner, recipient.Email,
+            invitationId: fifth, createdAt: newest, expiresAt: laterExpiry);
+        await fixture.AddOrganizationMemberAsync(
+            organizations[5],
+            recipient,
+            OrganizationRole.Member);
+        await fixture.SeedInvitationAsync(
+            organizations[5], owner, recipient.Email,
+            invitationId: Invitation("ffffffff-ffff-4fff-8fff-fffffffffffe"),
+            createdAt: InvitationStoreFixture.Now,
+            expiresAt: earlyExpiry);
+        await fixture.SeedInvitationAsync(
+            organizations[6], owner, "other-recipient@example.test",
+            invitationId: Invitation("ffffffff-ffff-4fff-8fff-ffffffffffff"),
+            createdAt: InvitationStoreFixture.Now,
+            expiresAt: earlyExpiry);
+
+        var pageOne = await fixture.Store.ListAccountAsync(
+            recipient.InvitationActor,
+            after: null,
+            limit: 2,
+            InvitationStoreFixture.Now,
+            TestContext.Current.CancellationToken);
+        var afterOne = Assert.IsType<AccountInvitationCursorPosition>(
+            pageOne.Value!.Next);
+        var pageTwo = await fixture.Store.ListAccountAsync(
+            recipient.InvitationActor,
+            afterOne,
+            limit: 2,
+            InvitationStoreFixture.Now,
+            TestContext.Current.CancellationToken);
+        var afterTwo = Assert.IsType<AccountInvitationCursorPosition>(
+            pageTwo.Value!.Next);
+        var pageThree = await fixture.Store.ListAccountAsync(
+            recipient.InvitationActor,
+            afterTwo,
+            limit: 2,
+            InvitationStoreFixture.Now,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal([first, second], pageOne.Value.Items.Select(row => row.Id));
+        Assert.Equal(earlyExpiry, afterOne.ExpiresAt);
+        Assert.Equal(newest, afterOne.CreatedAt);
+        Assert.Equal(second, afterOne.Id);
+        Assert.Equal([third, fourth], pageTwo.Value.Items.Select(row => row.Id));
+        Assert.Equal(laterExpiry, afterTwo.ExpiresAt);
+        Assert.Equal(newest, afterTwo.CreatedAt);
+        Assert.Equal(fourth, afterTwo.Id);
+        Assert.Equal(fifth, Assert.Single(pageThree.Value!.Items).Id);
+        Assert.Null(pageThree.Value.Next);
+        Assert.Equal(
+            new[] { first, second, third, fourth, fifth },
+            pageOne.Value.Items
+                .Concat(pageTwo.Value.Items)
+                .Concat(pageThree.Value.Items)
+                .Select(row => row.Id));
     }
 
     [Fact]
@@ -450,6 +650,46 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
     }
 
     [Fact]
+    public async Task Accept_locks_current_session_before_organization_name_advisory_key()
+    {
+        await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
+        var owner = await fixture.CreateUserAsync("lock-order-owner@example.test");
+        var recipient = await fixture.CreateUserAsync("lock-order-recipient@example.test");
+        var organization = await fixture.CreateOrganizationAsync(
+            owner,
+            OrganizationRole.Owner,
+            "Lock Order");
+        var session = await fixture.CreateSessionAsync(recipient);
+        var invitation = await fixture.SeedInvitationAsync(
+            organization,
+            owner,
+            recipient.Email,
+            expiresAt: InvitationStoreFixture.Now.AddMinutes(1));
+        fixture.ResetCommandOrder();
+
+        var result = await fixture.Store.AcceptAsync(
+            new(recipient.InvitationActor, session, invitation),
+            InvitationStoreFixture.Now,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        var commands = fixture.CommandOrder;
+        var sessionLock = Assert.Single(
+            commands.Select((sql, index) => (sql, index)),
+            value =>
+                value.sql.Contains("FROM auth.sessions", StringComparison.Ordinal) &&
+                value.sql.Contains("FOR UPDATE", StringComparison.Ordinal));
+        var advisoryLock = Assert.Single(
+            commands.Select((sql, index) => (sql, index)),
+            value => value.sql.Contains(
+                "pg_advisory_xact_lock",
+                StringComparison.Ordinal));
+        Assert.True(
+            sessionLock.index < advisoryLock.index,
+            $"Expected session lock before advisory lock, got indexes {sessionLock.index} and {advisoryLock.index}.");
+    }
+
+    [Fact]
     public async Task Accept_rejects_accessible_organization_name_conflict_without_partial_writes()
     {
         await using var fixture = await InvitationStoreFixture.CreateAsync(postgres);
@@ -615,6 +855,9 @@ public sealed class InvitationStoreTests(PostgreSqlContainerFixture postgres)
             organization,
             recipient));
     }
+
+    private static InvitationId Invitation(string value) =>
+        new(Guid.Parse(value));
 }
 
 internal sealed class InvitationStoreFixture : IAsyncDisposable
@@ -661,9 +904,11 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
         services.AddSingleton<IConfiguration>(configuration);
         services.AddSingleton<TimeProvider>(new InvitationTimeProvider(Now));
         services.AddSingleton<InvitationMutationStartBarrier>();
+        services.AddSingleton<InvitationCommandOrderRecorder>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
             options.AddInterceptors(
-                provider.GetRequiredService<InvitationMutationStartBarrier>()));
+                provider.GetRequiredService<InvitationMutationStartBarrier>(),
+                provider.GetRequiredService<InvitationCommandOrderRecorder>()));
         services.AddAuthInfrastructure(configuration, new TestHostEnvironment());
         var provider = services.BuildServiceProvider();
 
@@ -695,6 +940,12 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
     internal bool MutationPairWasCoordinated =>
         _services.GetRequiredService<InvitationMutationStartBarrier>()
             .WasCoordinated;
+
+    internal void ResetCommandOrder() =>
+        _services.GetRequiredService<InvitationCommandOrderRecorder>().Reset();
+
+    internal IReadOnlyList<string> CommandOrder =>
+        _services.GetRequiredService<InvitationCommandOrderRecorder>().Commands;
 
     internal async Task<InvitationOperationResult<InvitationView>>
         CreateInvitationAsync(
@@ -909,10 +1160,11 @@ internal sealed class InvitationStoreFixture : IAsyncDisposable
         TeamId? teamId = null,
         OrganizationRole? role = null,
         InvitationStatus? status = null,
+        InvitationId? invitationId = null,
         DateTimeOffset? createdAt = null,
         DateTimeOffset? expiresAt = null)
     {
-        var id = InvitationId.New();
+        var id = invitationId ?? InvitationId.New();
         var created = createdAt ?? Now.AddHours(-1);
         await using var db = CreateDbContext();
         db.Invitations.Add(new InvitationEntity
@@ -1054,4 +1306,49 @@ internal sealed class InvitationMutationStartBarrier : DbCommandInterceptor
 
     private static TaskCompletionSource NewSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
+}
+
+internal sealed class InvitationCommandOrderRecorder : DbCommandInterceptor
+{
+    private readonly ConcurrentQueue<string> _commands = new();
+
+    internal IReadOnlyList<string> Commands => _commands.ToArray();
+
+    internal void Reset()
+    {
+        while (_commands.TryDequeue(out _))
+        {
+        }
+    }
+
+    public override ValueTask<InterceptionResult<System.Data.Common.DbDataReader>>
+        ReaderExecutingAsync(
+            System.Data.Common.DbCommand command,
+            CommandEventData eventData,
+            InterceptionResult<System.Data.Common.DbDataReader> result,
+            CancellationToken cancellationToken = default)
+    {
+        _commands.Enqueue(command.CommandText);
+        return ValueTask.FromResult(result);
+    }
+
+    public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        _commands.Enqueue(command.CommandText);
+        return ValueTask.FromResult(result);
+    }
+
+    public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+        System.Data.Common.DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<object> result,
+        CancellationToken cancellationToken = default)
+    {
+        _commands.Enqueue(command.CommandText);
+        return ValueTask.FromResult(result);
+    }
 }

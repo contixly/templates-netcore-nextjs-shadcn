@@ -825,10 +825,6 @@ internal sealed class EfInvitationStore(
 
         var organization = lockedOrganizations.Single(
             row => row.Id == invitation.OrganizationId);
-        await AcquireNameNamespaceLockAsync(
-            organization.Name,
-            cancellationToken);
-
         AuthSessionEntity? session = null;
         if (sessionId is not null)
         {
@@ -842,6 +838,10 @@ internal sealed class EfInvitationStore(
                 return LockedDecisionResult.Failed(InvitationFailure.NotFound);
             }
         }
+
+        await AcquireNameNamespaceLockAsync(
+            organization.Name,
+            cancellationToken);
 
         var inviterName = await db.Users.AsNoTracking()
             .Where(user => user.Id == invitation.InviterUserId)
