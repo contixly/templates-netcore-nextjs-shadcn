@@ -313,6 +313,80 @@ public sealed class CollaborationSecurityTests(ApiWebApplicationFactory factory)
     }
 
     [Theory]
+    [InlineData(TeamMutationKind.Create, true)]
+    [InlineData(TeamMutationKind.Create, false)]
+    [InlineData(TeamMutationKind.Update, true)]
+    [InlineData(TeamMutationKind.Update, false)]
+    [InlineData(TeamMutationKind.AddMember, true)]
+    [InlineData(TeamMutationKind.AddMember, false)]
+    public async Task Json_team_mutations_reject_malformed_syntax_and_wrong_content_type(
+        TeamMutationKind kind,
+        bool malformedSyntax)
+    {
+        var store = new BoundaryProbeTeamStore();
+        await using var isolated = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<ITeamStore>();
+                services.AddSingleton<ITeamStore>(store);
+            }));
+        using var client = isolated.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://localhost"),
+                HandleCookies = true
+            });
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Strict JSON Owner",
+            $"local-agent+strict-json-{kind}-{malformedSyntax}-{Guid.NewGuid():N}@local-agent.test");
+        var organizationId = Guid.NewGuid();
+        var teamId = Guid.NewGuid();
+        var targetUserId = Guid.NewGuid();
+        var teamPath =
+            $"/api/v1/organizations/{organizationId:D}/teams/{teamId:D}";
+        var (method, path, validBody, operation) = kind switch
+        {
+            TeamMutationKind.Create => (
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/teams",
+                "{\"name\":\"Strict JSON Team\"}",
+                "team_create"),
+            TeamMutationKind.Update => (
+                HttpMethod.Patch,
+                teamPath,
+                "{\"name\":\"Strict JSON Team\"}",
+                "team_update"),
+            TeamMutationKind.AddMember => (
+                HttpMethod.Post,
+                $"{teamPath}/members",
+                $"{{\"userId\":\"{targetUserId:D}\"}}",
+                "team_member_add"),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+        var body = malformedSyntax ? validBody[..^1] : validBody;
+        var mediaType = malformedSyntax ? "application/json" : "text/plain";
+        var logs = isolated.Services.GetRequiredService<CapturedLogProvider>();
+        logs.Clear();
+
+        using var response = await OrganizationEndpointTestSupport.SendRawWithCsrfAsync(
+            client,
+            method,
+            path,
+            body,
+            mediaType);
+
+        await OrganizationEndpointTestSupport.AssertProblemAsync(
+            response,
+            HttpStatusCode.BadRequest,
+            "invalid_request");
+        OrganizationEndpointTestSupport.AssertNoStore(response);
+        Assert.Equal(0, store.CallCount);
+        AssertSingleFinalAudit(logs, operation, "invalid_request");
+    }
+
+    [Theory]
     [MemberData(nameof(TeamMutationKinds))]
     public async Task Every_team_mutation_enforces_complete_role_and_resource_matrix(
         TeamMutationKind kind)
