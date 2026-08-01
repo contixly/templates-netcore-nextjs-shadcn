@@ -154,8 +154,9 @@ async function createInvitationThroughBrowser(
 
 async function confirmLocalRecipient(page: Page, invitationPath: string) {
   await page.goto(invitationPath);
+  const main = page.getByRole("main");
   await expect(
-    page.getByText("Verify the invited email address before responding.", {
+    main.getByText("Verify the invited email address before responding.", {
       exact: true,
     }),
   ).toBeVisible();

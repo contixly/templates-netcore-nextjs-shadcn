@@ -516,6 +516,12 @@ only while its confirming mutation generation is still current, so an
 interleaved newer confirmation remains local authority even if its recovery
 fails. React Activity/different-resource guards prevent a hidden, unmounted, or
 replaced component's late completion from updating state or navigating.
+Confirmed create, rename, and add overlays retire only when a causally newer
+browser read returns the same immutable row (and the confirmed name for rename).
+Delete and remove absence is authoritative only on an exhaustive replacement
+first page, never on a continuation or non-exhaustive page. An incoming RSC page
+cannot acknowledge an overlay directly; it advances the read generation and
+queues a current browser GET while the local authority remains projected.
 Named regions/dialogs, explicit labels/descriptions, bounded fields, disabled
 pending states, focus behavior, and team/person-specific accessible names are
 part of the component contract.
@@ -545,13 +551,14 @@ queues one current all-filter GET; an RSC/server row containing an exact id may
 retire only that overlay. Multiple confirmed creates therefore remain causal
 independently until each is observed by the server.
 
-The browser validates the email and selected generated team locally, but the API
-remains authoritative for domain, duplicate, membership, permission, and role
-rules. A successful `InvitationResponse` is committed even if refresh,
-clipboard, or link projection fails; the form cannot repeat the POST. Every
-success says that no email was sent and requires manual sharing. Exact
-`notification_failed` adds one fixed warning; unknown warning/provider detail is
-ignored.
+The browser trims and lowercases the email, rejects non-ASCII or control
+characters, performs a basic structural check, and validates the selected
+generated team before mutation. The API remains authoritative for email
+structure, domain, duplicate, membership, permission, and role rules. A
+successful `InvitationResponse` is committed even if refresh, clipboard, or link
+projection fails; the form cannot repeat the POST. Every success says that no
+email was sent and requires manual sharing. Exact `notification_failed` adds one
+fixed warning; unknown warning/provider detail is ignored.
 
 The browser resolves `invitationPath` against `window.location.origin` and shows
 or copies it only when it is credential-free, query/hash-free, same-origin, and
@@ -598,6 +605,11 @@ projects the current matching invitation as terminal `already-member` with
 `canRespond: false`. It retains only that already-safe invitation projection and
 its encoded canonical workspace link, never uses the recipient-mismatch
 projection, and never repeats the decision POST.
+A confirmed accepted, rejected, or already-member projection survives an
+incoming same-invitation pending RSC payload, which cannot prove that it observed
+the mutation. A terminal same-id server projection or causally newer browser GET
+may replace it with authoritative state; a different/missing invitation or
+recipient mismatch clears the overlay and its details.
 
 Every browser collaboration mutation obtains a fresh CSRF value through
 `runCsrfMutation` before the generated operation. Local email confirmation uses

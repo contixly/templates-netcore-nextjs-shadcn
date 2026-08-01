@@ -209,6 +209,42 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task InvitationCreateEmailPublishesTrimmedAsciiOnlyRequestPolicy()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+        var requestEmail = schemas["CreateInvitationRequest"]!["properties"]!["email"]!;
+
+        Assert.Null(requestEmail["pattern"]);
+        Assert.Equal(254, requestEmail["x-trimmed-max-length"]!.GetValue<int>());
+        Assert.Equal("email", requestEmail["x-trimmed-format"]!.GetValue<string>());
+        Assert.NotNull(requestEmail["x-trimmed-pattern"]);
+        var trimmedPattern = requestEmail["x-trimmed-pattern"]!.GetValue<string>();
+        Assert.Matches(trimmedPattern, "INVITEE+tag@example.test");
+        Assert.DoesNotMatch(trimmedPattern, "İnvitee@example.test");
+        Assert.DoesNotMatch(trimmedPattern, "invitee\u007F@example.test");
+        Assert.Contains(
+            "ASCII",
+            requestEmail["description"]!.GetValue<string>(),
+            StringComparison.OrdinalIgnoreCase);
+
+        foreach (var schemaName in new[]
+                 {
+                     "InvitationResponse",
+                     "TeamMemberResponse",
+                     "TeamCandidateResponse"
+                 })
+        {
+            var projectedEmail = schemas[schemaName]!["properties"]!["email"]!;
+            Assert.Null(projectedEmail["x-trimmed-pattern"]);
+            Assert.Equal("email", projectedEmail["format"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
     public async Task CollaborationOperationsPublishTheExactBrowserSurface()
     {
         using var client = factory.CreateApiClient();

@@ -2561,6 +2561,88 @@ repair, no REST/client contract, database, package, E2E source, immutable
 reference, or OpenSpec state. Push and later automatic review remain
 unobserved.
 
+### PR #7 automatic-review round 2 observed acceptance 2026-08-01
+
+Automatic review of `9c4cc6c87ca9aba3520379f5b6e38fd8131deec2`
+reported six required defects, all reproduced and repaired in this round:
+
+1. a team continuation could outlive an incoming RSC page and append stale rows
+   or overwrite its cursor/pending state;
+2. a member continuation could similarly outlive the replacement embedded
+   member page;
+3. stale RSC input could erase confirmed create, rename, or delete team
+   authority;
+4. stale embedded member input could erase confirmed add/remove authority and
+   its locally confirmed member count;
+5. a same-invitation pending RSC projection could make a confirmed accept,
+   reject, or already-member decision actionable again; and
+6. a Unicode invitation address accepted by application validation could reach
+   PostgreSQL `lower`, fail in the database encoding/collation path, and surface
+   `500` instead of validation.
+
+Two scoped local-review follow-ups were also closed before integration. First,
+pagination acknowledgement now uses causal server evidence: exact create,
+rename, and add rows on a newer browser page may retire their overlays, while
+delete/remove absence is authoritative only on an exhaustive replacement first
+page, never merely at a continuation tail. RSC input advances the generation and
+queues the current generated GET, but cannot acknowledge an overlay directly.
+Second, invitation email has one explicit request policy across the API,
+browser, OpenAPI, and generated SDK: trim/lowercase, at most 254 characters,
+printable ASCII with no control characters, plus structural email validation.
+The request-only OpenAPI `x-trimmed-pattern` describes the post-trim character
+policy; response email projections remain the generic email schema.
+
+Strict test-first observations are kept separate where RED totals came from
+different controlled runs:
+
+- the four original TeamDirectory findings first produced **10 expected race
+  failures**, followed by **2 additional stale member-count failures**; GREEN
+  was **31/31** focused and **34/34** for TeamDirectory plus team settings;
+- the pagination acknowledgement follow-up added **3 failing upsert pagination
+  cases** before the fix; its final focused GREEN was **36/36**;
+- invitation decision produced **5 controlled failures** for already-member,
+  delayed/throwing accept, and failed reject reconciliation interleavings; the
+  four invitation suites then passed **48/48**;
+- the backend Unicode regression failed **0/1** with expected `400` but observed
+  `500`; GREEN was **1/1** for the regression, **9/9** invitation endpoints, and
+  **35/35** store/persistence;
+- the ASCII consistency follow-up produced web RED **1 failed / 5 passed** and
+  OpenAPI RED **0/1**; GREEN was API/OpenAPI **33/33** and web/generated-SDK
+  **15/15**.
+
+| PR-round-2 gate | Наблюдаемый результат |
+| --- | --- |
+| required .NET restore/build/test/format | PASS; restore current (`real 1.18s`); build 0 warnings/errors (`real 1.47s`); Application **262/262**, API **601/601**, total **863/863**, 0 failed/skipped (`real 117.24s`); format clean (`real 11.72s`) |
+| deterministic OpenAPI/export/client | PASS; two clean exports and the committed contract were byte-identical, **45 operations**, exact SHA-256 `bb10782ff8d515c0d871a2cf58edcbf6075c25c3a55dd0ea36a046550b5c67c8`; `api:check` before and after `api:generate` was current/deterministic |
+| focused/full Jest | PASS; round-2 integrated focus **8/8 suites, 102/102 tests** (`real 4.12s`); full **61/61 suites, 505/505 tests**, 0 snapshots (`real 12.18s`) |
+| web static/build | PASS; boundaries **5/5** and source scan clean (`real 1.47s`); Prettier clean (`real 2.17s`); ESLint 0 errors/10 inherited compile-time assertion warnings (`real 5.12s`); typegen/TypeScript clean (`real 1.95s`); clean Next.js 16.2.11 production build **23/23** with standalone server (`real 8.21s`) |
+| Playwright focused/final | PASS after the test-only stabilization described below; organization zero-state **1/1** (`real 38.38s`), collaboration **2/2** (`real 41.27s`), final full **16 passed, 5 opt-in live-provider tests skipped, 0 failed** (`real 71.42s`) |
+| repository/protection guards | PASS; `git diff --check`, immutable `template/` working/range/status/untracked checks, inactive OpenSpec exact-state check, generated-client drift check, and protected architecture/boundary scans clean |
+
+The first default five-worker E2E attempt recorded **10 passed, 5 skipped, 2
+failed, 4 did not run** (`real 54.30s`). Trace evidence showed the authentication
+redirect timed out while cold dashboard/welcome RSC compilation was still in
+flight. The organization scenario exceeded its 30-second budget after several
+2–5 second cold route compilations: its first organization POST returned `201`,
+then fixture teardown deleted the local-auth scenario and the pending second POST
+surfaced `401`. An unchanged warm rerun again recorded **10 passed, 5 skipped, 2
+failed, 4 did not run** (`real 51.62s`): authentication passed, the organization
+scenario repeated the same time-budget class, and collaboration encountered the
+already documented React Activity hidden-tree duplicate selector.
+
+The controlled failures became test-harness RED for two narrow, non-product
+changes: the long multi-route zero-organization workflow receives a 60-second
+per-test budget, and recipient verification scopes its exact prompt to visible
+`main`. The focused organization and collaboration runs and subsequent full run
+above passed. No retry, API mutation, or collaboration product behavior was
+changed to make E2E green.
+
+The exact contract and generated client now intentionally include only the
+request email extension described above; database schema and migration artifacts
+remain unchanged. The immutable reference and inactive OpenSpec state remain
+guarded. This commit is local: push, merge, and a new automatic review of the
+round-2 head remain unobserved and pending.
+
 ## 9. Правило обновления этого документа
 
 Перед стартом очередной итерации уточняются только её scope, зависимости, risks и acceptance criteria. Изменение порядка или архитектурных решений фиксируется здесь отдельной записью с причиной; незавершённые задачи не «перепрыгивают» в следующую итерацию без явного решения.

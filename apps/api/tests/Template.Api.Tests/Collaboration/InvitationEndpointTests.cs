@@ -526,6 +526,52 @@ public sealed class InvitationEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task InvitationCreateRejectsEmailWhoseInvariantCaseDoesNotMatchPostgres()
+    {
+        using var client = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Unicode Invitation Owner",
+            $"local-agent+unicode-invitation-owner-{Guid.NewGuid():N}@local-agent.test");
+        using var organization =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Unicode Invitation Workspace");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(organization))
+            .GetProperty("id").GetGuid();
+        const string email = "İnvitee@example.test";
+        var invariantLower = email.ToLowerInvariant();
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+            var postgresLower = await db.Database.SqlQuery<string>(
+                    $"SELECT lower({invariantLower}) AS \"Value\"")
+                .SingleAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(email, invariantLower);
+            Assert.Equal("invitee@example.test", postgresLower);
+        }
+
+        using var response = await SendCreateAsync(
+            client,
+            organizationId,
+            email,
+            "member");
+
+        await OrganizationEndpointTestSupport.AssertValidationProblemAsync(
+            response,
+            "email");
+        OrganizationEndpointTestSupport.AssertNoStore(response);
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider
+            .GetRequiredService<TemplateDbContext>();
+        Assert.False(await verificationDb.Invitations.AsNoTracking().AnyAsync(
+            invitation => invitation.OrganizationId == organizationId,
+            TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task OrganizationInvitationActivityFilterAndCursorAreValidatedAndContinued()
     {
         using var ownerClient = factory.CreateApiClient();

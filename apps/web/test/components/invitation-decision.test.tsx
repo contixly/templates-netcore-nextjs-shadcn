@@ -114,6 +114,10 @@ it.each([
 ] as const)(
   "turns an already-member %s failure into a safe linked terminal state",
   async (_action, mutation, actionName) => {
+    const staleServerProjection = {
+      ...pending,
+      invitation: { ...invitation },
+    };
     mutation.mockResolvedValue({
       ok: false,
       failure: {
@@ -122,7 +126,7 @@ it.each([
         status: 409,
       },
     });
-    renderWithMessages(
+    const view = renderWithMessages(
       <InvitationDecision
         decision={pending}
         emailVerified
@@ -151,6 +155,25 @@ it.each([
     expect(
       screen.queryByText("invitation_recipient_already_member"),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Accept invitation" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Reject invitation" }),
+    ).not.toBeInTheDocument();
+
+    view.rerender(
+      withMessages(
+        <InvitationDecision
+          decision={staleServerProjection}
+          emailVerified
+          localEmailConfirmationAvailable={false}
+        />,
+      ),
+    );
+    expect(
+      screen.getByText("You already have access to this workspace."),
+    ).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Accept invitation" }),
     ).not.toBeInTheDocument();
@@ -414,6 +437,10 @@ it("allows only a verified actionable pending invitation to accept and uses the 
 });
 
 it("keeps accepted state terminal when client navigation throws", async () => {
+  const staleServerProjection = {
+    ...pending,
+    invitation: { ...invitation },
+  };
   acceptInvitation.mockResolvedValue({
     ok: true,
     data: {
@@ -425,7 +452,7 @@ it("keeps accepted state terminal when client navigation throws", async () => {
   replace.mockImplementationOnce(() => {
     throw new Error("private navigation failure");
   });
-  renderWithMessages(
+  const view = renderWithMessages(
     <InvitationDecision
       decision={pending}
       emailVerified
@@ -443,7 +470,105 @@ it("keeps accepted state terminal when client navigation throws", async () => {
   expect(
     screen.queryByText("private navigation failure"),
   ).not.toBeInTheDocument();
+
+  view.rerender(
+    withMessages(
+      <InvitationDecision
+        decision={staleServerProjection}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    ),
+  );
+  expect(screen.getByText("This invitation has been accepted.")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Accept invitation" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Reject invitation" }),
+  ).not.toBeInTheDocument();
   expect(acceptInvitation).toHaveBeenCalledTimes(1);
+});
+
+it("keeps accepted state over delayed stale RSC projections and adopts a terminal acknowledgement", async () => {
+  const firstStaleServerProjection = {
+    ...pending,
+    invitation: { ...invitation },
+  };
+  const secondStaleServerProjection = {
+    ...pending,
+    invitation: { ...invitation },
+  };
+  acceptInvitation.mockResolvedValue({
+    ok: true,
+    data: {
+      invitationId: invitation.id,
+      organizationId: invitation.organizationId,
+      canonicalOrganizationKey: "acme",
+    },
+  });
+  const view = renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Accept invitation" }));
+  expect(
+    await screen.findByText("This invitation has been accepted."),
+  ).toBeVisible();
+  expect(replace).toHaveBeenCalledWith("/w/acme/dashboard");
+
+  view.rerender(
+    withMessages(
+      <InvitationDecision
+        decision={firstStaleServerProjection}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    ),
+  );
+  expect(screen.getByText("This invitation has been accepted.")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Accept invitation" }),
+  ).not.toBeInTheDocument();
+
+  view.rerender(
+    withMessages(
+      <InvitationDecision
+        decision={{
+          invitation: {
+            ...invitation,
+            organizationName: "Authoritative Acme",
+            status: "accepted",
+            displayState: "accepted",
+          },
+          state: "accepted",
+          canRespond: false,
+        }}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    ),
+  );
+  expect(screen.getByText("Authoritative Acme")).toBeVisible();
+
+  view.rerender(
+    withMessages(
+      <InvitationDecision
+        decision={secondStaleServerProjection}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    ),
+  );
+  expect(screen.getByText("This invitation has been accepted.")).toBeVisible();
+  expect(screen.getByText("Authoritative Acme")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Accept invitation" }),
+  ).not.toBeInTheDocument();
 });
 
 it.each([
@@ -656,6 +781,10 @@ it("does not render response actions when the account is not verified even if ca
 });
 
 it("commits rejection locally and reports a failed GET refresh without repeating POST", async () => {
+  const staleServerProjection = {
+    ...pending,
+    invitation: { ...invitation },
+  };
   rejectInvitation.mockResolvedValue({
     ok: true,
     data: {
@@ -672,7 +801,7 @@ it("commits rejection locally and reports a failed GET refresh without repeating
     error: { detail: "private refresh detail" },
     response: { status: 503 } as Response,
   } as Awaited<ReturnType<typeof getInvitationDecision>>);
-  renderWithMessages(
+  const view = renderWithMessages(
     <InvitationDecision
       decision={pending}
       emailVerified
@@ -691,6 +820,29 @@ it("commits rejection locally and reports a failed GET refresh without repeating
   ).toBeVisible();
   expect(screen.queryByText("private refresh detail")).not.toBeInTheDocument();
   expect(rejectInvitation).toHaveBeenCalledTimes(1);
+
+  view.rerender(
+    withMessages(
+      <InvitationDecision
+        decision={staleServerProjection}
+        emailVerified
+        localEmailConfirmationAvailable={false}
+      />,
+    ),
+  );
+  expect(screen.getByText("This invitation has been rejected.")).toBeVisible();
+  expect(
+    screen.getByText(
+      "Your response was saved, but the invitation could not be refreshed.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Accept invitation" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Reject invitation" }),
+  ).not.toBeInTheDocument();
+
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
   await waitFor(() => expect(loadDecision).toHaveBeenCalledTimes(2));
   expect(rejectInvitation).toHaveBeenCalledTimes(1);

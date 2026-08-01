@@ -272,7 +272,7 @@ export type AuthUserResponse = {
 
 export type CreateInvitationRequest = {
     /**
-     * Trimmed and lowercased before use; the trimmed value must be a valid email of at most 254 characters.
+     * Trimmed and lowercased before use; the trimmed value must be a valid ASCII-only email without control characters and contain at most 254 characters.
      */
     email: string;
     role: 'member' | 'admin' | 'owner';

@@ -258,6 +258,7 @@ internal static class CollaborationEndpointBoundary
         var email = value.Trim();
         if (email.Length > 254 ||
             email.Any(char.IsControl) ||
+            email.Any(character => !char.IsAscii(character)) ||
             !new EmailAddressAttribute().IsValid(email))
         {
             throw Validation(

@@ -40,6 +40,11 @@ import type { ApiFailure } from "@/src/lib/api/result";
 
 type PendingAction = "accept" | "confirm" | "reject" | "refresh" | null;
 type RefreshFailure = "not-pending" | "reconcile" | "saved" | null;
+type ConfirmedDecision = Readonly<{
+  invitationId: string;
+  decision: InvitationDecisionResponse;
+  confirmedAfterReadGeneration: number;
+}>;
 
 function formattedDate(value: string, locale: string): string {
   const date = new Date(value);
@@ -160,35 +165,63 @@ export function InvitationDecision({
   const lifecycle = useInvitationLifecycle(serverIdentity);
   const [lastServerDecision, setLastServerDecision] = useState(serverDecision);
   const [decision, setDecision] = useState(safeServerDecision);
+  const [confirmedDecision, setConfirmedDecision] =
+    useState<ConfirmedDecision | null>(null);
   const [lastEmailVerified, setLastEmailVerified] = useState(emailVerified);
   const [verified, setVerified] = useState(emailVerified);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [refreshFailure, setRefreshFailure] = useState<RefreshFailure>(null);
   const mutationInFlight = useRef(false);
+  const decisionReadGeneration = useRef(0);
+  const confirmedInvitationId = useRef<string | null>(null);
 
   useInsertionEffect(() => {
     mutationInFlight.current = false;
+    confirmedInvitationId.current = null;
   }, [serverIdentity]);
 
   if (lastServerDecision !== serverDecision) {
     setLastServerDecision(serverDecision);
-    setDecision(safeServerDecision);
-    setPendingAction(null);
-    setFailure(null);
-    setRefreshFailure(null);
+    const confirmedForIncomingInvitation =
+      confirmedDecision !== null &&
+      safeServerDecision.invitation?.id === confirmedDecision.invitationId;
+    if (
+      confirmedForIncomingInvitation &&
+      safeServerDecision.state === "pending"
+    ) {
+      // A pending RSC payload has no causal proof that it observed the
+      // mutation. Keep the confirmed non-actionable projection until a
+      // terminal payload or a GET started after confirmation acknowledges it.
+    } else {
+      if (confirmedForIncomingInvitation) {
+        setConfirmedDecision({
+          ...confirmedDecision,
+          decision: safeServerDecision,
+        });
+      } else {
+        setConfirmedDecision(null);
+      }
+      setDecision(safeServerDecision);
+      setPendingAction(null);
+      setFailure(null);
+      setRefreshFailure(null);
+    }
   }
   if (lastEmailVerified !== emailVerified) {
     setLastEmailVerified(emailVerified);
     setVerified(emailVerified);
   }
 
+  const projectedDecision = confirmedDecision?.decision ?? decision;
   const invitation =
-    decision.state === "recipient-mismatch" ? null : decision.invitation;
+    projectedDecision.state === "recipient-mismatch"
+      ? null
+      : projectedDecision.invitation;
   const actionable =
     verified &&
-    decision.state === "pending" &&
-    decision.canRespond &&
+    projectedDecision.state === "pending" &&
+    projectedDecision.canRespond &&
     invitation !== null;
 
   function isCurrent(invitationId: string) {
@@ -199,11 +232,28 @@ export function InvitationDecision({
     lifecycle.runOrQueue(invitationId, run);
   }
 
+  function retainConfirmedDecision(next: InvitationDecisionResponse) {
+    const invitationId = next.invitation?.id;
+    if (!invitationId) {
+      setConfirmedDecision(null);
+      setDecision(next);
+      return;
+    }
+    confirmedInvitationId.current = invitationId;
+    setConfirmedDecision({
+      invitationId,
+      decision: next,
+      confirmedAfterReadGeneration: decisionReadGeneration.current,
+    });
+    setDecision(next);
+  }
+
   async function refreshDecision(
     invitationId: string,
     failureKind: Exclude<RefreshFailure, null> = "saved",
   ) {
     if (!isCurrent(invitationId)) return false;
+    const readGeneration = ++decisionReadGeneration.current;
     setPendingAction("refresh");
     try {
       const result = await getInvitationDecision({
@@ -216,6 +266,8 @@ export function InvitationDecision({
         const normalized = normalizeApiFailure(result.error, result.response);
         const mismatch = recipientMismatchDecision(normalized);
         if (mismatch) {
+          confirmedInvitationId.current = null;
+          setConfirmedDecision(null);
           setDecision(mismatch);
           setFailure(null);
           setRefreshFailure(null);
@@ -236,6 +288,25 @@ export function InvitationDecision({
         setRefreshFailure(failureKind);
         return false;
       }
+      if (
+        confirmedInvitationId.current === invitationId &&
+        refreshed.state === "pending"
+      ) {
+        setRefreshFailure(failureKind);
+        return false;
+      }
+      setConfirmedDecision((current) => {
+        if (
+          current?.invitationId !== invitationId ||
+          readGeneration <= current.confirmedAfterReadGeneration
+        ) {
+          return current;
+        }
+        return {
+          ...current,
+          decision: refreshed,
+        };
+      });
       setDecision(refreshed);
       setFailure(null);
       setRefreshFailure(null);
@@ -261,7 +332,11 @@ export function InvitationDecision({
       currentInvitation,
     );
     if (terminal) {
-      setDecision(terminal);
+      if (terminal.state === "already-member") {
+        retainConfirmedDecision(terminal);
+      } else {
+        setDecision(terminal);
+      }
       setFailure(
         terminal.state === "recipient-mismatch" ? null : mutationFailure,
       );
@@ -300,7 +375,7 @@ export function InvitationDecision({
       mutationInFlight.current = false;
       return;
     }
-    setDecision({
+    retainConfirmedDecision({
       invitation: {
         ...invitation,
         status: "accepted",
@@ -355,7 +430,7 @@ export function InvitationDecision({
       status: "rejected",
       displayState: "rejected",
     };
-    setDecision({
+    retainConfirmedDecision({
       invitation: rejectedInvitation,
       state: "rejected",
       canRespond: false,
@@ -366,7 +441,7 @@ export function InvitationDecision({
   async function confirmEmail() {
     if (
       !localEmailConfirmationAvailable ||
-      decision.state !== "email-verification-required" ||
+      projectedDecision.state !== "email-verification-required" ||
       !invitation ||
       mutationInFlight.current
     ) {
@@ -402,7 +477,7 @@ export function InvitationDecision({
     "email-verification-required": "states.emailVerificationRequired",
     "domain-restricted": "states.domainRestricted",
     "already-member": "states.alreadyMember",
-  }[decision.state] as Parameters<typeof t>[0];
+  }[projectedDecision.state] as Parameters<typeof t>[0];
 
   return (
     <Card className="w-full">
@@ -453,7 +528,7 @@ export function InvitationDecision({
           </dl>
         ) : null}
 
-        {decision.state === "email-verification-required" &&
+        {projectedDecision.state === "email-verification-required" &&
         localEmailConfirmationAvailable &&
         invitation ? (
           <Alert>
@@ -477,7 +552,7 @@ export function InvitationDecision({
           failure={failure}
           messageCoveredByState={
             failure !== null &&
-            failureIsRepresentedByDecision(failure, decision)
+            failureIsRepresentedByDecision(failure, projectedDecision)
           }
         />
         {refreshFailure ? (
@@ -529,7 +604,7 @@ export function InvitationDecision({
               </Button>
             </>
           ) : null}
-          {decision.state === "already-member" && invitation ? (
+          {projectedDecision.state === "already-member" && invitation ? (
             <Button asChild variant="outline">
               <Link
                 href={organizationRoutes.dashboard(
@@ -546,7 +621,7 @@ export function InvitationDecision({
             </Link>
           </Button>
         </div>
-        {decision.state === "rejected" ? (
+        {projectedDecision.state === "rejected" ? (
           <p role="status">{t("success.rejected")}</p>
         ) : null}
       </CardContent>

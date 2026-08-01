@@ -12,6 +12,7 @@ internal sealed class CollaborationContractSchemaTransformer : IOpenApiSchemaTra
         "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
         "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
     private const string TeamNamePattern = @"^[\p{L}\p{Nd} _-]+$";
+    private const string InvitationEmailPattern = @"^[\x20-\x7E]+$";
     private const string InvitationPathPattern =
         "^/invite/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-" +
         "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
@@ -207,7 +208,10 @@ internal sealed class CollaborationContractSchemaTransformer : IOpenApiSchemaTra
         property.Format = null;
         Extension(property, "x-trimmed-max-length", 254);
         Extension(property, "x-trimmed-format", "email");
-        property.Description = "Trimmed and lowercased before use; the trimmed value must be a valid email of at most 254 characters.";
+        Extension(property, "x-trimmed-pattern", InvitationEmailPattern);
+        property.Description =
+            "Trimmed and lowercased before use; the trimmed value must be a valid " +
+            "ASCII-only email without control characters and contain at most 254 characters.";
     }
 
     private static void Email(OpenApiSchema schema, string name)

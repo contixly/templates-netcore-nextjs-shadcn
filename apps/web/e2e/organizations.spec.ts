@@ -112,6 +112,7 @@ test.describe.serial("organization full-stack workflows", () => {
     organizationScenario,
     page,
   }) => {
+    test.setTimeout(60_000);
     const owner = await organizationScenario.createLocalUser(
       page.context(),
       onboardingOwner,

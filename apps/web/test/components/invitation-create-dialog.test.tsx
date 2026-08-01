@@ -136,6 +136,37 @@ it("validates email before mutation and submits an owner-only team target", asyn
   );
 });
 
+it("rejects a non-ASCII invitation email before mutation", async () => {
+  createInvitation.mockResolvedValue({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+  renderWithMessages(
+    <InvitationCreateDialog
+      currentRole="owner"
+      onConfirmed={jest.fn()}
+      organizationId={createdInvitation.organizationId}
+      teams={[]}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
+  const dialog = screen.getByRole("dialog", {
+    name: "Invite a workspace member",
+  });
+  const email = within(dialog).getByLabelText("Email address");
+  fireEvent.change(email, { target: { value: "İnvitee@example.test" } });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create invitation" }),
+  );
+
+  expect(
+    await within(dialog).findByText("Enter a valid email address."),
+  ).toBeVisible();
+  expect(email).toHaveAttribute("aria-invalid", "true");
+  expect(createInvitation).not.toHaveBeenCalled();
+});
+
 it("shows only a validated same-origin returned link and reports copy failure safely", async () => {
   createInvitation.mockResolvedValue({ ok: true, data: createdInvitation });
   const writeText = jest

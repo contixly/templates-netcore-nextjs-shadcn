@@ -7446,9 +7446,10 @@
         "properties": {
           "email": {
             "type": "string",
-            "description": "Trimmed and lowercased before use; the trimmed value must be a valid email of at most 254 characters.",
+            "description": "Trimmed and lowercased before use; the trimmed value must be a valid ASCII-only email without control characters and contain at most 254 characters.",
             "x-trimmed-max-length": 254,
-            "x-trimmed-format": "email"
+            "x-trimmed-format": "email",
+            "x-trimmed-pattern": "^[\\x20-\\x7E]+$"
           },
           "role": {
             "enum": [

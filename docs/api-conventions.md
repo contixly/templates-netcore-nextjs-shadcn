@@ -640,11 +640,14 @@ scalar count agrees with PostgreSQL `char_length` and the OpenAPI `\p{L}` and
 PostgreSQL `lower(name)` within an organization. The same database-side
 comparison classifies a case-only rename such as `Design` to `design` as
 `team_name_unchanged`, rather than relying on process culture or reaching the
-unique index. Invitation email is trimmed, lowercased, structurally validated,
-and limited to 254 characters. Role is the closed `owner | admin | member`
-enum. Optional team IDs must belong to the route organization, the recipient
-must not already be a member, current allowed-email domain policy must permit
-the address, and the actor must be allowed to assign the requested role.
+unique index. Invitation email is trimmed, lowercased, restricted to printable
+ASCII without control characters, structurally validated, and limited to 254
+characters. This keeps application normalization aligned with PostgreSQL
+`lower`; the request schema publishes the post-trim character policy through
+`x-trimmed-pattern`. Role is the closed `owner | admin | member` enum. Optional
+team IDs must belong to the route organization, the recipient must not already
+be a member, current allowed-email domain policy must permit the address, and
+the actor must be allowed to assign the requested role.
 
 Every route/body UUID uses canonical non-empty `D` rendering. Pagination limit
 defaults to `50` and is restricted to `1..100`; the UI can choose smaller first

@@ -1,4 +1,10 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 
 import { TeamDirectory } from "@/src/components/collaboration/team-directory";
 import {
@@ -17,7 +23,7 @@ import type {
   TeamMemberResponse,
   TeamResponse,
 } from "@/src/lib/api/generated/types.gen";
-import { renderWithMessages } from "@/test/support/render";
+import { renderWithMessages, withMessages } from "@/test/support/render";
 
 const refresh = jest.fn();
 jest.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -502,6 +508,307 @@ it("does not let an older post-read overlay override a newer confirmed member mu
   await waitFor(() => expect(screen.getByText("Alice Admin")).toBeVisible());
 });
 
+it("invalidates a stale team continuation success and its finally state when the RSC page changes", async () => {
+  const staleContinuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const currentContinuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const refreshedTeam = { ...team, name: "Platform refreshed" };
+  const staleTeam = {
+    ...team,
+    id: "team-stale",
+    name: "Stale continuation team",
+  };
+  const currentTeam = {
+    ...team,
+    id: "team-current",
+    name: "Current continuation team",
+  };
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(
+      staleContinuation.promise as ReturnType<typeof getTeams>,
+    )
+    .mockReturnValueOnce(
+      currentContinuation.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [team], nextCursor: "stale-cursor" }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more teams" }));
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{ items: [refreshedTeam], nextCursor: "current-cursor" }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  expect(screen.getByText("Platform refreshed")).toBeVisible();
+  const currentLoadMore = screen.getByRole("button", {
+    name: "Load more teams",
+  });
+  expect(currentLoadMore).toBeEnabled();
+  fireEvent.click(currentLoadMore);
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleContinuation.resolve({
+      data: {
+        data: { items: [staleTeam], nextCursor: "stale-result-cursor" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await staleContinuation.promise;
+  });
+
+  expect(screen.queryByText("Stale continuation team")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Loading more teams" }),
+  ).toBeDisabled();
+
+  await act(async () => {
+    currentContinuation.resolve({
+      data: { data: { items: [currentTeam], nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await currentContinuation.promise;
+  });
+
+  expect(screen.getByText("Current continuation team")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Load more teams" }),
+  ).not.toBeInTheDocument();
+});
+
+it("invalidates a stale team continuation error without clearing a newer pending read", async () => {
+  const staleContinuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const currentContinuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(
+      staleContinuation.promise as ReturnType<typeof getTeams>,
+    )
+    .mockReturnValueOnce(
+      currentContinuation.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [team], nextCursor: "stale-cursor" }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more teams" }));
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{ items: [team], nextCursor: "current-cursor" }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Load more teams" }));
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleContinuation.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await staleContinuation.promise;
+  });
+
+  expect(
+    screen.queryByText(
+      "Some teams could not be loaded. The teams already shown are still available.",
+    ),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Loading more teams" }),
+  ).toBeDisabled();
+
+  await act(async () => {
+    currentContinuation.resolve({
+      data: { data: { items: [], nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await currentContinuation.promise;
+  });
+});
+
+it("invalidates a stale member continuation success and its finally state when the embedded page changes", async () => {
+  const staleContinuation =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const currentContinuation =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const refreshedMember = {
+    ...member,
+    id: "membership-refreshed",
+    userId: "user-refreshed",
+    name: "Refreshed member",
+    email: "refreshed@example.test",
+  };
+  const staleMember = {
+    ...member,
+    id: "membership-stale",
+    userId: "user-stale",
+    name: "Stale continuation member",
+    email: "stale@example.test",
+  };
+  const currentMember = {
+    ...member,
+    id: "membership-current",
+    userId: "user-current",
+    name: "Current continuation member",
+    email: "current@example.test",
+  };
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      staleContinuation.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      currentContinuation.promise as ReturnType<typeof getTeamMembers>,
+    );
+  const view = renderWithMessages(
+    <TeamDirectory
+      initialPage={{
+        items: [
+          { ...team, members: { items: [member], nextCursor: "stale-cursor" } },
+        ],
+        nextCursor: null,
+      }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{
+          items: [
+            {
+              ...team,
+              members: {
+                items: [refreshedMember],
+                nextCursor: "current-cursor",
+              },
+            },
+          ],
+          nextCursor: null,
+        }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  expect(screen.getByText("Refreshed member")).toBeVisible();
+  const currentLoadMore = screen.getByRole("button", {
+    name: "Load more members",
+  });
+  expect(currentLoadMore).toBeEnabled();
+  fireEvent.click(currentLoadMore);
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleContinuation.resolve({
+      data: {
+        data: { items: [staleMember], nextCursor: "stale-result-cursor" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await staleContinuation.promise;
+  });
+
+  expect(
+    screen.queryByText("Stale continuation member"),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Loading more members" }),
+  ).toBeDisabled();
+
+  await act(async () => {
+    currentContinuation.resolve({
+      data: { data: { items: [currentMember], nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await currentContinuation.promise;
+  });
+
+  expect(screen.getByText("Current continuation member")).toBeVisible();
+});
+
+it("invalidates a stale member continuation error without clearing a newer pending read", async () => {
+  const staleContinuation =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const currentContinuation =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      staleContinuation.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      currentContinuation.promise as ReturnType<typeof getTeamMembers>,
+    );
+  const view = renderWithMessages(
+    <TeamDirectory
+      initialPage={{
+        items: [
+          { ...team, members: { items: [member], nextCursor: "stale-cursor" } },
+        ],
+        nextCursor: null,
+      }}
+      organization={{ id: "org-1", canManageTeams: true }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{
+          items: [
+            {
+              ...team,
+              members: { items: [member], nextCursor: "current-cursor" },
+            },
+          ],
+          nextCursor: null,
+        }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleContinuation.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await staleContinuation.promise;
+  });
+
+  expect(
+    screen.queryByText("Some team members could not be loaded."),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Loading more members" }),
+  ).toBeDisabled();
+
+  await act(async () => {
+    currentContinuation.resolve({
+      data: { data: { items: [], nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await currentContinuation.promise;
+  });
+});
+
 it("reconciles a successful team recovery page and its continuation cursor after a saved create", async () => {
   const created = {
     ...team,
@@ -529,7 +836,7 @@ it("reconciles a successful team recovery page and its continuation cursor after
           nextCursor: "recovered-next",
         },
       },
-    } as Awaited<ReturnType<typeof getTeams>>);
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
   renderManager();
 
   fireEvent.click(screen.getByRole("button", { name: "Create team" }));
@@ -550,6 +857,648 @@ it("reconciles a successful team recovery page and its continuation cursor after
   expect(screen.getAllByText("Design API")).toHaveLength(1);
   expect(screen.queryByText("Design")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Load more teams" })).toBeVisible();
+});
+
+it("keeps a confirmed create over a stale RSC page when recovery fails", async () => {
+  const created = {
+    ...team,
+    id: "team-created",
+    name: "Created locally",
+    memberCount: 0,
+    members: { items: [], nextCursor: null },
+  };
+  const staleRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const currentRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  jest.mocked(createBrowserTeam).mockResolvedValue({ ok: true, data: created });
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(staleRecovery.promise as ReturnType<typeof getTeams>)
+    .mockReturnValueOnce(
+      currentRecovery.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
+  const dialog = screen.getByRole("dialog", { name: "Create team" });
+  fireEvent.change(within(dialog).getByLabelText("Team name"), {
+    target: { value: created.name },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Create team" }));
+  expect(await screen.findByText(created.name)).toBeVisible();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{ items: [team], nextCursor: "stale-rsc-cursor" }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  expect(screen.getByText(created.name)).toBeVisible();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleRecovery.resolve({
+      data: { data: { items: [team], nextCursor: "stale-result-cursor" } },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await staleRecovery.promise;
+    currentRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await currentRecovery.promise;
+  });
+
+  expect(screen.getByText(created.name)).toBeVisible();
+  expect(createBrowserTeam).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a confirmed rename over a stale RSC row until a newer raw team read acknowledges it", async () => {
+  const renamed = { ...team, name: "Product confirmed" };
+  const staleRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const currentRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  jest.mocked(updateBrowserTeam).mockResolvedValue({ ok: true, data: renamed });
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(staleRecovery.promise as ReturnType<typeof getTeams>)
+    .mockReturnValueOnce(
+      currentRecovery.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Rename Platform" }));
+  const dialog = screen.getByRole("dialog", { name: "Rename Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Team name"), {
+    target: { value: renamed.name },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rename team" }));
+  expect(await screen.findByText(renamed.name)).toBeVisible();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{
+          items: [{ ...team, name: "Platform stale RSC" }],
+          nextCursor: null,
+        }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  expect(screen.getByText(renamed.name)).toBeVisible();
+  expect(screen.queryByText("Platform stale RSC")).not.toBeInTheDocument();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleRecovery.resolve({
+      data: {
+        data: {
+          items: [{ ...team, name: "Platform stale raw GET" }],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getTeams>>);
+    await staleRecovery.promise;
+    currentRecovery.resolve({
+      data: {
+        data: {
+          items: [{ ...renamed, memberCount: 2 }],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getTeams>>);
+    await currentRecovery.promise;
+  });
+
+  expect(await screen.findByText("2 members")).toBeVisible();
+  expect(screen.getByText(renamed.name)).toBeVisible();
+  expect(updateBrowserTeam).toHaveBeenCalledTimes(1);
+});
+
+it("lets a causally newer continuation acknowledge an exact created team row", async () => {
+  const created = {
+    ...team,
+    id: "team-created-on-later-page",
+    name: "Created confirmation",
+    memberCount: 0,
+    members: { items: [], nextCursor: null },
+  };
+  const continuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  jest.mocked(createBrowserTeam).mockResolvedValue({ ok: true, data: created });
+  jest
+    .mocked(getTeams)
+    .mockResolvedValueOnce({
+      data: { data: { items: [team], nextCursor: "created-page-cursor" } },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>)
+    .mockReturnValueOnce(continuation.promise as ReturnType<typeof getTeams>);
+  renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
+  const dialog = screen.getByRole("dialog", { name: "Create team" });
+  fireEvent.change(within(dialog).getByLabelText("Team name"), {
+    target: { value: created.name },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Create team" }));
+  expect(await screen.findByText(created.name)).toBeVisible();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more teams" }),
+  );
+
+  await act(async () => {
+    continuation.resolve({
+      data: {
+        data: {
+          items: [{ ...created, name: "Created from continuation" }],
+          nextCursor: null,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await continuation.promise;
+  });
+
+  expect(await screen.findByText("Created from continuation")).toBeVisible();
+  expect(screen.queryByText(created.name)).not.toBeInTheDocument();
+  expect(createBrowserTeam).toHaveBeenCalledTimes(1);
+});
+
+it("lets an exact renamed team row on a continuation retire the overlay before later raw changes", async () => {
+  const renamed = { ...team, name: "Renamed confirmation" };
+  const exactContinuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const laterContinuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const otherTeam = {
+    ...team,
+    id: "team-other",
+    name: "Other team",
+    members: { items: [], nextCursor: null },
+    memberCount: 0,
+  };
+  jest.mocked(updateBrowserTeam).mockResolvedValue({ ok: true, data: renamed });
+  jest
+    .mocked(getTeams)
+    .mockResolvedValueOnce({
+      data: {
+        data: { items: [otherTeam], nextCursor: "renamed-page-cursor" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>)
+    .mockReturnValueOnce(
+      exactContinuation.promise as ReturnType<typeof getTeams>,
+    )
+    .mockReturnValueOnce(
+      laterContinuation.promise as ReturnType<typeof getTeams>,
+    );
+  renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Rename Platform" }));
+  const dialog = screen.getByRole("dialog", { name: "Rename Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Team name"), {
+    target: { value: renamed.name },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Rename team" }));
+  expect(await screen.findByText(renamed.name)).toBeVisible();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more teams" }),
+  );
+
+  await act(async () => {
+    exactContinuation.resolve({
+      data: {
+        data: { items: [renamed], nextCursor: "later-team-cursor" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await exactContinuation.promise;
+  });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more teams" }),
+  );
+
+  await act(async () => {
+    laterContinuation.resolve({
+      data: {
+        data: {
+          items: [{ ...renamed, name: "Renamed after acknowledgement" }],
+          nextCursor: null,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await laterContinuation.promise;
+  });
+
+  expect(
+    await screen.findByText("Renamed after acknowledgement"),
+  ).toBeVisible();
+  expect(screen.queryByText(renamed.name)).not.toBeInTheDocument();
+  expect(updateBrowserTeam).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a confirmed delete over a stale RSC row when recovery fails", async () => {
+  const staleRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const currentRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  jest.mocked(deleteBrowserTeam).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id },
+  });
+  jest
+    .mocked(getTeams)
+    .mockReturnValueOnce(staleRecovery.promise as ReturnType<typeof getTeams>)
+    .mockReturnValueOnce(
+      currentRecovery.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete Platform" }));
+  const dialog = screen.getByRole("dialog", { name: "Delete Platform?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete team" }));
+  await waitFor(() =>
+    expect(screen.queryByText("Platform")).not.toBeInTheDocument(),
+  );
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{ items: [{ ...team }], nextCursor: null }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  expect(screen.queryByText("Platform")).not.toBeInTheDocument();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleRecovery.resolve({
+      data: { data: { items: [team], nextCursor: null } },
+    } as Awaited<ReturnType<typeof getTeams>>);
+    await staleRecovery.promise;
+    currentRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await currentRecovery.promise;
+  });
+
+  expect(screen.queryByText("Platform")).not.toBeInTheDocument();
+  expect(deleteBrowserTeam).toHaveBeenCalledTimes(1);
+});
+
+it("does not acknowledge a confirmed delete from absence on a tail continuation", async () => {
+  const staleRscRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
+  const otherTeam = {
+    ...team,
+    id: "team-delete-tail-other",
+    name: "Other team",
+    members: { items: [], nextCursor: null },
+    memberCount: 0,
+  };
+  jest.mocked(deleteBrowserTeam).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id },
+  });
+  jest
+    .mocked(getTeams)
+    .mockResolvedValueOnce({
+      data: {
+        data: { items: [otherTeam], nextCursor: "delete-tail-cursor" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>)
+    .mockResolvedValueOnce({
+      data: { data: { items: [], nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeams>>)
+    .mockReturnValueOnce(
+      staleRscRecovery.promise as ReturnType<typeof getTeams>,
+    );
+  const view = renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Delete Platform" }));
+  const dialog = screen.getByRole("dialog", { name: "Delete Platform?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Delete team" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more teams" }),
+  );
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(2));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{ items: [{ ...team }], nextCursor: null }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+
+  expect(screen.queryByText(team.name)).not.toBeInTheDocument();
+  await waitFor(() => expect(getTeams).toHaveBeenCalledTimes(3));
+  await act(async () => {
+    staleRscRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeams>>);
+    await staleRscRecovery.promise;
+  });
+  expect(deleteBrowserTeam).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a confirmed member add over a stale embedded RSC page until a newer raw member read acknowledges it", async () => {
+  const bobCandidate = {
+    memberId: "organization-membership-2",
+    userId: "user-2",
+    name: "Bob confirmed",
+    email: "bob@example.test",
+    imageUrl: null,
+    role: "member" as const,
+    joinedAt: "2026-08-01T00:00:00Z",
+  };
+  const bobMember = {
+    ...member,
+    id: "team-membership-2",
+    userId: bobCandidate.userId,
+    name: bobCandidate.name,
+    email: bobCandidate.email,
+    role: bobCandidate.role,
+  };
+  const staleRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const currentRecovery =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  jest.mocked(getTeamMemberCandidates).mockResolvedValue({
+    data: { data: { items: [bobCandidate], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getTeamMemberCandidates>>);
+  jest.mocked(addBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: bobMember,
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      staleRecovery.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      currentRecovery.promise as ReturnType<typeof getTeamMembers>,
+    );
+  const view = renderManager();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add member to Platform" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Find a workspace member"), {
+    target: { value: "bob" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+  fireEvent.click(
+    await within(dialog).findByRole("button", { name: "Add Bob confirmed" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Add member to Platform" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByText(bobMember.name)).toBeVisible();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{
+          items: [
+            {
+              ...team,
+              members: {
+                items: [
+                  member,
+                  { ...bobMember, name: "Bob stale embedded RSC" },
+                ],
+                nextCursor: null,
+              },
+            },
+          ],
+          nextCursor: null,
+        }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  expect(screen.getByText(bobMember.name)).toBeVisible();
+  expect(screen.queryByText("Bob stale embedded RSC")).not.toBeInTheDocument();
+  expect(screen.getByText("2 members")).toBeVisible();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleRecovery.resolve({
+      data: { data: { items: [member], nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await staleRecovery.promise;
+    currentRecovery.resolve({
+      data: {
+        data: {
+          items: [member, { ...bobMember, name: "Bob from raw GET" }],
+          nextCursor: null,
+        },
+      },
+    } as Awaited<ReturnType<typeof getTeamMembers>>);
+    await currentRecovery.promise;
+  });
+
+  expect(await screen.findByText("Bob from raw GET")).toBeVisible();
+  expect(addBrowserTeamMember).toHaveBeenCalledTimes(1);
+});
+
+it("lets a causally newer member continuation acknowledge an exact added membership row", async () => {
+  const bobCandidate = {
+    memberId: "organization-membership-continuation",
+    userId: "user-continuation",
+    name: "Bob confirmation",
+    email: "bob-continuation@example.test",
+    imageUrl: null,
+    role: "member" as const,
+    joinedAt: "2026-08-01T00:00:00Z",
+  };
+  const bobMember = {
+    ...member,
+    id: "team-membership-continuation",
+    userId: bobCandidate.userId,
+    name: bobCandidate.name,
+    email: bobCandidate.email,
+    role: bobCandidate.role,
+  };
+  const continuation = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  jest.mocked(getTeamMemberCandidates).mockResolvedValue({
+    data: { data: { items: [bobCandidate], nextCursor: null } },
+  } as Awaited<ReturnType<typeof getTeamMemberCandidates>>);
+  jest.mocked(addBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: bobMember,
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockResolvedValueOnce({
+      data: { data: { items: [member], nextCursor: "member-page-cursor" } },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>)
+    .mockReturnValueOnce(
+      continuation.promise as ReturnType<typeof getTeamMembers>,
+    );
+  renderManager();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add member to Platform" }),
+  );
+  const dialog = screen.getByRole("dialog", { name: "Add member to Platform" });
+  fireEvent.change(within(dialog).getByLabelText("Find a workspace member"), {
+    target: { value: "bob" },
+  });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Search" }));
+  fireEvent.click(
+    await within(dialog).findByRole("button", { name: "Add Bob confirmation" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Add member to Platform" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByText(bobMember.name)).toBeVisible();
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more members" }),
+  );
+
+  await act(async () => {
+    continuation.resolve({
+      data: {
+        data: {
+          items: [{ ...bobMember, name: "Bob from continuation" }],
+          nextCursor: null,
+        },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await continuation.promise;
+  });
+
+  expect(await screen.findByText("Bob from continuation")).toBeVisible();
+  expect(screen.queryByText(bobMember.name)).not.toBeInTheDocument();
+  expect(addBrowserTeamMember).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a confirmed member removal over a stale embedded RSC page when recovery fails", async () => {
+  const staleRecovery = deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const currentRecovery =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  jest.mocked(removeBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id, userId: member.userId },
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockReturnValueOnce(
+      staleRecovery.promise as ReturnType<typeof getTeamMembers>,
+    )
+    .mockReturnValueOnce(
+      currentRecovery.promise as ReturnType<typeof getTeamMembers>,
+    );
+  const view = renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Alice Admin" }));
+  await waitFor(() =>
+    expect(screen.queryByText(member.name)).not.toBeInTheDocument(),
+  );
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(1));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{
+          items: [
+            {
+              ...team,
+              members: { items: [{ ...member }], nextCursor: null },
+            },
+          ],
+          nextCursor: null,
+        }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+  expect(screen.queryByText(member.name)).not.toBeInTheDocument();
+  expect(screen.getByText("0 members")).toBeVisible();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+
+  await act(async () => {
+    staleRecovery.resolve({
+      data: { data: { items: [member], nextCursor: null } },
+    } as Awaited<ReturnType<typeof getTeamMembers>>);
+    await staleRecovery.promise;
+    currentRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await currentRecovery.promise;
+  });
+
+  expect(screen.queryByText(member.name)).not.toBeInTheDocument();
+  expect(removeBrowserTeamMember).toHaveBeenCalledTimes(1);
+});
+
+it("does not acknowledge a confirmed member removal from absence on a tail continuation", async () => {
+  const staleRscRecovery =
+    deferred<Awaited<ReturnType<typeof getTeamMembers>>>();
+  const otherMember = {
+    ...member,
+    id: "membership-remove-tail-other",
+    userId: "user-remove-tail-other",
+    name: "Other member",
+    email: "other-member@example.test",
+  };
+  jest.mocked(removeBrowserTeamMember).mockResolvedValue({
+    ok: true,
+    data: { teamId: team.id, userId: member.userId },
+  });
+  jest
+    .mocked(getTeamMembers)
+    .mockResolvedValueOnce({
+      data: {
+        data: { items: [otherMember], nextCursor: "remove-tail-cursor" },
+      },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>)
+    .mockResolvedValueOnce({
+      data: { data: { items: [], nextCursor: null } },
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>)
+    .mockReturnValueOnce(
+      staleRscRecovery.promise as ReturnType<typeof getTeamMembers>,
+    );
+  const view = renderManager();
+
+  fireEvent.click(screen.getByRole("button", { name: "Remove Alice Admin" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Load more members" }),
+  );
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(2));
+
+  view.rerender(
+    withMessages(
+      <TeamDirectory
+        initialPage={{
+          items: [
+            {
+              ...team,
+              members: { items: [{ ...member }], nextCursor: null },
+            },
+          ],
+          nextCursor: null,
+        }}
+        organization={{ id: "org-1", canManageTeams: true }}
+      />,
+    ),
+  );
+
+  expect(screen.queryByText(member.name)).not.toBeInTheDocument();
+  await waitFor(() => expect(getTeamMembers).toHaveBeenCalledTimes(3));
+  await act(async () => {
+    staleRscRecovery.resolve({
+      error: { code: "api_unavailable" },
+      response: { status: 503 } as Response,
+    } as unknown as Awaited<ReturnType<typeof getTeamMembers>>);
+    await staleRscRecovery.promise;
+  });
+  expect(removeBrowserTeamMember).toHaveBeenCalledTimes(1);
 });
 
 it("discards candidate search completion after the dialog closes", async () => {

@@ -48,12 +48,13 @@ type TeamOption = Readonly<{ id: string; name: string }>;
 
 const noTeamValue = "__no_team__";
 const emailPattern = /^[^\s@]+@[^\s@]+$/u;
+const printableAsciiPattern = /^[\x20-\x7e]+$/u;
 
 function normalizedEmail(value: string): string | null {
   const email = value.trim().toLowerCase();
   return email.length > 0 &&
     email.length <= 254 &&
-    ![...email].some((character) => /\p{Cc}/u.test(character)) &&
+    printableAsciiPattern.test(email) &&
     emailPattern.test(email)
     ? email
     : null;
