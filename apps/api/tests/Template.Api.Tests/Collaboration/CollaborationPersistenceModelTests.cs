@@ -59,6 +59,37 @@ public sealed class CollaborationPersistenceModelTests(PostgreSqlContainerFixtur
     }
 
     [Fact]
+    public void Empty_team_and_team_member_ids_keep_non_temporary_uuid_v7_fallbacks()
+    {
+        using var db = CreateContext();
+        var organizationId = Guid.CreateVersion7();
+        var team = new TeamEntity
+        {
+            OrganizationId = organizationId,
+            Name = "Design",
+            CreatedAt = Now,
+            UpdatedAt = Now
+        };
+        db.Teams.Add(team);
+        var teamMember = new TeamMemberEntity
+        {
+            OrganizationId = organizationId,
+            TeamId = team.Id,
+            OrganizationMemberId = Guid.CreateVersion7(),
+            JoinedAt = Now
+        };
+
+        db.TeamMembers.Add(teamMember);
+
+        Assert.NotEqual(Guid.Empty, team.Id);
+        Assert.Equal(7, team.Id.Version);
+        Assert.False(db.Entry(team).Property(value => value.Id).IsTemporary);
+        Assert.NotEqual(Guid.Empty, teamMember.Id);
+        Assert.Equal(7, teamMember.Id.Version);
+        Assert.False(db.Entry(teamMember).Property(value => value.Id).IsTemporary);
+    }
+
+    [Fact]
     public void Teams_have_tenant_key_checks_required_timestamps_and_stable_list_index()
     {
         using var db = CreateContext();
