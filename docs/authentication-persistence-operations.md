@@ -307,7 +307,7 @@ revoke-others uses one set-based delete and preserves the current browser.
 
 Migration `20260801084304_TeamsInvitations` creates three tables in the existing
 `organizations` schema. `teams` has UUID v7 application/EF fallback IDs, a
-required organization FK, `1..50` normalized-name check, alternate
+required organization FK, `1..50` Unicode-scalar normalized-name check, alternate
 `(organization_id, id)` key, stable list index, and the raw PostgreSQL unique
 expression index `ux_teams_organization_id_lower_name`. `team_members` points to
 the organization-membership edge rather than directly to a user; its two

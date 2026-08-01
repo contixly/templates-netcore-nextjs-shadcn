@@ -1,3 +1,5 @@
+using System.Text;
+
 namespace Template.Domain.Collaboration;
 
 public readonly record struct TeamName
@@ -12,13 +14,21 @@ public readonly record struct TeamName
     {
         name = default;
         var normalized = value?.Trim();
-        if (normalized is null or { Length: < 1 or > MaximumLength } ||
-            normalized.Any(char.IsControl) ||
-            normalized.Any(character =>
-                !char.IsLetterOrDigit(character) &&
-                character is not ' ' and not '-' and not '_'))
+        if (normalized is null or { Length: < 1 })
         {
             return false;
+        }
+
+        var scalarCount = 0;
+        foreach (var rune in normalized.EnumerateRunes())
+        {
+            scalarCount++;
+            if (scalarCount > MaximumLength ||
+                !Rune.IsLetterOrDigit(rune) &&
+                rune.Value is not ' ' and not '-' and not '_')
+            {
+                return false;
+            }
         }
 
         name = new TeamName(normalized);

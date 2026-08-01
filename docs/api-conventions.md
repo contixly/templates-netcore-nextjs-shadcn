@@ -628,15 +628,19 @@ states. Mutation authorization is always recomputed.
 
 ### Validation, filters, cursors, and failures
 
-Team names are trimmed, length `1..50`, preserve valid Unicode letters/digits
-and ordinary internal spaces, hyphen, and underscore, and reject control
-whitespace. Names are unique by `lower(name)` within an organization; a rename
-whose normalized value is unchanged conflicts. Invitation email is trimmed,
-lowercased, structurally validated, and limited to 254 characters. Role is the
-closed `owner | admin | member` enum. Optional team IDs must belong to the route
-organization, the recipient must not already be a member, current allowed-email
-domain policy must permit the address, and the actor must be allowed to assign
-the requested role.
+Team names are trimmed and contain `1..50` Unicode scalar values. Unicode
+letters/digits from BMP or supplementary planes and ordinary internal ASCII
+space, hyphen, and underscore are valid; unsupported scalars, control
+whitespace, and malformed UTF-16 such as unpaired surrogates are rejected. This
+scalar count agrees with PostgreSQL `char_length` and the OpenAPI `\p{L}` and
+`\p{Nd}` categories without narrowing the contract. Names are unique by
+`lower(name)` within an organization; a rename whose normalized value is
+unchanged conflicts. Invitation email is trimmed, lowercased, structurally
+validated, and limited to 254 characters. Role is the closed `owner | admin |
+member` enum. Optional team IDs must belong to the route organization, the
+recipient must not already be a member, current allowed-email domain policy
+must permit the address, and the actor must be allowed to assign the requested
+role.
 
 Every route/body UUID uses canonical non-empty `D` rendering. Pagination limit
 defaults to `50` and is restricted to `1..100`; the UI can choose smaller first

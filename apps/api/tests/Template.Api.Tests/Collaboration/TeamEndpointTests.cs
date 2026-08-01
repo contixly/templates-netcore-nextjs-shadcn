@@ -210,6 +210,38 @@ public sealed class TeamEndpointTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task Team_create_accepts_supplementary_plane_Unicode_scalars()
+    {
+        const string teamName = "\U00010400 \U0001D7CE";
+        using var client = factory.CreateApiClient();
+        await OrganizationEndpointTestSupport.CreateScenarioAsync(
+            client,
+            "Unicode Team Owner",
+            "local-agent+unicode-team-owner@local-agent.test");
+        using var organization =
+            await OrganizationEndpointTestSupport.CreateOrganizationAsync(
+                client,
+                "Unicode Team Workspace");
+        var organizationId =
+            (await OrganizationEndpointTestSupport.ReadDataAsync(organization))
+            .GetProperty("id").GetGuid();
+
+        using var create =
+            await OrganizationEndpointTestSupport.SendWithCsrfAsync(
+                client,
+                HttpMethod.Post,
+                $"/api/v1/organizations/{organizationId:D}/teams",
+                new { name = teamName });
+
+        Assert.Equal(HttpStatusCode.Created, create.StatusCode);
+        Assert.Equal(
+            teamName,
+            (await OrganizationEndpointTestSupport.ReadDataAsync(create))
+            .GetProperty("name").GetString());
+        OrganizationEndpointTestSupport.AssertNoStore(create);
+    }
+
+    [Fact]
     public async Task Member_can_read_but_cannot_mutate_teams()
     {
         using var ownerClient = factory.CreateApiClient();

@@ -2326,7 +2326,7 @@ accessible named controls cover the complete slice. See
 | EF idempotent script | PASS; `/tmp/template-iteration6-final.sql` **30,706 bytes**, SHA-256 `00d417ced14a107b94b16c62979ea9b1117d753988e29696e6acce4b3625d220`; required team/invitation identifiers present; `real 2.73s` |
 | PostgreSQL 18.4 | PASS; Testcontainer model fixture **12/12** (`real 7.70s`); отдельная fresh `postgres:18.4` проверка дважды применила idempotent script, увидела 6 migrations и все новые FK/check/index names, затем down-script вернул 5 migrations, удалил три collaboration tables и сохранил `organizations.members` |
 | deterministic OpenAPI | PASS; после удаления canonical `v1.json` второй exact export действительно regenerated файл и `cmp` подтвердил byte identity; SHA-256 `fdfbe74c39a42c018ca35555c504c1078a30558b82d41415bf4da2bdb9503010`; **45** total operations, из них **15** iteration-6 collaboration/local operations |
-| generated web client | PASS; `npm run api:check`, 4 generated files deterministic/current; `real 0.88s` |
+| generated web client | PASS; `npm run api:check`, **16 tracked generated files** deterministic/current; `real 0.88s` |
 | production dependency audit | PASS; `npm audit --omit=dev` — **0 vulnerabilities**; `real 1.00s` |
 | complete dependency audit | EXPECTED NONZERO/RECORDED; one **high**, development-only `brace-expansion` advisory `GHSA-mh99-v99m-4gvg` in root and nested `glob` development trees; production audit remains clean; fix is available through `npm audit fix` but dependency refresh is not folded into this slice |
 | web static gates | PASS; boundaries **5/5** (`real 1.40s`), Prettier clean (`1.92s`), ESLint 0 errors and 10 existing compile-time-assertion unused warnings (`4.77s`), typecheck/typegen (`2.02s`) |
@@ -2369,6 +2369,40 @@ no working-tree or branch-range change/untracked file under immutable
 `template/`, and no active OpenSpec change or spec. Contract/generated checks
 were clean. This is a local acceptance result only; automatic review, push and
 merge remain unobserved.
+
+### Task-14 fix round 1 observed acceptance 2026-08-01
+
+Review exposed an Important cross-layer Unicode mismatch: `TeamName` iterated
+UTF-16 `char` values, so it rejected valid supplementary-plane letters/digits
+and measured their surrogate pairs as two characters while PostgreSQL
+`char_length` and the existing OpenAPI `\p{L}\p{Nd}` contract treat them as one
+Unicode scalar. Strict test-first evidence reproduced the defect before the
+fix: focused Domain tests reported **19 passed, 2 failed**, and the focused HTTP
+create regression reported **0 passed, 1 failed** with `400` instead of `201`.
+
+`TeamName` now uses `string.EnumerateRunes()` and
+`Rune.IsLetterOrDigit`, permits only ASCII space/hyphen/underscore in addition,
+and counts at most 50 runes. Tests cover a Deseret supplementary-plane letter,
+a supplementary-plane decimal digit, exactly 50 astral scalars, 51-scalar
+rejection, and unpaired-surrogate rejection. Existing trimming and ASCII/BMP
+behavior remain unchanged. Focused GREEN was Domain **21/21** and HTTP **1/1**.
+No schema or OpenAPI pattern was narrowed.
+
+| Fix-round gate | Наблюдаемый результат |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS/current; `real 1.01s` |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings/errors; `real 2.11s` |
+| `dotnet test Template.sln --no-restore` | PASS; Application **261/261**, API **581/581**, total **842/842**, 0 failed/skipped; `real 115.55s` |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS/clean; `real 10.88s` |
+| OpenAPI delete/re-export/compare | PASS; byte-identical and committed diff clean; unchanged SHA-256 `fdfbe74c39a42c018ca35555c504c1078a30558b82d41415bf4da2bdb9503010` |
+| generated SDK snapshot | PASS; `npm run api:check` current/deterministic and generated diff clean; **16 tracked files** (`git ls-files`), `real 0.82s` |
+| relevant web gates | PASS; typecheck/typegen (`real 4.01s`), Jest **61/61 suites, 474/474 tests** (`10.66s`), clean Next production build 23/23 with standalone server (`7.35s`) |
+| immutable/reference guards | PASS; whitespace, `template/` working/range/status/untracked, active OpenSpec, contract and generated-tree guards clean |
+
+The generator console describes four artifacts emitted by its current job, but
+the durable repository snapshot/check covers **16 tracked generated files**;
+acceptance evidence uses the latter unambiguous count. Automatic review, push,
+and merge of the corrected head remain unobserved.
 
 **Next gate:** controller-owned push and automatic review of that exact head.
 Iteration 7 API keys/public machine authentication does not start until

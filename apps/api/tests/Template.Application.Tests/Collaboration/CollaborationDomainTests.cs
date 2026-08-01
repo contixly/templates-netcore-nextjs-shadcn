@@ -22,6 +22,38 @@ public sealed class CollaborationDomainTests
         Assert.Equal(expected, TeamName.TryCreate(input, out _));
 
     [Fact]
+    public void Team_names_accept_supplementary_plane_letters_and_digits()
+    {
+        const string nameWithAstralScalars = "\U00010400 \U0001D7CE";
+
+        Assert.True(TeamName.TryCreate(nameWithAstralScalars, out var name));
+        Assert.Equal(nameWithAstralScalars, name.Value);
+    }
+
+    [Fact]
+    public void Team_name_length_is_counted_in_Unicode_scalars()
+    {
+        var fiftyAstralLetters = string.Concat(
+            Enumerable.Repeat("\U00010400", TeamName.MaximumLength));
+
+        Assert.True(TeamName.TryCreate(fiftyAstralLetters, out var name));
+        Assert.Equal(fiftyAstralLetters, name.Value);
+    }
+
+    [Fact]
+    public void Team_names_over_fifty_Unicode_scalars_are_rejected()
+    {
+        var fiftyOneAstralLetters = string.Concat(
+            Enumerable.Repeat("\U00010400", TeamName.MaximumLength + 1));
+
+        Assert.False(TeamName.TryCreate(fiftyOneAstralLetters, out _));
+    }
+
+    [Fact]
+    public void Team_names_with_unpaired_surrogates_are_rejected() =>
+        Assert.False(TeamName.TryCreate("\uD800", out _));
+
+    [Fact]
     public void Collaboration_identifiers_follow_their_UUID_generation_policies()
     {
         var now = DateTimeOffset.Parse("2026-08-03T00:00:00Z");
