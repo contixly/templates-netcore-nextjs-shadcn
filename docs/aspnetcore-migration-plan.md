@@ -1,13 +1,12 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 5 — organizations, membership и onboarding
-(round 14 остаётся историческим clean-наблюдением для implementation head
-`a59cda75d5040e151f965094e4dcdcf2669b04f0`; automatic-review round 18 для
-implementation head `55088c2a65d1219f8ce798d9443adf038a98d6cd` открыл два
-actionable P2 findings; локальный test-first round-18 fix ожидает controller
-push, resolution обоих threads и свежий automatic review; Task 14 Steps 5–6
-остаются pending).
+**Текущая итерация:** 5 — organizations, membership и onboarding — завершена
+для наблюдаемого reviewed implementation state
+`0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`. Iteration 6 разблокирована, но
+ещё не начата и должна выполняться отдельным planned slice. Документационное
+closure ниже не заявляет ни свой будущий hash, ни результат будущего automatic
+review: после controller push требуется fresh automatic review.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -286,15 +285,15 @@ callbacks проверены fake-provider integration tests; live успешн�
 
 ## 8. Журнал выполнения
 
-| Итерация                                           | Состояние   | Примечание                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| -------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 0 — bootstrap                                      | Завершена   | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                                                                                                                                                                                                                                  |
-| 1 — API foundation                                 | Завершена   | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                                                                                                                                                                                                                            |
-| 2 — чистый Next.js UI foundation                   | Завершена   | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                                                                                                                            |
-| 3 — persistence, Identity и базовая аутентификация | Завершена   | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                                                                                                                      |
-| 4 — accounts и внешний OAuth                       | Завершена   | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                                                                                                                       |
-| 5 — organizations, membership и onboarding         | На проверке | Round 14 остаётся историческим clean-наблюдением для `a59cda75d5040e151f965094e4dcdcf2669b04f0` (27/27 resolved на тот момент). Round 19 для `2d2706c423dfc4fe897fb7db0b5b5a49a6bbf822` выявил P2 stale switcher navigation после route exit. Локальный test-first lifecycle fix ожидает controller push, resolution thread `PRRT_kwDOThDXX86VjNgi` и свежий review. Task 14 Steps 5–6 pending; iteration 6 не начинается внутри этого fix. |
-| 6–12                                               | Не начаты   | Iteration 6 снова ожидает закрытия reopened Task 14 после round-19 push/re-review и затем должна начаться только как отдельный planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                                                           |
+| Итерация                                           | Состояние | Примечание                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 0 — bootstrap                                      | Завершена | Reference перенесён, .NET 10 solution и health probe созданы; продуктовый код не переносился.                                                                                                                                                                                                                                  |
+| 1 — API foundation                                 | Завершена | Problem Details, validation, cookie auth boundary, correlation/logging, live/ready health, OpenAPI 3.1 export и integration contract tests приняты.                                                                                                                                                                            |
+| 2 — чистый Next.js UI foundation                   | Завершена | Standalone Next.js, fixed en/ru locale, theme/navigation/boundaries, generated REST SDK, isolated browser/SSR clients and full-stack smoke приняты.                                                                                                                                                                            |
+| 3 — persistence, Identity и базовая аутентификация | Завершена | PostgreSQL 18.4, EF migration, Identity Core, persistent cookie sessions, CSRF, typed local-identity validation, local credential automation и login/dashboard/logout REST slice приняты.                                                                                                                                      |
+| 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
+| 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
+| 6–12                                               | Не начаты | Iteration 6 разблокирована и должна начаться только отдельным planned Teams/Invitations vertical slice; API keys и `x-api-key` остаются итерацией 7, product dashboard — iteration 9, proxy/deployment/Aspire — later/out of scope.                                                                                            |
 
 ## Acceptance evidence: итерация 1
 
@@ -1868,13 +1867,13 @@ OpenAPI response set and generated `GetOrganizationByKeyErrors` union.
 
 Strict RED was observed before each corresponding production edit:
 
-| Finding | RED command and observed failure |
-| ------- | -------------------------------- |
-| detail key | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter 'FullyQualifiedName~InvalidOrganizationKeysAreNonDisclosingAuditedAndNeverReachTheStore'` — expected 404, actual 500 after the boundary probe store was reached; 0/1 passed |
-| create lifecycle | `cd apps/web && npm test -- --runInBand test/components/organization-onboarding.test.tsx` — **2 failed / 7 passed** because permanent deletion and Activity hiding both still invoked stale `router.push` |
-| directory lifecycle | `cd apps/web && npm test -- --runInBand test/components/organization-member-directory.test.tsx -t 'Activity-hidden'` — **2/2 failed** because reveal retained disabled `Loading members` / `Refreshing member directory` state |
-| detail 409 contract | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-build --filter 'FullyQualifiedName~OrganizationOperationsPublishStableIdsCookieCsrfAndExactResponses'` failed with expected `409`, actual next status `500`; `cd apps/web && npm test -- --runInBand test/contracts/generated-sdk.test.ts` failed **1/7** because `GetOrganizationByKeyErrors` omitted `409`; the new runtime agreement test already passed 1/1 and proved HTTP maps the store conflict to `409 concurrency_conflict` |
-| raw pagination audit | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter 'FullyQualifiedName~RouteQueryAndCursorRejectionsAuditOnlySafeOpaqueIdentifiers'` — expected `validation_failed`, actual framework `invalid_request` before the operation audit; 0/1 passed. The expanded anonymous auth-first matrix already passed 11/11 |
+| Finding              | RED command and observed failure                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| detail key           | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter 'FullyQualifiedName~InvalidOrganizationKeysAreNonDisclosingAuditedAndNeverReachTheStore'` — expected 404, actual 500 after the boundary probe store was reached; 0/1 passed                                                                                                                                                                                                                                          |
+| create lifecycle     | `cd apps/web && npm test -- --runInBand test/components/organization-onboarding.test.tsx` — **2 failed / 7 passed** because permanent deletion and Activity hiding both still invoked stale `router.push`                                                                                                                                                                                                                                                                                                           |
+| directory lifecycle  | `cd apps/web && npm test -- --runInBand test/components/organization-member-directory.test.tsx -t 'Activity-hidden'` — **2/2 failed** because reveal retained disabled `Loading members` / `Refreshing member directory` state                                                                                                                                                                                                                                                                                      |
+| detail 409 contract  | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-build --filter 'FullyQualifiedName~OrganizationOperationsPublishStableIdsCookieCsrfAndExactResponses'` failed with expected `409`, actual next status `500`; `cd apps/web && npm test -- --runInBand test/contracts/generated-sdk.test.ts` failed **1/7** because `GetOrganizationByKeyErrors` omitted `409`; the new runtime agreement test already passed 1/1 and proved HTTP maps the store conflict to `409 concurrency_conflict` |
+| raw pagination audit | `dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj --no-restore --filter 'FullyQualifiedName~RouteQueryAndCursorRejectionsAuditOnlySafeOpaqueIdentifiers'` — expected `validation_failed`, actual framework `invalid_request` before the operation audit; 0/1 passed. The expanded anonymous auth-first matrix already passed 11/11                                                                                                                                                           |
 
 Focused GREEN after the minimal repairs: detail-key **1/1**; onboarding
 StrictMode/deletion/Activity **9/9**; Activity directory focus **2/2** and the
@@ -1882,22 +1881,22 @@ directory/settings lifecycle regression **46/46**; runtime plus exact OpenAPI
 detail-409 agreement **2/2** and generated SDK **7/7**; pagination/audit,
 auth-first and bounded OpenAPI focus **13/13**.
 
-| Round-17 local gate | Observed result |
-| ------------------- | --------------- |
-| `dotnet restore Template.sln` | PASS; all seven projects current |
-| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
-| `dotnet test Template.sln --no-restore` | PASS; Application **174/174**, API **447/447**, total **621/621** |
-| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required |
-| EF model/script | PASS; no pending `TemplateDbContext` model changes; idempotent script **23,431 bytes** |
-| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
-| deterministic OpenAPI export | PASS twice, 0 warnings/errors; common SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4` |
-| OpenAPI/generated SDK | PASS; deterministic/current 4-file generation; intentional diff is one `409 ProblemDetails` response (**+10** JSON lines) and one generated `409` error member (**+4** TypeScript lines) |
-| web boundaries/static | PASS; boundary harness **3/3**, Prettier, ESLint, Next typegen and TypeScript clean |
-| full Jest | PASS; **51/51 suites, 371/371 tests**, 0 snapshots |
-| clean production build | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present |
-| dependency security | production npm audit PASS with 0 vulnerabilities; full development audit reports one high `brace-expansion` toolchain advisory and no production finding |
-| Playwright | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed** |
-| repository/reference guards | PASS; `git diff --check`, generated drift, and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged |
+| Round-17 local gate                                           | Observed result                                                                                                                                                                          |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                 | PASS; all seven projects current                                                                                                                                                         |
+| `dotnet build Template.sln --no-restore`                      | PASS; 0 warnings, 0 errors                                                                                                                                                               |
+| `dotnet test Template.sln --no-restore`                       | PASS; Application **174/174**, API **447/447**, total **621/621**                                                                                                                        |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required                                                                                                                                                     |
+| EF model/script                                               | PASS; no pending `TemplateDbContext` model changes; idempotent script **23,431 bytes**                                                                                                   |
+| NuGet vulnerability scan                                      | PASS; no vulnerable direct/transitive packages in seven projects                                                                                                                         |
+| deterministic OpenAPI export                                  | PASS twice, 0 warnings/errors; common SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`                                                                         |
+| OpenAPI/generated SDK                                         | PASS; deterministic/current 4-file generation; intentional diff is one `409 ProblemDetails` response (**+10** JSON lines) and one generated `409` error member (**+4** TypeScript lines) |
+| web boundaries/static                                         | PASS; boundary harness **3/3**, Prettier, ESLint, Next typegen and TypeScript clean                                                                                                      |
+| full Jest                                                     | PASS; **51/51 suites, 371/371 tests**, 0 snapshots                                                                                                                                       |
+| clean production build                                        | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present                                                                                                             |
+| dependency security                                           | production npm audit PASS with 0 vulnerabilities; full development audit reports one high `brace-expansion` toolchain advisory and no production finding                                 |
+| Playwright                                                    | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed**                                                                                                                            |
+| repository/reference guards                                   | PASS; `git diff --check`, generated drift, and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged                                                       |
 
 This is local fix evidence only. The controller still owns push, all five thread
 replies/resolution and a fresh automatic review. No future clean round-17 review
@@ -1941,17 +1940,17 @@ are unchanged.
 Focused GREEN combined the whitespace regression, uppercase canonical lookup
 and the original NUL/dot-marker rejection: **3/3 passed**.
 
-| Round-17 fix 1/5 local gate | Observed result |
-| --------------------------- | --------------- |
-| `dotnet restore Template.sln` | PASS; all seven projects current |
-| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
-| `dotnet test Template.sln --no-restore` | PASS; Application **174/174**, API **449/449**, total **623/623** |
-| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required |
-| EF model/script | PASS; no pending `TemplateDbContext` changes; idempotent script **23,431 bytes** |
-| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
-| deterministic OpenAPI / SDK | PASS; two exports, common unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated REST SDK deterministic/current with no diff |
-| web gates | Not rerun beyond `npm run api:check`: this focused amendment changes no web source, package, schema or generated artifact; round-17 full web/Jest/build/audit/E2E evidence remains applicable |
-| repository/reference guards | PASS; whitespace, contract/generated drift, and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged |
+| Round-17 fix 1/5 local gate                                   | Observed result                                                                                                                                                                               |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                 | PASS; all seven projects current                                                                                                                                                              |
+| `dotnet build Template.sln --no-restore`                      | PASS; 0 warnings, 0 errors                                                                                                                                                                    |
+| `dotnet test Template.sln --no-restore`                       | PASS; Application **174/174**, API **449/449**, total **623/623**                                                                                                                             |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required                                                                                                                                                          |
+| EF model/script                                               | PASS; no pending `TemplateDbContext` changes; idempotent script **23,431 bytes**                                                                                                              |
+| NuGet vulnerability scan                                      | PASS; no vulnerable direct/transitive packages in seven projects                                                                                                                              |
+| deterministic OpenAPI / SDK                                   | PASS; two exports, common unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated REST SDK deterministic/current with no diff                         |
+| web gates                                                     | Not rerun beyond `npm run api:check`: this focused amendment changes no web source, package, schema or generated artifact; round-17 full web/Jest/build/audit/E2E evidence remains applicable |
+| repository/reference guards                                   | PASS; whitespace, contract/generated drift, and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged                                                           |
 
 This amendment fixes the sole Important local-review finding. Controller-owned
 push, review-thread work and a fresh automatic review remain pending; no future
@@ -2014,21 +2013,21 @@ Focused GREEN was **10/10 API tests**, including prior detail-key and safe-audit
 regressions, and **2/2 web suites, 40/40 tests** for the delete dialog plus its
 real keyed settings-page lifecycle.
 
-| Round-18 local gate | Observed result |
-| ------------------- | --------------- |
-| `dotnet restore Template.sln` | PASS; all seven projects current |
-| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors |
-| `dotnet test Template.sln --no-restore` | PASS; Application **174/174**, API **456/456**, total **630/630** |
-| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required |
-| EF model/script | PASS; no pending `TemplateDbContext` changes; idempotent script **23,431 bytes**, covering index inspected |
-| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
-| deterministic OpenAPI / SDK | PASS; two 0-warning/error exports, unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated 4-file SDK deterministic/current; no contract/generated diff |
-| web boundaries/static | PASS; boundary harness **3/3**, Prettier, ESLint, Next typegen and TypeScript clean |
-| full Jest | PASS; **51/51 suites, 375/375 tests**, 0 snapshots |
-| clean production build | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present |
-| dependency security | production npm audit PASS with 0 vulnerabilities; full development audit retains one high `brace-expansion` toolchain advisory and no production finding |
-| Playwright | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed** |
-| repository/reference guards | PASS; whitespace, generated drift and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged; no OpenSpec artifact |
+| Round-18 local gate                                           | Observed result                                                                                                                                                                                 |
+| ------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dotnet restore Template.sln`                                 | PASS; all seven projects current                                                                                                                                                                |
+| `dotnet build Template.sln --no-restore`                      | PASS; 0 warnings, 0 errors                                                                                                                                                                      |
+| `dotnet test Template.sln --no-restore`                       | PASS; Application **174/174**, API **456/456**, total **630/630**                                                                                                                               |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; no formatting changes required                                                                                                                                                            |
+| EF model/script                                               | PASS; no pending `TemplateDbContext` changes; idempotent script **23,431 bytes**, covering index inspected                                                                                      |
+| NuGet vulnerability scan                                      | PASS; no vulnerable direct/transitive packages in seven projects                                                                                                                                |
+| deterministic OpenAPI / SDK                                   | PASS; two 0-warning/error exports, unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated 4-file SDK deterministic/current; no contract/generated diff |
+| web boundaries/static                                         | PASS; boundary harness **3/3**, Prettier, ESLint, Next typegen and TypeScript clean                                                                                                             |
+| full Jest                                                     | PASS; **51/51 suites, 375/375 tests**, 0 snapshots                                                                                                                                              |
+| clean production build                                        | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present                                                                                                                    |
+| dependency security                                           | production npm audit PASS with 0 vulnerabilities; full development audit retains one high `brace-expansion` toolchain advisory and no production finding                                        |
+| Playwright                                                    | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed**                                                                                                                                   |
+| repository/reference guards                                   | PASS; whitespace, generated drift and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged; no OpenSpec artifact                                                 |
 
 This is local fix evidence only. The controller owns push, both thread
 replies/resolution and a fresh automatic review. No future clean round-18 result
@@ -2178,23 +2177,54 @@ passed **46/46**. The six results contain exactly the five readable slugs plus
 characters; the database contains six organizations, and every actor has exactly
 one owner membership plus a session active-organization FK to its own result.
 
-| Round-20 local gate | Observed result |
-| --- | --- |
-| deterministic real-PostgreSQL RED | Expected FAIL; **0/1**, exact waves 6/5/4/3/2 completed, five successes and exactly one `SlugConflict` |
-| focused/store GREEN | PASS; six-way **1/1**, sequential fallback + pair + six-way **3/3**, full organization store/concurrency **46/46** |
-| `dotnet restore/build/test/format` | PASS; restore current; build 0 warnings/errors; Application **174/174**, API **457/457**, total **631/631**; format clean |
-| EF model/script | PASS; no pending `TemplateDbContext` changes; idempotent SQL **23,431 bytes**, covering actor-list index inspected |
-| NuGet vulnerability scan | PASS; no vulnerable direct/transitive packages in seven projects |
-| deterministic OpenAPI / SDK | PASS; two actual exports (second forced), common unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated REST SDK 4 files deterministic/current; no contract/generated diff |
-| web boundaries/static/Jest | PASS; boundaries **3/3**, format/lint/Next typegen/TypeScript clean; Jest **51/51 suites, 382/382 tests**, 0 snapshots |
-| clean production build | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present |
-| dependency security | production npm audit PASS with 0 vulnerabilities; full development audit retains one high `brace-expansion` toolchain advisory and no production finding |
-| Playwright | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed** |
-| repository/reference guards | PASS; whitespace, contract/generated drift and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged; no OpenSpec artifact |
+| Round-20 local gate                | Observed result                                                                                                                                                                                                     |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| deterministic real-PostgreSQL RED  | Expected FAIL; **0/1**, exact waves 6/5/4/3/2 completed, five successes and exactly one `SlugConflict`                                                                                                              |
+| focused/store GREEN                | PASS; six-way **1/1**, sequential fallback + pair + six-way **3/3**, full organization store/concurrency **46/46**                                                                                                  |
+| `dotnet restore/build/test/format` | PASS; restore current; build 0 warnings/errors; Application **174/174**, API **457/457**, total **631/631**; format clean                                                                                           |
+| EF model/script                    | PASS; no pending `TemplateDbContext` changes; idempotent SQL **23,431 bytes**, covering actor-list index inspected                                                                                                  |
+| NuGet vulnerability scan           | PASS; no vulnerable direct/transitive packages in seven projects                                                                                                                                                    |
+| deterministic OpenAPI / SDK        | PASS; two actual exports (second forced), common unchanged SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; generated REST SDK 4 files deterministic/current; no contract/generated diff |
+| web boundaries/static/Jest         | PASS; boundaries **3/3**, format/lint/Next typegen/TypeScript clean; Jest **51/51 suites, 382/382 tests**, 0 snapshots                                                                                              |
+| clean production build             | PASS; Next.js 16.2.11, **19/19** generation units, standalone server present                                                                                                                                        |
+| dependency security                | production npm audit PASS with 0 vulnerabilities; full development audit retains one high `brace-expansion` toolchain advisory and no production finding                                                            |
+| Playwright                         | PASS; **14 passed, 5 opt-in live-provider skipped, 0 failed**                                                                                                                                                       |
+| repository/reference guards        | PASS; whitespace, contract/generated drift and working-tree/status/untracked/range `template/` guards clean; `template/` unchanged; no OpenSpec artifact                                                            |
 
 This is local fix evidence only. The controller owns push, review-thread
 reply/resolution and a fresh automatic review. No future clean round-20 result or
 future reviewed hash is claimed.
+
+### Final observed implementation/review closure 2026-08-01
+
+Iteration 5 is complete for the observed reviewed implementation state
+`0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`. Automatic Codex review issue
+comment `5148491672`, created `2026-08-01T00:08:21Z`, begins `Codex Review:
+Didn't find any major issues. Breezy!` and explicitly reviewed commit
+`0ffdd7dc81`. The GraphQL thread snapshot taken after that review reported
+**38/38 resolved, 0 unresolved**. PR #6 was **OPEN**, ready
+(`isDraft=false`), **MERGEABLE**, with merge state **CLEAN**, not merged, and
+its `headRefOid` exactly equalled that full reviewed implementation hash.
+`statusCheckRollup=[]`; `gh pr checks 6` reported no checks.
+
+| Final controller-observed gate | Observed result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| .NET/API/contract              | `dotnet restore Template.sln` PASS/current; build PASS with 0 warnings/errors; tests PASS: Application **174/174**, API **457/457**, total **631/631**, 0 failed/skipped; `dotnet format Template.sln --no-restore --verify-no-changes` PASS; no EF pending model changes; idempotent `/tmp/template-pr6-final.sql` **23,431 bytes** and contains `ix_members_user_id_joined_at_id`; NuGet scan found 0 vulnerable packages in every solution project; two OpenAPI exports were deterministic/current with SHA-256 `cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`. |
+| Web/UI                         | `npm ci` completed; `npm audit --omit=dev` found 0 vulnerabilities; generated client deterministic/current; boundaries **3/3**; Prettier/lint/Next typegen/TypeScript PASS; Jest **51/51 suites, 382/382 tests**, 0 snapshots; production build PASS with 19 routes and `.next/standalone/server.js`; final default 5-worker `npm run e2e` rerun PASS: **14 passed, 5 opt-in live-provider smoke tests skipped, 0 failed in 52.5s**. Live OAuth was not exercised.                                                                                                                     |
+| E2E diagnostic transparency    | The first cold full E2E attempt after `npm ci`/build timed out auth and the first organization scenario while Next dev showed on-demand `Compiling`; auth **1/1** and organizations **5/5** then passed independently with no source changes, and the exact default 5-worker command passed in full on rerun. This is a non-product cold-dev harness observation, not a product failure or a hidden clean first attempt.                                                                                                                                                               |
+| Dependency concern             | Full dev-inclusive `npm audit` retains one high `brace-expansion` advisory in tooling/dev-dependency paths; the production audit is clean.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Guards                         | `git diff --check` PASS. `git diff --quiet -- template/`, `git diff --quiet origin/main...HEAD -- template/`, template status, and untracked-template checks were PASS/empty. OpenAPI/generated-client working-tree diff was empty. The working tree was clean before this documentation task.                                                                                                                                                                                                                                                                                         |
+
+Task 14 Steps 5 and 6 are complete for this observed implementation/review
+state. Iteration 6 is unblocked only as a separate slice. Teams, invitations,
+API keys, product dashboard behavior, and production proxy/deploy/Aspire remain
+explicitly out of scope. The existing intentional parity/strengthening notes
+remain in effect; this closure does not claim perfect visual/reference parity.
+
+This documentation-only closure claims neither its own future commit hash nor
+its own future automatic-review result. After the controller pushes it, a fresh
+automatic review is still required; the post-docs review is not already claimed
+clean.
 
 ## 9. Правило обновления этого документа
 

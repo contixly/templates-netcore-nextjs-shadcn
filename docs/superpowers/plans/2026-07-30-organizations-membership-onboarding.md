@@ -1825,7 +1825,7 @@ change. For documentation-only findings, run formatting, link/path, diff, and
 reference guards. Do not accept a suggestion that violates the approved scope or
 architecture; document the evidence in the PR response.
 
-- [ ] **Step 5: Commit, push, and repeat review rounds**
+- [x] **Step 5: Commit, push, and repeat review rounds**
 
 ```bash
 git diff --name-only --diff-filter=ACMR
@@ -1838,7 +1838,7 @@ After every push, wait for the automatic reviewer again. Continue until all
 review threads are resolved and the latest review/check state contains no
 actionable comments.
 
-- [ ] **Step 6: Record the final clean review state**
+- [x] **Step 6: Record the final clean review state**
 
 Update the migration-plan review evidence only with observed results, rerun
 `git diff --check` and both `template/` guards, commit/push that evidence when it
@@ -2199,3 +2199,37 @@ remain intact. Exact full gate evidence is recorded in the migration plan and
 ignored round-20 report. Task 14 Steps 5–6 remain pending: the controller owns
 push, thread reply/resolution and a fresh automatic review. No future clean
 result or future reviewed hash is claimed.
+
+### Final observed Task 14 closure — 2026-08-01
+
+Steps 5 and 6 are complete for the observed reviewed implementation head
+`0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`. Automatic Codex review issue
+comment `5148491672` at `2026-08-01T00:08:21Z` begins `Codex Review: Didn't
+find any major issues. Breezy!`, explicitly reviewed `0ffdd7dc81`, and the
+post-review GraphQL snapshot was **38/38 resolved, 0 unresolved**. PR #6 is
+OPEN, ready (`isDraft=false`), MERGEABLE, merge state CLEAN, not merged, with
+`headRefOid` exactly equal to that implementation hash. `statusCheckRollup=[]`
+and `gh pr checks 6` reports no checks.
+
+The final controller-observed acceptance is recorded in
+`docs/aspnetcore-migration-plan.md`: .NET Application **174/174**, API
+**457/457**, total **631/631**; deterministic OpenAPI SHA-256
+`cecc2096b0044a217c3a864e22c229c9ff9f17827505368a5c2ae69e9882f8c4`; Jest
+**51/51 suites, 382/382 tests**; and default 5-worker E2E **14 passed, 5
+opt-in live-provider skipped, 0 failed in 52.5s**. The cold-dev first E2E
+attempt timing out while Next showed `Compiling` is documented there as a
+non-product harness observation; the independent auth **1/1** and organization
+**5/5** reruns and the final full rerun passed with no source changes. Production
+npm audit is clean; full dev-inclusive audit retains one high `brace-expansion`
+tooling/dev-dependency advisory. `git diff --check`, immutable `template/`
+guards, and OpenAPI/generated-client drift guards were clean.
+
+Iteration 5 is complete for this observed state. Iteration 6 is unblocked only
+as a separate planned slice; Teams, invitations, API keys, product dashboard
+behavior, and production proxy/deploy/Aspire remain out of scope. Existing
+intentional parity/strengthening notes remain; no perfect visual/reference parity
+is claimed.
+
+This documentation-only closure claims neither its own future commit hash nor
+its own automatic-review result. After controller push, a fresh automatic review
+is still required; post-docs review is not yet claimed clean.
