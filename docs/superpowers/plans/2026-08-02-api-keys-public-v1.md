@@ -998,6 +998,11 @@ git commit -m "docs: publish api key consumer contract"
 - Modify: `apps/web/src/features/account/account-routes.ts`
 - Modify: `apps/web/src/components/account/account-nav.tsx`
 - Modify: `apps/web/src/i18n/messages.ts`
+- Modify: existing organization/collaboration UI adapters and typed test fixtures
+  only as needed to consume the Task 8 generated required fields
+  `accessPrincipal`, `canManageApiKeys`, and `membersIncluded`, and to narrow the
+  `accessPrincipal` discriminator before reading `currentRole`. Do not add the
+  organization API-key page/navigation from Task 10 in this task.
 - Add shadcn primitives through the installed CLI.
 - Test: all API-key files under `apps/web/test/features`, `apps/web/test/components`,
   `apps/web/test/app`, and `apps/web/test/contracts` listed in File Structure.
