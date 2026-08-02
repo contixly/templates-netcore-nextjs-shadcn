@@ -60,6 +60,17 @@ internal sealed class ApiKeyContractSchemaTransformer : IOpenApiSchemaTransforme
         "organization_access_denied"
     ];
 
+    private static readonly string[] CapabilityNames =
+    [
+        "canUpdateOrganization",
+        "canDeleteOrganization",
+        "canAddMembers",
+        "canUpdateMemberRoles",
+        "canManageTeams",
+        "canManageInvitations",
+        "canManageApiKeys"
+    ];
+
     public Task TransformAsync(
         OpenApiSchema schema,
         OpenApiSchemaTransformerContext context,
@@ -110,6 +121,7 @@ internal sealed class ApiKeyContractSchemaTransformer : IOpenApiSchemaTransforme
             SetPropertyEnum(schema, "ownerKind", "user", "organization");
             ApplyUuid(schema, "userId");
             ApplyUuid(schema, "organizationId");
+            ApplyApiKeyPrincipalDiscriminator(schema);
             if (Property(schema, "ownerKind") is { } ownerKind)
             {
                 ownerKind.Description =
@@ -250,6 +262,7 @@ internal sealed class ApiKeyContractSchemaTransformer : IOpenApiSchemaTransforme
         {
             maximum.Type = JsonSchemaType.Integer;
             maximum.Format = "int32";
+            maximum.Pattern = null;
             maximum.Minimum = "1";
             maximum.Maximum = "1000000";
         }
@@ -310,14 +323,45 @@ internal sealed class ApiKeyContractSchemaTransformer : IOpenApiSchemaTransforme
 
         if (Property(schema, "rateLimitMax") is { } rateLimitMaximum)
         {
+            rateLimitMaximum.Type = JsonSchemaType.Integer;
+            rateLimitMaximum.Format = "int32";
+            rateLimitMaximum.Pattern = null;
             rateLimitMaximum.Minimum = "1";
             rateLimitMaximum.Maximum = "1000000";
         }
 
         if (Property(schema, "requestCount") is { } requestCount)
         {
+            requestCount.Type = JsonSchemaType.Integer;
+            requestCount.Format = "int32";
+            requestCount.Pattern = null;
             requestCount.Minimum = "0";
         }
+    }
+
+    private static void ApplyApiKeyPrincipalDiscriminator(OpenApiSchema schema)
+    {
+        schema.Discriminator = new OpenApiDiscriminator
+        {
+            PropertyName = "ownerKind"
+        };
+        schema.OneOf =
+        [
+            ObjectVariant(new Dictionary<string, OpenApiSchema>(
+                StringComparer.Ordinal)
+            {
+                ["ownerKind"] = StringEnum("user"),
+                ["userId"] = Uuid(),
+                ["organizationId"] = Null()
+            }),
+            ObjectVariant(new Dictionary<string, OpenApiSchema>(
+                StringComparer.Ordinal)
+            {
+                ["ownerKind"] = StringEnum("organization"),
+                ["userId"] = Null(),
+                ["organizationId"] = Uuid()
+            })
+        ];
     }
 
     private static void ApplyMachineOrganizationDiscriminator(OpenApiSchema schema)
@@ -336,7 +380,82 @@ internal sealed class ApiKeyContractSchemaTransformer : IOpenApiSchemaTransforme
         {
             principal.Description = AccessPrincipalDescription;
         }
+
+        schema.Discriminator = new OpenApiDiscriminator
+        {
+            PropertyName = "accessPrincipal"
+        };
+        schema.OneOf =
+        [
+            OrganizationAccessVariant(
+                "user",
+                ["member", "admin", "owner"],
+                literalFalseCapabilities: false),
+            OrganizationAccessVariant(
+                "organization",
+                ["organization"],
+                literalFalseCapabilities: true)
+        ];
     }
+
+    private static OpenApiSchema OrganizationAccessVariant(
+        string accessPrincipal,
+        string[] roles,
+        bool literalFalseCapabilities) =>
+        ObjectVariant(new Dictionary<string, OpenApiSchema>(
+            StringComparer.Ordinal)
+        {
+            ["accessPrincipal"] = StringEnum(accessPrincipal),
+            ["currentRole"] = StringEnum(roles),
+            ["capabilities"] = Capabilities(literalFalseCapabilities)
+        });
+
+    private static OpenApiSchema Capabilities(bool literalFalse)
+    {
+        var properties = new Dictionary<string, OpenApiSchema>(
+            StringComparer.Ordinal);
+        foreach (var name in CapabilityNames)
+        {
+            properties[name] = new OpenApiSchema
+            {
+                Type = JsonSchemaType.Boolean,
+                Enum = literalFalse ? [JsonValue.Create(false)!] : null
+            };
+        }
+
+        return ObjectVariant(properties);
+    }
+
+    private static OpenApiSchema ObjectVariant(
+        IReadOnlyDictionary<string, OpenApiSchema> properties) =>
+        new()
+        {
+            Type = JsonSchemaType.Object,
+            Required = properties.Keys.ToHashSet(StringComparer.Ordinal),
+            Properties = properties.ToDictionary(
+                property => property.Key,
+                property => (IOpenApiSchema)property.Value,
+                StringComparer.Ordinal)
+        };
+
+    private static OpenApiSchema StringEnum(params string[] values)
+    {
+        var schema = new OpenApiSchema();
+        SetEnum(schema, values);
+        return schema;
+    }
+
+    private static OpenApiSchema Uuid() => new()
+    {
+        Type = JsonSchemaType.String,
+        Format = "uuid",
+        Pattern = CanonicalUuidPattern
+    };
+
+    private static OpenApiSchema Null() => new()
+    {
+        Type = JsonSchemaType.Null
+    };
 
     private static void AppendProblemCodes(OpenApiSchema schema)
     {

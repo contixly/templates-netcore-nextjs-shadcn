@@ -1,7 +1,20 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Template.Api.Authentication;
+using Template.Api.Contracts;
+using Template.Api.Endpoints;
+using Template.Api.Features.ApiKeys;
+using Template.Api.OpenApi;
 using Template.Api.Tests.Infrastructure;
+using Template.Domain.ApiKeys;
 
 namespace Template.Api.Tests;
 
@@ -58,6 +71,79 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Null(document["paths"]!["/api/testing/forbidden"]);
         Assert.Null(document["paths"]!["/api/testing/nested-validation"]);
         Assert.Null(document["paths"]!["/api/v1/testing/consumer"]);
+    }
+
+    [Fact]
+    public async Task EveryPathTemplateVariableHasExactlyOneRequiredPathParameterAndNoExtras()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var methods = new HashSet<string>(
+            ["get", "put", "post", "delete", "options", "head", "patch", "trace"],
+            StringComparer.Ordinal);
+
+        foreach (var pathEntry in document["paths"]!.AsObject())
+        {
+            var variables = Regex.Matches(pathEntry.Key, "\\{([^{}]+)\\}")
+                .Select(match => match.Groups[1].Value)
+                .ToArray();
+            Assert.Equal(variables.Distinct(StringComparer.Ordinal), variables);
+
+            foreach (var operationEntry in pathEntry.Value!.AsObject()
+                         .Where(entry => methods.Contains(entry.Key)))
+            {
+                var parameters = (pathEntry.Value["parameters"]?.AsArray() ?? [])
+                    .Concat(operationEntry.Value!["parameters"]?.AsArray() ?? [])
+                    .Where(parameter =>
+                        parameter?["in"]?.GetValue<string>() == "path")
+                    .ToArray();
+                Assert.Equal(
+                    variables.Order(StringComparer.Ordinal),
+                    parameters.Select(parameter =>
+                            parameter!["name"]!.GetValue<string>())
+                        .Order(StringComparer.Ordinal));
+                foreach (var variable in variables)
+                {
+                    var parameter = Assert.Single(parameters, parameter =>
+                        parameter!["name"]!.GetValue<string>() == variable);
+                    Assert.True(parameter!["required"]!.GetValue<bool>());
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public Task ApiKeyContractRejectsUnregisteredScopedOperation() =>
+        AssertOpenApiGenerationFailsAsync<UnknownScopedApiKeyEndpointModule>();
+
+    [Fact]
+    public Task ApiKeyContractRejectsUnregisteredOwnerOperation() =>
+        AssertOpenApiGenerationFailsAsync<UnknownOwnerApiKeyEndpointModule>();
+
+    [Fact]
+    public Task ApiKeyContractRejectsRegisteredOperationWithRoutePolicyDrift() =>
+        AssertOpenApiGenerationFailsAsync<RoutePolicyDriftApiKeyEndpointModule>(
+            replaceModules: true);
+
+    [Fact]
+    public async Task ApiKeyContractRejectsManagementMutationWithoutAntiforgeryMetadata()
+    {
+        await using var driftFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IEndpointModule>();
+                services.AddSingleton<IEndpointModule,
+                    MissingAntiforgeryApiKeyEndpointModule>();
+            }));
+        using var client = CreateDriftClient(driftFactory);
+
+        using var response = await client.GetAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
     }
 
     [Fact]
@@ -1624,6 +1710,23 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 expected.Method,
                 expected.Id);
             AssertCookieSecurity(operation);
+            foreach (Match variable in Regex.Matches(
+                         expected.Path,
+                         "\\{([^{}]+)\\}"))
+            {
+                var parameter = Assert.Single(
+                    operation["parameters"]!.AsArray(),
+                    value => value!["in"]!.GetValue<string>() == "path" &&
+                        value["name"]!.GetValue<string>() ==
+                        variable.Groups[1].Value);
+                Assert.True(parameter!["required"]!.GetValue<bool>());
+                Assert.Equal(
+                    "uuid",
+                    parameter["schema"]!["format"]!.GetValue<string>());
+                Assert.Equal(
+                    CanonicalUuidPattern,
+                    parameter["schema"]!["pattern"]!.GetValue<string>());
+            }
             Assert.Equal(expected.Body, operation["requestBody"] is not null);
             if (expected.Body)
             {
@@ -1743,6 +1846,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             var maximum = request["properties"]!["rateLimitMax"]!;
             Assert.Equal("integer", maximum["type"]!.GetValue<string>());
             Assert.Equal("int32", maximum["format"]!.GetValue<string>());
+            Assert.Null(maximum["pattern"]);
             Assert.Equal(1, maximum["minimum"]!.GetValue<int>());
             Assert.Equal(1_000_000, maximum["maximum"]!.GetValue<int>());
         }
@@ -1797,10 +1901,24 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             AssertStringEnum(properties["status"]!, "active", "disabled", "expired");
             AssertStringEnum(properties["scopes"]!["items"]!, scopes);
             AssertStringEnum(properties["rateLimitWindow"]!, windows);
+            Assert.Equal(
+                "integer",
+                properties["rateLimitMax"]!["type"]!.GetValue<string>());
+            Assert.Equal(
+                "int32",
+                properties["rateLimitMax"]!["format"]!.GetValue<string>());
+            Assert.Null(properties["rateLimitMax"]!["pattern"]);
             Assert.Equal(1, properties["rateLimitMax"]!["minimum"]!.GetValue<int>());
             Assert.Equal(
                 1_000_000,
                 properties["rateLimitMax"]!["maximum"]!.GetValue<int>());
+            Assert.Equal(
+                "integer",
+                properties["requestCount"]!["type"]!.GetValue<string>());
+            Assert.Equal(
+                "int32",
+                properties["requestCount"]!["format"]!.GetValue<string>());
+            Assert.Null(properties["requestCount"]!["pattern"]);
             Assert.Equal(0, properties["requestCount"]!["minimum"]!.GetValue<int>());
         }
 
@@ -1944,6 +2062,39 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             "currentRole sentinel organization and has every browser mutation capability " +
             "set to false.";
 
+        var apiKeyPrincipal = schemas["ApiKeyMePrincipalResponse"]!;
+        var apiKeyVariants = apiKeyPrincipal["oneOf"]!.AsArray();
+        Assert.Equal(2, apiKeyVariants.Count);
+        var userPrincipal = AssertDiscriminatorVariant(
+            apiKeyVariants,
+            "ownerKind",
+            "user");
+        AssertRequiredProperties(
+            userPrincipal,
+            "ownerKind",
+            "userId",
+            "organizationId");
+        AssertUuidSchema(userPrincipal["properties"]!["userId"]!);
+        Assert.Equal(
+            ["null"],
+            EnumerateSchemaTypes(
+                userPrincipal["properties"]!["organizationId"]!));
+        var organizationPrincipal = AssertDiscriminatorVariant(
+            apiKeyVariants,
+            "ownerKind",
+            "organization");
+        AssertRequiredProperties(
+            organizationPrincipal,
+            "ownerKind",
+            "userId",
+            "organizationId");
+        Assert.Equal(
+            ["null"],
+            EnumerateSchemaTypes(
+                organizationPrincipal["properties"]!["userId"]!));
+        AssertUuidSchema(
+            organizationPrincipal["properties"]!["organizationId"]!);
+
         foreach (var schemaName in new[]
                  {
                      "OrganizationSummaryResponse",
@@ -1966,6 +2117,52 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 principalDescription,
                 schema["properties"]!["accessPrincipal"]!["description"]!
                     .GetValue<string>());
+
+            var variants = schema["oneOf"]!.AsArray();
+            Assert.Equal(2, variants.Count);
+            var user = AssertDiscriminatorVariant(
+                variants,
+                "accessPrincipal",
+                "user");
+            AssertRequiredProperties(
+                user,
+                "accessPrincipal",
+                "currentRole",
+                "capabilities");
+            AssertStringEnum(
+                user["properties"]!["currentRole"]!,
+                "member",
+                "admin",
+                "owner");
+
+            var organization = AssertDiscriminatorVariant(
+                variants,
+                "accessPrincipal",
+                "organization");
+            AssertRequiredProperties(
+                organization,
+                "accessPrincipal",
+                "currentRole",
+                "capabilities");
+            AssertStringEnum(
+                organization["properties"]!["currentRole"]!,
+                "organization");
+            var capabilities = organization["properties"]!["capabilities"]!;
+            AssertRequiredProperties(
+                capabilities,
+                "canUpdateOrganization",
+                "canDeleteOrganization",
+                "canAddMembers",
+                "canUpdateMemberRoles",
+                "canManageTeams",
+                "canManageInvitations",
+                "canManageApiKeys");
+            foreach (var capability in capabilities["properties"]!.AsObject())
+            {
+                Assert.Equal("boolean", capability.Value!["type"]!.GetValue<string>());
+                Assert.False(capability.Value["enum"]![0]!.GetValue<bool>());
+                Assert.Single(capability.Value["enum"]!.AsArray());
+            }
         }
 
         var browserDetail = schemas["OrganizationDetailResponse"]!;
@@ -2637,6 +2834,24 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 .Select(value => value!.GetValue<string>()));
     }
 
+    private static JsonNode AssertDiscriminatorVariant(
+        JsonArray variants,
+        string propertyName,
+        string value) =>
+        Assert.Single(variants, variant =>
+            variant!["properties"]![propertyName]!["enum"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+                .SequenceEqual([value], StringComparer.Ordinal))!;
+
+    private static void AssertUuidSchema(JsonNode schema)
+    {
+        Assert.Equal(["string"], EnumerateSchemaTypes(schema));
+        Assert.Equal("uuid", schema["format"]!.GetValue<string>());
+        Assert.Equal(
+            CanonicalUuidPattern,
+            schema["pattern"]!.GetValue<string>());
+    }
+
     private static int[] ProblemStatuses(JsonNode operation) =>
         operation["responses"]!.AsObject()
             .Select(response => response.Key)
@@ -2724,6 +2939,95 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                     Visit(alternative);
                 }
             }
+        }
+    }
+
+    private async Task AssertOpenApiGenerationFailsAsync<TModule>(
+        bool replaceModules = false)
+        where TModule : class, IEndpointModule
+    {
+        await using var driftFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                if (replaceModules)
+                {
+                    services.RemoveAll<IEndpointModule>();
+                }
+
+                services.AddSingleton<IEndpointModule, TModule>();
+            }));
+        using var client = CreateDriftClient(driftFactory);
+
+        using var response = await client.GetAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    private static ApiKeyEndpointModule.ApiKeyOwnerRouteMetadata
+        ApiKeyOwnerMetadata(ApiKeyOwnerKind ownerKind) =>
+        new(ownerKind);
+
+    private static HttpClient CreateDriftClient(
+        WebApplicationFactory<Program> driftFactory) =>
+        driftFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = true
+        });
+
+    private sealed class UnknownScopedApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedMachineApi.MapGet(
+                    "/testing/openapi-unknown-scope",
+                    () => Results.Ok())
+                .WithName("UnknownScopedApiKeyOperation")
+                .RequireApiKeyScopes(ApiKeyScopes.BasicRead);
+        }
+    }
+
+    private sealed class UnknownOwnerApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedApi.MapGet(
+                    "/testing/openapi-unknown-owner",
+                    () => Results.Ok())
+                .WithName("UnknownOwnerApiKeyOperation")
+                .WithMetadata(ApiKeyOwnerMetadata(ApiKeyOwnerKind.User));
+        }
+    }
+
+    private sealed class RoutePolicyDriftApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedApi.MapGet(
+                    "/testing/openapi-route-policy-drift",
+                    () => Results.Ok())
+                .WithName("GetApiKeyPrincipal")
+                .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
+                .Produces<ApiResponse<ApiKeyMeResponse>>()
+                .ProducesProtectedApiProblems();
+        }
+    }
+
+    private sealed class MissingAntiforgeryApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedApi.MapPost(
+                    "/account/api-keys",
+                    () => Results.Created())
+                .WithName("CreatePersonalApiKey")
+                .WithMetadata(ApiKeyOwnerMetadata(ApiKeyOwnerKind.User))
+                .Produces<ApiResponse<ApiKeySecretResponse>>(
+                    StatusCodes.Status201Created)
+                .ProducesProtectedApiProblems();
         }
     }
 }

@@ -459,5 +459,5 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         Audit(logger, operation, outcome, actor, owner, apiKeyId);
     }
 
-    private sealed record ApiKeyOwnerRouteMetadata(ApiKeyOwnerKind Kind);
+    internal sealed record ApiKeyOwnerRouteMetadata(ApiKeyOwnerKind Kind);
 }

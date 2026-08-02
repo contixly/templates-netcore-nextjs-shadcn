@@ -479,7 +479,7 @@ export const rotatePersonalApiKey = <ThrowOnError extends boolean = false>(optio
     ...options
 });
 
-export const listOrganizationApiKeys = <ThrowOnError extends boolean = false>(options?: Options<ListOrganizationApiKeysData, ThrowOnError>): RequestResult<ListOrganizationApiKeysResponses, ListOrganizationApiKeysErrors, ThrowOnError> => (options?.client ?? client).get<ListOrganizationApiKeysResponses, ListOrganizationApiKeysErrors, ThrowOnError>({
+export const listOrganizationApiKeys = <ThrowOnError extends boolean = false>(options: Options<ListOrganizationApiKeysData, ThrowOnError>): RequestResult<ListOrganizationApiKeysResponses, ListOrganizationApiKeysErrors, ThrowOnError> => (options.client ?? client).get<ListOrganizationApiKeysResponses, ListOrganizationApiKeysErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
             name: '__Host-template.session',

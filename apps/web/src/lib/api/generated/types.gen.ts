@@ -103,7 +103,15 @@ export type ApiKeyMeKeyResponse = {
     configId: 'user-keys' | 'org-keys';
 };
 
-export type ApiKeyMePrincipalResponse = {
+export type ApiKeyMePrincipalResponse = ({
+    ownerKind: 'user';
+    userId: string;
+    organizationId: null;
+} | {
+    ownerKind: 'organization';
+    userId: null;
+    organizationId: string;
+}) & {
     /**
      * user means a personal key; organization means an organization-owned key.
      */
@@ -136,9 +144,9 @@ export type ApiKeyResponse = {
     enabled: boolean;
     scopes: Array<'basic:read' | 'organization:read' | 'member:read' | 'team:read' | 'teamMember:read'>;
     rateLimitEnabled: boolean;
-    rateLimitMax: number | string;
+    rateLimitMax: number;
     rateLimitWindow: '1m' | '1h' | '1d';
-    requestCount: number | string;
+    requestCount: number;
     windowStartedAt: null | string;
     lastRequestAt: null | string;
     expiresAt: null | string;
@@ -165,9 +173,9 @@ export type ApiKeySecretResponse = {
     enabled: boolean;
     scopes: Array<'basic:read' | 'organization:read' | 'member:read' | 'team:read' | 'teamMember:read'>;
     rateLimitEnabled: boolean;
-    rateLimitMax: number | string;
+    rateLimitMax: number;
     rateLimitWindow: '1m' | '1h' | '1d';
-    requestCount: number | string;
+    requestCount: number;
     windowStartedAt: null | string;
     lastRequestAt: null | string;
     expiresAt: null | string;
@@ -534,7 +542,31 @@ export type LocalAutomationSignInRequest = {
     password: string;
 };
 
-export type MachineOrganizationDetailResponse = {
+export type MachineOrganizationDetailResponse = ({
+    accessPrincipal: 'user';
+    currentRole: 'member' | 'admin' | 'owner';
+    capabilities: {
+        canUpdateOrganization: boolean;
+        canDeleteOrganization: boolean;
+        canAddMembers: boolean;
+        canUpdateMemberRoles: boolean;
+        canManageTeams: boolean;
+        canManageInvitations: boolean;
+        canManageApiKeys: boolean;
+    };
+} | {
+    accessPrincipal: 'organization';
+    currentRole: 'organization';
+    capabilities: {
+        canUpdateOrganization: false;
+        canDeleteOrganization: false;
+        canAddMembers: false;
+        canUpdateMemberRoles: false;
+        canManageTeams: false;
+        canManageInvitations: false;
+        canManageApiKeys: false;
+    };
+}) & {
     id: string;
     name: string;
     slug: string;
@@ -603,7 +635,31 @@ export type OrganizationPageResponse = {
     nextCursor: null | string;
 };
 
-export type OrganizationSummaryResponse = {
+export type OrganizationSummaryResponse = ({
+    accessPrincipal: 'user';
+    currentRole: 'member' | 'admin' | 'owner';
+    capabilities: {
+        canUpdateOrganization: boolean;
+        canDeleteOrganization: boolean;
+        canAddMembers: boolean;
+        canUpdateMemberRoles: boolean;
+        canManageTeams: boolean;
+        canManageInvitations: boolean;
+        canManageApiKeys: boolean;
+    };
+} | {
+    accessPrincipal: 'organization';
+    currentRole: 'organization';
+    capabilities: {
+        canUpdateOrganization: false;
+        canDeleteOrganization: false;
+        canAddMembers: false;
+        canUpdateMemberRoles: false;
+        canManageTeams: false;
+        canManageInvitations: false;
+        canManageApiKeys: false;
+    };
+}) & {
     id: string;
     name: string;
     slug: string;
@@ -2992,7 +3048,9 @@ export type RotatePersonalApiKeyResponse = RotatePersonalApiKeyResponses[keyof R
 
 export type ListOrganizationApiKeysData = {
     body?: never;
-    path?: never;
+    path: {
+        organizationId: string;
+    };
     query?: {
         /**
          * Opaque, typed, versioned, checksum-protected canonical base64url cursor for (createdAt DESC, apiKeyId DESC). Return nextCursor verbatim; do not decode or synthesize it.
@@ -3053,7 +3111,9 @@ export type CreateOrganizationApiKeyData = {
          */
         'X-CSRF-TOKEN': string;
     };
-    path?: never;
+    path: {
+        organizationId: string;
+    };
     query?: never;
     url: '/api/v1/organizations/{organizationId}/api-keys';
 };
@@ -3110,6 +3170,7 @@ export type RevokeOrganizationApiKeyData = {
     };
     path: {
         apiKeyId: string;
+        organizationId: string;
     };
     query?: never;
     url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}';
@@ -3167,6 +3228,7 @@ export type UpdateOrganizationApiKeyData = {
     };
     path: {
         apiKeyId: string;
+        organizationId: string;
     };
     query?: never;
     url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}';
@@ -3224,6 +3286,7 @@ export type RotateOrganizationApiKeyData = {
     };
     path: {
         apiKeyId: string;
+        organizationId: string;
     };
     query?: never;
     url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}/rotate';

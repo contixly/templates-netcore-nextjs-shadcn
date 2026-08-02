@@ -60,6 +60,8 @@ import {
 } from "@/src/lib/api/generated";
 import type {
   ApiResponseOfInvitationResponse,
+  ApiKeyMePrincipalResponse,
+  ApiKeyResponse,
   ApiKeySecretResponse,
   AcceptInvitationErrors,
   AddOrganizationMemberErrors,
@@ -69,6 +71,7 @@ import type {
   CreateInvitationErrors,
   CreateInvitationData,
   CreateInvitationResponses,
+  CreateOrganizationApiKeyData,
   CreateOrganizationApiKeyErrors,
   CreateOrganizationErrors,
   CreatePersonalApiKeyData,
@@ -89,21 +92,27 @@ import type {
   GetTeamMembersErrors,
   GetTeamsErrors,
   InvitationResponse,
+  ListOrganizationApiKeysData,
   ListOrganizationApiKeysErrors,
   ListPersonalApiKeysErrors,
   RejectInvitationErrors,
   RemoveTeamMemberErrors,
+  RevokeOrganizationApiKeyData,
   RevokeOrganizationApiKeyErrors,
   RevokePersonalApiKeyErrors,
   RotateOrganizationApiKeyErrors,
+  RotateOrganizationApiKeyData,
   RotatePersonalApiKeyErrors,
   SetActiveOrganizationErrors,
   GetTeamMemberCandidatesData,
   UpdateOrganizationErrors,
+  UpdateOrganizationApiKeyData,
   UpdateOrganizationApiKeyErrors,
   UpdateOrganizationMemberRoleErrors,
   UpdateTeamErrors,
   UpdatePersonalApiKeyErrors,
+  MachineOrganizationDetailResponse,
+  OrganizationSummaryResponse,
 } from "@/src/lib/api/generated";
 
 type Assert<T extends true> = T;
@@ -342,6 +351,125 @@ type _ApiKeyCreateBodyIsRequired = Assert<
 type _ApiKeySecretIsRevealOnceString = Assert<
   Equal<ApiKeySecretResponse["key"], string>
 >;
+type _OrganizationApiKeyPathsAreRequired = [
+  Assert<
+    Equal<ListOrganizationApiKeysData["path"], { organizationId: string }>
+  >,
+  Assert<
+    Equal<CreateOrganizationApiKeyData["path"], { organizationId: string }>
+  >,
+  Assert<
+    Equal<
+      UpdateOrganizationApiKeyData["path"],
+      { organizationId: string; apiKeyId: string }
+    >
+  >,
+  Assert<
+    Equal<
+      RevokeOrganizationApiKeyData["path"],
+      { organizationId: string; apiKeyId: string }
+    >
+  >,
+  Assert<
+    Equal<
+      RotateOrganizationApiKeyData["path"],
+      { organizationId: string; apiKeyId: string }
+    >
+  >,
+  Assert<
+    Equal<
+      undefined extends Parameters<typeof listOrganizationApiKeys>[0]
+        ? true
+        : false,
+      false
+    >
+  >,
+];
+type _ApiKeyCountersAreNumbers = [
+  Assert<Equal<ApiKeyResponse["rateLimitMax"], number>>,
+  Assert<Equal<ApiKeyResponse["requestCount"], number>>,
+  Assert<Equal<ApiKeySecretResponse["rateLimitMax"], number>>,
+  Assert<Equal<ApiKeySecretResponse["requestCount"], number>>,
+];
+type ApiKeyUserPrincipal = Extract<
+  ApiKeyMePrincipalResponse,
+  { ownerKind: "user" }
+>;
+type ApiKeyOrganizationPrincipal = Extract<
+  ApiKeyMePrincipalResponse,
+  { ownerKind: "organization" }
+>;
+type OrganizationSummaryUser = Extract<
+  OrganizationSummaryResponse,
+  { accessPrincipal: "user" }
+>;
+type OrganizationSummaryMachine = Extract<
+  OrganizationSummaryResponse,
+  { accessPrincipal: "organization" }
+>;
+type MachineOrganizationUser = Extract<
+  MachineOrganizationDetailResponse,
+  { accessPrincipal: "user" }
+>;
+type MachineOrganizationOwner = Extract<
+  MachineOrganizationDetailResponse,
+  { accessPrincipal: "organization" }
+>;
+type _ApiKeyPrincipalNarrowing = [
+  Assert<Equal<ApiKeyUserPrincipal["userId"], string>>,
+  Assert<Equal<ApiKeyUserPrincipal["organizationId"], null>>,
+  Assert<Equal<ApiKeyOrganizationPrincipal["userId"], null>>,
+  Assert<Equal<ApiKeyOrganizationPrincipal["organizationId"], string>>,
+];
+type _OrganizationPrincipalNarrowing = [
+  Assert<
+    Equal<OrganizationSummaryUser["currentRole"], "member" | "admin" | "owner">
+  >,
+  Assert<
+    Equal<OrganizationSummaryUser["capabilities"]["canManageApiKeys"], boolean>
+  >,
+  Assert<Equal<OrganizationSummaryMachine["currentRole"], "organization">>,
+  Assert<
+    Equal<OrganizationSummaryMachine["capabilities"]["canManageApiKeys"], false>
+  >,
+  Assert<
+    Equal<MachineOrganizationUser["currentRole"], "member" | "admin" | "owner">
+  >,
+  Assert<Equal<MachineOrganizationOwner["currentRole"], "organization">>,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canUpdateOrganization"],
+      false
+    >
+  >,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canDeleteOrganization"],
+      false
+    >
+  >,
+  Assert<
+    Equal<MachineOrganizationOwner["capabilities"]["canAddMembers"], false>
+  >,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canUpdateMemberRoles"],
+      false
+    >
+  >,
+  Assert<
+    Equal<MachineOrganizationOwner["capabilities"]["canManageTeams"], false>
+  >,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canManageInvitations"],
+      false
+    >
+  >,
+  Assert<
+    Equal<MachineOrganizationOwner["capabilities"]["canManageApiKeys"], false>
+  >,
+];
 
 describe("generated system status SDK", () => {
   it("tracks the committed GetSystemStatus operation", () => {

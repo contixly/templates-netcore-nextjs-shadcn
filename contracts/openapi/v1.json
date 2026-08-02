@@ -7184,6 +7184,16 @@
               "format": "int32",
               "default": 50
             }
+          },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -7385,6 +7395,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -7624,6 +7644,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "requestBody": {
@@ -7852,6 +7882,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string",
+              "format": "uuid"
+            }
           }
         ],
         "responses": {
@@ -8072,6 +8112,16 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+              "type": "string",
+              "format": "uuid"
             }
           }
         ],
@@ -9700,6 +9750,56 @@
           "organizationId"
         ],
         "type": "object",
+        "oneOf": [
+          {
+            "required": [
+              "ownerKind",
+              "userId",
+              "organizationId"
+            ],
+            "type": "object",
+            "properties": {
+              "ownerKind": {
+                "enum": [
+                  "user"
+                ],
+                "type": "string"
+              },
+              "userId": {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string",
+                "format": "uuid"
+              },
+              "organizationId": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "required": [
+              "ownerKind",
+              "userId",
+              "organizationId"
+            ],
+            "type": "object",
+            "properties": {
+              "ownerKind": {
+                "enum": [
+                  "organization"
+                ],
+                "type": "string"
+              },
+              "userId": {
+                "type": "null"
+              },
+              "organizationId": {
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          }
+        ],
         "properties": {
           "ownerKind": {
             "enum": [
@@ -9725,6 +9825,9 @@
             ],
             "format": "uuid"
           }
+        },
+        "discriminator": {
+          "propertyName": "ownerKind"
         }
       },
       "ApiKeyMeResponse": {
@@ -9858,11 +9961,7 @@
           "rateLimitMax": {
             "maximum": 1000000,
             "minimum": 1,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "rateLimitWindow": {
@@ -9875,11 +9974,7 @@
           },
           "requestCount": {
             "minimum": 0,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "windowStartedAt": {
@@ -10020,11 +10115,7 @@
           "rateLimitMax": {
             "maximum": 1000000,
             "minimum": 1,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "rateLimitWindow": {
@@ -10037,11 +10128,7 @@
           },
           "requestCount": {
             "minimum": 0,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
+            "type": "integer",
             "format": "int32"
           },
           "windowStartedAt": {
@@ -10739,7 +10826,6 @@
           "rateLimitMax": {
             "maximum": 1000000,
             "minimum": 1,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": "integer",
             "format": "int32"
           },
@@ -11300,6 +11386,145 @@
           "capabilities"
         ],
         "type": "object",
+        "oneOf": [
+          {
+            "required": [
+              "accessPrincipal",
+              "currentRole",
+              "capabilities"
+            ],
+            "type": "object",
+            "properties": {
+              "accessPrincipal": {
+                "enum": [
+                  "user"
+                ],
+                "type": "string"
+              },
+              "currentRole": {
+                "enum": [
+                  "member",
+                  "admin",
+                  "owner"
+                ],
+                "type": "string"
+              },
+              "capabilities": {
+                "required": [
+                  "canUpdateOrganization",
+                  "canDeleteOrganization",
+                  "canAddMembers",
+                  "canUpdateMemberRoles",
+                  "canManageTeams",
+                  "canManageInvitations",
+                  "canManageApiKeys"
+                ],
+                "type": "object",
+                "properties": {
+                  "canUpdateOrganization": {
+                    "type": "boolean"
+                  },
+                  "canDeleteOrganization": {
+                    "type": "boolean"
+                  },
+                  "canAddMembers": {
+                    "type": "boolean"
+                  },
+                  "canUpdateMemberRoles": {
+                    "type": "boolean"
+                  },
+                  "canManageTeams": {
+                    "type": "boolean"
+                  },
+                  "canManageInvitations": {
+                    "type": "boolean"
+                  },
+                  "canManageApiKeys": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "required": [
+              "accessPrincipal",
+              "currentRole",
+              "capabilities"
+            ],
+            "type": "object",
+            "properties": {
+              "accessPrincipal": {
+                "enum": [
+                  "organization"
+                ],
+                "type": "string"
+              },
+              "currentRole": {
+                "enum": [
+                  "organization"
+                ],
+                "type": "string"
+              },
+              "capabilities": {
+                "required": [
+                  "canUpdateOrganization",
+                  "canDeleteOrganization",
+                  "canAddMembers",
+                  "canUpdateMemberRoles",
+                  "canManageTeams",
+                  "canManageInvitations",
+                  "canManageApiKeys"
+                ],
+                "type": "object",
+                "properties": {
+                  "canUpdateOrganization": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canDeleteOrganization": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canAddMembers": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canUpdateMemberRoles": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canManageTeams": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canManageInvitations": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canManageApiKeys": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -11342,6 +11567,9 @@
           "capabilities": {
             "$ref": "#/components/schemas/OrganizationCapabilitiesResponse"
           }
+        },
+        "discriminator": {
+          "propertyName": "accessPrincipal"
         }
       },
       "OrganizationCapabilitiesResponse": {
@@ -11612,6 +11840,145 @@
           "capabilities"
         ],
         "type": "object",
+        "oneOf": [
+          {
+            "required": [
+              "accessPrincipal",
+              "currentRole",
+              "capabilities"
+            ],
+            "type": "object",
+            "properties": {
+              "accessPrincipal": {
+                "enum": [
+                  "user"
+                ],
+                "type": "string"
+              },
+              "currentRole": {
+                "enum": [
+                  "member",
+                  "admin",
+                  "owner"
+                ],
+                "type": "string"
+              },
+              "capabilities": {
+                "required": [
+                  "canUpdateOrganization",
+                  "canDeleteOrganization",
+                  "canAddMembers",
+                  "canUpdateMemberRoles",
+                  "canManageTeams",
+                  "canManageInvitations",
+                  "canManageApiKeys"
+                ],
+                "type": "object",
+                "properties": {
+                  "canUpdateOrganization": {
+                    "type": "boolean"
+                  },
+                  "canDeleteOrganization": {
+                    "type": "boolean"
+                  },
+                  "canAddMembers": {
+                    "type": "boolean"
+                  },
+                  "canUpdateMemberRoles": {
+                    "type": "boolean"
+                  },
+                  "canManageTeams": {
+                    "type": "boolean"
+                  },
+                  "canManageInvitations": {
+                    "type": "boolean"
+                  },
+                  "canManageApiKeys": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "required": [
+              "accessPrincipal",
+              "currentRole",
+              "capabilities"
+            ],
+            "type": "object",
+            "properties": {
+              "accessPrincipal": {
+                "enum": [
+                  "organization"
+                ],
+                "type": "string"
+              },
+              "currentRole": {
+                "enum": [
+                  "organization"
+                ],
+                "type": "string"
+              },
+              "capabilities": {
+                "required": [
+                  "canUpdateOrganization",
+                  "canDeleteOrganization",
+                  "canAddMembers",
+                  "canUpdateMemberRoles",
+                  "canManageTeams",
+                  "canManageInvitations",
+                  "canManageApiKeys"
+                ],
+                "type": "object",
+                "properties": {
+                  "canUpdateOrganization": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canDeleteOrganization": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canAddMembers": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canUpdateMemberRoles": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canManageTeams": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canManageInvitations": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  },
+                  "canManageApiKeys": {
+                    "enum": [
+                      false
+                    ],
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        ],
         "properties": {
           "id": {
             "type": "string",
@@ -11671,6 +12038,9 @@
           "capabilities": {
             "$ref": "#/components/schemas/OrganizationCapabilitiesResponse"
           }
+        },
+        "discriminator": {
+          "propertyName": "accessPrincipal"
         }
       },
       "ProblemDetails": {
@@ -12168,7 +12538,6 @@
           "rateLimitMax": {
             "maximum": 1000000,
             "minimum": 1,
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": "integer",
             "format": "int32"
           },

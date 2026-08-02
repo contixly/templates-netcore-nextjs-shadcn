@@ -27,25 +27,25 @@ key.
 API keys grant reads only. They cannot create or mutate organizations, members,
 teams, invitations, accounts, or keys.
 
-| Request | Required API-key scopes | Credential modes |
-| --- | --- | --- |
-| `GET /api/v1/me` | `basic:read` | API key only |
-| `GET /api/v1/organizations` | `organization:read` | Cookie or API key |
-| `GET /api/v1/organizations/{organizationId}` | `organization:read` | API key only |
-| `GET /api/v1/organizations/{organizationId}/members` | `organization:read` + `member:read` | Cookie or API key |
-| `GET /api/v1/organizations/{organizationId}/teams` | `organization:read` + `team:read` | Cookie or API key |
+| Request                                                             | Required API-key scopes                               | Credential modes  |
+| ------------------------------------------------------------------- | ----------------------------------------------------- | ----------------- |
+| `GET /api/v1/me`                                                    | `basic:read`                                          | API key only      |
+| `GET /api/v1/organizations`                                         | `organization:read`                                   | Cookie or API key |
+| `GET /api/v1/organizations/{organizationId}`                        | `organization:read`                                   | API key only      |
+| `GET /api/v1/organizations/{organizationId}/members`                | `organization:read` + `member:read`                   | Cookie or API key |
+| `GET /api/v1/organizations/{organizationId}/teams`                  | `organization:read` + `team:read`                     | Cookie or API key |
 | `GET /api/v1/organizations/{organizationId}/teams/{teamId}/members` | `organization:read` + `team:read` + `teamMember:read` | Cookie or API key |
 
 Management clients select presets rather than submitting raw scopes:
 
-| Preset | Expanded scopes |
-| --- | --- |
-| `basic-read` | `basic:read` |
-| `organization-read` | `organization:read` |
-| `organization-members-read` | `organization:read`, `member:read` |
-| `organization-teams-read` | `organization:read`, `team:read` |
-| `organization-team-members-read` | `organization:read`, `team:read`, `teamMember:read` |
-| `organization-read-all` | `organization:read`, `member:read`, `team:read`, `teamMember:read` |
+| Preset                           | Expanded scopes                                                    |
+| -------------------------------- | ------------------------------------------------------------------ |
+| `basic-read`                     | `basic:read`                                                       |
+| `organization-read`              | `organization:read`                                                |
+| `organization-members-read`      | `organization:read`, `member:read`                                 |
+| `organization-teams-read`        | `organization:read`, `team:read`                                   |
+| `organization-team-members-read` | `organization:read`, `team:read`, `teamMember:read`                |
+| `organization-read-all`          | `organization:read`, `member:read`, `team:read`, `teamMember:read` |
 
 At least one preset is required. Preset identifiers and scopes are
 case-sensitive closed sets.
@@ -68,6 +68,12 @@ created it after creation. Organization-key projections use:
 Personal-key and cookie projections use `accessPrincipal: "user"` and the
 current membership role. The organization sentinel is a response discriminator,
 not a stored organization membership role.
+
+`GET /api/v1/me` likewise publishes a closed principal union. A personal key
+returns `ownerKind: "user"`, a required UUID `userId`, and a null
+`organizationId`; an organization key returns the inverse. Consumers should
+narrow on `ownerKind` or `accessPrincipal` rather than treating the paired
+owner, role, and capability fields as independent values.
 
 Team list items also contain required `membersIncluded`. Cookie reads return
 `true`. An API key with `team:read` but without `teamMember:read` receives
@@ -113,14 +119,14 @@ Errors use `application/problem+json` with the standard required Problem Details
 fields plus stable `code` and safe `traceId`. Treat HTTP status and `code` as the
 machine contract; do not parse human-readable titles or details.
 
-| Status | Stable code | Action |
-| --- | --- | --- |
-| `401` | `api_key_missing` | Supply exactly one nonblank `x-api-key` value on an API-key-only route. |
-| `401` | `api_key_invalid` | Replace a malformed, unknown, disabled, revoked, or expired credential. |
-| `403` | `api_key_permission_denied` | Issue or select a key with every scope required by the endpoint. |
-| `403` | `organization_access_denied` | Use a personal key with current membership or the key owned by the target organization. |
-| `404` | Resource-specific not-found code | The authorized target organization or team was not found. |
-| `429` | `api_key_rate_limited` | Wait for the response's `Retry-After` duration before retrying. |
+| Status | Stable code                      | Action                                                                                  |
+| ------ | -------------------------------- | --------------------------------------------------------------------------------------- |
+| `401`  | `api_key_missing`                | Supply exactly one nonblank `x-api-key` value on an API-key-only route.                 |
+| `401`  | `api_key_invalid`                | Replace a malformed, unknown, disabled, revoked, or expired credential.                 |
+| `403`  | `api_key_permission_denied`      | Issue or select a key with every scope required by the endpoint.                        |
+| `403`  | `organization_access_denied`     | Use a personal key with current membership or the key owned by the target organization. |
+| `404`  | Resource-specific not-found code | The authorized target organization or team was not found.                               |
+| `429`  | `api_key_rate_limited`           | Wait for the response's `Retry-After` duration before retrying.                         |
 
 An API-key `429` includes required `Retry-After` as an integer number of whole
 seconds from `1` through `86400`. Apply bounded backoff and do not retry before
@@ -139,6 +145,12 @@ cookie; unsafe management requests also require the antiforgery cookie and the
 `X-CSRF-TOKEN` request header obtained from `GET /api/v1/auth/csrf`. API keys
 cannot call their own management routes.
 
+Every organization management request supplies `organizationId` as a required
+canonical UUID path value, including list and create. Item update, revoke, and
+rotate requests also supply the required canonical UUID `apiKeyId`; generated
+SDK calls therefore require a `path` object and cannot be invoked without
+options.
+
 Creation requires every field: `name`, nonempty `presetIds`, `expiresIn`,
 `rateLimitEnabled`, `rateLimitMax`, and `rateLimitWindow`. The closed values are:
 
@@ -149,6 +161,8 @@ Creation requires every field: `name`, nonempty `presetIds`, `expiresIn`,
 
 The API body is explicit and supplies no management defaults. UI defaults such
 as 30 days, 1000 requests per hour, and starter presets are conveniences only.
+Response `rateLimitMax` and `requestCount` values are JSON integers and generate
+as numeric SDK fields, not numeric strings.
 
 Only a successful create or rotate response contains the raw `key`. Copy it
 directly into an approved secrets manager while the reveal view is open, verify
