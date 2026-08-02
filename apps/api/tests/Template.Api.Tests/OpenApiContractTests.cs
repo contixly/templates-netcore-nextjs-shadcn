@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -12,6 +13,7 @@ using Template.Api.Authentication;
 using Template.Api.Contracts;
 using Template.Api.Endpoints;
 using Template.Api.Features.ApiKeys;
+using Template.Api.Features.Organizations;
 using Template.Api.OpenApi;
 using Template.Api.Tests.Infrastructure;
 using Template.Domain.ApiKeys;
@@ -121,6 +123,25 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     [Fact]
     public Task ApiKeyContractRejectsUnregisteredOwnerOperation() =>
         AssertOpenApiGenerationFailsAsync<UnknownOwnerApiKeyEndpointModule>();
+
+    [Theory]
+    [InlineData(ApiPolicies.MachineKey)]
+    [InlineData(ApiPolicies.BrowserOrMachine)]
+    public Task ApiKeyContractRejectsUnregisteredEffectiveApiKeyPolicies(
+        string policy) =>
+        AssertOpenApiGenerationFailsAsync(
+            new UnknownPolicyApiKeyEndpointModule(policy),
+            replaceModules: false);
+
+    [Theory]
+    [InlineData(ApiPolicies.MachineKey)]
+    [InlineData(ApiPolicies.BrowserOrMachine)]
+    [InlineData(ApiPolicies.BrowserSession)]
+    public Task ApiKeyContractRejectsAnonymousOverrideForEverySecurityKind(
+        string policy) =>
+        AssertOpenApiGenerationFailsAsync(
+            new AnonymousApiKeyEndpointModule(policy),
+            replaceModules: true);
 
     [Fact]
     public Task ApiKeyContractRejectsRegisteredOperationWithRoutePolicyDrift() =>
@@ -2942,9 +2963,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         }
     }
 
-    private async Task AssertOpenApiGenerationFailsAsync<TModule>(
+    private Task AssertOpenApiGenerationFailsAsync<TModule>(
         bool replaceModules = false)
-        where TModule : class, IEndpointModule
+        where TModule : class, IEndpointModule, new() =>
+        AssertOpenApiGenerationFailsAsync(new TModule(), replaceModules);
+
+    private async Task AssertOpenApiGenerationFailsAsync(
+        IEndpointModule module,
+        bool replaceModules)
     {
         await using var driftFactory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureTestServices(services =>
@@ -2954,7 +2980,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                     services.RemoveAll<IEndpointModule>();
                 }
 
-                services.AddSingleton<IEndpointModule, TModule>();
+                services.AddSingleton(module);
             }));
         using var client = CreateDriftClient(driftFactory);
 
@@ -2999,6 +3025,65 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                     () => Results.Ok())
                 .WithName("UnknownOwnerApiKeyOperation")
                 .WithMetadata(ApiKeyOwnerMetadata(ApiKeyOwnerKind.User));
+        }
+    }
+
+    private sealed class UnknownPolicyApiKeyEndpointModule(string policy)
+        : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.Root.MapGet(
+                    $"/api/v1/testing/openapi-unknown-policy/{policy}",
+                    () => Results.Ok())
+                .WithName($"UnknownApiKeyPolicyOperation{policy}")
+                .RequireAuthorization(policy);
+        }
+    }
+
+    private sealed class AnonymousApiKeyEndpointModule(string policy)
+        : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            switch (policy)
+            {
+                case ApiPolicies.MachineKey:
+                    context.VersionedMachineApi.MapGet(
+                            "/me",
+                            () => Results.Ok())
+                        .WithName("GetApiKeyPrincipal")
+                        .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
+                        .AllowAnonymous()
+                        .Produces<ApiResponse<ApiKeyMeResponse>>()
+                        .ProducesProtectedApiProblems();
+                    break;
+                case ApiPolicies.BrowserOrMachine:
+                    context.VersionedMixedApi.MapGet(
+                            "/organizations",
+                            (string? cursor, string? limit) => Results.Ok())
+                        .WithName("GetOrganizations")
+                        .RequireApiKeyScopes(ApiKeyScopes.OrganizationRead)
+                        .AllowAnonymous()
+                        .Produces<ApiResponse<OrganizationPageResponse>>()
+                        .ProducesValidationProblem()
+                        .ProducesProtectedApiProblems();
+                    break;
+                case ApiPolicies.BrowserSession:
+                    context.VersionedApi.MapGet(
+                            "/account/api-keys",
+                            (string? cursor, string? limit) => Results.Ok())
+                        .WithName("ListPersonalApiKeys")
+                        .WithMetadata(ApiKeyOwnerMetadata(ApiKeyOwnerKind.User))
+                        .AllowAnonymous()
+                        .Produces<ApiResponse<ApiKeyPageResponse>>()
+                        .ProducesValidationProblem()
+                        .ProducesProtectedApiProblems();
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported test API policy {policy}.");
+            }
         }
     }
 

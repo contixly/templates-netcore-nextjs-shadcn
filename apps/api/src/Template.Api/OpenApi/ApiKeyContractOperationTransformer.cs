@@ -259,7 +259,10 @@ internal sealed class ApiKeyContractOperationTransformer
     {
         var metadata = context.Description.ActionDescriptor.EndpointMetadata;
         var hasApiKeyMetadata = metadata.OfType<ApiKeyScopeMetadata>().Any() ||
-            metadata.OfType<ApiKeyEndpointModule.ApiKeyOwnerRouteMetadata>().Any();
+            metadata.OfType<ApiKeyEndpointModule.ApiKeyOwnerRouteMetadata>().Any() ||
+            metadata.OfType<IAuthorizeData>().Any(value =>
+                value.Policy is ApiPolicies.MachineKey or
+                    ApiPolicies.BrowserOrMachine);
         if (operation.OperationId is null ||
             !Contracts.TryGetValue(operation.OperationId, out var contract))
         {
@@ -314,6 +317,12 @@ internal sealed class ApiKeyContractOperationTransformer
         EndpointContract endpointContract)
     {
         var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        if (metadata.OfType<IAllowAnonymous>().Any())
+        {
+            throw new InvalidOperationException(
+                $"Operation {operation.OperationId} cannot allow anonymous access.");
+        }
+
         var declaredMethods = metadata.OfType<IHttpMethodMetadata>()
             .SelectMany(value => value.HttpMethods)
             .Distinct(StringComparer.OrdinalIgnoreCase)
