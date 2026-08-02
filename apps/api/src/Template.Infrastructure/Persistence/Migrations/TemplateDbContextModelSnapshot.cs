@@ -461,6 +461,8 @@ namespace Template.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_api_keys_key_hash", "octet_length(key_hash) = 32");
 
+                            t.HasCheckConstraint("ck_api_keys_key_start", "char_length(key_start) = 16 AND (left(key_start, 5) = 'user_' OR left(key_start, 4) = 'org_') AND key_start !~ '[^A-Za-z0-9_-]'");
+
                             t.HasCheckConstraint("ck_api_keys_name", "char_length(name) BETWEEN 1 AND 32 AND name = btrim(name) AND name !~ '[[:cntrl:]]'");
 
                             t.HasCheckConstraint("ck_api_keys_rate_limit_max", "rate_limit_max BETWEEN 1 AND 1000000");

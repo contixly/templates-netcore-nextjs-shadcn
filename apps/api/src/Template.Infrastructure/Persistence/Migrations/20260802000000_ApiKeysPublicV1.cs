@@ -41,6 +41,7 @@ namespace Template.Infrastructure.Persistence.Migrations
                     table.PrimaryKey("pk_api_keys", x => x.id);
                     table.CheckConstraint("ck_api_keys_exactly_one_owner", "num_nonnulls(user_id, organization_id) = 1");
                     table.CheckConstraint("ck_api_keys_key_hash", "octet_length(key_hash) = 32");
+                    table.CheckConstraint("ck_api_keys_key_start", "char_length(key_start) = 16 AND (left(key_start, 5) = 'user_' OR left(key_start, 4) = 'org_') AND key_start !~ '[^A-Za-z0-9_-]'");
                     table.CheckConstraint("ck_api_keys_name", "char_length(name) BETWEEN 1 AND 32 AND name = btrim(name) AND name !~ '[[:cntrl:]]'");
                     table.CheckConstraint("ck_api_keys_rate_limit_max", "rate_limit_max BETWEEN 1 AND 1000000");
                     table.CheckConstraint("ck_api_keys_rate_limit_window", "rate_limit_window_seconds IN (60, 3600, 86400)");

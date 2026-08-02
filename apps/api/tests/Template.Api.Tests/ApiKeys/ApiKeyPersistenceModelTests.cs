@@ -34,6 +34,16 @@ public sealed class ApiKeyPersistenceModelTests
         Assert.Contains(entity.GetCheckConstraints(), check =>
             ContainsAll(check.Sql, "octet_length(key_hash)", "32"));
         Assert.Contains(entity.GetCheckConstraints(), check =>
+            ContainsAll(
+                check.Sql,
+                "char_length(key_start)",
+                "16",
+                "left(key_start, 5)",
+                "user_",
+                "left(key_start, 4)",
+                "org_",
+                "[^A-Za-z0-9_-]"));
+        Assert.Contains(entity.GetCheckConstraints(), check =>
             ContainsAll(check.Sql, "cardinality(scopes)", "basic:read", "organization:read", "teamMember:read"));
         Assert.Contains(entity.GetCheckConstraints(), check =>
             ContainsAll(check.Sql, "rate_limit_window_seconds", "60", "3600", "86400"));
@@ -61,7 +71,8 @@ public sealed class ApiKeyPersistenceModelTests
                     nameof(ApiKeyEntity.UserId),
                     nameof(ApiKeyEntity.CreatedAt),
                     nameof(ApiKeyEntity.Id)
-                ]));
+                ])
+            && index.IsDescending is [false, true, true]);
         Assert.Contains(entity.GetIndexes(), index =>
             index.GetFilter() == "revoked_at IS NULL"
             && index.Properties.Select(property => property.Name)
@@ -69,7 +80,8 @@ public sealed class ApiKeyPersistenceModelTests
                     nameof(ApiKeyEntity.OrganizationId),
                     nameof(ApiKeyEntity.CreatedAt),
                     nameof(ApiKeyEntity.Id)
-                ]));
+                ])
+            && index.IsDescending is [false, true, true]);
     }
 
     private static bool ContainsAll(string? value, params string[] fragments) =>

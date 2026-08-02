@@ -24,6 +24,9 @@ public sealed class ApiKeyEntityConfiguration : IEntityTypeConfiguration<ApiKeyE
                     "ck_api_keys_key_hash",
                     "octet_length(key_hash) = 32");
                 table.HasCheckConstraint(
+                    "ck_api_keys_key_start",
+                    "char_length(key_start) = 16 AND (left(key_start, 5) = 'user_' OR left(key_start, 4) = 'org_') AND key_start !~ '[^A-Za-z0-9_-]'");
+                table.HasCheckConstraint(
                     "ck_api_keys_scopes",
                     "cardinality(scopes) > 0 AND scopes <@ ARRAY['basic:read', 'organization:read', 'member:read', 'team:read', 'teamMember:read']::text[]");
                 table.HasCheckConstraint(
