@@ -20,7 +20,7 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
 
         fixture.CoordinateAuthenticationStarts(participants: 8);
         var attempts = Enumerable.Range(0, 8)
-            .Select(_ => fixture.AuthenticateInNewScopeAsync(hash, ApiKeyStoreFixture.Now))
+            .Select(_ => fixture.AuthenticateInNewScopeAsync(hash))
             .ToArray();
         var results = await Task.WhenAll(attempts);
 
@@ -38,15 +38,117 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
         var actor = await fixture.CreateUserAsync("reset@keys.test");
         var hash = Hash(2);
         await fixture.CreateKeyAsync(actor, new(ApiKeyOwnerKind.User, actor, null), hash, "user_abcdefghijk", rateLimitMax: 1);
-        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, (await fixture.Store.AuthenticateAndConsumeAsync(hash, ApiKeyStoreFixture.Now, TestContext.Current.CancellationToken)).Outcome);
-        Assert.Equal(ApiKeyAuthenticationOutcome.RateLimited, (await fixture.Store.AuthenticateAndConsumeAsync(hash, ApiKeyStoreFixture.Now.AddSeconds(30), TestContext.Current.CancellationToken)).Outcome);
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, (await fixture.Store.AuthenticateAndConsumeAsync(hash, TestContext.Current.CancellationToken)).Outcome);
+        fixture.SetTime(ApiKeyStoreFixture.Now.AddSeconds(30));
+        Assert.Equal(ApiKeyAuthenticationOutcome.RateLimited, (await fixture.Store.AuthenticateAndConsumeAsync(hash, TestContext.Current.CancellationToken)).Outcome);
 
         var resetAt = ApiKeyStoreFixture.Now.AddMinutes(1);
-        var reset = await fixture.Store.AuthenticateAndConsumeAsync(hash, resetAt, TestContext.Current.CancellationToken);
+        fixture.SetTime(resetAt);
+        var reset = await fixture.Store.AuthenticateAndConsumeAsync(hash, TestContext.Current.CancellationToken);
 
         Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, reset.Outcome);
         var state = await fixture.QuotaStateAsync(hash);
         Assert.Equal((resetAt, 1), state);
+    }
+
+    [Fact]
+    public async Task Waiting_presentation_samples_time_after_a_newer_window_commits()
+    {
+        await using var fixture = await ApiKeyStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAsync("ordered-window@keys.test");
+        var hash = Hash(25);
+        await fixture.CreateKeyAsync(
+            actor,
+            new(ApiKeyOwnerKind.User, actor, null),
+            hash,
+            "user_abcdefghijk",
+            rateLimitMax: 1);
+        Assert.Equal(
+            ApiKeyAuthenticationOutcome.Succeeded,
+            (await fixture.Store.AuthenticateAndConsumeAsync(
+                hash,
+                TestContext.Current.CancellationToken)).Outcome);
+        var staleCallerTime = ApiKeyStoreFixture.Now.AddSeconds(30);
+        var committedTime = ApiKeyStoreFixture.Now.AddMinutes(1).AddSeconds(1);
+        fixture.SetTime(staleCallerTime);
+        fixture.PauseNextAuthenticationBeforeKeyLock();
+
+        var waiting = fixture.AuthenticateInNewScopeAsync(hash);
+        await fixture.WaitForAuthenticationBeforeKeyLockAsync();
+        fixture.SetTime(committedTime);
+        var committed = await fixture.AuthenticateInNewScopeAsync(hash);
+        fixture.ReleaseAuthenticationBeforeKeyLock();
+        var reordered = await waiting;
+
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, committed.Outcome);
+        Assert.Equal(ApiKeyAuthenticationOutcome.RateLimited, reordered.Outcome);
+        Assert.Equal(TimeSpan.FromMinutes(1), reordered.RetryAfter);
+        var state = await fixture.TemporalStateAsync(hash);
+        Assert.Equal(committedTime, state.WindowStartedAt);
+        Assert.Equal(committedTime, state.LastRequestAt);
+        Assert.Equal(1, state.RequestCount);
+    }
+
+    [Fact]
+    public async Task Reordered_successful_presentation_never_regresses_last_request_time()
+    {
+        await using var fixture = await ApiKeyStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAsync("ordered-last-use@keys.test");
+        var hash = Hash(26);
+        await fixture.CreateKeyAsync(
+            actor,
+            new(ApiKeyOwnerKind.User, actor, null),
+            hash,
+            "user_abcdefghijk",
+            rateLimitMax: 2);
+        Assert.Equal(
+            ApiKeyAuthenticationOutcome.Succeeded,
+            (await fixture.Store.AuthenticateAndConsumeAsync(
+                hash,
+                TestContext.Current.CancellationToken)).Outcome);
+        var staleCallerTime = ApiKeyStoreFixture.Now.AddSeconds(30);
+        var committedTime = ApiKeyStoreFixture.Now.AddMinutes(1).AddSeconds(1);
+        fixture.SetTime(staleCallerTime);
+        fixture.PauseNextAuthenticationBeforeKeyLock();
+
+        var waiting = fixture.AuthenticateInNewScopeAsync(hash);
+        await fixture.WaitForAuthenticationBeforeKeyLockAsync();
+        fixture.SetTime(committedTime);
+        var committed = await fixture.AuthenticateInNewScopeAsync(hash);
+        fixture.ReleaseAuthenticationBeforeKeyLock();
+        var reordered = await waiting;
+
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, committed.Outcome);
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, reordered.Outcome);
+        var state = await fixture.TemporalStateAsync(hash);
+        Assert.Equal(committedTime, state.WindowStartedAt);
+        Assert.Equal(committedTime, state.LastRequestAt);
+        Assert.Equal(2, state.RequestCount);
+    }
+
+    [Fact]
+    public async Task Authentication_resamples_validity_time_on_a_fresh_transaction_attempt()
+    {
+        await using var fixture = await ApiKeyStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAsync("retry-time@keys.test");
+        var hash = Hash(27);
+        var expiresAt = ApiKeyStoreFixture.Now.AddMinutes(1);
+        await fixture.CreateKeyAsync(
+            actor,
+            new(ApiKeyOwnerKind.User, actor, null),
+            hash,
+            "user_abcdefghijk",
+            expiresAt: expiresAt);
+        fixture.SetTime(ApiKeyStoreFixture.Now);
+        fixture.FailNextAuthenticationAttempts(
+            1,
+            expiresAt.AddSeconds(1));
+
+        var result = await fixture.AuthenticateInNewScopeAsync(hash);
+
+        Assert.Equal(ApiKeyAuthenticationOutcome.Invalid, result.Outcome);
+        Assert.Equal(2, fixture.AuthenticationAttempts);
+        Assert.Equal(2, fixture.AuthenticationTransactionCount);
     }
 
     [Fact]
@@ -57,11 +159,11 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
         var hash = Hash(3);
         await fixture.CreateKeyAsync(actor, new(ApiKeyOwnerKind.User, actor, null), hash, "user_abcdefghijk", rateLimitMax: 1);
 
-        var valid = await fixture.Store.AuthenticateAndConsumeAsync(hash, ApiKeyStoreFixture.Now, TestContext.Current.CancellationToken);
+        var valid = await fixture.Store.AuthenticateAndConsumeAsync(hash, TestContext.Current.CancellationToken);
         Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, valid.Outcome);
         Assert.DoesNotContain(ApiKeyScopes.TeamRead, valid.Principal!.Scopes);
 
-        var afterApplicationScopeDenial = await fixture.Store.AuthenticateAndConsumeAsync(hash, ApiKeyStoreFixture.Now, TestContext.Current.CancellationToken);
+        var afterApplicationScopeDenial = await fixture.Store.AuthenticateAndConsumeAsync(hash, TestContext.Current.CancellationToken);
         Assert.Equal(ApiKeyAuthenticationOutcome.RateLimited, afterApplicationScopeDenial.Outcome);
     }
 
@@ -80,7 +182,7 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
         await fixture.SetTerminalStateAsync(expiredKey.Id, enabled: true, expiresAt: ApiKeyStoreFixture.Now, revokedAt: null);
         await fixture.SetTerminalStateAsync(revokedKey.Id, enabled: true, expiresAt: null, revokedAt: ApiKeyStoreFixture.Now);
 
-        var outcomes = await Task.WhenAll(new[] { disabled, expired, revoked, Hash(99) }.Select(hash => fixture.AuthenticateInNewScopeAsync(hash, ApiKeyStoreFixture.Now)));
+        var outcomes = await Task.WhenAll(new[] { disabled, expired, revoked, Hash(99) }.Select(fixture.AuthenticateInNewScopeAsync));
 
         Assert.All(outcomes, result =>
         {
@@ -103,7 +205,7 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
         var key = (await fixture.CreateKeyAsync(actor, new(ApiKeyOwnerKind.User, actor, null), oldHash, "user_abcdefghijk")).Value!;
         fixture.HoldTransactionAfterKeyLock(ApiKeyTransactionKind.Authentication, ApiKeyTransactionKind.Management);
 
-        var use = fixture.AuthenticateInNewScopeAsync(oldHash, ApiKeyStoreFixture.Now);
+        var use = fixture.AuthenticateInNewScopeAsync(oldHash);
         await fixture.WaitForHeldKeyLockAsync();
         var mutation = fixture.MutateInNewScopeAsync(mutationKind, actor, key.Id, newHash);
         await fixture.WaitForCompetingKeyLockStartAsync();
@@ -139,7 +241,7 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
 
         var mutation = fixture.MutateInNewScopeAsync(mutationKind, actor, key.Id, newHash);
         await fixture.WaitForHeldKeyLockAsync();
-        var use = fixture.AuthenticateInNewScopeAsync(oldHash, ApiKeyStoreFixture.Now);
+        var use = fixture.AuthenticateInNewScopeAsync(oldHash);
         await fixture.WaitForCompetingKeyLockStartAsync();
         fixture.ReleaseHeldTransaction();
         await Task.WhenAll(mutation, use);
@@ -168,7 +270,7 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
         fixture.FailNextAuthenticationAttempts(3);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            fixture.Store.AuthenticateAndConsumeAsync(hash, ApiKeyStoreFixture.Now, TestContext.Current.CancellationToken));
+            fixture.Store.AuthenticateAndConsumeAsync(hash, TestContext.Current.CancellationToken));
 
         Assert.Equal(
             PostgresErrorCodes.SerializationFailure,
@@ -269,6 +371,104 @@ public sealed class ApiKeyConcurrencyTests(PostgreSqlContainerFixture postgres)
         Assert.Equal(0, await fixture.CountKeysAsync());
     }
 
+    [Fact]
+    public async Task Create_samples_time_after_owner_lock_on_every_retry()
+    {
+        await using var fixture = await ApiKeyStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAsync("create-time@keys.test");
+        var firstAttemptTime = ApiKeyStoreFixture.Now.AddMinutes(5);
+        var committedTime = firstAttemptTime.AddMinutes(2);
+        fixture.SetTime(firstAttemptTime);
+        fixture.FailNextPersonalManagementInserts(
+            PostgresErrorCodes.SerializationFailure,
+            count: 1,
+            advanceTimeTo: committedTime);
+
+        var result = await fixture.CreateKeyInNewScopeAsync(
+            actor,
+            new(ApiKeyOwnerKind.User, actor, null),
+            Hash(28),
+            "user_abcdefghijk",
+            firstAttemptTime.AddDays(30),
+            firstAttemptTime);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(committedTime, result.Value!.CreatedAt);
+        Assert.Equal(committedTime, result.Value.UpdatedAt);
+        Assert.Equal(committedTime.AddDays(30), result.Value.ExpiresAt);
+        Assert.Equal(2, fixture.PersonalManagementLockAttempts);
+        Assert.Equal(2, fixture.ManagementTransactionCount);
+    }
+
+    [Fact]
+    public async Task Update_converts_relative_expiry_after_owner_and_key_locks()
+    {
+        await using var fixture = await ApiKeyStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAsync("update-time@keys.test");
+        var key = (await fixture.CreateKeyAsync(
+            actor,
+            new(ApiKeyOwnerKind.User, actor, null),
+            Hash(29),
+            "user_abcdefghijk")).Value!;
+        var callTime = ApiKeyStoreFixture.Now.AddMinutes(10);
+        var lockTime = callTime.AddMinutes(3);
+        fixture.SetTime(callTime);
+        fixture.HoldTransactionAfterKeyLock(
+            ApiKeyTransactionKind.Management,
+            ApiKeyTransactionKind.Authentication);
+
+        var update = fixture.UpdateExpirationInNewScopeAsync(
+            actor,
+            key.Id,
+            TimeSpan.FromDays(30));
+        await fixture.WaitForHeldKeyLockAsync();
+        fixture.SetTime(lockTime);
+        fixture.ReleaseHeldTransaction();
+        var result = await update;
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(lockTime.AddDays(30), result.Value!.ExpiresAt);
+        Assert.Equal(lockTime, result.Value.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task Rotation_waiting_for_a_use_never_commits_before_last_request()
+    {
+        await using var fixture = await ApiKeyStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAsync("rotate-time@keys.test");
+        var oldHash = Hash(30);
+        var key = (await fixture.CreateKeyAsync(
+            actor,
+            new(ApiKeyOwnerKind.User, actor, null),
+            oldHash,
+            "user_abcdefghijk")).Value!;
+        var rotationCallTime = ApiKeyStoreFixture.Now.AddMinutes(1);
+        var useTime = rotationCallTime.AddMinutes(2);
+        fixture.SetTime(rotationCallTime);
+        fixture.HoldTransactionAfterKeyLock(
+            ApiKeyTransactionKind.Authentication,
+            ApiKeyTransactionKind.Management);
+
+        var use = fixture.AuthenticateInNewScopeAsync(oldHash);
+        await fixture.WaitForHeldKeyLockAsync();
+        var rotate = fixture.RotateInNewScopeAsync(
+            actor,
+            key.Id,
+            Hash(31),
+            "user_bcdefghijkl");
+        await fixture.WaitForCompetingKeyLockStartAsync();
+        fixture.SetTime(useTime);
+        fixture.ReleaseHeldTransaction();
+        await Task.WhenAll(use, rotate);
+
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, (await use).Outcome);
+        Assert.True((await rotate).Succeeded);
+        var row = await fixture.ReadKeyAsync(key.Id);
+        Assert.Equal(useTime, row.LastRequestAt);
+        Assert.Equal(useTime, row.RotatedAt);
+        Assert.Equal(useTime, row.UpdatedAt);
+    }
+
     private static byte[] Hash(int value) => Enumerable.Repeat((byte)value, 32).ToArray();
 }
 
@@ -285,6 +485,9 @@ internal sealed class ApiKeyTransactionBarrier : DbCommandInterceptor
     private TaskCompletionSource _holderReached = NewSignal();
     private TaskCompletionSource _contenderReached = NewSignal();
     private TaskCompletionSource _holderRelease = NewSignal();
+    private int _pauseAuthenticationBeforeKeyLock;
+    private TaskCompletionSource _authenticationBeforeKeyLock = NewSignal();
+    private TaskCompletionSource _authenticationBeforeKeyLockRelease = NewSignal();
 
     internal int AuthenticationArrivals => Volatile.Read(ref _authenticationArrivals);
 
@@ -304,6 +507,22 @@ internal sealed class ApiKeyTransactionBarrier : DbCommandInterceptor
         _holderRelease = NewSignal();
     }
 
+    internal void PauseNextAuthenticationBeforeKeyLock()
+    {
+        Volatile.Write(ref _pauseAuthenticationBeforeKeyLock, 1);
+        _authenticationBeforeKeyLock = NewSignal();
+        _authenticationBeforeKeyLockRelease = NewSignal();
+    }
+
+    internal Task WaitForAuthenticationBeforeKeyLockAsync(
+        CancellationToken cancellationToken) =>
+        _authenticationBeforeKeyLock.Task.WaitAsync(
+            TimeSpan.FromSeconds(10),
+            cancellationToken);
+
+    internal void ReleaseAuthenticationBeforeKeyLock() =>
+        _authenticationBeforeKeyLockRelease.TrySetResult();
+
     internal Task WaitForHolderAsync(CancellationToken cancellationToken) =>
         _holderReached.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
 
@@ -319,6 +538,17 @@ internal sealed class ApiKeyTransactionBarrier : DbCommandInterceptor
         CancellationToken cancellationToken = default)
     {
         var kind = Classify(command.CommandText);
+        if (kind == ApiKeyTransactionKind.Authentication &&
+            Interlocked.CompareExchange(
+                ref _pauseAuthenticationBeforeKeyLock,
+                0,
+                1) == 1)
+        {
+            _authenticationBeforeKeyLock.TrySetResult();
+            await _authenticationBeforeKeyLockRelease.Task.WaitAsync(
+                TimeSpan.FromSeconds(10),
+                cancellationToken);
+        }
         if (_authenticationParticipants > 0 && kind == ApiKeyTransactionKind.Authentication)
         {
             var arrivals = Interlocked.Increment(ref _authenticationArrivals);
@@ -371,8 +601,11 @@ internal sealed class ApiKeyTransactionBarrier : DbCommandInterceptor
 
 internal sealed class ApiKeyFailureInterceptor : DbCommandInterceptor
 {
+    private readonly MutableApiKeyTimeProvider _timeProvider;
     private readonly HashSet<Guid> _transactions = [];
     private int _remainingAuthenticationFailures;
+    private int _observeAuthenticationAttempts;
+    private DateTimeOffset? _advanceAuthenticationFailureTo;
     private int _authenticationAttempts;
     private int _managementEnabled;
     private string? _managementSqlState;
@@ -383,8 +616,14 @@ internal sealed class ApiKeyFailureInterceptor : DbCommandInterceptor
     private int _organizationLocks;
     private int _membershipLocks;
     private int _pauseSecondOrganizationAttempt;
+    private DateTimeOffset? _advanceManagementFailureTo;
     private TaskCompletionSource _secondOrganizationAttempt = NewSignal();
     private TaskCompletionSource _releaseSecondOrganizationAttempt = NewSignal();
+
+    public ApiKeyFailureInterceptor(MutableApiKeyTimeProvider timeProvider)
+    {
+        _timeProvider = timeProvider;
+    }
 
     internal int AuthenticationAttempts => Volatile.Read(ref _authenticationAttempts);
     internal int AuthenticationTransactionCount
@@ -399,19 +638,27 @@ internal sealed class ApiKeyFailureInterceptor : DbCommandInterceptor
         get { lock (_transactions) return _transactions.Count; }
     }
 
-    internal void FailNextAuthenticationAttempts(int count)
+    internal void FailNextAuthenticationAttempts(
+        int count,
+        DateTimeOffset? advanceTimeTo = null)
     {
         ResetManagement();
         Volatile.Write(ref _remainingAuthenticationFailures, count);
+        Volatile.Write(ref _observeAuthenticationAttempts, 1);
+        _advanceAuthenticationFailureTo = advanceTimeTo;
         Interlocked.Exchange(ref _authenticationAttempts, 0);
         lock (_transactions) _transactions.Clear();
     }
 
-    internal void FailNextPersonalManagementInserts(string sqlState, int count)
+    internal void FailNextPersonalManagementInserts(
+        string sqlState,
+        int count,
+        DateTimeOffset? advanceTimeTo = null)
     {
         ResetManagement();
         _managementSqlState = sqlState;
         _remainingManagementFailures = count;
+        _advanceManagementFailureTo = advanceTimeTo;
         Volatile.Write(ref _observePersonal, 1);
         Volatile.Write(ref _managementEnabled, 1);
     }
@@ -452,7 +699,7 @@ internal sealed class ApiKeyFailureInterceptor : DbCommandInterceptor
         InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        if (Volatile.Read(ref _remainingAuthenticationFailures) <= 0 ||
+        if (Volatile.Read(ref _observeAuthenticationAttempts) == 0 ||
             !command.CommandText.Contains("WHERE key_hash", StringComparison.OrdinalIgnoreCase) ||
             !command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
         {
@@ -466,7 +713,17 @@ internal sealed class ApiKeyFailureInterceptor : DbCommandInterceptor
         {
             lock (_transactions) _transactions.Add(transactionId.Value);
         }
+        if (Volatile.Read(ref _remainingAuthenticationFailures) <= 0)
+        {
+            return result;
+        }
+
         Interlocked.Decrement(ref _remainingAuthenticationFailures);
+        if (_advanceAuthenticationFailureTo is { } authenticationTime)
+        {
+            _timeProvider.SetUtcNow(authenticationTime);
+            _advanceAuthenticationFailureTo = null;
+        }
         throw new PostgresException(
             "deterministic serialization failure",
             "ERROR",
@@ -511,6 +768,11 @@ internal sealed class ApiKeyFailureInterceptor : DbCommandInterceptor
             command.CommandText.Contains("INSERT INTO auth.api_keys", StringComparison.OrdinalIgnoreCase))
         {
             Interlocked.Decrement(ref _remainingManagementFailures);
+            if (_advanceManagementFailureTo is { } managementTime)
+            {
+                _timeProvider.SetUtcNow(managementTime);
+                _advanceManagementFailureTo = null;
+            }
             throw new PostgresException(
                 "deterministic management concurrency failure",
                 "ERROR",
@@ -530,8 +792,12 @@ internal sealed class ApiKeyFailureInterceptor : DbCommandInterceptor
 
     private void ResetManagement()
     {
+        Volatile.Write(ref _observeAuthenticationAttempts, 0);
+        Volatile.Write(ref _remainingAuthenticationFailures, 0);
+        _advanceAuthenticationFailureTo = null;
         Volatile.Write(ref _managementEnabled, 0);
         _managementSqlState = null;
+        _advanceManagementFailureTo = null;
         Volatile.Write(ref _remainingManagementFailures, 0);
         Volatile.Write(ref _observePersonal, 0);
         Volatile.Write(ref _observeOrganization, 0);

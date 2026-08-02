@@ -80,13 +80,14 @@ public sealed record CreateApiKeyStoreCommand(
     ApiKeyOwner Owner,
     string Name,
     IReadOnlyList<string> Scopes,
-    DateTimeOffset? ExpiresAt,
+    ApiKeyExpiration Expiration,
     bool RateLimitEnabled,
     int RateLimitMax,
     TimeSpan RateLimitWindow,
     byte[] Hash,
-    string Start,
-    DateTimeOffset CreatedAt);
+    string Start);
+
+public readonly record struct ApiKeyExpiration(TimeSpan? Duration);
 
 public sealed record UpdateApiKeyCommand(
     UserId ActorUserId,
@@ -105,9 +106,19 @@ public sealed record UpdateApiKeyCommand(
         ? new(ApiKeyOwnerKind.User, ActorUserId, null)
         : new(ApiKeyOwnerKind.Organization, null, OrganizationId);
 
-    public IReadOnlyList<string>? Scopes { get; init; }
-    public DateTimeOffset? ExpiresAt { get; init; }
 }
+
+public sealed record UpdateApiKeyStoreCommand(
+    UserId ActorUserId,
+    ApiKeyOwner Owner,
+    ApiKeyId ApiKeyId,
+    string? Name,
+    IReadOnlyList<string>? Scopes,
+    ApiKeyExpiration? Expiration,
+    bool? Enabled,
+    bool? RateLimitEnabled,
+    int? RateLimitMax,
+    TimeSpan? RateLimitWindow);
 
 public sealed record RevokeApiKeyCommand(
     UserId ActorUserId,
@@ -136,8 +147,7 @@ public sealed record RotateApiKeyStoreCommand(
     ApiKeyOwner Owner,
     ApiKeyId ApiKeyId,
     byte[] Hash,
-    string Start,
-    DateTimeOffset RotatedAt);
+    string Start);
 
 public enum ApiKeyAuthenticationOutcome { Succeeded, Invalid, RateLimited }
 
@@ -154,5 +164,8 @@ public sealed record ApiKeyAuthenticationResult(
 {
     public static ApiKeyAuthenticationResult Succeeded(ApiKeyPrincipal principal) => new(ApiKeyAuthenticationOutcome.Succeeded, principal, null);
     public static ApiKeyAuthenticationResult Invalid() => new(ApiKeyAuthenticationOutcome.Invalid, null, null);
-    public static ApiKeyAuthenticationResult RateLimited(TimeSpan retryAfter) => new(ApiKeyAuthenticationOutcome.RateLimited, null, retryAfter);
+    public static ApiKeyAuthenticationResult RateLimited(
+        ApiKeyPrincipal principal,
+        TimeSpan retryAfter) =>
+        new(ApiKeyAuthenticationOutcome.RateLimited, principal, retryAfter);
 }

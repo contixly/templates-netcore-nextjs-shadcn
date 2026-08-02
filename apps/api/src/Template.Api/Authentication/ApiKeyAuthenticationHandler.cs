@@ -57,7 +57,8 @@ internal sealed class ApiKeyAuthenticationHandler :
             var retryAfter = result.RetryAfter.GetValueOrDefault();
             SetFailure(new(
                 ApiKeyAuthenticationFailureKind.RateLimited,
-                checked((int)Math.Ceiling(retryAfter.TotalSeconds))));
+                checked((int)Math.Ceiling(retryAfter.TotalSeconds)),
+                result.Principal));
             return AuthenticateResult.Fail("The API key rate limit was exceeded.");
         }
 
@@ -81,6 +82,7 @@ internal sealed class ApiKeyAuthenticationHandler :
                       value is ApiKeyAuthenticationFailure stored
             ? stored
             : InferFailure();
+        var principal = failure.Principal;
         ApiKeySecurityEvents.WriteMachine(
             Logger,
             MachineOperation(),
@@ -91,9 +93,14 @@ internal sealed class ApiKeyAuthenticationHandler :
                 ApiKeyAuthenticationFailureKind.RateLimited => "rate_limited",
                 _ => throw new ArgumentOutOfRangeException()
             },
-            ownerKind: null,
-            ownerId: null,
-            apiKeyId: null);
+            principal?.Owner.Kind == ApiKeyOwnerKind.User
+                ? "user"
+                : principal is null
+                    ? null
+                    : "organization",
+            principal?.Owner.UserId?.Value ??
+            principal?.Owner.OrganizationId?.Value,
+            principal?.Id.Value);
         return failure.Kind == ApiKeyAuthenticationFailureKind.RateLimited
             ? WriteProblemAsync(
                 StatusCodes.Status429TooManyRequests,
@@ -251,7 +258,8 @@ internal sealed class ApiKeyAuthenticationHandler :
 
     private sealed record ApiKeyAuthenticationFailure(
         ApiKeyAuthenticationFailureKind Kind,
-        int? RetryAfterSeconds = null)
+        int? RetryAfterSeconds = null,
+        ApiKeyPrincipal? Principal = null)
     {
         internal static ApiKeyAuthenticationFailure Missing { get; } =
             new(ApiKeyAuthenticationFailureKind.Missing);

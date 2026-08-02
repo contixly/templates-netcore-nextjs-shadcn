@@ -35,9 +35,11 @@ internal static class EndpointModuleExtensions
             endpoints.MapGroup("/api/v1")
                 .RequireAuthorization(ApiPolicies.BrowserSession),
             endpoints.MapGroup("/api/v1")
-                .RequireAuthorization(ApiPolicies.BrowserOrMachine),
+                .RequireAuthorization(ApiPolicies.BrowserOrMachine)
+                .WithMetadata(new MixedConsumerEndpointMetadata()),
             endpoints.MapGroup("/api/v1")
-                .RequireAuthorization(ApiPolicies.MachineKey));
+                .RequireAuthorization(ApiPolicies.MachineKey)
+                .WithMetadata(new MachineApiEndpointMetadata()));
 
         foreach (var module in endpoints.ServiceProvider
                      .GetRequiredService<IEnumerable<IEndpointModule>>())

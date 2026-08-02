@@ -12,7 +12,17 @@ internal static class ApiKeyAuthenticationDefaults
     internal const string OrganizationConfigId = "org-keys";
 
     internal static bool IsSelected(HttpContext context) =>
-        context.Request.Headers.ContainsKey(HeaderName);
+        context.Request.Headers.ContainsKey(HeaderName) ||
+        context.GetEndpoint()?.Metadata
+            .GetMetadata<MachineApiEndpointMetadata>() is not null;
+
+    internal static bool IsDefaultAuthenticationSelected(HttpContext context)
+    {
+        var metadata = context.GetEndpoint()?.Metadata;
+        return metadata?.GetMetadata<MachineApiEndpointMetadata>() is not null ||
+               metadata?.GetMetadata<MixedConsumerEndpointMetadata>() is not null &&
+               context.Request.Headers.ContainsKey(HeaderName);
+    }
 
     internal static string ConfigId(ApiKeyOwnerKind ownerKind) => ownerKind switch
     {

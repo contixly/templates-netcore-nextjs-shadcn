@@ -38,7 +38,8 @@ internal sealed class ApiKeyScopeAuthorizationHandler
             return;
         }
 
-        if (context.Resource is HttpContext http)
+        if (context.Resource is HttpContext http &&
+            !ApiKeyAuthenticationDefaults.IsSelected(http))
         {
             var browser = await http.AuthenticateAsync(
                 ApiAuthenticationDefaults.SchemeName);

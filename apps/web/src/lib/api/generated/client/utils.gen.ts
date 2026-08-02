@@ -123,6 +123,16 @@ export async function setAuthParams(
     headers: Headers;
   },
 ): Promise<void> {
+  if (
+    (options.security?.length ?? 0) > 1 &&
+    typeof options.auth === 'string' &&
+    options.auth.length > 0
+  ) {
+    throw new Error(
+      'Scalar auth cannot be used with alternative security schemes; use a scheme-selective callback or explicit header.',
+    );
+  }
+
   for (const auth of options.security ?? []) {
     if (checkForExistence(options, auth.name)) {
       continue;

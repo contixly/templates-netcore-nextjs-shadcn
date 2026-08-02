@@ -50,61 +50,121 @@ type ConfirmedAction =
 type ConfirmedOverlay = Readonly<{
   apiKey: ApiKeyResponse | null;
 }>;
+type AuthoritativeTraversal = Readonly<{
+  byId: ReadonlyMap<string, ApiKeyResponse>;
+  terminal: boolean;
+}>;
 
-function dedupe(
-  current: readonly ApiKeyResponse[],
+function authoritativeTraversal(
+  current: AuthoritativeTraversal | null,
   incoming: readonly ApiKeyResponse[],
-): ApiKeyResponse[] {
-  const byId = new Map(current.map((apiKey) => [apiKey.id, apiKey]));
+  nextCursor: string | null,
+): AuthoritativeTraversal {
+  const byId = new Map(current?.byId);
   for (const apiKey of incoming) {
     if (!byId.has(apiKey.id)) byId.set(apiKey.id, apiKey);
   }
-  return [...byId.values()];
+  return { byId, terminal: nextCursor === null };
 }
 
-function sameStrings(left: readonly string[], right: readonly string[]) {
-  return (
-    left.length === right.length &&
-    left.every((value, index) => value === right[index])
+function rfc3339Instant(value: string): readonly [number, number] | null {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?([Zz]|([+-])(\d{2}):(\d{2}))$/.exec(
+      value,
+    );
+  if (!match) return null;
+
+  const [year, month, day, hour, minute, second, offsetHour, offsetMinute] = [
+    match[1],
+    match[2],
+    match[3],
+    match[4],
+    match[5],
+    match[6],
+    match[10],
+    match[11],
+  ].map(Number);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [
+    31,
+    leapYear ? 29 : 28,
+    31,
+    30,
+    31,
+    30,
+    31,
+    31,
+    30,
+    31,
+    30,
+    31,
+  ];
+  if (
+    year < 1 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > daysInMonth[month - 1]! ||
+    hour > 23 ||
+    minute > 59 ||
+    second > 59 ||
+    (match[9] !== undefined && (offsetHour > 23 || offsetMinute > 59))
+  ) {
+    return null;
+  }
+
+  const zone = match[8]!.toUpperCase() === "Z" ? "Z" : match[8]!;
+  const milliseconds = Date.parse(
+    `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}${zone}`,
   );
+  if (!Number.isFinite(milliseconds)) return null;
+
+  const nanoseconds = Number((match[7] ?? "").padEnd(9, "0"));
+  return [milliseconds, nanoseconds];
 }
 
-function semanticallyAcknowledges(left: ApiKeyResponse, right: ApiKeyResponse) {
-  return (
-    left.id === right.id &&
-    left.ownerKind === right.ownerKind &&
-    left.ownerId === right.ownerId &&
-    left.name === right.name &&
-    left.start === right.start &&
-    left.enabled === right.enabled &&
-    sameStrings(left.scopes, right.scopes) &&
-    left.rateLimitEnabled === right.rateLimitEnabled &&
-    left.rateLimitMax === right.rateLimitMax &&
-    left.rateLimitWindow === right.rateLimitWindow &&
-    left.expiresAt === right.expiresAt &&
-    left.rotatedAt === right.rotatedAt &&
-    left.createdAt === right.createdAt &&
-    left.updatedAt === right.updatedAt
-  );
-}
-
-function acknowledgedOverlays(
-  current: ReadonlyMap<string, ConfirmedOverlay>,
-  firstPage: readonly ApiKeyResponse[],
+function sameOrNewer(
+  authoritative: readonly [number, number],
+  confirmed: readonly [number, number],
 ) {
-  const authoritativeById = new Map(
-    firstPage.map((apiKey) => [apiKey.id, apiKey]),
+  return (
+    authoritative[0] > confirmed[0] ||
+    (authoritative[0] === confirmed[0] && authoritative[1] >= confirmed[1])
   );
-  return new Map(
-    [...current].filter(([apiKeyId, overlay]) => {
-      const authoritative = authoritativeById.get(apiKeyId);
-      if (overlay.apiKey === null) return authoritative !== undefined;
-      return (
-        !authoritative ||
-        !semanticallyAcknowledges(authoritative, overlay.apiKey)
-      );
-    }),
-  );
+}
+
+function isSameOwner(left: ApiKeyResponse, right: ApiKeyResponse) {
+  return left.ownerKind === right.ownerKind && left.ownerId === right.ownerId;
+}
+
+function reconciledOverlays(
+  current: ReadonlyMap<string, ConfirmedOverlay>,
+  traversal: AuthoritativeTraversal,
+) {
+  const retained = new Map(current);
+  for (const [apiKeyId, overlay] of current) {
+    const authoritative = traversal.byId.get(apiKeyId);
+    if (overlay.apiKey === null) {
+      if (traversal.terminal && authoritative === undefined) {
+        retained.delete(apiKeyId);
+      }
+      continue;
+    }
+
+    if (!authoritative || !isSameOwner(authoritative, overlay.apiKey)) {
+      continue;
+    }
+    const authoritativeTime = rfc3339Instant(authoritative.updatedAt);
+    const confirmedTime = rfc3339Instant(overlay.apiKey.updatedAt);
+    if (
+      authoritativeTime !== null &&
+      confirmedTime !== null &&
+      sameOrNewer(authoritativeTime, confirmedTime)
+    ) {
+      retained.delete(apiKeyId);
+    }
+  }
+  return retained;
 }
 
 function traceId(failure: ApiFailure) {
@@ -129,6 +189,9 @@ export function ApiKeyManagement({
   const activeMutationLeases = useRef(new Map<string, number>());
   const secretView = useRef<ApiKeySecretViewHandle>(null);
   const overlaysRef = useRef(new Map<string, ConfirmedOverlay>());
+  const traversalRef = useRef<AuthoritativeTraversal>(
+    authoritativeTraversal(null, initialPage.items, initialPage.nextCursor),
+  );
   const [authoritative, setAuthoritative] = useState(initialPage.items);
   const [nextCursor, setNextCursor] = useState(initialPage.nextCursor);
   const [overlays, setOverlays] = useState(
@@ -259,19 +322,16 @@ export function ApiKeyManagement({
       return;
     }
 
-    if (kind === "loadMore") {
-      setAuthoritative((currentItems) =>
-        dedupe(currentItems, result.data.items),
-      );
-    } else {
-      setAuthoritative(result.data.items);
-      const retained = acknowledgedOverlays(
-        overlaysRef.current,
-        result.data.items,
-      );
-      overlaysRef.current = retained;
-      setOverlays(retained);
-    }
+    const traversal = authoritativeTraversal(
+      kind === "loadMore" ? traversalRef.current : null,
+      result.data.items,
+      result.data.nextCursor,
+    );
+    traversalRef.current = traversal;
+    setAuthoritative([...traversal.byId.values()]);
+    const retained = reconciledOverlays(overlaysRef.current, traversal);
+    overlaysRef.current = retained;
+    setOverlays(retained);
     setNextCursor(result.data.nextCursor);
     setPartialFailure(null);
     setRefreshFailure(null);

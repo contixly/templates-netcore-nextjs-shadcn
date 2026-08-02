@@ -21,7 +21,8 @@ internal static class BrowserSessionRenewal
     internal static void HandleSlidingExpiration(
         CookieSlidingExpirationContext context)
     {
-        if (ApiKeyAuthenticationDefaults.IsSelected(context.HttpContext))
+        if (ApiKeyAuthenticationDefaults.IsDefaultAuthenticationSelected(
+                context.HttpContext))
         {
             context.ShouldRenew = false;
             return;

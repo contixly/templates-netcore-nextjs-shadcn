@@ -78,7 +78,7 @@ public sealed class ApiKeyStoreTests(PostgreSqlContainerFixture postgres)
             "user_abcdefghijk")).Value!;
 
         var result = await fixture.Store.UpdateAsync(
-            new(actor, ApiKeyOwnerKind.User, null, key.Id, key.Name,
+            new(actor, Owner(actor), key.Id, key.Name,
                 null, null, null, null, null, null),
             TestContext.Current.CancellationToken);
 
@@ -102,7 +102,7 @@ public sealed class ApiKeyStoreTests(PostgreSqlContainerFixture postgres)
         var deniedCreate = await fixture.CreateKeyAsync(member, Owner(organization), Hash(21), "org_bcdefghijklm");
         var deniedUpdate = await fixture.Store.UpdateAsync(Update(member, organization, key.Id, "Denied"), TestContext.Current.CancellationToken);
         var deniedRevoke = await fixture.Store.RevokeAsync(new(member, ApiKeyOwnerKind.Organization, organization, key.Id), TestContext.Current.CancellationToken);
-        var deniedRotate = await fixture.Store.RotateAsync(new(member, Owner(organization), key.Id, Hash(22), "org_cdefghijklmn", ApiKeyStoreFixture.Now), TestContext.Current.CancellationToken);
+        var deniedRotate = await fixture.Store.RotateAsync(new(member, Owner(organization), key.Id, Hash(22), "org_cdefghijklmn"), TestContext.Current.CancellationToken);
         var foreign = await fixture.Store.UpdateAsync(Update(owner, foreignOrganization, key.Id, "Foreign"), TestContext.Current.CancellationToken);
 
         Assert.All(new[] { deniedList.Failure, deniedCreate.Failure, deniedUpdate.Failure, deniedRevoke.Failure, deniedRotate.Failure }, failure => Assert.Equal(ApiKeyFailure.PermissionDenied, failure));
@@ -121,10 +121,12 @@ public sealed class ApiKeyStoreTests(PostgreSqlContainerFixture postgres)
         var originalHash = Hash(30);
         var key = (await fixture.CreateKeyAsync(actor, Owner(actor), originalHash, "user_abcdefghijk")).Value!;
         var usedAt = ApiKeyStoreFixture.Now.AddMinutes(2);
-        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, (await fixture.Store.AuthenticateAndConsumeAsync(originalHash, usedAt, TestContext.Current.CancellationToken)).Outcome);
+        fixture.SetTime(usedAt);
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, (await fixture.Store.AuthenticateAndConsumeAsync(originalHash, TestContext.Current.CancellationToken)).Outcome);
 
         var rotatedAt = usedAt.AddMinutes(1);
-        var rotated = await fixture.Store.RotateAsync(new(actor, Owner(actor), key.Id, Hash(31), "user_bcdefghijkl", rotatedAt), TestContext.Current.CancellationToken);
+        fixture.SetTime(rotatedAt);
+        var rotated = await fixture.Store.RotateAsync(new(actor, Owner(actor), key.Id, Hash(31), "user_bcdefghijkl"), TestContext.Current.CancellationToken);
 
         Assert.True(rotated.Succeeded);
         Assert.Equal(key.Id, rotated.Value!.Id);
@@ -134,8 +136,65 @@ public sealed class ApiKeyStoreTests(PostgreSqlContainerFixture postgres)
         Assert.Null(rotated.Value.WindowStartedAt);
         Assert.Equal(usedAt, rotated.Value.LastRequestAt);
         Assert.Equal(rotatedAt, rotated.Value.RotatedAt);
-        Assert.Equal(ApiKeyAuthenticationOutcome.Invalid, (await fixture.Store.AuthenticateAndConsumeAsync(originalHash, rotatedAt, TestContext.Current.CancellationToken)).Outcome);
-        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, (await fixture.Store.AuthenticateAndConsumeAsync(Hash(31), rotatedAt, TestContext.Current.CancellationToken)).Outcome);
+        Assert.Equal(ApiKeyAuthenticationOutcome.Invalid, (await fixture.Store.AuthenticateAndConsumeAsync(originalHash, TestContext.Current.CancellationToken)).Outcome);
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, (await fixture.Store.AuthenticateAndConsumeAsync(Hash(31), TestContext.Current.CancellationToken)).Outcome);
+    }
+
+    [Fact]
+    public async Task Backward_clock_does_not_regress_committed_key_timestamps()
+    {
+        await using var fixture = await ApiKeyStoreFixture.CreateAsync(postgres);
+        var actor = await fixture.CreateUserAsync("backward-clock@keys.test");
+        var originalHash = Hash(32);
+        var key = (await fixture.CreateKeyAsync(
+            actor,
+            Owner(actor),
+            originalHash,
+            "user_abcdefghijk")).Value!;
+        var usedAt = ApiKeyStoreFixture.Now.AddMinutes(5);
+        fixture.SetTime(usedAt);
+        Assert.Equal(
+            ApiKeyAuthenticationOutcome.Succeeded,
+            (await fixture.Store.AuthenticateAndConsumeAsync(
+                originalHash,
+                TestContext.Current.CancellationToken)).Outcome);
+
+        var newestCommittedAt = ApiKeyStoreFixture.Now.AddMinutes(10);
+        fixture.SetTime(newestCommittedAt);
+        var firstRotation = await fixture.Store.RotateAsync(
+            new(actor, Owner(actor), key.Id, Hash(33), "user_bcdefghijkl"),
+            TestContext.Current.CancellationToken);
+        Assert.Equal(newestCommittedAt, firstRotation.Value!.RotatedAt);
+
+        fixture.SetTime(ApiKeyStoreFixture.Now.AddMinutes(2));
+        var update = await fixture.Store.UpdateAsync(
+            new(
+                actor,
+                Owner(actor),
+                key.Id,
+                "Renamed after clock rollback",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null),
+            TestContext.Current.CancellationToken);
+        var secondRotation = await fixture.Store.RotateAsync(
+            new(actor, Owner(actor), key.Id, Hash(34), "user_cdefghijklm"),
+            TestContext.Current.CancellationToken);
+        var authenticated = await fixture.Store.AuthenticateAndConsumeAsync(
+            Hash(34),
+            TestContext.Current.CancellationToken);
+        var revoked = await fixture.Store.RevokeAsync(
+            new(actor, ApiKeyOwnerKind.User, null, key.Id),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(newestCommittedAt, update.Value!.UpdatedAt);
+        Assert.Equal(newestCommittedAt, secondRotation.Value!.RotatedAt);
+        Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, authenticated.Outcome);
+        Assert.Equal(newestCommittedAt, (await fixture.ReadKeyAsync(key.Id)).LastRequestAt);
+        Assert.Equal(newestCommittedAt, revoked.Value!.RevokedAt);
     }
 
     [Fact]
@@ -151,7 +210,7 @@ public sealed class ApiKeyStoreTests(PostgreSqlContainerFixture postgres)
 
         var revoked = await fixture.Store.RevokeAsync(new(creator, ApiKeyOwnerKind.User, null, personal.Id), TestContext.Current.CancellationToken);
         Assert.True(revoked.Succeeded);
-        Assert.Equal(ApiKeyAuthenticationOutcome.Invalid, (await fixture.Store.AuthenticateAndConsumeAsync(Hash(40), ApiKeyStoreFixture.Now, TestContext.Current.CancellationToken)).Outcome);
+        Assert.Equal(ApiKeyAuthenticationOutcome.Invalid, (await fixture.Store.AuthenticateAndConsumeAsync(Hash(40), TestContext.Current.CancellationToken)).Outcome);
 
         await fixture.DeleteUserAsync(creator);
         Assert.False(await fixture.KeyExistsAsync(personal.Id));
@@ -163,8 +222,8 @@ public sealed class ApiKeyStoreTests(PostgreSqlContainerFixture postgres)
     private static ApiKeyOwner Owner(UserId user) => new(ApiKeyOwnerKind.User, user, null);
     private static ApiKeyOwner Owner(OrganizationId organization) => new(ApiKeyOwnerKind.Organization, null, organization);
     private static byte[] Hash(int value) => Enumerable.Repeat((byte)value, 32).ToArray();
-    private static UpdateApiKeyCommand Update(UserId actor, OrganizationId organization, ApiKeyId key, string name) =>
-        new(actor, ApiKeyOwnerKind.Organization, organization, key, name, null, null, null, null, null, null);
+    private static UpdateApiKeyStoreCommand Update(UserId actor, OrganizationId organization, ApiKeyId key, string name) =>
+        new(actor, Owner(organization), key, name, null, null, null, null, null, null);
 }
 
 internal sealed class ApiKeyStoreFixture : IAsyncDisposable
@@ -198,7 +257,9 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IConfiguration>(configuration);
-        services.AddSingleton<TimeProvider>(new FixedApiKeyTimeProvider(Now));
+        services.AddSingleton(new MutableApiKeyTimeProvider(Now));
+        services.AddSingleton<TimeProvider>(provider =>
+            provider.GetRequiredService<MutableApiKeyTimeProvider>());
         services.AddSingleton<ApiKeyFailureInterceptor>();
         services.AddSingleton<ApiKeyTransactionBarrier>();
         services.AddDbContext<TemplateDbContext>((provider, options) =>
@@ -267,27 +328,65 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
     }
 
-    internal Task<ApiKeyOperationResult<ApiKeySummary>> CreateKeyAsync(UserId actor, ApiKeyOwner owner, byte[] hash, string start, DateTimeOffset? createdAt = null, int rateLimitMax = 10) =>
-        Store.CreateAsync(new(actor, owner, "Test key", [ApiKeyScopes.BasicRead], null, true, rateLimitMax, TimeSpan.FromMinutes(1), hash, start, createdAt ?? Now), TestContext.Current.CancellationToken);
+    internal async Task<ApiKeyOperationResult<ApiKeySummary>> CreateKeyAsync(
+        UserId actor,
+        ApiKeyOwner owner,
+        byte[] hash,
+        string start,
+        DateTimeOffset? createdAt = null,
+        int rateLimitMax = 10,
+        DateTimeOffset? expiresAt = null)
+    {
+        var baseTime = createdAt ??
+            _services.GetRequiredService<MutableApiKeyTimeProvider>().GetUtcNow();
+        if (createdAt is not null)
+        {
+            SetTime(baseTime);
+        }
+
+        return await Store.CreateAsync(
+            new(
+                actor,
+                owner,
+                "Test key",
+                [ApiKeyScopes.BasicRead],
+                new ApiKeyExpiration(expiresAt - baseTime),
+                true,
+                rateLimitMax,
+                TimeSpan.FromMinutes(1),
+                hash,
+                start),
+            TestContext.Current.CancellationToken);
+    }
 
     internal async Task<ApiKeyOperationResult<ApiKeySummary>> CreateKeyInNewScopeAsync(
         UserId actor,
         ApiKeyOwner owner,
         byte[] hash,
-        string start)
+        string start,
+        DateTimeOffset? expiresAt = null,
+        DateTimeOffset? createdAt = null)
     {
+        var baseTime = createdAt ??
+            _services.GetRequiredService<MutableApiKeyTimeProvider>().GetUtcNow();
+        if (createdAt is not null)
+        {
+            SetTime(baseTime);
+        }
+
         await using var scope = _services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IApiKeyStore>()
             .CreateAsync(
-                new(actor, owner, "Test key", [ApiKeyScopes.BasicRead], null,
-                    true, 10, TimeSpan.FromMinutes(1), hash, start, Now),
+                new(actor, owner, "Test key", [ApiKeyScopes.BasicRead],
+                    new ApiKeyExpiration(expiresAt - baseTime),
+                    true, 10, TimeSpan.FromMinutes(1), hash, start),
                 TestContext.Current.CancellationToken);
     }
 
-    internal async Task<ApiKeyAuthenticationResult> AuthenticateInNewScopeAsync(byte[] hash, DateTimeOffset now)
+    internal async Task<ApiKeyAuthenticationResult> AuthenticateInNewScopeAsync(byte[] hash)
     {
         await using var scope = _services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IApiKeyStore>().AuthenticateAndConsumeAsync(hash, now, TestContext.Current.CancellationToken);
+        return await scope.ServiceProvider.GetRequiredService<IApiKeyStore>().AuthenticateAndConsumeAsync(hash, TestContext.Current.CancellationToken);
     }
 
     internal void CoordinateAuthenticationStarts(int participants) =>
@@ -304,6 +403,19 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
         _services.GetRequiredService<ApiKeyTransactionBarrier>()
             .HoldAfterKeyLock(holder, contender);
 
+    internal void PauseNextAuthenticationBeforeKeyLock() =>
+        _services.GetRequiredService<ApiKeyTransactionBarrier>()
+            .PauseNextAuthenticationBeforeKeyLock();
+
+    internal Task WaitForAuthenticationBeforeKeyLockAsync() =>
+        _services.GetRequiredService<ApiKeyTransactionBarrier>()
+            .WaitForAuthenticationBeforeKeyLockAsync(
+                TestContext.Current.CancellationToken);
+
+    internal void ReleaseAuthenticationBeforeKeyLock() =>
+        _services.GetRequiredService<ApiKeyTransactionBarrier>()
+            .ReleaseAuthenticationBeforeKeyLock();
+
     internal Task WaitForHeldKeyLockAsync() =>
         _services.GetRequiredService<ApiKeyTransactionBarrier>()
             .WaitForHolderAsync(TestContext.Current.CancellationToken);
@@ -315,8 +427,11 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
     internal void ReleaseHeldTransaction() =>
         _services.GetRequiredService<ApiKeyTransactionBarrier>().ReleaseHolder();
 
-    internal void FailNextAuthenticationAttempts(int count) =>
-        _services.GetRequiredService<ApiKeyFailureInterceptor>().FailNextAuthenticationAttempts(count);
+    internal void FailNextAuthenticationAttempts(
+        int count,
+        DateTimeOffset? advanceTimeTo = null) =>
+        _services.GetRequiredService<ApiKeyFailureInterceptor>()
+            .FailNextAuthenticationAttempts(count, advanceTimeTo);
 
     internal int AuthenticationAttempts =>
         _services.GetRequiredService<ApiKeyFailureInterceptor>().AuthenticationAttempts;
@@ -324,9 +439,15 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
     internal int AuthenticationTransactionCount =>
         _services.GetRequiredService<ApiKeyFailureInterceptor>().AuthenticationTransactionCount;
 
-    internal void FailNextPersonalManagementInserts(string sqlState, int count) =>
+    internal void FailNextPersonalManagementInserts(
+        string sqlState,
+        int count,
+        DateTimeOffset? advanceTimeTo = null) =>
         _services.GetRequiredService<ApiKeyFailureInterceptor>()
-            .FailNextPersonalManagementInserts(sqlState, count);
+            .FailNextPersonalManagementInserts(
+                sqlState,
+                count,
+                advanceTimeTo);
 
     internal void ObservePersonalManagement() =>
         _services.GetRequiredService<ApiKeyFailureInterceptor>()
@@ -364,10 +485,45 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
         _services.GetRequiredService<ApiKeyFailureInterceptor>()
             .ReleaseSecondOrganizationAttempt();
 
-    internal async Task<ApiKeyOperationResult<ApiKeySummary>> RotateInNewScopeAsync(UserId actor, ApiKeyId id, byte[] hash, string start)
+    internal async Task<ApiKeyOperationResult<ApiKeySummary>> RotateInNewScopeAsync(
+        UserId actor,
+        ApiKeyId id,
+        byte[] hash,
+        string start)
     {
         await using var scope = _services.CreateAsyncScope();
-        return await scope.ServiceProvider.GetRequiredService<IApiKeyStore>().RotateAsync(new(actor, new(ApiKeyOwnerKind.User, actor, null), id, hash, start, Now), TestContext.Current.CancellationToken);
+        return await scope.ServiceProvider.GetRequiredService<IApiKeyStore>()
+            .RotateAsync(
+                new(
+                    actor,
+                    new(ApiKeyOwnerKind.User, actor, null),
+                    id,
+                    hash,
+                    start),
+                TestContext.Current.CancellationToken);
+    }
+
+    internal async Task<ApiKeyOperationResult<ApiKeySummary>>
+        UpdateExpirationInNewScopeAsync(
+            UserId actor,
+            ApiKeyId id,
+            TimeSpan duration)
+    {
+        await using var scope = _services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IApiKeyStore>()
+            .UpdateAsync(
+                new UpdateApiKeyStoreCommand(
+                    actor,
+                    new(ApiKeyOwnerKind.User, actor, null),
+                    id,
+                    null,
+                    null,
+                    new ApiKeyExpiration(duration),
+                    null,
+                    null,
+                    null,
+                    null),
+                TestContext.Current.CancellationToken);
     }
 
     internal async Task<ApiKeyOperationResult<ApiKeyRevocation>> RevokeInNewScopeAsync(UserId actor, ApiKeyId id)
@@ -388,7 +544,7 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
         {
             var result = await store.RotateAsync(
                 new(actor, new(ApiKeyOwnerKind.User, actor, null), id,
-                    replacementHash, "user_bcdefghijkl", Now),
+                    replacementHash, "user_bcdefghijkl"),
                 TestContext.Current.CancellationToken);
             return new(result.Succeeded);
         }
@@ -407,6 +563,20 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
     }
 
     internal async Task<int> RequestCountAsync(byte[] hash) => (await QuotaStateAsync(hash)).RequestCount;
+
+    internal async Task<(
+        DateTimeOffset? WindowStartedAt,
+        DateTimeOffset? LastRequestAt,
+        int RequestCount)> TemporalStateAsync(byte[] hash)
+    {
+        await using var db = CreateDbContext();
+        return await db.ApiKeys.Where(row => row.KeyHash == hash)
+            .Select(row => new ValueTuple<DateTimeOffset?, DateTimeOffset?, int>(
+                row.WindowStartedAt,
+                row.LastRequestAt,
+                row.RequestCount))
+            .SingleAsync(TestContext.Current.CancellationToken);
+    }
 
     internal async Task<(DateTimeOffset? WindowStartedAt, int RequestCount)> QuotaStateAsync(byte[] hash)
     {
@@ -448,6 +618,10 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
         return await db.ApiKeys.CountAsync(TestContext.Current.CancellationToken);
     }
 
+    internal void SetTime(DateTimeOffset utcNow) =>
+        _services.GetRequiredService<MutableApiKeyTimeProvider>()
+            .SetUtcNow(utcNow);
+
     public async ValueTask DisposeAsync()
     {
         await _scope.DisposeAsync();
@@ -458,7 +632,24 @@ internal sealed class ApiKeyStoreFixture : IAsyncDisposable
 
 internal sealed record ApiKeyMutationTestResult(bool Succeeded);
 
-internal sealed class FixedApiKeyTimeProvider(DateTimeOffset now) : TimeProvider
+internal sealed class MutableApiKeyTimeProvider(DateTimeOffset now) : TimeProvider
 {
-    public override DateTimeOffset GetUtcNow() => now;
+    private readonly object _gate = new();
+    private DateTimeOffset _utcNow = now;
+
+    public override DateTimeOffset GetUtcNow()
+    {
+        lock (_gate)
+        {
+            return _utcNow;
+        }
+    }
+
+    internal void SetUtcNow(DateTimeOffset utcNow)
+    {
+        lock (_gate)
+        {
+            _utcNow = utcNow;
+        }
+    }
 }

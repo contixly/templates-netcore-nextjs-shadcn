@@ -4,8 +4,7 @@ namespace Template.Application.ApiKeys;
 
 public sealed class ApiKeyAuthenticationService(
     IApiKeyCredentialService credentials,
-    IApiKeyStore store,
-    TimeProvider timeProvider)
+    IApiKeyStore store)
 {
     private static readonly TimeSpan MaximumRetryAfter = TimeSpan.FromDays(1);
 
@@ -16,9 +15,12 @@ public sealed class ApiKeyAuthenticationService(
             return ApiKeyAuthenticationResult.Invalid();
         }
 
-        var result = await store.AuthenticateAndConsumeAsync(hash, timeProvider.GetUtcNow(), cancellationToken);
+        var result = await store.AuthenticateAndConsumeAsync(hash, cancellationToken);
         return result.Outcome == ApiKeyAuthenticationOutcome.RateLimited
-            ? ApiKeyAuthenticationResult.RateLimited(BoundRetryAfter(result.RetryAfter))
+            ? ApiKeyAuthenticationResult.RateLimited(
+                result.Principal ?? throw new InvalidOperationException(
+                    "A rate-limited API key result requires a principal."),
+                BoundRetryAfter(result.RetryAfter))
             : result;
     }
 

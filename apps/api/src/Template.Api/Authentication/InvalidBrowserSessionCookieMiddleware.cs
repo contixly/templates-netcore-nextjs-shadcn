@@ -12,7 +12,8 @@ internal sealed class InvalidBrowserSessionCookieMiddleware(
         IOptionsMonitor<CookieAuthenticationOptions> options)
     {
         if (BrowserSessionCookieInvalidation.IsRequested(context) &&
-            !ApiKeyAuthenticationDefaults.IsSelected(context))
+            !ApiKeyAuthenticationDefaults.IsDefaultAuthenticationSelected(
+                context))
         {
             var cookieOptions = options.Get(ApiAuthenticationDefaults.SchemeName);
             cookieOptions.CookieManager.DeleteCookie(

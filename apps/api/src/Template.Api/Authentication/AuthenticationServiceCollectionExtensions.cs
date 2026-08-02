@@ -29,15 +29,21 @@ internal static class AuthenticationServiceCollectionExtensions
                 options => options.ForwardDefaultSelector = context =>
                 {
                     var path = context.Request.Path.Value;
-                    return string.Equals(
+                    if (string.Equals(
                                path,
                                HealthEndpointModule.LivenessPath,
                                StringComparison.OrdinalIgnoreCase)
                            || string.Equals(
                                path,
                                $"{HealthEndpointModule.LivenessPath}/",
-                               StringComparison.OrdinalIgnoreCase)
-                        ? ApiAuthenticationDefaults.ProcessOnlySchemeName
+                               StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ApiAuthenticationDefaults.ProcessOnlySchemeName;
+                    }
+
+                    return ApiKeyAuthenticationDefaults
+                        .IsDefaultAuthenticationSelected(context)
+                        ? ApiKeyAuthenticationDefaults.SchemeName
                         : ApiAuthenticationDefaults.SchemeName;
                 })
             .AddPolicyScheme(

@@ -192,7 +192,12 @@ it("rejects stale GET completion and keeps a confirmed mutation over an older re
   listKeys
     .mockReturnValueOnce(staleRead.promise)
     .mockReturnValueOnce(refreshRead.promise);
-  const disabled = { ...apiKey, status: "disabled" as const, enabled: false };
+  const disabled = {
+    ...apiKey,
+    status: "disabled" as const,
+    enabled: false,
+    updatedAt: "2026-08-02T10:01:00Z",
+  };
   updateKey.mockResolvedValue({ ok: true, data: disabled });
   renderWithMessages(
     <ApiKeyManagement
@@ -290,7 +295,12 @@ it("keeps a rotate secret through failed refresh and retries only the safe GET",
 
 it("serializes a mutation refresh against tail reads and retains an update overlay until exact first-page acknowledgement", async () => {
   const refresh = deferred<ApiResult<ApiKeyPageResponse>>();
-  const disabled = { ...apiKey, status: "disabled" as const, enabled: false };
+  const disabled = {
+    ...apiKey,
+    status: "disabled" as const,
+    enabled: false,
+    updatedAt: "2026-08-02T10:01:00Z",
+  };
   updateKey.mockResolvedValue({ ok: true, data: disabled });
   listKeys.mockReturnValueOnce(refresh.promise).mockResolvedValueOnce({
     ok: true,
@@ -330,7 +340,12 @@ it("serializes a mutation refresh against tail reads and retains an update overl
 it("keeps a tail read from committing after a confirmed mutation starts first-page reconciliation", async () => {
   const tail = deferred<ApiResult<ApiKeyPageResponse>>();
   const refresh = deferred<ApiResult<ApiKeyPageResponse>>();
-  const disabled = { ...apiKey, status: "disabled" as const, enabled: false };
+  const disabled = {
+    ...apiKey,
+    status: "disabled" as const,
+    enabled: false,
+    updatedAt: "2026-08-02T10:01:00Z",
+  };
   listKeys
     .mockReturnValueOnce(tail.promise)
     .mockReturnValueOnce(refresh.promise);
@@ -364,6 +379,255 @@ it("keeps a tail read from committing after a confirmed mutation starts first-pa
     });
   });
   expect(screen.getByText("Disabled")).toBeVisible();
+});
+
+it.each([
+  ["same-timestamp", "2026-08-02T12:00:00.000002Z"],
+  ["newer", "2026-08-02T12:00:00.000003Z"],
+])(
+  "replaces a tail-key overlay when a continuation returns a %s authoritative row",
+  async (recency, authoritativeUpdatedAt) => {
+    const tail = {
+      ...apiKey,
+      id: "01900000-0000-7000-8000-000000000902",
+      name: "Tail deployment key",
+      updatedAt: "2026-08-02T12:00:00Z",
+    };
+    const confirmed = {
+      ...tail,
+      status: "disabled" as const,
+      enabled: false,
+      updatedAt: "2026-08-02T12:00:00.000002Z",
+    };
+    const authoritative = {
+      ...tail,
+      name: `Tail authoritative ${recency}`,
+      updatedAt: authoritativeUpdatedAt,
+    };
+    updateKey.mockResolvedValue({ ok: true, data: confirmed });
+    listKeys
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { items: [tail], nextCursor: null },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { items: [apiKey], nextCursor: "refreshed-tail" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { items: [authoritative], nextCursor: null },
+      });
+    renderWithMessages(
+      <ApiKeyManagement
+        initialPage={{ ...apiKeyPage, nextCursor: "initial-tail" }}
+        owner={{ kind: "personal" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+    const tailRow = await screen.findByRole("row", {
+      name: /Tail deployment key/,
+    });
+    fireEvent.click(within(tailRow).getByRole("button", { name: "Disable" }));
+    await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
+    expect(within(tailRow).getByText("Disabled")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+
+    const authoritativeRow = await screen.findByRole("row", {
+      name: new RegExp(`Tail authoritative ${recency}`),
+    });
+    expect(within(authoritativeRow).getByText("Active")).toBeVisible();
+    expect(screen.queryByText("Tail deployment key")).not.toBeInTheDocument();
+  },
+);
+
+it.each([
+  ["older sub-millisecond", "2026-08-02T12:00:00.000001Z"],
+  ["invalid calendar", "2026-08-02T24:00:00Z"],
+])(
+  "keeps a tail-key overlay over an %s continuation timestamp",
+  async (_scenario, authoritativeUpdatedAt) => {
+    const tail = {
+      ...apiKey,
+      id: "01900000-0000-7000-8000-000000000903",
+      name: "Tail precise key",
+      updatedAt: "2026-08-02T12:00:00Z",
+    };
+    const confirmed = {
+      ...tail,
+      status: "disabled" as const,
+      enabled: false,
+      updatedAt: "2026-08-02T12:00:00.000002Z",
+    };
+    const older = {
+      ...tail,
+      name: "Tail stale submillisecond",
+      updatedAt: authoritativeUpdatedAt,
+    };
+    updateKey.mockResolvedValue({ ok: true, data: confirmed });
+    listKeys
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { items: [tail], nextCursor: null },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { items: [apiKey], nextCursor: "refreshed-tail" },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { items: [older], nextCursor: null },
+      });
+    renderWithMessages(
+      <ApiKeyManagement
+        initialPage={{ ...apiKeyPage, nextCursor: "initial-tail" }}
+        owner={{ kind: "personal" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+    const tailRow = await screen.findByRole("row", {
+      name: /Tail precise key/,
+    });
+    fireEvent.click(within(tailRow).getByRole("button", { name: "Disable" }));
+    await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+    await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(3));
+
+    expect(
+      screen.getByRole("row", { name: /Tail precise key/ }),
+    ).toHaveTextContent("Disabled");
+    expect(
+      screen.queryByText("Tail stale submillisecond"),
+    ).not.toBeInTheDocument();
+  },
+);
+
+it("keeps a tail revoke hidden through stale continuations and terminal traversal", async () => {
+  const tail = {
+    ...apiKey,
+    id: "01900000-0000-7000-8000-000000000904",
+    name: "Tail revoked key",
+  };
+  revokeKey.mockResolvedValue({
+    ok: true,
+    data: { id: tail.id, revokedAt: "2026-08-02T12:01:00Z" },
+  });
+  listKeys
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [tail], nextCursor: null },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [apiKey], nextCursor: "refreshed-tail" },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [tail], nextCursor: "stale-tail" },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [], nextCursor: null },
+    });
+  renderWithMessages(
+    <ApiKeyManagement
+      initialPage={{ ...apiKeyPage, nextCursor: "initial-tail" }}
+      owner={{ kind: "personal" }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+  const tailRow = await screen.findByRole("row", { name: /Tail revoked key/ });
+  fireEvent.click(within(tailRow).getByRole("button", { name: "Revoke" }));
+  fireEvent.click(
+    within(
+      screen.getByRole("dialog", { name: "Revoke Tail revoked key?" }),
+    ).getByRole("button", { name: "Revoke key" }),
+  );
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText("Tail revoked key")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(3));
+  expect(screen.queryByText("Tail revoked key")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(4));
+  expect(screen.queryByText("Tail revoked key")).not.toBeInTheDocument();
+});
+
+it("clears a revoke overlay only after a terminal traversal confirms absence", async () => {
+  const tail = {
+    ...apiKey,
+    id: "01900000-0000-7000-8000-000000000905",
+    name: "Tail terminal revoke",
+  };
+  const disabledFirst = {
+    ...apiKey,
+    status: "disabled" as const,
+    enabled: false,
+    updatedAt: "2026-08-02T12:02:00Z",
+  };
+  const laterAuthoritative = {
+    ...tail,
+    name: "Tail returned after completed traversal",
+    updatedAt: "2026-08-02T12:03:00Z",
+  };
+  revokeKey.mockResolvedValue({
+    ok: true,
+    data: { id: tail.id, revokedAt: "2026-08-02T12:01:00Z" },
+  });
+  updateKey.mockResolvedValue({ ok: true, data: disabledFirst });
+  listKeys
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [tail], nextCursor: null },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [apiKey], nextCursor: "finish-traversal" },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [], nextCursor: null },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: {
+        items: [disabledFirst, laterAuthoritative],
+        nextCursor: null,
+      },
+    });
+  renderWithMessages(
+    <ApiKeyManagement
+      initialPage={{ ...apiKeyPage, nextCursor: "initial-tail" }}
+      owner={{ kind: "personal" }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+  const tailRow = await screen.findByRole("row", {
+    name: /Tail terminal revoke/,
+  });
+  fireEvent.click(within(tailRow).getByRole("button", { name: "Revoke" }));
+  fireEvent.click(
+    within(
+      screen.getByRole("dialog", { name: "Revoke Tail terminal revoke?" }),
+    ).getByRole("button", { name: "Revoke key" }),
+  );
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
+  fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(3));
+  expect(screen.queryByText("Tail terminal revoke")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+
+  expect(
+    await screen.findByText("Tail returned after completed traversal"),
+  ).toBeVisible();
 });
 
 it("renders toggle Problem Details separately from pagination and never offers a tail retry", async () => {
@@ -446,7 +710,12 @@ it("rejects a mismatched revoke response without removing the requested row", as
 
 it("leases a key to toggle before an already-open revoke and permits revoke only after the matching release", async () => {
   const togglePending = deferred<ApiResult<ApiKeyResponse>>();
-  const disabled = { ...apiKey, status: "disabled" as const, enabled: false };
+  const disabled = {
+    ...apiKey,
+    status: "disabled" as const,
+    enabled: false,
+    updatedAt: "2026-08-02T10:01:00Z",
+  };
   updateKey.mockReturnValue(togglePending.promise);
   revokeKey.mockResolvedValue({
     ok: true,

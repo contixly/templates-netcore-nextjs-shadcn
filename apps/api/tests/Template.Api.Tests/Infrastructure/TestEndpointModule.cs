@@ -122,8 +122,8 @@ internal sealed class TestEndpointModule : IEndpointModule
             .AllowAnonymous()
             .ExcludeFromDescription();
 
-        context.Root.MapGet(
-                "/api/v1/testing/consumer",
+        context.VersionedMixedApi.MapGet(
+                "/testing/consumer",
                 (ClaimsPrincipal principal) => Results.Ok(new
                 {
                     authenticationType = principal.Identity?.AuthenticationType,
@@ -132,17 +132,15 @@ internal sealed class TestEndpointModule : IEndpointModule
                         .ThenBy(claim => claim.Value, StringComparer.Ordinal)
                         .Select(claim => new { claim.Type, claim.Value })
                 }))
-            .RequireAuthorization(ApiPolicies.BrowserOrMachine)
             .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
             .ExcludeFromDescription();
 
-        context.Root.MapGet(
-                "/api/v1/testing/consumer/organization-read",
+        context.VersionedMixedApi.MapGet(
+                "/testing/consumer/organization-read",
                 (ClaimsPrincipal principal) => Results.Ok(new
                 {
                     authenticationType = principal.Identity?.AuthenticationType
                 }))
-            .RequireAuthorization(ApiPolicies.BrowserOrMachine)
             .RequireApiKeyScopes(ApiKeyScopes.OrganizationRead)
             .ExcludeFromDescription();
 

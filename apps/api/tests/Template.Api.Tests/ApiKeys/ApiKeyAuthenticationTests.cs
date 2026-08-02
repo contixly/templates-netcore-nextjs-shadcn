@@ -25,6 +25,58 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
+    [Fact]
+    public async Task AgedBrowserCookieDoesNotRenewOnMachineOnlyRouteWithoutHeader()
+    {
+        var time = new MutableTimeProvider(
+            DateTimeOffset.FromUnixTimeSeconds(
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+        await using var controlled = WithTimeProvider(time);
+        using var client = CreateClient(controlled);
+        await CreatePersonalKeyAsync(client);
+        var before = await ReadOnlySessionAsync(controlled);
+        time.Advance(TimeSpan.FromDays(4));
+
+        using var response = await client.GetAsync(
+            MePath,
+            TestContext.Current.CancellationToken);
+
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.Unauthorized,
+            "api_key_missing");
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.Equal(before, await ReadOnlySessionAsync(controlled));
+    }
+
+    [Fact]
+    public async Task StaleBrowserCookieDoesNotDeleteOnMachineOnlyRouteWithoutHeader()
+    {
+        await using var isolated = factory.WithWebHostBuilder(_ => { });
+        using var client = CreateClient(isolated);
+        await CreatePersonalKeyAsync(client);
+        await using (var scope = isolated.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+            var session = await db.Sessions.SingleAsync(
+                TestContext.Current.CancellationToken);
+            session.ProtectedTicket = [0x01, 0x02, 0x03, 0x04];
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+        var before = await ReadOnlySessionAsync(isolated);
+
+        using var response = await client.GetAsync(
+            MePath,
+            TestContext.Current.CancellationToken);
+
+        await AssertProblemAsync(
+            response,
+            HttpStatusCode.Unauthorized,
+            "api_key_missing");
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+        Assert.Equal(before, await ReadOnlySessionAsync(isolated));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -282,7 +334,14 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
             Equals(
                 log.State.GetValueOrDefault("MachineApiOutcome"),
                 "rate_limited"));
-        Assert.Null(audit.State.GetValueOrDefault("ApiKeyId"));
+        Assert.Equal("user", audit.State.GetValueOrDefault("OwnerKind"));
+        Assert.Equal(key.UserId, audit.State.GetValueOrDefault("OwnerId"));
+        Assert.Equal(key.Id, audit.State.GetValueOrDefault("ApiKeyId"));
+        var problemBody = await limited.Content.ReadAsStringAsync(
+            TestContext.Current.CancellationToken);
+        Assert.DoesNotContain(key.Id.ToString("D"), problemBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(key.UserId.ToString("D"), problemBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(key.Start, problemBody, StringComparison.Ordinal);
         AssertCredentialNotLogged(logs, key.Credential);
         Assert.Equal(1, await RequestCountAsync(key.Id));
     }
@@ -491,6 +550,78 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task BrowserOnlyRouteDoesNotAuthenticateOrConsumeSuppliedApiKey()
+    {
+        using var browser = factory.CreateApiClient();
+        var key = await CreatePersonalKeyAsync(browser);
+
+        using var response = await SendWithApiKeyAsync(
+            browser,
+            "/api/v1/account/api-keys",
+            key.Credential);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(0, await RequestCountAsync(key.Id));
+    }
+
+    [Fact]
+    public async Task AgedBrowserCookieStillRenewsOnBrowserOnlyRouteWithApiKeyHeader()
+    {
+        var time = new MutableTimeProvider(
+            DateTimeOffset.FromUnixTimeSeconds(
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+        await using var controlled = WithTimeProvider(time);
+        using var client = CreateClient(controlled);
+        var key = await CreatePersonalKeyAsync(client);
+        var before = await ReadOnlySessionAsync(controlled);
+        time.Advance(TimeSpan.FromDays(4));
+
+        using var response = await SendWithApiKeyAsync(
+            client,
+            "/api/v1/account/api-keys",
+            key.Credential);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.TryGetValues("Set-Cookie", out _));
+        var after = await ReadOnlySessionAsync(controlled);
+        Assert.Equal(before.Id, after.Id);
+        Assert.True(after.UpdatedAt > before.UpdatedAt);
+        Assert.True(after.ExpiresAt > before.ExpiresAt);
+        Assert.Equal(0, await RequestCountAsync(key.Id));
+    }
+
+    [Fact]
+    public async Task InvalidBrowserCookieStillClearsOnBrowserOnlyRouteWithApiKeyHeader()
+    {
+        await using var isolated = factory.WithWebHostBuilder(_ => { });
+        using var client = CreateClient(isolated);
+        var key = await CreatePersonalKeyAsync(client);
+        await using (var scope = isolated.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<TemplateDbContext>();
+            var session = await db.Sessions.SingleAsync(
+                TestContext.Current.CancellationToken);
+            session.ProtectedTicket = [0x01, 0x02, 0x03, 0x04];
+            await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        }
+
+        using var response = await SendWithApiKeyAsync(
+            client,
+            "/api/v1/account/api-keys",
+            key.Credential);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.True(response.Headers.TryGetValues("Set-Cookie", out _));
+        await using var verification = isolated.Services.CreateAsyncScope();
+        Assert.Equal(
+            0,
+            await verification.ServiceProvider
+                .GetRequiredService<TemplateDbContext>()
+                .Sessions.CountAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(0, await RequestCountAsync(key.Id));
+    }
+
+    [Fact]
     public async Task ValidKeyWithoutRequiredScopeConsumesQuotaThenUsesMachineForbid()
     {
         using var browser = factory.CreateApiClient();
@@ -643,6 +774,20 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
                     options.TimeProvider = time);
             }));
 
+    private static async Task<SessionLifecycle> ReadOnlySessionAsync(
+        WebApplicationFactory<Program> application)
+    {
+        await using var scope = application.Services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
+            .Sessions.AsNoTracking()
+            .Select(session => new SessionLifecycle(
+                session.Id,
+                session.UpdatedAt,
+                session.ExpiresAt,
+                Convert.ToHexString(session.ProtectedTicket)))
+            .SingleAsync(TestContext.Current.CancellationToken);
+    }
+
     private static HttpClient CreateClient(
         WebApplicationFactory<Program> application) =>
         application.CreateClient(new WebApplicationFactoryClientOptions
@@ -739,6 +884,12 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
         Guid OrganizationId,
         string Start,
         string Credential);
+
+    private sealed record SessionLifecycle(
+        Guid Id,
+        DateTimeOffset UpdatedAt,
+        DateTimeOffset ExpiresAt,
+        string ProtectedTicket);
 
     private sealed class MutableTimeProvider(DateTimeOffset utcNow)
         : TimeProvider

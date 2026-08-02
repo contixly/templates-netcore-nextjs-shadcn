@@ -11,7 +11,7 @@ public sealed class ApiKeyAuthenticationServiceTests
     public async Task Noncanonical_credentials_are_rejected_before_the_store()
     {
         var store = new AuthenticationStore();
-        var result = await new ApiKeyAuthenticationService(new RejectingCredentials(), store, TimeProvider.System)
+        var result = await new ApiKeyAuthenticationService(new RejectingCredentials(), store)
             .AuthenticateAsync("noncanonical", TestContext.Current.CancellationToken);
 
         Assert.Equal(ApiKeyAuthenticationOutcome.Invalid, result.Outcome);
@@ -27,15 +27,18 @@ public sealed class ApiKeyAuthenticationServiceTests
         {
             Result = ApiKeyAuthenticationResult.Succeeded(principal)
         };
-        var service = new ApiKeyAuthenticationService(new AcceptingCredentials(), store, TimeProvider.System);
+        var service = new ApiKeyAuthenticationService(new AcceptingCredentials(), store);
 
         var authenticated = await service.AuthenticateAsync("canonical", TestContext.Current.CancellationToken);
-        store.Result = ApiKeyAuthenticationResult.RateLimited(TimeSpan.FromDays(2));
+        store.Result = ApiKeyAuthenticationResult.RateLimited(
+            principal,
+            TimeSpan.FromDays(2));
         var limited = await service.AuthenticateAsync("canonical", TestContext.Current.CancellationToken);
 
         Assert.Equal(ApiKeyAuthenticationOutcome.Succeeded, authenticated.Outcome);
         Assert.Equal(principal, authenticated.Principal);
         Assert.Equal(ApiKeyAuthenticationOutcome.RateLimited, limited.Outcome);
+        Assert.Equal(principal, limited.Principal);
         Assert.Equal(TimeSpan.FromDays(1), limited.RetryAfter);
     }
 
@@ -53,10 +56,10 @@ public sealed class ApiKeyAuthenticationServiceTests
     {
         public int Calls { get; private set; }
         public ApiKeyAuthenticationResult Result { get; set; } = ApiKeyAuthenticationResult.Invalid();
-        public Task<ApiKeyAuthenticationResult> AuthenticateAndConsumeAsync(byte[] hash, DateTimeOffset now, CancellationToken cancellationToken) { Calls++; return Task.FromResult(Result); }
+        public Task<ApiKeyAuthenticationResult> AuthenticateAndConsumeAsync(byte[] hash, CancellationToken cancellationToken) { Calls++; return Task.FromResult(Result); }
         public Task<ApiKeyOperationResult<ApiKeyStorePage>> ListAsync(ApiKeyListQuery query, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<ApiKeyOperationResult<ApiKeySummary>> CreateAsync(CreateApiKeyStoreCommand command, CancellationToken cancellationToken) => throw new NotImplementedException();
-        public Task<ApiKeyOperationResult<ApiKeySummary>> UpdateAsync(UpdateApiKeyCommand command, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<ApiKeyOperationResult<ApiKeySummary>> UpdateAsync(UpdateApiKeyStoreCommand command, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<ApiKeyOperationResult<ApiKeyRevocation>> RevokeAsync(RevokeApiKeyCommand command, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<ApiKeyOperationResult<ApiKeySummary>> RotateAsync(RotateApiKeyStoreCommand command, CancellationToken cancellationToken) => throw new NotImplementedException();
     }

@@ -5,8 +5,7 @@ namespace Template.Application.ApiKeys;
 
 public sealed class ApiKeyManagementService(
     IApiKeyStore store,
-    IApiKeyCredentialService credentials,
-    TimeProvider timeProvider)
+    IApiKeyCredentialService credentials)
 {
     public async Task<ApiKeyOperationResult<ApiKeyPage>> ListAsync(ApiKeyListRequest request, CancellationToken cancellationToken)
     {
@@ -60,7 +59,6 @@ public sealed class ApiKeyManagementService(
             return ApiKeyOperationResult<ApiKeySecret>.Failed(ApiKeyFailure.InvalidRateLimit);
         }
 
-        var now = timeProvider.GetUtcNow();
         for (var attempt = 1; attempt <= 3; attempt++)
         {
             var material = credentials.Generate(command.OwnerKind);
@@ -69,13 +67,12 @@ public sealed class ApiKeyManagementService(
                 owner,
                 name,
                 ApiKeyPolicy.ExpandPresets(command.PresetIds),
-                expiration is null ? null : now + expiration.Value,
+                new ApiKeyExpiration(expiration),
                 command.RateLimitEnabled,
                 command.RateLimitMax,
                 rateLimitWindow,
                 material.Hash,
-                material.Start,
-                now), cancellationToken);
+                material.Start), cancellationToken);
             if (result.Succeeded)
             {
                 return ApiKeyOperationResult<ApiKeySecret>.Success(new(RequireValue(result), material.Credential));
@@ -92,7 +89,8 @@ public sealed class ApiKeyManagementService(
     {
         string? name = null;
         TimeSpan? expiration = null;
-        if (!TryGetOwner(command.ActorUserId, command.OwnerKind, command.OrganizationId, out _))
+        TimeSpan? rateLimitWindow = null;
+        if (!TryGetOwner(command.ActorUserId, command.OwnerKind, command.OrganizationId, out var owner))
         {
             return Task.FromResult(ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.PermissionDenied));
         }
@@ -113,19 +111,37 @@ public sealed class ApiKeyManagementService(
         {
             return Task.FromResult(ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.InvalidExpiration));
         }
-        if ((command.RateLimitWindow is not null && !ApiKeyPolicy.TryGetRateLimitWindow(command.RateLimitWindow, out _))
-            || (command.RateLimitMax is not null && !ApiKeyPolicy.IsValidRateLimitMax(command.RateLimitMax.Value)))
+        if (command.RateLimitWindow is not null)
+        {
+            if (!ApiKeyPolicy.TryGetRateLimitWindow(command.RateLimitWindow, out var parsedRateLimitWindow))
+            {
+                return Task.FromResult(ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.InvalidRateLimit));
+            }
+
+            rateLimitWindow = parsedRateLimitWindow;
+        }
+        if (command.RateLimitMax is not null && !ApiKeyPolicy.IsValidRateLimitMax(command.RateLimitMax.Value))
         {
             return Task.FromResult(ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.InvalidRateLimit));
         }
 
-        var normalized = command with
-        {
-            Name = command.Name is null ? null : name,
-            Scopes = command.PresetIds is null ? null : ApiKeyPolicy.ExpandPresets(command.PresetIds),
-            ExpiresAt = command.ExpiresIn is null ? null : expiration is null ? null : timeProvider.GetUtcNow() + expiration.Value
-        };
-        return store.UpdateAsync(normalized, cancellationToken);
+        return store.UpdateAsync(
+            new UpdateApiKeyStoreCommand(
+                command.ActorUserId,
+                owner,
+                command.ApiKeyId,
+                command.Name is null ? null : name,
+                command.PresetIds is null
+                    ? null
+                    : ApiKeyPolicy.ExpandPresets(command.PresetIds),
+                command.ExpiresIn is null
+                    ? null
+                    : new ApiKeyExpiration(expiration),
+                command.Enabled,
+                command.RateLimitEnabled,
+                command.RateLimitMax,
+                rateLimitWindow),
+            cancellationToken);
     }
 
     public Task<ApiKeyOperationResult<ApiKeyRevocation>> RevokeAsync(RevokeApiKeyCommand command, CancellationToken cancellationToken) =>
@@ -140,11 +156,17 @@ public sealed class ApiKeyManagementService(
             return ApiKeyOperationResult<ApiKeySecret>.Failed(ApiKeyFailure.PermissionDenied);
         }
 
-        var now = timeProvider.GetUtcNow();
         for (var attempt = 1; attempt <= 3; attempt++)
         {
             var material = credentials.Generate(command.OwnerKind);
-            var result = await store.RotateAsync(new(command.ActorUserId, owner, command.ApiKeyId, material.Hash, material.Start, now), cancellationToken);
+            var result = await store.RotateAsync(
+                new(
+                    command.ActorUserId,
+                    owner,
+                    command.ApiKeyId,
+                    material.Hash,
+                    material.Start),
+                cancellationToken);
             if (result.Succeeded)
             {
                 return ApiKeyOperationResult<ApiKeySecret>.Success(new(RequireValue(result), material.Credential));

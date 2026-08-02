@@ -63,7 +63,8 @@ internal sealed class EfApiKeyStore(
                 return authorization;
             }
 
-            var id = ApiKeyId.New(command.CreatedAt);
+            var now = timeProvider.GetUtcNow();
+            var id = ApiKeyId.New(now);
             var entity = new ApiKeyEntity
             {
                 Id = id.Value,
@@ -79,16 +80,18 @@ internal sealed class EfApiKeyStore(
                 RateLimitMax = command.RateLimitMax,
                 WindowStartedAt = null,
                 RequestCount = 0,
-                ExpiresAt = command.ExpiresAt,
-                CreatedAt = command.CreatedAt,
-                UpdatedAt = command.CreatedAt
+                ExpiresAt = command.Expiration.Duration is { } expiration
+                    ? now + expiration
+                    : null,
+                CreatedAt = now,
+                UpdatedAt = now
             };
             db.ApiKeys.Add(entity);
             return ApiKeyOperationResult<ApiKeySummary>.Success(Map(entity));
         }, IsHashCollision, cancellationToken);
 
     public Task<ApiKeyOperationResult<ApiKeySummary>> UpdateAsync(
-        UpdateApiKeyCommand command,
+        UpdateApiKeyStoreCommand command,
         CancellationToken cancellationToken) =>
         ExecuteWithRetryAsync(async ct =>
         {
@@ -111,20 +114,34 @@ internal sealed class EfApiKeyStore(
                 entity.Scopes = command.Scopes.ToArray();
                 changed = true;
             }
-            if (command.ExpiresIn is not null && entity.ExpiresAt != command.ExpiresAt)
+            var now = Latest(
+                timeProvider.GetUtcNow(),
+                entity.UpdatedAt,
+                entity.RotatedAt,
+                entity.LastRequestAt,
+                entity.WindowStartedAt);
+            if (command.Expiration is { } expiration)
             {
-                entity.ExpiresAt = command.ExpiresAt;
-                changed = true;
+                DateTimeOffset? expiresAt = expiration.Duration is { } duration
+                    ? now + duration
+                    : null;
+                if (entity.ExpiresAt != expiresAt)
+                {
+                    entity.ExpiresAt = expiresAt;
+                    changed = true;
+                }
             }
             changed |= SetIfDifferent(command.Enabled, entity.Enabled, value => entity.Enabled = value);
 
             var rateConfigurationChanged = false;
             rateConfigurationChanged |= SetIfDifferent(command.RateLimitEnabled, entity.RateLimitEnabled, value => entity.RateLimitEnabled = value);
             rateConfigurationChanged |= SetIfDifferent(command.RateLimitMax, entity.RateLimitMax, value => entity.RateLimitMax = value);
-            if (command.RateLimitWindow is not null)
+            if (command.RateLimitWindow is { } rateLimitWindow)
             {
-                ApiKeyPolicy.TryGetRateLimitWindow(command.RateLimitWindow, out var window);
-                rateConfigurationChanged |= SetIfDifferent(checked((int)window.TotalSeconds), entity.RateLimitWindowSeconds, value => entity.RateLimitWindowSeconds = value);
+                rateConfigurationChanged |= SetIfDifferent(
+                    checked((int)rateLimitWindow.TotalSeconds),
+                    entity.RateLimitWindowSeconds,
+                    value => entity.RateLimitWindowSeconds = value);
             }
             if (rateConfigurationChanged)
             {
@@ -137,7 +154,7 @@ internal sealed class EfApiKeyStore(
             {
                 return ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.Unchanged);
             }
-            entity.UpdatedAt = timeProvider.GetUtcNow();
+            entity.UpdatedAt = now;
             return ApiKeyOperationResult<ApiKeySummary>.Success(Map(entity));
         }, cancellationToken);
 
@@ -156,7 +173,12 @@ internal sealed class EfApiKeyStore(
             {
                 return ApiKeyOperationResult<ApiKeyRevocation>.Failed(ApiKeyFailure.NotFound);
             }
-            var now = timeProvider.GetUtcNow();
+            var now = Latest(
+                timeProvider.GetUtcNow(),
+                entity.UpdatedAt,
+                entity.RotatedAt,
+                entity.LastRequestAt,
+                entity.WindowStartedAt);
             entity.RevokedAt = now;
             entity.UpdatedAt = now;
             return ApiKeyOperationResult<ApiKeyRevocation>.Success(new(command.ApiKeyId, now));
@@ -177,10 +199,16 @@ internal sealed class EfApiKeyStore(
             {
                 return ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.NotFound);
             }
+            var rotatedAt = Latest(
+                timeProvider.GetUtcNow(),
+                entity.LastRequestAt,
+                entity.WindowStartedAt,
+                entity.UpdatedAt,
+                entity.RotatedAt);
             entity.KeyHash = command.Hash;
             entity.KeyStart = command.Start;
-            entity.RotatedAt = command.RotatedAt;
-            entity.UpdatedAt = command.RotatedAt;
+            entity.RotatedAt = rotatedAt;
+            entity.UpdatedAt = rotatedAt;
             entity.WindowStartedAt = null;
             entity.RequestCount = 0;
             return ApiKeyOperationResult<ApiKeySummary>.Success(Map(entity));
@@ -188,17 +216,38 @@ internal sealed class EfApiKeyStore(
 
     public Task<ApiKeyAuthenticationResult> AuthenticateAndConsumeAsync(
         byte[] hash,
-        DateTimeOffset now,
         CancellationToken cancellationToken) =>
         ExecuteAuthenticationWithRetryAsync(async ct =>
         {
             var entity = await db.ApiKeys.FromSqlInterpolated(
                     $"SELECT * FROM auth.api_keys WHERE key_hash = {hash} FOR UPDATE")
                 .SingleOrDefaultAsync(ct);
-            if (entity is null || entity.RevokedAt is not null || !entity.Enabled || entity.ExpiresAt <= now)
+            if (entity is null)
             {
                 return ApiKeyAuthenticationResult.Invalid();
             }
+
+            var now = Latest(
+                timeProvider.GetUtcNow(),
+                entity.LastRequestAt,
+                entity.WindowStartedAt,
+                entity.UpdatedAt,
+                entity.RotatedAt);
+            if (entity.RevokedAt is not null ||
+                !entity.Enabled ||
+                entity.ExpiresAt <= now)
+            {
+                return ApiKeyAuthenticationResult.Invalid();
+            }
+
+            var owner = entity.UserId is not null
+                ? new ApiKeyOwner(ApiKeyOwnerKind.User, new(entity.UserId.Value), null)
+                : new ApiKeyOwner(ApiKeyOwnerKind.Organization, null, new(entity.OrganizationId!.Value));
+            var principal = new ApiKeyPrincipal(
+                new(entity.Id),
+                entity.KeyStart,
+                owner,
+                entity.Scopes);
 
             var window = TimeSpan.FromSeconds(entity.RateLimitWindowSeconds);
             if (entity.WindowStartedAt is null || now >= entity.WindowStartedAt.Value + window)
@@ -211,15 +260,14 @@ internal sealed class EfApiKeyStore(
             {
                 var remaining = entity.WindowStartedAt.Value + window - now;
                 var seconds = Math.Max(1, Math.Ceiling(remaining.TotalSeconds));
-                return ApiKeyAuthenticationResult.RateLimited(TimeSpan.FromSeconds(seconds));
+                return ApiKeyAuthenticationResult.RateLimited(
+                    principal,
+                    TimeSpan.FromSeconds(seconds));
             }
 
             entity.RequestCount++;
             entity.LastRequestAt = now;
-            var owner = entity.UserId is not null
-                ? new ApiKeyOwner(ApiKeyOwnerKind.User, new(entity.UserId.Value), null)
-                : new ApiKeyOwner(ApiKeyOwnerKind.Organization, null, new(entity.OrganizationId!.Value));
-            return ApiKeyAuthenticationResult.Succeeded(new(new(entity.Id), entity.KeyStart, owner, entity.Scopes));
+            return ApiKeyAuthenticationResult.Succeeded(principal);
         }, cancellationToken);
 
     private async Task<ApiKeyOperationResult<T>?> LockAndAuthorizeOwnerAsync<T>(
@@ -360,6 +408,22 @@ internal sealed class EfApiKeyStore(
         if (candidate is null || string.Equals(candidate, current, StringComparison.Ordinal)) return false;
         assign(candidate);
         return true;
+    }
+
+    private static DateTimeOffset Latest(
+        DateTimeOffset sampled,
+        params DateTimeOffset?[] persisted)
+    {
+        var latest = sampled;
+        foreach (var value in persisted)
+        {
+            if (value is { } candidate && candidate > latest)
+            {
+                latest = candidate;
+            }
+        }
+
+        return latest;
     }
 
     private static ApiKeySummary Map(ApiKeyEntity entity)

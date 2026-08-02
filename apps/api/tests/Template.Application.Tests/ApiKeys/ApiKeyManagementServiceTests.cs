@@ -25,6 +25,7 @@ public sealed class ApiKeyManagementServiceTests
         Assert.Equal(new ApiKeyOwner(ApiKeyOwnerKind.User, Actor, null), store.LastCreate.Owner);
         Assert.Equal(credentials.Material.Hash, store.LastCreate.Hash);
         Assert.Equal(credentials.Material.Start, store.LastCreate.Start);
+        Assert.Equal(TimeSpan.FromDays(30), store.LastCreate.Expiration.Duration);
         Assert.Equal(credentials.Material.Credential, result.Value!.Credential);
     }
 
@@ -130,7 +131,7 @@ public sealed class ApiKeyManagementServiceTests
         Assert.Equal(3, credentials.GenerateCalls);
     }
 
-    private static ApiKeyManagementService Service(RecordingStore store, RecordingCredentials credentials) => new(store, credentials, new FakeTimeProvider(Now));
+    private static ApiKeyManagementService Service(RecordingStore store, RecordingCredentials credentials) => new(store, credentials);
     private static CreateApiKeyCommand Create(ApiKeyOwnerKind kind, OrganizationId? organization) => new(Actor, kind, organization, " Key ", ["basic-read"], "30d", true, 1000, "1h");
     private static ApiKeySummary Summary(ApiKeyOwner owner) => new(Key, owner, "Key", "safe-start", [ApiKeyScopes.BasicRead], true, true, 1000, TimeSpan.FromHours(1), 0, null, null, Now.AddDays(30), null, Now, Now);
 
@@ -154,7 +155,7 @@ public sealed class ApiKeyManagementServiceTests
     private sealed class RecordingStore : IApiKeyStore
     {
         public CreateApiKeyStoreCommand? LastCreate { get; private set; }
-        public UpdateApiKeyCommand? LastUpdate { get; private set; }
+        public UpdateApiKeyStoreCommand? LastUpdate { get; private set; }
         public int UpdateCalls { get; private set; }
         public int CreateCalls { get; private set; }
         public int RotateCalls { get; private set; }
@@ -167,14 +168,12 @@ public sealed class ApiKeyManagementServiceTests
         public ApiKeyOperationResult<ApiKeyRevocation> RevokeResult { get; set; } = ApiKeyOperationResult<ApiKeyRevocation>.Failed(ApiKeyFailure.NotFound);
         public Task<ApiKeyOperationResult<ApiKeyStorePage>> ListAsync(ApiKeyListQuery query, CancellationToken cancellationToken) => throw new NotImplementedException();
         public Task<ApiKeyOperationResult<ApiKeySummary>> CreateAsync(CreateApiKeyStoreCommand command, CancellationToken cancellationToken) { LastCreate = command; CreateCommands.Add(command); return Task.FromResult(CreateResults?[CreateCalls++] ?? IncrementCreate()); }
-        public Task<ApiKeyOperationResult<ApiKeySummary>> UpdateAsync(UpdateApiKeyCommand command, CancellationToken cancellationToken) { UpdateCalls++; LastUpdate = command; return Task.FromResult(UpdateResult); }
+        public Task<ApiKeyOperationResult<ApiKeySummary>> UpdateAsync(UpdateApiKeyStoreCommand command, CancellationToken cancellationToken) { UpdateCalls++; LastUpdate = command; return Task.FromResult(UpdateResult); }
         public Task<ApiKeyOperationResult<ApiKeyRevocation>> RevokeAsync(RevokeApiKeyCommand command, CancellationToken cancellationToken) => Task.FromResult(RevokeResult);
         public Task<ApiKeyOperationResult<ApiKeySummary>> RotateAsync(RotateApiKeyStoreCommand command, CancellationToken cancellationToken) => Task.FromResult(RotateResults?[RotateCalls++] ?? IncrementRotate());
-        public Task<ApiKeyAuthenticationResult> AuthenticateAndConsumeAsync(byte[] hash, DateTimeOffset now, CancellationToken cancellationToken) => throw new NotImplementedException();
+        public Task<ApiKeyAuthenticationResult> AuthenticateAndConsumeAsync(byte[] hash, CancellationToken cancellationToken) => throw new NotImplementedException();
 
         private ApiKeyOperationResult<ApiKeySummary> IncrementCreate() { CreateCalls++; return CreateResult; }
         private ApiKeyOperationResult<ApiKeySummary> IncrementRotate() { RotateCalls++; return RotateResult; }
     }
-
-    private sealed class FakeTimeProvider(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow() => now; }
 }
