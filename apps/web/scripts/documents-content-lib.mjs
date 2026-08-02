@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import matter from "gray-matter";
 
@@ -7,6 +7,32 @@ export const DOCUMENT_LOCALES = ["en", "ru"];
 const CONTENT_FILE_PATTERN = /\.(?:md|mdx)$/iu;
 const LOCALE_SUFFIX_PATTERN = /\.(en|ru)(\.(?:md|mdx))$/iu;
 const DOCUMENT_STATUSES = new Set(["draft", "review", "published", "archived"]);
+const PRODUCTION_STATUSES = new Set(["published", "archived"]);
+const ALLOWED_MDX_COMPONENTS = new Set([
+  "Callout",
+  "Steps",
+  "Step",
+  "Files",
+  "Folder",
+  "File",
+  "Tabs",
+  "Tab",
+  "DocumentLinkGrid",
+  "DocumentLinkGroup",
+  "DocumentLinkCard",
+]);
+const MARKDOWN_FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u;
+const MARKDOWN_LINK_PATTERN =
+  /(?<!!)\[[^\]]+\]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/gu;
+const MARKDOWN_IMAGE_PATTERN =
+  /!\[[^\]]*\]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/gu;
+const MARKDOWN_REFERENCE_DEFINITION_PATTERN =
+  /^\s*\[[^\]]+\]:\s*(?:<([^>\s]+)>|([^<\s]+))(?:\s+["'(][^"')]*["')])?\s*$/u;
+const MDX_HREF_PATTERN =
+  /\bhref=(?:"([^"]+)"|'([^']+)'|\{`([^`]+)`\}|\{"([^"]+)"\}|\{'([^']+)'\})/gu;
+const MDX_SRC_PATTERN =
+  /\bsrc=(?:"([^"]+)"|'([^']+)'|\{`([^`]+)`\}|\{"([^"]+)"\}|\{'([^']+)'\})/gu;
+const MDX_COMPONENT_PATTERN = /<\/?([A-Z][A-Za-z0-9]*)\b/gu;
 const METADATA_FIELDS = new Set([
   "title",
   "description",
@@ -37,6 +63,309 @@ const isFiniteNumber = (value) =>
 
 function fail(code, message) {
   throw new Error(`${code}: ${message}`);
+}
+
+function getUnfencedLines(content) {
+  const lines = content.split(/\r?\n/u);
+  const visible = [];
+  let activeFence;
+
+  for (const [index, line] of lines.entries()) {
+    const fence = MARKDOWN_FENCE_PATTERN.exec(line)?.[1];
+    if (fence) {
+      const candidate = { marker: fence[0], length: fence.length };
+      if (
+        !activeFence ||
+        (candidate.marker === activeFence.marker &&
+          candidate.length >= activeFence.length)
+      ) {
+        activeFence = activeFence ? undefined : candidate;
+        continue;
+      }
+    }
+
+    if (!activeFence) {
+      visible.push({ line, number: index + 1 });
+    }
+  }
+
+  return visible;
+}
+
+const stripInlineCode = (line) =>
+  line.replace(/(`+)(?:[^`]|`(?!\1))*?\1/gu, "");
+
+const stripHeadingMarkdown = (value) =>
+  value
+    .replace(/\s*\{#[^}]+\}\s*$/gu, "")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\[[^\]]*\]/gu, "$1")
+    .replace(/[*_`~]/gu, "")
+    .replace(/<[^>]+>/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+
+const slugifyHeading = (title) =>
+  title
+    .trim()
+    .toLowerCase()
+    .replace(/ё/gu, "е")
+    .replace(/[^\p{Letter}\p{Number}\s-]/gu, "")
+    .replace(/\s+/gu, "-")
+    .replace(/-+/gu, "-")
+    .replace(/^-|-$/gu, "");
+
+export function extractHeadings(content) {
+  const headings = [];
+  const seenIds = new Map();
+
+  for (const { line } of getUnfencedLines(content)) {
+    const match = /^(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$/u.exec(line);
+    if (!match) continue;
+
+    const title = stripHeadingMarkdown(match[2]);
+    if (!title) continue;
+
+    const baseId = slugifyHeading(title) || "section";
+    const count = seenIds.get(baseId) ?? 0;
+    seenIds.set(baseId, count + 1);
+    headings.push({
+      level: match[1].length,
+      title,
+      id: count === 0 ? baseId : `${baseId}-${count + 1}`,
+    });
+  }
+
+  return headings;
+}
+
+function validateMdxSyntax(content, sourcePath) {
+  for (const { line, number } of getUnfencedLines(content)) {
+    const visibleLine = stripInlineCode(line);
+    if (
+      /^\s*import(?:\s+(?:[A-Za-z_$*{]|["'])|\s*\()/u.test(visibleLine) ||
+      /^\s*export(?:\s+(?:default\b|const\b|let\b|var\b|function\b|class\b|async\b|type\b|interface\b|enum\b|namespace\b|[{:*=])|\s*=)/u.test(
+        visibleLine,
+      )
+    ) {
+      fail(
+        "documents_mdx_module_syntax",
+        `${sourcePath}:${number} contains forbidden import/export syntax`,
+      );
+    }
+
+    MDX_COMPONENT_PATTERN.lastIndex = 0;
+    let match;
+    while ((match = MDX_COMPONENT_PATTERN.exec(visibleLine)) !== null) {
+      if (!ALLOWED_MDX_COMPONENTS.has(match[1])) {
+        fail(
+          "documents_unknown_mdx_component",
+          `${sourcePath}:${number} uses ${match[1]}`,
+        );
+      }
+    }
+  }
+}
+
+function matchHref(match) {
+  return match.slice(1).find((value) => value !== undefined);
+}
+
+function extractContentTargets(content) {
+  const targets = [];
+
+  for (const { line, number } of getUnfencedLines(content)) {
+    const visibleLine = stripInlineCode(line);
+
+    for (const [kind, pattern] of [
+      ["image", MARKDOWN_IMAGE_PATTERN],
+      ["image", MDX_SRC_PATTERN],
+      ["link", MARKDOWN_LINK_PATTERN],
+      ["link", MDX_HREF_PATTERN],
+    ]) {
+      pattern.lastIndex = 0;
+      let match;
+      while ((match = pattern.exec(visibleLine)) !== null) {
+        const href = matchHref(match);
+        if (href) targets.push({ kind, href, line: number });
+      }
+    }
+
+    const reference = MARKDOWN_REFERENCE_DEFINITION_PATTERN.exec(visibleLine);
+    const href = reference && matchHref(reference);
+    if (href) {
+      targets.push({
+        kind: href.trim().startsWith("/img/") ? "image" : "link",
+        href,
+        line: number,
+      });
+    }
+  }
+
+  return targets;
+}
+
+function safeDecode(value, decoder) {
+  try {
+    return decoder(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeDocumentHref(href) {
+  const trimmed = href.trim();
+  if (!trimmed || trimmed.startsWith("#") || /^https?:\/\//iu.test(trimmed)) {
+    return undefined;
+  }
+
+  const hashIndex = trimmed.indexOf("#");
+  const withoutHash = hashIndex < 0 ? trimmed : trimmed.slice(0, hashIndex);
+  const rawFragment = hashIndex < 0 ? undefined : trimmed.slice(hashIndex + 1);
+  const pathname = safeDecode(withoutHash.split("?", 1)[0], decodeURI).replace(
+    /\/+$/u,
+    "",
+  );
+
+  if (pathname !== "/docs" && !pathname.startsWith("/docs/")) {
+    return undefined;
+  }
+
+  const rawTarget =
+    pathname === "/docs"
+      ? "index"
+      : pathname.slice("/docs/".length).replace(/\/index$/u, "");
+
+  return {
+    targetUrl: rawTarget || "index",
+    fragment:
+      rawFragment === undefined
+        ? undefined
+        : safeDecode(rawFragment, decodeURIComponent),
+  };
+}
+
+function normalizeImageHref(href) {
+  const trimmed = href.trim();
+  if (!trimmed.startsWith("/img/")) return undefined;
+  const pathname = trimmed.split("#", 1)[0].split("?", 1)[0];
+  return safeDecode(pathname, decodeURI);
+}
+
+const isProductionVisible = (document) =>
+  PRODUCTION_STATUSES.has(document.meta.status) && document.meta.hide !== true;
+
+function validatePublishedLocales(documents) {
+  const byUrl = new Map();
+  for (const document of documents) {
+    const variants = byUrl.get(document.canonicalUrl) ?? [];
+    variants.push(document);
+    byUrl.set(document.canonicalUrl, variants);
+  }
+
+  for (const [canonicalUrl, variants] of byUrl) {
+    if (!variants.some(isProductionVisible)) continue;
+
+    const visibleLocales = new Set(
+      variants
+        .filter(isProductionVisible)
+        .map((document) => document.contentLocale),
+    );
+    const missing = DOCUMENT_LOCALES.filter(
+      (locale) => !visibleLocales.has(locale),
+    );
+    if (missing.length > 0) {
+      fail(
+        "documents_missing_published_locale",
+        `${canonicalUrl} is missing production-visible ${missing.join(", ")}`,
+      );
+    }
+  }
+}
+
+async function validateContentTargets(documents, sourceByPath, publicRoot) {
+  const allUrls = new Set(documents.map((document) => document.canonicalUrl));
+  const documentsByUrlAndLocale = new Map(
+    documents.map((document) => [
+      `${document.canonicalUrl}\u0000${document.contentLocale}`,
+      document,
+    ]),
+  );
+  const firstDocumentByUrl = new Map();
+  for (const document of documents) {
+    if (!firstDocumentByUrl.has(document.canonicalUrl)) {
+      firstDocumentByUrl.set(document.canonicalUrl, document);
+    }
+  }
+
+  for (const document of documents) {
+    for (const target of extractContentTargets(
+      sourceByPath.get(document.sourcePath) ?? "",
+    )) {
+      if (target.kind === "link") {
+        const normalized = normalizeDocumentHref(target.href);
+        if (!normalized) continue;
+        if (!allUrls.has(normalized.targetUrl)) {
+          fail(
+            "documents_broken_link",
+            `${document.sourcePath}:${target.line} -> ${target.href}`,
+          );
+        }
+
+        if (normalized.fragment) {
+          const targetDocument =
+            documentsByUrlAndLocale.get(
+              `${normalized.targetUrl}\u0000${document.contentLocale}`,
+            ) ?? firstDocumentByUrl.get(normalized.targetUrl);
+          if (
+            !targetDocument.headings.some(
+              (heading) => heading.id === normalized.fragment,
+            )
+          ) {
+            fail(
+              "documents_broken_fragment",
+              `${document.sourcePath}:${target.line} -> ${target.href}`,
+            );
+          }
+        }
+        continue;
+      }
+
+      const imageHref = normalizeImageHref(target.href);
+      if (!imageHref) continue;
+      const absolutePublicRoot = resolve(publicRoot);
+      const imagePath = resolve(absolutePublicRoot, imageHref.slice(1));
+      const imageRelativePath = relative(absolutePublicRoot, imagePath);
+      let imageStat;
+      if (
+        imageRelativePath.startsWith(`..${sep}`) ||
+        imageRelativePath === ".."
+      ) {
+        fail(
+          "documents_missing_image",
+          `${document.sourcePath}:${target.line} -> ${target.href}`,
+        );
+      }
+      try {
+        imageStat = await stat(imagePath);
+      } catch (error) {
+        if (error && typeof error === "object" && error.code === "ENOENT") {
+          fail(
+            "documents_missing_image",
+            `${document.sourcePath}:${target.line} -> ${target.href}`,
+          );
+        }
+        throw error;
+      }
+      if (!imageStat.isFile()) {
+        fail(
+          "documents_missing_image",
+          `${document.sourcePath}:${target.line} -> ${target.href}`,
+        );
+      }
+    }
+  }
 }
 
 async function findContentFiles(directory) {
@@ -263,14 +592,26 @@ function createRegistrySource(documents) {
   ].join("\n");
 }
 
+const normalizeSearchText = (value) =>
+  value
+    .toLowerCase()
+    .replace(/ё/gu, "е")
+    .replace(/[^\p{Letter}\p{Number}\s]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+
 function createSearchIndexJson(documents) {
   const locales = Object.fromEntries(
     DOCUMENT_LOCALES.map((locale) => [
       locale,
-      {
-        pages: documents
-          .filter((document) => document.contentLocale === locale)
-          .map((document, order) => ({
+      (() => {
+        const localizedDocuments = documents.filter(
+          (document) =>
+            document.contentLocale === locale && isProductionVisible(document),
+        );
+
+        return {
+          pages: localizedDocuments.map((document, order) => ({
             type: "page",
             title: document.meta.title,
             description: document.meta.description,
@@ -278,11 +619,40 @@ function createSearchIndexJson(documents) {
             group: document.meta.group,
             parentItem: document.meta.parentItem,
             order,
-            searchText: `${document.meta.title} ${document.meta.description}`,
-            titleText: document.meta.title,
+            searchText: normalizeSearchText(
+              [
+                document.meta.title,
+                document.meta.description,
+                document.meta.group,
+                document.meta.parentItem,
+                document.canonicalUrl,
+              ].join(" "),
+            ),
+            titleText: normalizeSearchText(document.meta.title),
           })),
-        headings: [],
-      },
+          headings: localizedDocuments.flatMap((document, documentOrder) =>
+            document.headings.map((heading, headingOrder) => ({
+              type: "heading",
+              title: heading.title,
+              href: `${document.href}#${heading.id}`,
+              pageTitle: document.meta.title,
+              group: document.meta.group,
+              parentItem: document.meta.parentItem,
+              order: documentOrder * 10000 + headingOrder,
+              searchText: normalizeSearchText(
+                [
+                  heading.title,
+                  document.meta.title,
+                  document.meta.description,
+                  document.meta.group,
+                  document.meta.parentItem,
+                ].join(" "),
+              ),
+              titleText: normalizeSearchText(heading.title),
+            })),
+          ),
+        };
+      })(),
     ]),
   );
 
@@ -290,10 +660,10 @@ function createSearchIndexJson(documents) {
 }
 
 export async function compileDocumentsContent({ contentRoot, publicRoot }) {
-  void publicRoot;
   const files = await findContentFiles(contentRoot);
   const documents = [];
   const variants = new Map();
+  const sourceByPath = new Map();
 
   for (const path of files) {
     const parsedPath = parseContentPath(contentRoot, path);
@@ -307,6 +677,8 @@ export async function compileDocumentsContent({ contentRoot, publicRoot }) {
 
     const parsedFile = matter(await readFile(path, "utf8"));
     const meta = validateMetadata(parsedFile.data, parsedPath.sourcePath);
+    validateMdxSyntax(parsedFile.content, parsedPath.sourcePath);
+    sourceByPath.set(parsedPath.sourcePath, parsedFile.content);
     const document = {
       ...parsedPath,
       slug:
@@ -317,11 +689,15 @@ export async function compileDocumentsContent({ contentRoot, publicRoot }) {
         parsedPath.canonicalUrl === "index"
           ? "/docs"
           : `/docs/${parsedPath.canonicalUrl}`,
+      headings: extractHeadings(parsedFile.content),
       meta,
     };
     variants.set(key, document);
     documents.push(document);
   }
+
+  validatePublishedLocales(documents);
+  await validateContentTargets(documents, sourceByPath, publicRoot);
 
   const availableLocalesByUrl = new Map();
   for (const document of documents) {

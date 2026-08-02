@@ -1,9 +1,14 @@
 import type { NextConfig } from "next";
+import createMDX from "@next/mdx";
 import createNextIntlPlugin from "next-intl/plugin";
 
 import { resolveApiBaseUrl } from "./src/lib/api/api-base-url";
 
 const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
+const withMDX = createMDX({
+  extension: /\.(md|mdx)$/,
+  options: { remarkPlugins: ["remark-frontmatter", "remark-gfm"] },
+});
 
 function readApiProxyTarget(): string | undefined {
   if (!process.env.API_PROXY_TARGET) {
@@ -23,6 +28,7 @@ const apiProxyTarget = readApiProxyTarget();
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
+  pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
   experimental: {
     authInterrupts: true,
   },
@@ -50,4 +56,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withNextIntl(nextConfig);
+export default withNextIntl(withMDX(nextConfig));

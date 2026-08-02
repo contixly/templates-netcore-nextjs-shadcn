@@ -3,11 +3,14 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { afterEach, test } from "node:test";
-import {
+import * as contentCompiler from "./documents-content-lib.mjs";
+import "./documents-corpus.node-test.mjs";
+
+const {
   checkDocumentsArtifacts,
   compileDocumentsContent,
   writeDocumentsArtifacts,
-} from "./documents-content-lib.mjs";
+} = contentCompiler;
 
 const fixtureRoots = [];
 
@@ -35,10 +38,10 @@ const metadata = {
   editedAt: "2026-08-02",
 };
 
-function frontmatter(values) {
+function frontmatter(values, body = "") {
   return `---\n${Object.entries(values)
     .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-    .join("\n")}\n---\n\n# ${values.title}\n`;
+    .join("\n")}\n---\n\n# ${values.title}\n\n${body}`;
 }
 
 async function runFixture(name) {
@@ -61,8 +64,14 @@ async function runFixture(name) {
       group: "Главная",
       groupOrder: 20,
     }),
-    "guides/start.en.md": frontmatter({ ...metadata, title: "Start" }),
-    "guides/start.ru.md": frontmatter({ ...metadata, title: "Начало" }),
+    "guides/start.en.md": frontmatter(
+      { ...metadata, title: "Start" },
+      "## Details\n",
+    ),
+    "guides/start.ru.md": frontmatter(
+      { ...metadata, title: "Начало" },
+      "## Details\n",
+    ),
   };
 
   if (name === "unknown-field") {
@@ -88,6 +97,56 @@ async function runFixture(name) {
       ...metadata,
       editedAt: "2026-02-30",
     });
+  }
+  if (name === "broken-link") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "[Missing](/docs/missing)\n",
+    );
+  }
+  if (name === "broken-fragment") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '<DocumentLinkCard href="/docs/guides/start?from=home#missing" title="Start" />\n',
+    );
+  }
+  if (name === "missing-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '![Missing](/img/missing.png "Missing")\n',
+    );
+  }
+  if (name === "published-missing-ru") {
+    delete files["guides/start.ru.md"];
+  }
+  if (name === "unknown-component") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "<UnknownComponent />\n",
+    );
+  }
+  if (name === "content-export") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "export const unsafe = true\n",
+    );
+  }
+  if (name === "fenced-content") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "~~~mdx",
+        "## Not a heading",
+        "[Missing](/docs/missing#missing)",
+        "![Missing](/img/missing.png)",
+        "<UnknownComponent />",
+        "export const example = true",
+        "~~~~",
+        "",
+        "[Start][start]",
+        "[start]: /docs/guides/start/index/?from=fixture#details",
+      ].join("\n"),
+    );
   }
 
   await Promise.all(
@@ -142,6 +201,71 @@ test("rejects invalid editedAt dates", async () => {
   await assert.rejects(
     async () => (await runFixture("bad-date")).result,
     /documents_metadata_invalid_edited_at/,
+  );
+});
+
+test("extracts stable duplicate heading identifiers outside code fences", () => {
+  assert.deepEqual(
+    contentCompiler.extractHeadings?.(
+      "## Same\n```md\n## Hidden\n```\n## Same",
+    ),
+    [
+      { level: 2, title: "Same", id: "same" },
+      { level: 2, title: "Same", id: "same-2" },
+    ],
+  );
+});
+
+test("rejects broken internal document links", async () => {
+  await assert.rejects(
+    async () => (await runFixture("broken-link")).result,
+    /documents_broken_link/,
+  );
+});
+
+test("rejects links to missing generated heading fragments", async () => {
+  await assert.rejects(
+    async () => (await runFixture("broken-fragment")).result,
+    /documents_broken_fragment/,
+  );
+});
+
+test("rejects missing repository-local images", async () => {
+  await assert.rejects(
+    async () => (await runFixture("missing-image")).result,
+    /documents_missing_image/,
+  );
+});
+
+test("requires both locales for production-visible documents", async () => {
+  await assert.rejects(
+    async () => (await runFixture("published-missing-ru")).result,
+    /documents_missing_published_locale/,
+  );
+});
+
+test("rejects MDX components outside the closed component set", async () => {
+  await assert.rejects(
+    async () => (await runFixture("unknown-component")).result,
+    /documents_unknown_mdx_component/,
+  );
+});
+
+test("rejects executable MDX imports and exports", async () => {
+  await assert.rejects(
+    async () => (await runFixture("content-export")).result,
+    /documents_mdx_module_syntax/,
+  );
+});
+
+test("ignores headings, links, images, and MDX syntax in either fence style", async () => {
+  const { result } = await runFixture("fenced-content");
+
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(
+    result.documents.find((document) => document.sourcePath === "index.en.mdx")
+      .headings.length,
+    0,
   );
 });
 
