@@ -12,6 +12,19 @@ public sealed class DocumentSearchTextTests
     }
 
     [Fact]
+    public void Normalize_UsesFullDefaultLowercaseForDottedCapitalI()
+    {
+        Assert.Equal("i", DocumentSearchText.Normalize("İ"));
+        Assert.Equal("ai b", DocumentSearchText.Normalize("AİB"));
+    }
+
+    [Fact]
+    public void Normalize_UsesContextualFinalGreekSigma()
+    {
+        Assert.Equal("ος οσα", DocumentSearchText.Normalize("ΟΣ ΟΣΑ"));
+    }
+
+    [Fact]
     public void CreateQueryVariants_AddsTheExactOppositeKeyboardLayout()
     {
         Assert.Equal(["фзш м1", "api v1"], DocumentSearchText.CreateQueryVariants("фзш м1"));
