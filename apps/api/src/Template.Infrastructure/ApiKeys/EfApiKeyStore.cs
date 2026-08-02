@@ -79,6 +79,7 @@ internal sealed class EfApiKeyStore(
                 RateLimitMax = command.RateLimitMax,
                 WindowStartedAt = null,
                 RequestCount = 0,
+                ExpiresAt = command.ExpiresAt,
                 CreatedAt = command.CreatedAt,
                 UpdatedAt = command.CreatedAt
             };

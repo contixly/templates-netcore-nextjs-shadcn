@@ -57,7 +57,8 @@ internal sealed record OrganizationCapabilitiesResponse(
     bool CanAddMembers,
     bool CanUpdateMemberRoles,
     bool CanManageTeams,
-    bool CanManageInvitations);
+    bool CanManageInvitations,
+    bool CanManageApiKeys);
 
 internal sealed record OrganizationSummaryResponse(
     Guid Id,

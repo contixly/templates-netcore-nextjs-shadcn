@@ -892,7 +892,8 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             value.CanAddMembers,
             value.CanUpdateMemberRoles,
             value.CanManageTeams,
-            value.CanManageInvitations);
+            value.CanManageInvitations,
+            value.CanManageApiKeys);
 
     private static OrganizationMemberResponse Map(OrganizationMember value) =>
         new(

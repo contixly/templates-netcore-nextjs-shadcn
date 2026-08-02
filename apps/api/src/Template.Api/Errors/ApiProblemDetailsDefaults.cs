@@ -284,6 +284,34 @@ internal static class ApiProblemDetailsDefaults
                 requestedCode,
                 "Invitation limit reached",
                 "The pending invitation limit has been reached."),
+            ApiProblemCodes.ApiKeyNotFound => new ProblemDefinition(
+                requestedCode,
+                "API key not found",
+                "The requested API key was not found."),
+            ApiProblemCodes.ApiKeyPermissionDenied => new ProblemDefinition(
+                requestedCode,
+                "API key permission denied",
+                "You do not have permission to perform this API key operation."),
+            ApiProblemCodes.ApiKeyUpdateUnchanged => new ProblemDefinition(
+                requestedCode,
+                "API key update unchanged",
+                "The requested API key update would not change the resource."),
+            ApiProblemCodes.ApiKeyMissing => new ProblemDefinition(
+                requestedCode,
+                "API key required",
+                "An API key is required to access this resource."),
+            ApiProblemCodes.ApiKeyInvalid => new ProblemDefinition(
+                requestedCode,
+                "API key invalid",
+                "The supplied API key is invalid."),
+            ApiProblemCodes.ApiKeyRateLimited => new ProblemDefinition(
+                requestedCode,
+                "API key rate limited",
+                "The API key rate limit was exceeded."),
+            ApiProblemCodes.OrganizationAccessDenied => new ProblemDefinition(
+                requestedCode,
+                "Organization access denied",
+                "The API key cannot access the requested organization."),
             _ => null
         };
         if (custom is not null)

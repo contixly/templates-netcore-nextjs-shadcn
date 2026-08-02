@@ -8,6 +8,7 @@ using Template.Api.Errors;
 using Template.Api.Observability;
 using Template.Api.OpenApi;
 using Template.Application.Accounts;
+using Template.Application.ApiKeys;
 using Template.Application.Authentication;
 using Template.Application.Collaboration;
 using Template.Application.Organizations;
@@ -45,6 +46,8 @@ public static class ApiHost
         }
 
         builder.Services.AddValidation();
+        builder.Services.ConfigureHttpJsonOptions(options =>
+            options.SerializerOptions.AllowDuplicateProperties = false);
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddAuthInfrastructure(
             builder.Configuration,
@@ -54,6 +57,8 @@ public static class ApiHost
         builder.Services.AddScoped<ExternalIdentityService>();
         builder.Services.AddScoped<AccountService>();
         builder.Services.AddScoped<AccountSessionService>();
+        builder.Services.AddScoped<ApiKeyManagementService>();
+        builder.Services.AddScoped<ApiKeyAuthenticationService>();
         builder.Services.AddScoped<OrganizationService>();
         builder.Services.AddScoped<OrganizationMembershipService>();
         builder.Services.AddScoped<TeamService>();

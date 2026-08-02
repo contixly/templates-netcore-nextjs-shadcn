@@ -43,6 +43,7 @@ public sealed class ApiWebApplicationFactory(
         await db.UserLogins.ExecuteDeleteAsync(cancellationToken);
         await db.UserEmails.ExecuteDeleteAsync(cancellationToken);
         await db.Sessions.ExecuteDeleteAsync(cancellationToken);
+        await db.ApiKeys.ExecuteDeleteAsync(cancellationToken);
         await db.OrganizationAllowedEmailDomains.ExecuteDeleteAsync(cancellationToken);
         await db.OrganizationMembers.ExecuteDeleteAsync(cancellationToken);
         await db.Organizations.ExecuteDeleteAsync(cancellationToken);

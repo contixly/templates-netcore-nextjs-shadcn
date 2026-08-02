@@ -287,6 +287,13 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             "Member Directory Target",
             target.Email,
             "member");
+        using var memberDetail = await targetClient.GetAsync(
+            "/api/v1/organizations/by-key/directory-workspace",
+            TestContext.Current.CancellationToken);
+        Assert.False((await OrganizationEndpointTestSupport.ReadDataAsync(memberDetail))
+            .GetProperty("capabilities")
+            .GetProperty("canManageApiKeys")
+            .GetBoolean());
 
         using var list = await ownerClient.GetAsync(
             $"/api/v1/organizations/{organizationId:D}/members?limit=50",
@@ -317,8 +324,20 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             "Member Directory Target",
             target.Email,
             "admin");
+        using var adminDetail = await targetClient.GetAsync(
+            "/api/v1/organizations/by-key/directory-workspace",
+            TestContext.Current.CancellationToken);
+        Assert.True((await OrganizationEndpointTestSupport.ReadDataAsync(adminDetail))
+            .GetProperty("capabilities")
+            .GetProperty("canManageApiKeys")
+            .GetBoolean());
 
-        OrganizationEndpointTestSupport.AssertNoStore(add, list, roleUpdate);
+        OrganizationEndpointTestSupport.AssertNoStore(
+            add,
+            memberDetail,
+            list,
+            roleUpdate,
+            adminDetail);
     }
 
     [Fact]
@@ -813,6 +832,9 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             capabilities.GetProperty("canDeleteOrganization").GetBoolean());
         Assert.True(capabilities.GetProperty("canAddMembers").GetBoolean());
         Assert.True(capabilities.GetProperty("canUpdateMemberRoles").GetBoolean());
+        Assert.Equal(
+            role is "owner" or "admin",
+            capabilities.GetProperty("canManageApiKeys").GetBoolean());
         Assert.Equal(JsonValueKind.Array, data.GetProperty("allowedEmailDomains").ValueKind);
     }
 
