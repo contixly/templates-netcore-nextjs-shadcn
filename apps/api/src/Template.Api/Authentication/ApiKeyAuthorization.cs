@@ -11,6 +11,8 @@ namespace Template.Api.Authentication;
 internal sealed record ApiKeyScopeRequirement(
     IReadOnlyList<string> Scopes) : IAuthorizationRequirement;
 
+internal sealed record ApiKeyScopeMetadata(IReadOnlyList<string> Scopes);
+
 internal sealed class ApiKeyScopeAuthorizationHandler
     : AuthorizationHandler<ApiKeyScopeRequirement>
 {
@@ -68,7 +70,9 @@ internal static class ApiKeyAuthorizationExtensions
         var policy = new AuthorizationPolicyBuilder()
             .AddRequirements(new ApiKeyScopeRequirement(canonical))
             .Build();
-        return builder.RequireAuthorization(policy);
+        return builder
+            .WithMetadata(new ApiKeyScopeMetadata(canonical))
+            .RequireAuthorization(policy);
     }
 }
 

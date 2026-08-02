@@ -94,6 +94,92 @@ export type AddTeamMemberRequest = {
     userId: string;
 };
 
+export type ApiKeyMeKeyResponse = {
+    id: string;
+    /**
+     * Safe non-secret credential prefix for identification only.
+     */
+    start: string;
+    configId: 'user-keys' | 'org-keys';
+};
+
+export type ApiKeyMePrincipalResponse = {
+    /**
+     * user means a personal key; organization means an organization-owned key.
+     */
+    ownerKind: 'user' | 'organization';
+    userId: null | string;
+    organizationId: null | string;
+};
+
+export type ApiKeyMeResponse = {
+    principal: ApiKeyMePrincipalResponse;
+    key: ApiKeyMeKeyResponse;
+    scopes: Array<'basic:read' | 'organization:read' | 'member:read' | 'team:read' | 'teamMember:read'>;
+};
+
+export type ApiKeyPageResponse = {
+    items: Array<ApiKeyResponse>;
+    nextCursor: null | string;
+};
+
+export type ApiKeyResponse = {
+    id: string;
+    ownerKind: 'user' | 'organization';
+    ownerId: string;
+    name: string;
+    /**
+     * Safe non-secret credential prefix for identification only.
+     */
+    start: string;
+    status: 'active' | 'disabled' | 'expired';
+    enabled: boolean;
+    scopes: Array<'basic:read' | 'organization:read' | 'member:read' | 'team:read' | 'teamMember:read'>;
+    rateLimitEnabled: boolean;
+    rateLimitMax: number | string;
+    rateLimitWindow: '1m' | '1h' | '1d';
+    requestCount: number | string;
+    windowStartedAt: null | string;
+    lastRequestAt: null | string;
+    expiresAt: null | string;
+    rotatedAt: null | string;
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type ApiKeyRevocationResponse = {
+    id: string;
+    revokedAt: string;
+};
+
+export type ApiKeySecretResponse = {
+    id: string;
+    ownerKind: 'user' | 'organization';
+    ownerId: string;
+    name: string;
+    /**
+     * Safe non-secret credential prefix for identification only.
+     */
+    start: string;
+    status: 'active' | 'disabled' | 'expired';
+    enabled: boolean;
+    scopes: Array<'basic:read' | 'organization:read' | 'member:read' | 'team:read' | 'teamMember:read'>;
+    rateLimitEnabled: boolean;
+    rateLimitMax: number | string;
+    rateLimitWindow: '1m' | '1h' | '1d';
+    requestCount: number | string;
+    windowStartedAt: null | string;
+    lastRequestAt: null | string;
+    expiresAt: null | string;
+    rotatedAt: null | string;
+    createdAt: string;
+    updatedAt: string;
+    /**
+     * Reveal-once credential. Store it securely now; it is never returned by list, update, revoke, /me, or resource-read operations.
+     */
+    key: string;
+};
+
 export type ApiResponseOfAcceptedInvitationResponse = {
     data: AcceptedInvitationResponse;
 };
@@ -134,6 +220,26 @@ export type ApiResponseOfActiveOrganizationResponse = {
     data: ActiveOrganizationResponse;
 };
 
+export type ApiResponseOfApiKeyMeResponse = {
+    data: ApiKeyMeResponse;
+};
+
+export type ApiResponseOfApiKeyPageResponse = {
+    data: ApiKeyPageResponse;
+};
+
+export type ApiResponseOfApiKeyResponse = {
+    data: ApiKeyResponse;
+};
+
+export type ApiResponseOfApiKeyRevocationResponse = {
+    data: ApiKeyRevocationResponse;
+};
+
+export type ApiResponseOfApiKeySecretResponse = {
+    data: ApiKeySecretResponse;
+};
+
 export type ApiResponseOfAuthCapabilitiesResponse = {
     data: AuthCapabilitiesResponse;
 };
@@ -172,6 +278,10 @@ export type ApiResponseOfLocalAutomationCleanupResponse = {
 
 export type ApiResponseOfLocalAutomationScenarioResponse = {
     data: LocalAutomationScenarioResponse;
+};
+
+export type ApiResponseOfMachineOrganizationDetailResponse = {
+    data: MachineOrganizationDetailResponse;
 };
 
 export type ApiResponseOfOrganizationDeletionResponse = {
@@ -270,6 +380,27 @@ export type AuthUserResponse = {
     image: null | string;
 };
 
+export type CreateApiKeyRequest = {
+    /**
+     * Trimmed before use; the result must contain 1 to 32 Unicode scalars and no control characters.
+     */
+    name: string;
+    /**
+     * Nonempty closed preset selection expanded server-side into canonical scopes; clients never submit raw scopes.
+     */
+    presetIds: Array<'basic-read' | 'organization-read' | 'organization-members-read' | 'organization-teams-read' | 'organization-team-members-read' | 'organization-read-all'>;
+    /**
+     * Closed expiry duration applied from successful creation; never has no expiry.
+     */
+    expiresIn: 'never' | '7d' | '30d' | '90d' | '365d';
+    rateLimitEnabled: boolean;
+    rateLimitMax: number;
+    /**
+     * Closed fixed-window duration.
+     */
+    rateLimitWindow: '1m' | '1h' | '1d';
+};
+
 export type CreateInvitationRequest = {
     /**
      * Trimmed and lowercased before use; the trimmed value must be a valid ASCII-only email without control characters and contain at most 254 characters.
@@ -340,7 +471,7 @@ export type HttpValidationProblemDetails = {
     errors: {
         [key: string]: Array<string>;
     };
-    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict' | 'organization_ownership_transfer_required' | 'organization_not_found' | 'organization_permission_denied' | 'organization_name_conflict' | 'organization_slug_conflict' | 'last_organization_required' | 'organization_confirmation_mismatch' | 'member_not_found' | 'target_user_not_found' | 'member_already_exists' | 'member_role_unchanged' | 'role_assignment_forbidden' | 'member_domain_acknowledgement_required' | 'team_not_found' | 'team_permission_denied' | 'team_name_conflict' | 'team_name_unchanged' | 'team_member_not_found' | 'team_member_already_exists' | 'invitation_not_found' | 'invitation_permission_denied' | 'invitation_already_exists' | 'invitation_recipient_already_member' | 'invitation_team_invalid' | 'invitation_domain_restricted' | 'invitation_recipient_mismatch' | 'invitation_email_verification_required' | 'invitation_expired' | 'invitation_not_pending' | 'invitation_membership_conflict' | 'invitation_limit_reached';
+    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict' | 'organization_ownership_transfer_required' | 'organization_not_found' | 'organization_permission_denied' | 'organization_name_conflict' | 'organization_slug_conflict' | 'last_organization_required' | 'organization_confirmation_mismatch' | 'member_not_found' | 'target_user_not_found' | 'member_already_exists' | 'member_role_unchanged' | 'role_assignment_forbidden' | 'member_domain_acknowledgement_required' | 'team_not_found' | 'team_permission_denied' | 'team_name_conflict' | 'team_name_unchanged' | 'team_member_not_found' | 'team_member_already_exists' | 'invitation_not_found' | 'invitation_permission_denied' | 'invitation_already_exists' | 'invitation_recipient_already_member' | 'invitation_team_invalid' | 'invitation_domain_restricted' | 'invitation_recipient_mismatch' | 'invitation_email_verification_required' | 'invitation_expired' | 'invitation_not_pending' | 'invitation_membership_conflict' | 'invitation_limit_reached' | 'api_key_not_found' | 'api_key_permission_denied' | 'api_key_update_unchanged' | 'api_key_missing' | 'api_key_invalid' | 'api_key_rate_limited' | 'organization_access_denied';
     traceId: string;
     /**
      * Target email for member_domain_acknowledgement_required.
@@ -403,6 +534,21 @@ export type LocalAutomationSignInRequest = {
     password: string;
 };
 
+export type MachineOrganizationDetailResponse = {
+    id: string;
+    name: string;
+    slug: string;
+    canonicalKey: string;
+    createdAt: string;
+    updatedAt: string;
+    /**
+     * Principal used for organization access. user uses the current stored membership role and capabilities; organization uses the non-membership currentRole sentinel organization and has every browser mutation capability set to false.
+     */
+    accessPrincipal: 'user' | 'organization';
+    currentRole: 'member' | 'admin' | 'owner' | 'organization';
+    capabilities: OrganizationCapabilitiesResponse;
+};
+
 export type OrganizationCapabilitiesResponse = {
     canUpdateOrganization: boolean;
     canDeleteOrganization: boolean;
@@ -410,6 +556,7 @@ export type OrganizationCapabilitiesResponse = {
     canUpdateMemberRoles: boolean;
     canManageTeams: boolean;
     canManageInvitations: boolean;
+    canManageApiKeys: boolean;
 };
 
 export type OrganizationDeletionResponse = {
@@ -423,6 +570,7 @@ export type OrganizationDetailResponse = {
     canonicalKey: string;
     createdAt: string;
     updatedAt: string;
+    accessPrincipal: 'user';
     currentRole: 'member' | 'admin' | 'owner';
     capabilities: OrganizationCapabilitiesResponse;
     allowedEmailDomains: Array<string>;
@@ -462,7 +610,11 @@ export type OrganizationSummaryResponse = {
     canonicalKey: string;
     createdAt: string;
     updatedAt: string;
-    currentRole: 'member' | 'admin' | 'owner';
+    /**
+     * Principal used for organization access. user uses the current stored membership role and capabilities; organization uses the non-membership currentRole sentinel organization and has every browser mutation capability set to false.
+     */
+    accessPrincipal: 'user' | 'organization';
+    currentRole: 'member' | 'admin' | 'owner' | 'organization';
     capabilities: OrganizationCapabilitiesResponse;
 };
 
@@ -472,7 +624,7 @@ export type ProblemDetails = {
     status: number | string;
     detail: string;
     instance: string;
-    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict' | 'organization_ownership_transfer_required' | 'organization_not_found' | 'organization_permission_denied' | 'organization_name_conflict' | 'organization_slug_conflict' | 'last_organization_required' | 'organization_confirmation_mismatch' | 'member_not_found' | 'target_user_not_found' | 'member_already_exists' | 'member_role_unchanged' | 'role_assignment_forbidden' | 'member_domain_acknowledgement_required' | 'team_not_found' | 'team_permission_denied' | 'team_name_conflict' | 'team_name_unchanged' | 'team_member_not_found' | 'team_member_already_exists' | 'invitation_not_found' | 'invitation_permission_denied' | 'invitation_already_exists' | 'invitation_recipient_already_member' | 'invitation_team_invalid' | 'invitation_domain_restricted' | 'invitation_recipient_mismatch' | 'invitation_email_verification_required' | 'invitation_expired' | 'invitation_not_pending' | 'invitation_membership_conflict' | 'invitation_limit_reached';
+    code: 'invalid_request' | 'validation_failed' | 'unauthorized' | 'forbidden' | 'not_found' | 'method_not_allowed' | 'internal_error' | 'antiforgery_failed' | 'local_auth_invalid_credentials' | 'local_auth_user_required' | 'local_auth_disabled' | 'local_auth_user_exists' | 'rate_limited' | 'invalid_return_url' | 'external_provider_not_configured' | 'already_authenticated' | 'external_auth_failed' | 'external_email_required' | 'external_email_unverified' | 'external_identity_conflict' | 'external_email_conflict' | 'oauth_flow_context_changed' | 'invalid_cursor' | 'external_connection_required' | 'external_connection_not_found' | 'account_session_not_found' | 'current_session_cannot_be_revoked' | 'concurrency_conflict' | 'organization_ownership_transfer_required' | 'organization_not_found' | 'organization_permission_denied' | 'organization_name_conflict' | 'organization_slug_conflict' | 'last_organization_required' | 'organization_confirmation_mismatch' | 'member_not_found' | 'target_user_not_found' | 'member_already_exists' | 'member_role_unchanged' | 'role_assignment_forbidden' | 'member_domain_acknowledgement_required' | 'team_not_found' | 'team_permission_denied' | 'team_name_conflict' | 'team_name_unchanged' | 'team_member_not_found' | 'team_member_already_exists' | 'invitation_not_found' | 'invitation_permission_denied' | 'invitation_already_exists' | 'invitation_recipient_already_member' | 'invitation_team_invalid' | 'invitation_domain_restricted' | 'invitation_recipient_mismatch' | 'invitation_email_verification_required' | 'invitation_expired' | 'invitation_not_pending' | 'invitation_membership_conflict' | 'invitation_limit_reached' | 'api_key_not_found' | 'api_key_permission_denied' | 'api_key_update_unchanged' | 'api_key_missing' | 'api_key_invalid' | 'api_key_rate_limited' | 'organization_access_denied';
     traceId: string;
     /**
      * Target email for member_domain_acknowledgement_required.
@@ -559,6 +711,32 @@ export type TeamResponse = {
     members: TeamMemberPageResponse;
     createdAt: string;
     updatedAt: string;
+    /**
+     * Whether the embedded members page is included. Browser reads return true; machine reads without teamMember:read return false with an empty embedded page while memberCount remains available.
+     */
+    membersIncluded: boolean;
+};
+
+/**
+ * Every supplied member is non-null. Omitted members are preserved; an empty or semantically unchanged update returns 409 api_key_update_unchanged. Supplying expiresIn restarts that duration from the successful update time.
+ */
+export type UpdateApiKeyRequest = {
+    /**
+     * Trimmed before use; the result must contain 1 to 32 Unicode scalars and no control characters.
+     */
+    name?: string;
+    /**
+     * Nonempty closed preset selection expanded server-side into canonical scopes; clients never submit raw scopes.
+     */
+    presetIds?: Array<'basic-read' | 'organization-read' | 'organization-members-read' | 'organization-teams-read' | 'organization-team-members-read' | 'organization-read-all'>;
+    expiresIn?: 'never' | '7d' | '30d' | '90d' | '365d';
+    enabled?: boolean;
+    rateLimitEnabled?: boolean;
+    rateLimitMax?: number;
+    /**
+     * Closed fixed-window duration.
+     */
+    rateLimitWindow?: '1m' | '1h' | '1d';
 };
 
 export type UpdateOrganizationMemberRoleRequest = {
@@ -1225,9 +1403,17 @@ export type GetOrganizationsErrors = {
      */
     401: ProblemDetails;
     /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
      * Method Not Allowed
      */
     405: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
     /**
      * Internal Server Error
      */
@@ -1395,6 +1581,57 @@ export type DeleteOrganizationResponses = {
 
 export type DeleteOrganizationResponse = DeleteOrganizationResponses[keyof DeleteOrganizationResponses];
 
+export type GetMachineOrganizationData = {
+    body?: never;
+    path: {
+        organizationId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}';
+};
+
+export type GetMachineOrganizationErrors = {
+    /**
+     * Bad Request
+     */
+    400: HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetMachineOrganizationError = GetMachineOrganizationErrors[keyof GetMachineOrganizationErrors];
+
+export type GetMachineOrganizationResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfMachineOrganizationDetailResponse;
+};
+
+export type GetMachineOrganizationResponse = GetMachineOrganizationResponses[keyof GetMachineOrganizationResponses];
+
 export type UpdateOrganizationData = {
     body: UpdateOrganizationRequest;
     headers: {
@@ -1528,6 +1765,10 @@ export type GetOrganizationMembersErrors = {
      */
     401: ProblemDetails;
     /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
      * Not Found
      */
     404: ProblemDetails;
@@ -1539,6 +1780,10 @@ export type GetOrganizationMembersErrors = {
      * Conflict
      */
     409: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
     /**
      * Internal Server Error
      */
@@ -1711,6 +1956,10 @@ export type GetTeamsErrors = {
      * Conflict
      */
     409: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
     /**
      * Internal Server Error
      */
@@ -1942,6 +2191,10 @@ export type GetTeamMembersErrors = {
      * Conflict
      */
     409: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
     /**
      * Internal Server Error
      */
@@ -2488,6 +2741,536 @@ export type RejectInvitationResponses = {
 
 export type RejectInvitationResponse = RejectInvitationResponses[keyof RejectInvitationResponses];
 
+export type ListPersonalApiKeysData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Opaque, typed, versioned, checksum-protected canonical base64url cursor for (createdAt DESC, apiKeyId DESC). Return nextCursor verbatim; do not decode or synthesize it.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/account/api-keys';
+};
+
+export type ListPersonalApiKeysErrors = {
+    /**
+     * Bad Request
+     */
+    400: HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type ListPersonalApiKeysError = ListPersonalApiKeysErrors[keyof ListPersonalApiKeysErrors];
+
+export type ListPersonalApiKeysResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeyPageResponse;
+};
+
+export type ListPersonalApiKeysResponse = ListPersonalApiKeysResponses[keyof ListPersonalApiKeysResponses];
+
+export type CreatePersonalApiKeyData = {
+    body: CreateApiKeyRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/api-keys';
+};
+
+export type CreatePersonalApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type CreatePersonalApiKeyError = CreatePersonalApiKeyErrors[keyof CreatePersonalApiKeyErrors];
+
+export type CreatePersonalApiKeyResponses = {
+    /**
+     * Created
+     */
+    201: ApiResponseOfApiKeySecretResponse;
+};
+
+export type CreatePersonalApiKeyResponse = CreatePersonalApiKeyResponses[keyof CreatePersonalApiKeyResponses];
+
+export type RevokePersonalApiKeyData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        apiKeyId: string;
+    };
+    query?: never;
+    url: '/api/v1/account/api-keys/{apiKeyId}';
+};
+
+export type RevokePersonalApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type RevokePersonalApiKeyError = RevokePersonalApiKeyErrors[keyof RevokePersonalApiKeyErrors];
+
+export type RevokePersonalApiKeyResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeyRevocationResponse;
+};
+
+export type RevokePersonalApiKeyResponse = RevokePersonalApiKeyResponses[keyof RevokePersonalApiKeyResponses];
+
+export type UpdatePersonalApiKeyData = {
+    body: UpdateApiKeyRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        apiKeyId: string;
+    };
+    query?: never;
+    url: '/api/v1/account/api-keys/{apiKeyId}';
+};
+
+export type UpdatePersonalApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type UpdatePersonalApiKeyError = UpdatePersonalApiKeyErrors[keyof UpdatePersonalApiKeyErrors];
+
+export type UpdatePersonalApiKeyResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeyResponse;
+};
+
+export type UpdatePersonalApiKeyResponse = UpdatePersonalApiKeyResponses[keyof UpdatePersonalApiKeyResponses];
+
+export type RotatePersonalApiKeyData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        apiKeyId: string;
+    };
+    query?: never;
+    url: '/api/v1/account/api-keys/{apiKeyId}/rotate';
+};
+
+export type RotatePersonalApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type RotatePersonalApiKeyError = RotatePersonalApiKeyErrors[keyof RotatePersonalApiKeyErrors];
+
+export type RotatePersonalApiKeyResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeySecretResponse;
+};
+
+export type RotatePersonalApiKeyResponse = RotatePersonalApiKeyResponses[keyof RotatePersonalApiKeyResponses];
+
+export type ListOrganizationApiKeysData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Opaque, typed, versioned, checksum-protected canonical base64url cursor for (createdAt DESC, apiKeyId DESC). Return nextCursor verbatim; do not decode or synthesize it.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/v1/organizations/{organizationId}/api-keys';
+};
+
+export type ListOrganizationApiKeysErrors = {
+    /**
+     * Bad Request
+     */
+    400: HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type ListOrganizationApiKeysError = ListOrganizationApiKeysErrors[keyof ListOrganizationApiKeysErrors];
+
+export type ListOrganizationApiKeysResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeyPageResponse;
+};
+
+export type ListOrganizationApiKeysResponse = ListOrganizationApiKeysResponses[keyof ListOrganizationApiKeysResponses];
+
+export type CreateOrganizationApiKeyData = {
+    body: CreateApiKeyRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}/api-keys';
+};
+
+export type CreateOrganizationApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type CreateOrganizationApiKeyError = CreateOrganizationApiKeyErrors[keyof CreateOrganizationApiKeyErrors];
+
+export type CreateOrganizationApiKeyResponses = {
+    /**
+     * Created
+     */
+    201: ApiResponseOfApiKeySecretResponse;
+};
+
+export type CreateOrganizationApiKeyResponse = CreateOrganizationApiKeyResponses[keyof CreateOrganizationApiKeyResponses];
+
+export type RevokeOrganizationApiKeyData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        apiKeyId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}';
+};
+
+export type RevokeOrganizationApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeOrganizationApiKeyError = RevokeOrganizationApiKeyErrors[keyof RevokeOrganizationApiKeyErrors];
+
+export type RevokeOrganizationApiKeyResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeyRevocationResponse;
+};
+
+export type RevokeOrganizationApiKeyResponse = RevokeOrganizationApiKeyResponses[keyof RevokeOrganizationApiKeyResponses];
+
+export type UpdateOrganizationApiKeyData = {
+    body: UpdateApiKeyRequest;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        apiKeyId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}';
+};
+
+export type UpdateOrganizationApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateOrganizationApiKeyError = UpdateOrganizationApiKeyErrors[keyof UpdateOrganizationApiKeyErrors];
+
+export type UpdateOrganizationApiKeyResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeyResponse;
+};
+
+export type UpdateOrganizationApiKeyResponse = UpdateOrganizationApiKeyResponses[keyof UpdateOrganizationApiKeyResponses];
+
+export type RotateOrganizationApiKeyData = {
+    body?: never;
+    headers: {
+        /**
+         * Request token returned by GET /api/v1/auth/csrf.
+         */
+        'X-CSRF-TOKEN': string;
+    };
+    path: {
+        apiKeyId: string;
+    };
+    query?: never;
+    url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}/rotate';
+};
+
+export type RotateOrganizationApiKeyErrors = {
+    /**
+     * Bad Request
+     */
+    400: ProblemDetails | HttpValidationProblemDetails;
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Not Found
+     */
+    404: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Conflict
+     */
+    409: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type RotateOrganizationApiKeyError = RotateOrganizationApiKeyErrors[keyof RotateOrganizationApiKeyErrors];
+
+export type RotateOrganizationApiKeyResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeySecretResponse;
+};
+
+export type RotateOrganizationApiKeyResponse = RotateOrganizationApiKeyResponses[keyof RotateOrganizationApiKeyResponses];
+
 export type GetSystemStatusData = {
     body?: never;
     path?: never;
@@ -2567,6 +3350,47 @@ export type GetAuthenticatedStatusResponses = {
 };
 
 export type GetAuthenticatedStatusResponse = GetAuthenticatedStatusResponses[keyof GetAuthenticatedStatusResponses];
+
+export type GetApiKeyPrincipalData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me';
+};
+
+export type GetApiKeyPrincipalErrors = {
+    /**
+     * Unauthorized
+     */
+    401: ProblemDetails;
+    /**
+     * Forbidden
+     */
+    403: ProblemDetails;
+    /**
+     * Method Not Allowed
+     */
+    405: ProblemDetails;
+    /**
+     * Too Many Requests
+     */
+    429: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type GetApiKeyPrincipalError = GetApiKeyPrincipalErrors[keyof GetApiKeyPrincipalErrors];
+
+export type GetApiKeyPrincipalResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfApiKeyMeResponse;
+};
+
+export type GetApiKeyPrincipalResponse = GetApiKeyPrincipalResponses[keyof GetApiKeyPrincipalResponses];
 
 export type DeleteLocalAutomationScenarioData = {
     body?: never;
