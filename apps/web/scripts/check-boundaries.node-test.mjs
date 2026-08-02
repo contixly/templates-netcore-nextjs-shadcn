@@ -88,3 +88,11 @@ test("rejects handwritten collaboration transport DTOs", async () => {
     /handwritten OpenAPI DTO/,
   );
 });
+
+test("rejects handwritten document search transport DTOs", async () => {
+  await expectViolation(
+    "src/__boundary_guard_test__/documents-dto.ts",
+    "export interface DocumentSearchResponse { pages: unknown[] }",
+    /handwritten OpenAPI DTO/,
+  );
+});
