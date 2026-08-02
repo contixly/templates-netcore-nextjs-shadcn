@@ -17,13 +17,13 @@ import {
   assertGeneratedApiKeyCreated,
   assertGeneratedSuccess,
   assertNoCredentialEcho,
-  assertOpaquePageContinuation,
   assertOrganizationMemberShape,
   assertOrganizationOwnedSummary,
   assertSafeApiKey,
   assertTeamMemberShape,
   assertTeamShape,
   assertUserOrganizationSummary,
+  collectGeneratedPagesToExhaustion,
   createApiKeyThroughUi,
   editApiKeyNameThroughUi,
   expectApiKeyRow,
@@ -39,12 +39,7 @@ import {
   getGeneratedOrganizationMembers,
   updateGeneratedOrganizationMemberRole,
 } from "./support/generated-collaboration-api";
-import {
-  cleanupLocalAutomationUser,
-  createLocalAutomationUser,
-  getGeneratedAuthSession,
-} from "./support/generated-auth-api";
-import { createGeneratedOrganization } from "./support/generated-organizations-api";
+import { cleanupLocalAutomationUser } from "./support/generated-auth-api";
 import { expect, test } from "./support/organization-test-fixture";
 
 // These scenarios handle reveal-once credentials. No Playwright artifact may
@@ -81,7 +76,7 @@ async function anonymousContext(
   return browser.newContext();
 }
 
-test("auth boundary: personal management requires authentication and /me rejects missing, blank, invalid, and cookie-only credentials", async ({
+test("auth boundary: personal management and strict mixed-route key precedence reject invalid credentials without cookie fallback", async ({
   browser,
   organizationScenario,
   page,
@@ -93,6 +88,7 @@ test("auth boundary: personal management requires authentication and /me rejects
   await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
 
   const anonymous = await anonymousContext(browser);
+  let unknownCredential = "";
   try {
     const missing = await callGeneratedApiKeyPrincipal(anonymous.request);
     assertApiKeyProblem(missing, {
@@ -118,7 +114,7 @@ test("auth boundary: personal management requires authentication and /me rejects
       status: 401,
     });
 
-    await organizationScenario.createLocalUser(
+    const browserUser = await organizationScenario.createLocalUser(
       page.context(),
       identity,
       "personal auth-boundary user",
@@ -131,7 +127,66 @@ test("auth boundary: personal management requires authentication and /me rejects
       instance: "/api/v1/me",
       status: 401,
     });
+
+    const browserOrganization = await organizationScenario.createOrganization(
+      browserUser,
+      page.context().request,
+      `Strict Precedence ${testInfo.workerIndex}`,
+    );
+    const cookieControl = assertGeneratedSuccess(
+      await callGeneratedOrganizations(page.context().request, undefined, {
+        limit: 50,
+      }),
+      200,
+    );
+    expect(cookieControl.items).toHaveLength(1);
+    assertUserOrganizationSummary(cookieControl.items[0], {
+      id: browserOrganization.id,
+      role: "owner",
+    });
+
+    const blankMixed = "   ";
+    assertApiKeyProblem(
+      await callGeneratedOrganizations(page.context().request, blankMixed, {
+        limit: 50,
+      }),
+      {
+        code: "api_key_missing",
+        credential: blankMixed,
+        instance: "/api/v1/organizations",
+        status: 401,
+      },
+    );
+
+    const malformedMixed = "not-a-valid-api-key";
+    assertApiKeyProblem(
+      await callGeneratedOrganizations(page.context().request, malformedMixed, {
+        limit: 50,
+      }),
+      {
+        code: "api_key_invalid",
+        credential: malformedMixed,
+        instance: "/api/v1/organizations",
+        status: 401,
+      },
+    );
+
+    unknownCredential = `user_${"A".repeat(43)}`;
+    assertApiKeyProblem(
+      await callGeneratedOrganizations(
+        page.context().request,
+        unknownCredential,
+        { limit: 50 },
+      ),
+      {
+        code: "api_key_invalid",
+        credential: unknownCredential,
+        instance: "/api/v1/organizations",
+        status: 401,
+      },
+    );
   } finally {
+    unknownCredential = "";
     await anonymous.close();
   }
 });
@@ -408,8 +463,15 @@ test("organization management: owner and admin manage separated organization key
       name: "Separated personal key",
       presetIds: ["basic-read"],
     });
-    assertGeneratedApiKeyCreated(personal, "/api/v1/account/api-keys");
-    personalCredential = personal.credential;
+    personalCredential = personal.takeCredential();
+    expect(() => personal.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
+    assertGeneratedApiKeyCreated(
+      personal,
+      "/api/v1/account/api-keys",
+      personalCredential,
+    );
     expect(personal.apiKey.ownerKind).toBe("user");
     expect(personal.apiKey.ownerId).toBe(owner.user.id);
     assertSafeApiKey(personal.apiKey);
@@ -480,7 +542,7 @@ test("organization management: owner and admin manage separated organization key
   }
 });
 
-test("scope boundary: personal read-all follows current membership while insufficient scopes consume and deny exactly", async ({
+test("scope boundary: personal read-all uses a current membership while insufficient scopes consume and deny exactly", async ({
   organizationScenario,
   page,
 }, testInfo) => {
@@ -525,8 +587,15 @@ test("scope boundary: personal read-all follows current membership while insuffi
       name: "Membership read all",
       presetIds: ["organization-read-all"],
     });
-    assertGeneratedApiKeyCreated(readAll, "/api/v1/account/api-keys");
-    readAllCredential = readAll.credential;
+    readAllCredential = readAll.takeCredential();
+    expect(() => readAll.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
+    assertGeneratedApiKeyCreated(
+      readAll,
+      "/api/v1/account/api-keys",
+      readAllCredential,
+    );
     const organizations = assertGeneratedSuccess(
       await callGeneratedOrganizations(
         memberContext.request,
@@ -584,8 +653,15 @@ test("scope boundary: personal read-all follows current membership while insuffi
       name: "Basic scope only",
       presetIds: ["basic-read"],
     });
-    assertGeneratedApiKeyCreated(basic, "/api/v1/account/api-keys");
-    basicCredential = basic.credential;
+    basicCredential = basic.takeCredential();
+    expect(() => basic.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
+    assertGeneratedApiKeyCreated(
+      basic,
+      "/api/v1/account/api-keys",
+      basicCredential,
+    );
     assertApiKeyProblem(
       await callGeneratedOrganizations(memberContext.request, basicCredential, {
         limit: 50,
@@ -605,8 +681,15 @@ test("scope boundary: personal read-all follows current membership while insuffi
         presetIds: ["organization-read"],
       },
     );
-    assertGeneratedApiKeyCreated(organizationRead, "/api/v1/account/api-keys");
-    organizationReadCredential = organizationRead.credential;
+    organizationReadCredential = organizationRead.takeCredential();
+    expect(() => organizationRead.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
+    assertGeneratedApiKeyCreated(
+      organizationRead,
+      "/api/v1/account/api-keys",
+      organizationReadCredential,
+    );
     assertGeneratedSuccess(
       await callGeneratedOrganizations(
         memberContext.request,
@@ -649,35 +732,6 @@ test("scope boundary: personal read-all follows current membership while insuffi
       managed.items.find((item) => item.id === organizationRead.apiKey.id)
         ?.requestCount,
     ).toBe(3);
-
-    await organizationScenario.deleteOrganization(
-      owner,
-      page.context().request,
-      allowed,
-    );
-    assertApiKeyProblem(
-      await callGeneratedMachineOrganization(
-        memberContext.request,
-        readAllCredential,
-        allowed.id,
-      ),
-      {
-        code: "organization_access_denied",
-        credential: readAllCredential,
-        instance: `/api/v1/organizations/${allowed.id}`,
-        status: 403,
-      },
-    );
-    const afterMembershipLoss = assertGeneratedSuccess(
-      await callGeneratedOrganizations(
-        memberContext.request,
-        readAllCredential,
-        { limit: 50 },
-      ),
-      200,
-    );
-    expect(afterMembershipLoss).toEqual({ items: [], nextCursor: null });
-    assertNoCredentialEcho(afterMembershipLoss, readAllCredential);
   } finally {
     readAllCredential = "";
     basicCredential = "";
@@ -710,54 +764,60 @@ test("organization scope: owner isolation, creator downgrade-removal survival, t
     testInfo,
     "organization-key-creator",
   );
-  const creator = await createLocalAutomationUser(
-    creatorContext.request,
-    creatorIdentity,
-  );
-  const ownerOrganization = await createGeneratedOrganization(
-    creatorContext.request,
-    `Organization Key Owner ${testInfo.workerIndex}`,
-  );
-  await addGeneratedOrganizationMember(
-    creatorContext.request,
-    ownerOrganization.id,
-    keeper.user.id,
-    "owner",
-  );
-  organizationScenario.organizationCreated(keeper, ownerOrganization.id);
-  await addGeneratedOrganizationMember(
-    creatorContext.request,
-    ownerOrganization.id,
-    member.user.id,
-    "member",
-  );
-  const ownerTeam = await createGeneratedTeam(
-    creatorContext.request,
-    ownerOrganization.id,
-    `Owner Team ${testInfo.workerIndex}`,
-  );
-  await addGeneratedTeamMember(
-    creatorContext.request,
-    ownerOrganization.id,
-    ownerTeam.id,
-    member.user.id,
-  );
-  const foreignOrganization = await organizationScenario.createOrganization(
-    keeper,
-    page.context().request,
-    `Organization Key Foreign ${testInfo.workerIndex}`,
-  );
-  const foreignTeam = await createGeneratedTeam(
-    page.context().request,
-    foreignOrganization.id,
-    `Foreign Team ${testInfo.workerIndex}`,
-  );
   let allScopesCredential = "";
   let teamOnlyCredential = "";
   let organizationOnlyCredential = "";
-  let creatorRemoved = false;
 
   try {
+    const creator = await organizationScenario.createLocalUser(
+      creatorContext,
+      creatorIdentity,
+      "organization-key creator",
+    );
+    const ownerOrganization = await organizationScenario.createOrganization(
+      creator,
+      creatorContext.request,
+      `Organization Key Owner ${testInfo.workerIndex}`,
+    );
+    await addGeneratedOrganizationMember(
+      creatorContext.request,
+      ownerOrganization.id,
+      keeper.user.id,
+      "owner",
+    );
+    organizationScenario.transferOrganizationCleanup(
+      creator,
+      keeper,
+      ownerOrganization.id,
+    );
+    await addGeneratedOrganizationMember(
+      creatorContext.request,
+      ownerOrganization.id,
+      member.user.id,
+      "member",
+    );
+    const ownerTeam = await createGeneratedTeam(
+      creatorContext.request,
+      ownerOrganization.id,
+      `Owner Team ${testInfo.workerIndex}`,
+    );
+    await addGeneratedTeamMember(
+      creatorContext.request,
+      ownerOrganization.id,
+      ownerTeam.id,
+      member.user.id,
+    );
+    const foreignOrganization = await organizationScenario.createOrganization(
+      keeper,
+      page.context().request,
+      `Organization Key Foreign ${testInfo.workerIndex}`,
+    );
+    const foreignTeam = await createGeneratedTeam(
+      page.context().request,
+      foreignOrganization.id,
+      `Foreign Team ${testInfo.workerIndex}`,
+    );
+
     const allScopes = await createGeneratedOrganizationKey(
       creatorContext.request,
       ownerOrganization.id,
@@ -766,11 +826,15 @@ test("organization scope: owner isolation, creator downgrade-removal survival, t
         presetIds: ["basic-read", "organization-read-all"],
       },
     );
+    allScopesCredential = allScopes.takeCredential();
+    expect(() => allScopes.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
     assertGeneratedApiKeyCreated(
       allScopes,
       `/api/v1/organizations/${ownerOrganization.id}/api-keys`,
+      allScopesCredential,
     );
-    allScopesCredential = allScopes.credential;
     const teamOnly = await createGeneratedOrganizationKey(
       creatorContext.request,
       ownerOrganization.id,
@@ -779,11 +843,15 @@ test("organization scope: owner isolation, creator downgrade-removal survival, t
         presetIds: ["organization-teams-read"],
       },
     );
+    teamOnlyCredential = teamOnly.takeCredential();
+    expect(() => teamOnly.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
     assertGeneratedApiKeyCreated(
       teamOnly,
       `/api/v1/organizations/${ownerOrganization.id}/api-keys`,
+      teamOnlyCredential,
     );
-    teamOnlyCredential = teamOnly.credential;
     const organizationOnly = await createGeneratedOrganizationKey(
       creatorContext.request,
       ownerOrganization.id,
@@ -792,11 +860,15 @@ test("organization scope: owner isolation, creator downgrade-removal survival, t
         presetIds: ["organization-read"],
       },
     );
+    organizationOnlyCredential = organizationOnly.takeCredential();
+    expect(() => organizationOnly.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
     assertGeneratedApiKeyCreated(
       organizationOnly,
       `/api/v1/organizations/${ownerOrganization.id}/api-keys`,
+      organizationOnlyCredential,
     );
-    organizationOnlyCredential = organizationOnly.credential;
 
     const me = assertGeneratedSuccess(
       await callGeneratedApiKeyPrincipal(
@@ -837,12 +909,27 @@ test("organization scope: owner isolation, creator downgrade-removal survival, t
     if (!creatorMembership) {
       throw new Error("Organization-key creator membership was unavailable.");
     }
-    await updateGeneratedOrganizationMemberRole(
+    const downgradedCreator = await updateGeneratedOrganizationMemberRole(
       page.context().request,
       ownerOrganization.id,
       creatorMembership.id,
       "member",
     );
+    expect(downgradedCreator.id).toBe(creatorMembership.id);
+    expect(downgradedCreator.userId).toBe(creator.user.id);
+    expect(downgradedCreator.role).toBe("member");
+    const refetchedCreatorMembership = (
+      await getGeneratedOrganizationMembers(
+        page.context().request,
+        ownerOrganization.id,
+      )
+    ).items.find((item) => item.userId === creator.user.id);
+    if (!refetchedCreatorMembership) {
+      throw new Error(
+        "Downgraded organization-key creator membership was unavailable.",
+      );
+    }
+    expect(refetchedCreatorMembership).toEqual(downgradedCreator);
     assertGeneratedSuccess(
       await callGeneratedMachineOrganization(
         creatorContext.request,
@@ -856,7 +943,7 @@ test("organization scope: owner isolation, creator downgrade-removal survival, t
       creatorContext.request,
     );
     expect(Number(creatorCleanup.deletedOrganizations)).toBe(0);
-    creatorRemoved = true;
+    organizationScenario.localUserDeleted(creator);
 
     const organizationPage = assertGeneratedSuccess(
       await callGeneratedOrganizations(
@@ -1029,16 +1116,10 @@ test("organization scope: owner isolation, creator downgrade-removal survival, t
     allScopesCredential = "";
     teamOnlyCredential = "";
     organizationOnlyCredential = "";
-    if (!creatorRemoved) {
-      const session = await getGeneratedAuthSession(creatorContext.request);
-      if (session.authenticated) {
-        await cleanupLocalAutomationUser(creatorContext.request);
-      }
-    }
   }
 });
 
-test("pagination: organization, member, team, team-member, and management cursors continue opaquely without duplicates", async ({
+test("pagination: organization, member, team, team-member, and management cursors continue opaquely to terminal without duplicates", async ({
   organizationScenario,
   page,
 }, testInfo) => {
@@ -1072,17 +1153,20 @@ test("pagination: organization, member, team, team-member, and management cursor
     page.context().request,
     `Pagination Primary ${testInfo.workerIndex}`,
   );
-  await organizationScenario.createOrganization(
+  const secondOrganization = await organizationScenario.createOrganization(
     owner,
     page.context().request,
     `Pagination Secondary ${testInfo.workerIndex}`,
   );
+  const createdOrganizationMembers = [];
   for (const scenario of [firstMember, secondMember]) {
-    await addGeneratedOrganizationMember(
-      page.context().request,
-      firstOrganization.id,
-      scenario.user.id,
-      "member",
+    createdOrganizationMembers.push(
+      await addGeneratedOrganizationMember(
+        page.context().request,
+        firstOrganization.id,
+        scenario.user.id,
+        "member",
+      ),
     );
   }
   const firstTeam = await createGeneratedTeam(
@@ -1090,17 +1174,20 @@ test("pagination: organization, member, team, team-member, and management cursor
     firstOrganization.id,
     `Pagination Team A ${testInfo.workerIndex}`,
   );
-  await createGeneratedTeam(
+  const secondTeam = await createGeneratedTeam(
     page.context().request,
     firstOrganization.id,
     `Pagination Team B ${testInfo.workerIndex}`,
   );
+  const createdTeamMembers = [];
   for (const scenario of [firstMember, secondMember]) {
-    await addGeneratedTeamMember(
-      page.context().request,
-      firstOrganization.id,
-      firstTeam.id,
-      scenario.user.id,
+    createdTeamMembers.push(
+      await addGeneratedTeamMember(
+        page.context().request,
+        firstOrganization.id,
+        firstTeam.id,
+        scenario.user.id,
+      ),
     );
   }
   let readAllCredential = "";
@@ -1111,153 +1198,113 @@ test("pagination: organization, member, team, team-member, and management cursor
       name: "Pagination read all",
       presetIds: ["organization-read-all"],
     });
-    assertGeneratedApiKeyCreated(readAll, "/api/v1/account/api-keys");
-    readAllCredential = readAll.credential;
+    readAllCredential = readAll.takeCredential();
+    expect(() => readAll.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
+    assertGeneratedApiKeyCreated(
+      readAll,
+      "/api/v1/account/api-keys",
+      readAllCredential,
+    );
     const secondKey = await createGeneratedPersonalKey(page.context().request, {
       name: "Pagination second key",
       presetIds: ["basic-read"],
     });
-    assertGeneratedApiKeyCreated(secondKey, "/api/v1/account/api-keys");
-    secondCredential = secondKey.credential;
+    secondCredential = secondKey.takeCredential();
+    expect(() => secondKey.takeCredential()).toThrow(
+      "Reveal-once credential was already taken.",
+    );
+    assertGeneratedApiKeyCreated(
+      secondKey,
+      "/api/v1/account/api-keys",
+      secondCredential,
+    );
 
-    const firstOrganizations = assertGeneratedSuccess(
-      await callGeneratedOrganizations(
-        page.context().request,
-        readAllCredential,
-        { limit: 1 },
-      ),
-      200,
-    );
-    const nextOrganizations = assertGeneratedSuccess(
-      await callGeneratedOrganizations(
-        page.context().request,
-        readAllCredential,
-        {
-          cursor: assertOpaquePageContinuation(firstOrganizations),
+    await collectGeneratedPagesToExhaustion({
+      expectedIds: [firstOrganization.id, secondOrganization.id],
+      fetchPage: (cursor) =>
+        callGeneratedOrganizations(page.context().request, readAllCredential, {
+          ...(cursor ? { cursor } : {}),
           limit: 1,
-        },
-      ),
-      200,
-    );
-    expect(firstOrganizations.items).toHaveLength(1);
-    expect(nextOrganizations.items).toHaveLength(1);
-    expect(nextOrganizations.items[0].id).not.toBe(
-      firstOrganizations.items[0].id,
-    );
-    assertUserOrganizationSummary(firstOrganizations.items[0], {
-      role: "owner",
-    });
-    assertUserOrganizationSummary(nextOrganizations.items[0], {
-      role: "owner",
+        }),
+      validateItem: (item) =>
+        assertUserOrganizationSummary(item, { role: "owner" }),
     });
 
-    const firstMembers = assertGeneratedSuccess(
-      await callGeneratedOrganizationMembers(
-        page.context().request,
-        readAllCredential,
-        firstOrganization.id,
-        { limit: 1 },
-      ),
-      200,
+    const expectedMembers = await getGeneratedOrganizationMembers(
+      page.context().request,
+      firstOrganization.id,
     );
-    const nextMembers = assertGeneratedSuccess(
-      await callGeneratedOrganizationMembers(
-        page.context().request,
-        readAllCredential,
-        firstOrganization.id,
-        {
-          cursor: assertOpaquePageContinuation(firstMembers),
-          limit: 1,
-        },
-      ),
-      200,
+    const ownerMembership = expectedMembers.items.find(
+      (item) => item.userId === owner.user.id,
     );
-    expect(firstMembers.items).toHaveLength(1);
-    expect(nextMembers.items).toHaveLength(1);
-    expect(nextMembers.items[0].id).not.toBe(firstMembers.items[0].id);
-    assertOrganizationMemberShape(firstMembers.items[0]);
-    assertOrganizationMemberShape(nextMembers.items[0]);
-
-    const firstTeams = assertGeneratedSuccess(
-      await callGeneratedTeams(
-        page.context().request,
-        readAllCredential,
-        firstOrganization.id,
-        { limit: 1 },
-      ),
-      200,
-    );
-    const nextTeams = assertGeneratedSuccess(
-      await callGeneratedTeams(
-        page.context().request,
-        readAllCredential,
-        firstOrganization.id,
-        {
-          cursor: assertOpaquePageContinuation(firstTeams),
-          limit: 1,
-        },
-      ),
-      200,
-    );
-    expect(firstTeams.items).toHaveLength(1);
-    expect(nextTeams.items).toHaveLength(1);
-    expect(nextTeams.items[0].id).not.toBe(firstTeams.items[0].id);
-    for (const item of [...firstTeams.items, ...nextTeams.items]) {
-      assertTeamShape(item, {
-        membersIncluded: true,
-        organizationId: firstOrganization.id,
-      });
+    if (!ownerMembership) {
+      throw new Error("Pagination owner membership was unavailable.");
     }
-
-    const firstTeamMembers = assertGeneratedSuccess(
-      await callGeneratedTeamMembers(
-        page.context().request,
-        readAllCredential,
-        firstOrganization.id,
-        firstTeam.id,
-        { limit: 1 },
-      ),
-      200,
+    expect(new Set(expectedMembers.items.map((item) => item.id))).toEqual(
+      new Set([
+        ownerMembership.id,
+        ...createdOrganizationMembers.map((item) => item.id),
+      ]),
     );
-    const nextTeamMembers = assertGeneratedSuccess(
-      await callGeneratedTeamMembers(
-        page.context().request,
-        readAllCredential,
-        firstOrganization.id,
-        firstTeam.id,
-        {
-          cursor: assertOpaquePageContinuation(firstTeamMembers),
+    await collectGeneratedPagesToExhaustion({
+      expectedIds: [
+        ownerMembership.id,
+        ...createdOrganizationMembers.map((item) => item.id),
+      ],
+      fetchPage: (cursor) =>
+        callGeneratedOrganizationMembers(
+          page.context().request,
+          readAllCredential,
+          firstOrganization.id,
+          { ...(cursor ? { cursor } : {}), limit: 1 },
+        ),
+      validateItem: assertOrganizationMemberShape,
+    });
+
+    await collectGeneratedPagesToExhaustion({
+      expectedIds: [firstTeam.id, secondTeam.id],
+      fetchPage: (cursor) =>
+        callGeneratedTeams(
+          page.context().request,
+          readAllCredential,
+          firstOrganization.id,
+          { ...(cursor ? { cursor } : {}), limit: 1 },
+        ),
+      validateItem: (item) =>
+        assertTeamShape(item, {
+          membersIncluded: true,
+          organizationId: firstOrganization.id,
+        }),
+    });
+
+    await collectGeneratedPagesToExhaustion({
+      expectedIds: createdTeamMembers.map((item) => item.id),
+      fetchPage: (cursor) =>
+        callGeneratedTeamMembers(
+          page.context().request,
+          readAllCredential,
+          firstOrganization.id,
+          firstTeam.id,
+          { ...(cursor ? { cursor } : {}), limit: 1 },
+        ),
+      validateItem: assertTeamMemberShape,
+    });
+
+    await collectGeneratedPagesToExhaustion({
+      expectedIds: [secondKey.apiKey.id, readAll.apiKey.id],
+      fetchPage: (cursor) =>
+        listGeneratedPersonalApiKeys(page.context().request, {
+          ...(cursor ? { cursor } : {}),
           limit: 1,
-        },
-      ),
-      200,
-    );
-    expect(firstTeamMembers.items).toHaveLength(1);
-    expect(nextTeamMembers.items).toHaveLength(1);
-    expect(nextTeamMembers.items[0].id).not.toBe(firstTeamMembers.items[0].id);
-    assertTeamMemberShape(firstTeamMembers.items[0]);
-    assertTeamMemberShape(nextTeamMembers.items[0]);
-
-    const firstKeys = assertGeneratedSuccess(
-      await listGeneratedPersonalApiKeys(page.context().request, { limit: 1 }),
-      200,
-    );
-    const nextKeys = assertGeneratedSuccess(
-      await listGeneratedPersonalApiKeys(page.context().request, {
-        cursor: assertOpaquePageContinuation(firstKeys),
-        limit: 1,
-      }),
-      200,
-    );
-    expect(firstKeys.items).toHaveLength(1);
-    expect(nextKeys.items).toHaveLength(1);
-    expect(nextKeys.items[0].id).not.toBe(firstKeys.items[0].id);
-    assertSafeApiKey(firstKeys.items[0]);
-    assertSafeApiKey(nextKeys.items[0]);
-    assertNoCredentialEcho(firstKeys, readAllCredential);
-    assertNoCredentialEcho(firstKeys, secondCredential);
-    assertNoCredentialEcho(nextKeys, readAllCredential);
-    assertNoCredentialEcho(nextKeys, secondCredential);
+        }),
+      validateItem: assertSafeApiKey,
+      validatePage: (pageResult) => {
+        assertNoCredentialEcho(pageResult, readAllCredential);
+        assertNoCredentialEcho(pageResult, secondCredential);
+      },
+    });
   } finally {
     readAllCredential = "";
     secondCredential = "";

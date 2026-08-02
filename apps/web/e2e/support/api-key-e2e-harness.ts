@@ -179,12 +179,18 @@ export function assertSafeApiKey(apiKey: ApiKeyResponse) {
 export function assertGeneratedApiKeyCreated(
   created: GeneratedCreatedApiKey,
   collectionPath: string,
+  credential: string,
 ) {
+  assertNoCredentialEcho(created.apiKey, credential);
+  expect(Object.keys(created).sort()).toEqual([
+    "apiKey",
+    "response",
+    "takeCredential",
+  ]);
   const apiKey = assertGeneratedSuccess(created.response, 201);
   expect(apiKey.id).toBe(created.apiKey.id);
   expect(created.response.location).toBe(`${collectionPath}/${apiKey.id}`);
   assertSafeApiKey(apiKey);
-  assertNoCredentialEcho(apiKey, created.credential);
 }
 
 const capabilityKeys = [
@@ -342,6 +348,66 @@ export function assertOpaquePageContinuation(
   return page.nextCursor;
 }
 
+type GeneratedPage<T extends Readonly<{ id: string }>> = Readonly<{
+  items: Array<T>;
+  nextCursor: null | string;
+}>;
+
+export async function collectGeneratedPagesToExhaustion<
+  T extends Readonly<{ id: string }>,
+>(
+  options: Readonly<{
+    expectedIds: readonly string[];
+    fetchPage: (
+      cursor: string | undefined,
+    ) => Promise<GeneratedApiCall<GeneratedPage<T>>>;
+    validateItem: (item: T) => void;
+    validatePage?: (page: GeneratedPage<T>) => void;
+  }>,
+): Promise<readonly T[]> {
+  const collected: T[] = [];
+  const seenCursors = new Set<string>();
+  const maximumPages = options.expectedIds.length + 2;
+  let cursor: string | undefined;
+  let reachedTerminalPage = false;
+
+  for (let pageIndex = 0; pageIndex < maximumPages; pageIndex += 1) {
+    const page = assertGeneratedSuccess(await options.fetchPage(cursor), 200);
+    expect(Object.keys(page).sort()).toEqual(["items", "nextCursor"]);
+    options.validatePage?.(page);
+    for (const item of page.items) {
+      options.validateItem(item);
+      collected.push(item);
+    }
+
+    if (page.nextCursor === null) {
+      reachedTerminalPage = true;
+      break;
+    }
+    if (page.items.length === 0) {
+      throw new Error(
+        "Generated pagination returned an empty continuation page.",
+      );
+    }
+    const nextCursor = assertOpaquePageContinuation(page);
+    if (seenCursors.has(nextCursor)) {
+      throw new Error("Generated pagination repeated an opaque continuation.");
+    }
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+  }
+
+  if (!reachedTerminalPage) {
+    throw new Error("Generated pagination did not reach its terminal page.");
+  }
+
+  const collectedIds = collected.map((item) => item.id);
+  expect(new Set(collectedIds).size).toBe(collectedIds.length);
+  expect(new Set(collectedIds)).toEqual(new Set(options.expectedIds));
+  expect(collectedIds).toEqual(options.expectedIds);
+  return collected;
+}
+
 function apiKeyRow(page: Page, name: string): Locator {
   return page
     .getByRole("row")
@@ -371,19 +437,23 @@ async function captureRevealOnceCredential(
   if ((await credentialView.count()) !== 1) {
     throw new Error("Reveal-once API credential view was unavailable.");
   }
-  const credential = (await credentialView.textContent())?.trim() ?? "";
-  const prefix = ownerKind === "organization" ? "org" : "user";
-  const valid = new RegExp(`^${prefix}_[A-Za-z0-9_-]{43}$`, "u").test(
-    credential,
-  );
+  let credential = (await credentialView.textContent())?.trim() ?? "";
+  try {
+    const prefix = ownerKind === "organization" ? "org" : "user";
+    const valid = new RegExp(`^${prefix}_[A-Za-z0-9_-]{43}$`, "u").test(
+      credential,
+    );
 
-  const close = dialog.getByRole("button", { name: "I saved it" });
-  await close.click();
-  await dialog.waitFor({ state: "hidden" });
-  if (!valid) {
-    throw new Error("Reveal-once API credential had an invalid safe format.");
+    const close = dialog.getByRole("button", { name: "I saved it" });
+    await close.click();
+    await dialog.waitFor({ state: "hidden" });
+    if (!valid) {
+      throw new Error("Reveal-once API credential had an invalid safe format.");
+    }
+    return credential;
+  } finally {
+    credential = "";
   }
-  return credential;
 }
 
 async function expectUiMutationResponse(
@@ -444,11 +514,16 @@ export async function createApiKeyThroughUi(
   ) {
     throw new Error("UI API-key create returned an invalid safe location.");
   }
-  const credential = await captureRevealOnceCredential(page, options.ownerKind);
-  await expect(
-    page.getByText("API key created.", { exact: true }),
-  ).toBeVisible();
-  return credential;
+  let credential = "";
+  try {
+    credential = await captureRevealOnceCredential(page, options.ownerKind);
+    await expect(
+      page.getByText("API key created.", { exact: true }),
+    ).toBeVisible();
+    return credential;
+  } finally {
+    credential = "";
+  }
 }
 
 export async function editApiKeyNameThroughUi(
@@ -529,11 +604,16 @@ export async function rotateApiKeyThroughUi(
   });
   await confirm.click();
   await expectUiMutationResponse(response, 200);
-  const credential = await captureRevealOnceCredential(page, ownerKind);
-  await expect(
-    page.getByText("API key rotated.", { exact: true }),
-  ).toBeVisible();
-  return credential;
+  let credential = "";
+  try {
+    credential = await captureRevealOnceCredential(page, ownerKind);
+    await expect(
+      page.getByText("API key rotated.", { exact: true }),
+    ).toBeVisible();
+    return credential;
+  } finally {
+    credential = "";
+  }
 }
 
 export async function revokeApiKeyThroughUi(page: Page, name: string) {

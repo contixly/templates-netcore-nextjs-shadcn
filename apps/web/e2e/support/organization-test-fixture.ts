@@ -123,6 +123,22 @@ class OrganizationScenario {
     this.#registry.organizationDeleted(scenario.teardown, organizationId);
   }
 
+  transferOrganizationCleanup(
+    from: TrackedLocalAutomationScenario,
+    to: TrackedLocalAutomationScenario,
+    organizationId: string,
+  ) {
+    this.#registry.transferOrganization(
+      from.teardown,
+      to.teardown,
+      organizationId,
+    );
+  }
+
+  localUserDeleted(scenario: TrackedLocalAutomationScenario) {
+    this.#registry.localUserDeleted(scenario.teardown);
+  }
+
   async createOrganization(
     scenario: TrackedLocalAutomationScenario,
     request: APIRequestContext,

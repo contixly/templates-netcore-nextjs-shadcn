@@ -104,8 +104,8 @@ function metadata(
 
 export type GeneratedCreatedApiKey = Readonly<{
   apiKey: ApiKeyResponse;
-  credential: string;
   response: GeneratedApiCall<ApiKeyResponse>;
+  takeCredential: () => string;
 }>;
 
 export class SanitizedGeneratedApiError extends Error {
@@ -149,9 +149,10 @@ function requireCreatedApiKey(
   }
 
   const secretResponse = result.data.data;
-  const credential = secretResponse.key;
+  let credentialSlot = secretResponse.key;
   secretResponse.key = "";
-  if (!/^(?:user|org)_[A-Za-z0-9_-]{43}$/u.test(credential)) {
+  if (!/^(?:user|org)_[A-Za-z0-9_-]{43}$/u.test(credentialSlot)) {
+    credentialSlot = "";
     throw new Error("Generated API-key create returned an invalid credential.");
   }
   const { key: clearedKey, ...apiKey } = secretResponse;
@@ -163,7 +164,15 @@ function requireCreatedApiKey(
     data: apiKey,
     ok: true,
   };
-  return { apiKey, credential, response };
+  const takeCredential = () => {
+    if (!credentialSlot) {
+      throw new Error("Reveal-once credential was already taken.");
+    }
+    const credential = credentialSlot;
+    credentialSlot = "";
+    return credential;
+  };
+  return { apiKey, response, takeCredential };
 }
 
 function sanitize<T>(
@@ -272,13 +281,15 @@ function machineHeaders(credential: string) {
 
 export async function callGeneratedOrganizations(
   request: APIRequestContext,
-  credential: string,
+  credential: string | undefined,
   query: Readonly<{ cursor?: string; limit?: number }> = {},
 ): Promise<GeneratedApiCall<OrganizationPageResponse>> {
   const result = await getOrganizations({
     client: clientFor(request),
     cache: "no-store",
-    headers: machineHeaders(credential),
+    ...(credential === undefined
+      ? {}
+      : { headers: machineHeaders(credential) }),
     query,
   });
   return sanitize(result, credential);
