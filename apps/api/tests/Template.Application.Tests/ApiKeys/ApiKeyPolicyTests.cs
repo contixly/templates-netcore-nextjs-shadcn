@@ -3,7 +3,7 @@ using Template.Domain.Organizations;
 
 namespace Template.Application.Tests.ApiKeys;
 
-public sealed class ApiKeyPolicyTests
+public sealed partial class ApiKeyPolicyTests
 {
     [Fact]
     public void OrganizationReadAllExpandsToFourReadScopes() =>
@@ -70,4 +70,49 @@ public sealed class ApiKeyPolicyTests
         Assert.True(OrganizationPermissionPolicy.GetCapabilities(OrganizationRole.Admin).CanManageApiKeys);
         Assert.True(OrganizationPermissionPolicy.GetCapabilities(OrganizationRole.Owner).CanManageApiKeys);
     }
+}
+
+public sealed partial class ApiKeyPolicyTests
+{
+    [Fact]
+    public void Presets_are_closed_and_reject_unknown_and_null_entries()
+    {
+        Assert.False(ApiKeyPolicy.AreValidPresets(["BASIC-read"]));
+        Assert.False(ApiKeyPolicy.AreValidPresets([null!]));
+        Assert.False(ApiKeyPolicy.AreValidPresets(["basic-read", null!]));
+        Assert.Empty(ApiKeyPolicy.ExpandPresets(["basic-read", null!]));
+    }
+
+    [Theory]
+    [InlineData("basic-read", new[] { "basic:read" })]
+    [InlineData("organization-read", new[] { "organization:read" })]
+    [InlineData("organization-members-read", new[] { "organization:read", "member:read" })]
+    [InlineData("organization-teams-read", new[] { "organization:read", "team:read" })]
+    [InlineData("organization-team-members-read", new[] { "organization:read", "team:read", "teamMember:read" })]
+    [InlineData("organization-read-all", new[] { "organization:read", "member:read", "team:read", "teamMember:read" })]
+    public void Every_preset_expands_to_its_exact_scopes(string preset, string[] expected) =>
+        Assert.Equal(expected, ApiKeyPolicy.ExpandPresets([preset]));
+
+    [Fact]
+    public void Name_accepts_32_unicode_scalars_and_rejects_33_including_supplementary_scalars()
+    {
+        Assert.True(ApiKeyPolicy.TryNormalizeName(new string('a', 32), out _));
+        Assert.False(ApiKeyPolicy.TryNormalizeName(new string('a', 33), out _));
+        Assert.True(ApiKeyPolicy.TryNormalizeName(string.Concat(Enumerable.Repeat("😀", 32)), out _));
+        Assert.False(ApiKeyPolicy.TryNormalizeName(string.Concat(Enumerable.Repeat("😀", 33)), out _));
+    }
+
+    [Theory]
+    [InlineData("Never")]
+    [InlineData("1d")]
+    [InlineData("")]
+    public void Expiration_rejects_unknown_or_case_variant_options(string value) =>
+        Assert.False(ApiKeyPolicy.TryGetExpiration(value, out _));
+
+    [Theory]
+    [InlineData("1H")]
+    [InlineData("7d")]
+    [InlineData("")]
+    public void Rate_windows_reject_unknown_or_case_variant_options(string value) =>
+        Assert.False(ApiKeyPolicy.TryGetRateLimitWindow(value, out _));
 }

@@ -71,7 +71,7 @@ public static class ApiKeyPolicy
         var scopes = new HashSet<string>(StringComparer.Ordinal);
         foreach (var presetId in presetIds)
         {
-            if (!PresetScopes.TryGetValue(presetId, out var presetScopes))
+            if (presetId is null || !PresetScopes.TryGetValue(presetId, out var presetScopes))
             {
                 return [];
             }
@@ -90,7 +90,8 @@ public static class ApiKeyPolicy
     }
 
     public static bool AreValidPresets(IReadOnlyList<string>? presetIds) =>
-        presetIds is { Count: > 0 } && presetIds.All(PresetScopes.ContainsKey);
+        presetIds is { Count: > 0 } && presetIds.All(presetId =>
+            presetId is not null && PresetScopes.ContainsKey(presetId));
 
     public static bool TryGetExpiration(string? value, out TimeSpan? expiration) =>
         Expirations.TryGetValue(value ?? string.Empty, out expiration);
