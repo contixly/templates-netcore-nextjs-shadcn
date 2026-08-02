@@ -73,16 +73,21 @@ export function DocumentsShell({
       </Dialog>
 
       <div className="mx-auto grid max-w-7xl grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <aside className="hidden border-r px-4 py-8 lg:block">
+        <aside className="hidden max-h-[calc(100vh-3.5rem)] overflow-y-auto border-r px-4 py-8 lg:block">
           <DocumentsSidebar currentHref={pathname} navigation={navigation} />
         </aside>
         <main
-          className="min-w-0 px-4 py-8 sm:px-8 lg:px-12"
+          className="max-h-[calc(100vh-3.5rem)] min-w-0 overflow-y-auto px-4 py-8 sm:px-8 lg:px-12"
+          data-documents-scroll-container
           id="main-content"
           tabIndex={-1}
         >
           <DocumentsBreadcrumb current={current} />
-          <div className="mx-auto mt-8 max-w-3xl">
+          <div className="mx-auto mt-8 max-w-5xl">
+            <DocumentsPageNavigation
+              navigation={pageNavigationByHref[pathname]}
+              placement="top"
+            />
             {children}
             <DocumentsPageNavigation
               navigation={pageNavigationByHref[pathname]}

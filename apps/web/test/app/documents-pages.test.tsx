@@ -6,9 +6,13 @@ import DocumentsHomePage from "@/src/app/(documents)/docs/page";
 import DocumentsDocumentPage, {
   generateStaticParams,
 } from "@/src/app/(documents)/docs/[...slug]/page";
-import { findPublishedDocument } from "@/src/features/documents/documents-registry";
+import {
+  findPublishedDocument,
+  importDocument,
+} from "@/src/features/documents/documents-registry";
 import { buildDocumentStaticParams } from "@/src/features/documents/documents-routes";
 import type { DocumentInfo } from "@/src/features/documents/documents-types";
+import { renderWithMessages } from "@/test/support/render";
 import { notFound } from "next/navigation";
 
 jest.mock("next/navigation", () => ({
@@ -19,6 +23,7 @@ jest.mock("next/navigation", () => ({
 
 jest.mock("@/src/features/documents/documents-registry", () => ({
   findPublishedDocument: jest.fn(),
+  importDocument: jest.fn(),
 }));
 
 jest.mock("@/src/features/documents/documents-routes", () => ({
@@ -51,12 +56,14 @@ const document = {
 } satisfies DocumentInfo;
 
 const findPublishedDocumentMock = jest.mocked(findPublishedDocument);
+const importDocumentMock = jest.mocked(importDocument);
 const buildDocumentStaticParamsMock = jest.mocked(buildDocumentStaticParams);
 const notFoundMock = jest.mocked(notFound);
 
 beforeEach(() => {
   jest.clearAllMocks();
   findPublishedDocumentMock.mockReturnValue(document);
+  importDocumentMock.mockResolvedValue({ default: () => <p>Imported MDX</p> });
   buildDocumentStaticParamsMock.mockReturnValue([{ slug: ["api", "api-v1"] }]);
 });
 
@@ -72,7 +79,7 @@ it("loads the canonical index document for the locale-neutral root", async () =>
   } satisfies DocumentInfo;
   findPublishedDocumentMock.mockReturnValue(rootDocument);
 
-  render(await DocumentsHomePage());
+  renderWithMessages(await DocumentsHomePage());
 
   expect(findPublishedDocumentMock).toHaveBeenCalledWith("en", "index");
   expect(
@@ -80,8 +87,8 @@ it("loads the canonical index document for the locale-neutral root", async () =>
   ).toBeInTheDocument();
 });
 
-it("joins the catch-all slug and renders a semantic temporary article", async () => {
-  render(
+it("joins the catch-all slug and renders the imported article", async () => {
+  renderWithMessages(
     await DocumentsDocumentPage({
       params: Promise.resolve({ slug: ["api", "api-v1"] }),
     }),

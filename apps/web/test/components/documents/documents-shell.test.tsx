@@ -84,6 +84,9 @@ it("provides the main-content target and marks the current document", () => {
   renderShell();
 
   expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
+  expect(screen.getByRole("main")).toHaveAttribute(
+    "data-documents-scroll-container",
+  );
   expect(
     screen.getByRole("link", { name: "API v1 reference" }),
   ).toHaveAttribute("aria-current", "page");
@@ -109,9 +112,12 @@ it("renders breadcrumb context and previous-document navigation", () => {
     "aria-current",
     "page",
   );
-  expect(
-    screen.getByRole("link", { name: /Previous document.*API keys/i }),
-  ).toHaveAttribute("href", "/docs/api/api-keys");
+  const previousLinks = screen.getAllByRole("link", {
+    name: /Previous document.*API keys/i,
+  });
+  expect(previousLinks).toHaveLength(2);
+  expect(previousLinks[0]).toHaveAttribute("href", "/docs/api/api-keys");
+  expect(previousLinks[1]).toHaveAttribute("href", "/docs/api/api-keys");
 });
 
 it("automatically opens the active parent after the pathname changes", () => {

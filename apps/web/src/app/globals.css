@@ -97,3 +97,30 @@
     @apply cursor-pointer;
   }
 }
+
+@layer components {
+  .documents-prose {
+    @apply text-sm/relaxed;
+  }
+
+  .documents-prose > * + * {
+    @apply mt-4;
+  }
+
+  .documents-prose a {
+    @apply font-medium underline underline-offset-4;
+  }
+
+  .documents-prose ul,
+  .documents-prose ol {
+    @apply ml-6 list-outside;
+  }
+
+  .documents-prose ul {
+    @apply list-disc;
+  }
+
+  .documents-prose ol {
+    @apply list-decimal;
+  }
+}

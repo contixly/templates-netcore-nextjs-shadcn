@@ -7,15 +7,23 @@ import type { DocumentPageNavigation } from "@/src/features/documents/documents-
 
 export function DocumentsPageNavigation({
   navigation,
-}: Readonly<{ navigation?: DocumentPageNavigation }>) {
+  placement = "bottom",
+}: Readonly<{
+  navigation?: DocumentPageNavigation;
+  placement?: "top" | "bottom";
+}>) {
   const t = useTranslations("documents.page");
 
   if (!navigation?.previous && !navigation?.next) return null;
 
   return (
     <nav
-      aria-label={t("onThisPage")}
-      className="mt-12 grid gap-4 border-t pt-6 sm:grid-cols-2"
+      aria-label={t("navigation")}
+      className={
+        placement === "top"
+          ? "mb-8 grid gap-4 border-b pb-6 sm:grid-cols-2"
+          : "mt-12 grid gap-4 border-t pt-6 sm:grid-cols-2"
+      }
     >
       {navigation.previous ? (
         <Link
