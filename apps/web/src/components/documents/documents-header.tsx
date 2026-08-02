@@ -1,10 +1,11 @@
 "use client";
 
-import { IconHome, IconMenu2, IconSearch } from "@tabler/icons-react";
+import { IconHome, IconMenu2 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
 import { ThemeSwitcher } from "@/src/components/application/theme-switcher";
+import { DocumentsSearch } from "@/src/components/documents/documents-search";
 import { Button } from "@/src/components/ui/button";
 import { applicationRoutes } from "@/src/features/application/application-routes";
 import { documentsRoutes } from "@/src/features/documents/documents-routes";
@@ -33,15 +34,7 @@ export function DocumentsHeader({
           {t("navigation.label")}
         </Link>
         <div className="ml-auto flex min-w-0 items-center gap-2">
-          <Button
-            aria-label={t("search.open")}
-            disabled
-            title={t("search.unavailable")}
-            variant="outline"
-          >
-            <IconSearch aria-hidden="true" data-icon="inline-start" />
-            <span className="hidden sm:inline">{t("search.open")}</span>
-          </Button>
+          <DocumentsSearch />
           <Button asChild size="icon" variant="outline">
             <Link
               aria-label={t("navigation.home")}

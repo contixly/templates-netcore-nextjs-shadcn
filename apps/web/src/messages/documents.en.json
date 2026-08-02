@@ -44,6 +44,14 @@
   "search": {
     "open": "Search docs",
     "placeholder": "Search docs...",
-    "unavailable": "Search is temporarily unavailable"
+    "title": "Search docs",
+    "description": "Search documentation pages and sections",
+    "loading": "Loading search results",
+    "emptyQuery": "No documents found",
+    "emptyResults": "No results found",
+    "unavailable": "Search is temporarily unavailable",
+    "results": "Search results",
+    "pages": "Pages",
+    "headings": "Page sections"
   }
 }

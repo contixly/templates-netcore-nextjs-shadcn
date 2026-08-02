@@ -11,6 +11,7 @@ let mockPathname = "/docs/api/api-v1";
 
 jest.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
+  useRouter: () => ({ push: jest.fn() }),
 }));
 
 const navigation = [
@@ -97,7 +98,7 @@ it("provides the main-content target and marks the current document", () => {
     "href",
     "/",
   );
-  expect(screen.getByRole("button", { name: "Search docs" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Search docs" })).toBeEnabled();
 });
 
 it("renders breadcrumb context and previous-document navigation", () => {
