@@ -1,6 +1,6 @@
 ---
 title: "Кеширование"
-description: "Использование Cache Components и опциональных обработчиков кеша на Redis или Valkey."
+description: "Текущая политика no-store и Cache Components; Redis и Valkey отложены до итерации 10."
 group: "Приложение"
 groupOrder: 500
 parentItem: "Среда выполнения"

@@ -108,6 +108,14 @@ describe("API and application documentation content policy", () => {
   );
   const applicationEn = readSection("application", "en");
   const applicationRu = readSection("application", "ru");
+  const cachingEn = readFileSync(
+    resolve(contentRoot, "application/caching.en.md"),
+    "utf8",
+  );
+  const cachingRu = readFileSync(
+    resolve(contentRoot, "application/caching.ru.md"),
+    "utf8",
+  );
 
   it("documents the current API and application boundaries in both locales", () => {
     expect(apiV1En).toContain("x-api-key");
@@ -115,5 +123,16 @@ describe("API and application documentation content policy", () => {
     expect(apiV1Ru).toContain("x-api-key");
     expect(applicationEn).toContain("generated REST SDK");
     expect(applicationRu).toContain("ASP.NET Core");
+  });
+
+  it("describes Redis and Valkey as deferred in caching metadata", () => {
+    expect(cachingEn).toContain("Redis and Valkey deferred");
+    expect(cachingEn).not.toContain(
+      "optional Redis or Valkey backed cache handlers",
+    );
+    expect(cachingRu).toContain("Redis и Valkey отложены");
+    expect(cachingRu).not.toContain(
+      "опциональных обработчиков кеша на Redis или Valkey",
+    );
   });
 });

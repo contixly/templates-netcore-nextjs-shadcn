@@ -1,6 +1,6 @@
 ---
 title: "Caching"
-description: "Use the template's Cache Components and optional Redis or Valkey backed cache handlers."
+description: "Current no-store and Cache Components policy, with Redis and Valkey deferred to iteration 10."
 group: "Application"
 groupOrder: 500
 parentItem: "Runtime"

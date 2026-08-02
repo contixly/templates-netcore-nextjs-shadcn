@@ -2128,7 +2128,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Caching",
-      "description": "Use the template's Cache Components and optional Redis or Valkey backed cache handlers.",
+      "description": "Current no-store and Cache Components policy, with Redis and Valkey deferred to iteration 10.",
       "group": "Application",
       "groupOrder": 500,
       "parentItem": "Runtime",
@@ -2445,7 +2445,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Кеширование",
-      "description": "Использование Cache Components и опциональных обработчиков кеша на Redis или Valkey.",
+      "description": "Текущая политика no-store и Cache Components; Redis и Valkey отложены до итерации 10.",
       "group": "Приложение",
       "groupOrder": 500,
       "parentItem": "Среда выполнения",
