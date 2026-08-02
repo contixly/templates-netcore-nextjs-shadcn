@@ -165,7 +165,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         NoStore(http);
         if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
         {
-            return await AuditMachineAsync(
+            return await MachineApiEndpointExecution.ExecuteAsync(
                 async () =>
                 {
                     var result = await machineApi.ListOrganizationsAsync(
@@ -174,11 +174,6 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                         ValidateLimit(limit),
                         cancellationToken);
                     var page = RequireMachineSuccess(result);
-                    WriteMachineAudit(
-                        logger,
-                        "organization_list",
-                        "succeeded",
-                        principal);
                     return Results.Ok(new ApiResponse<OrganizationPageResponse>(
                         new(
                             page.Items.Select(Map).ToArray(),
@@ -239,7 +234,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                 "An authenticated API key principal is required.");
         }
 
-        return await AuditMachineAsync(
+        return await MachineApiEndpointExecution.ExecuteAsync(
             async () =>
             {
                 var id = ValidateOrganizationId(organizationId);
@@ -248,11 +243,6 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                     id,
                     cancellationToken);
                 var organization = RequireMachineSuccess(result);
-                WriteMachineAudit(
-                    logger,
-                    "organization_get",
-                    "succeeded",
-                    principal);
                 return Results.Ok(
                     new ApiResponse<MachineOrganizationDetailResponse>(
                         MapDetail(organization)));
@@ -600,7 +590,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         NoStore(http);
         if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
         {
-            return await AuditMachineAsync(
+            return await MachineApiEndpointExecution.ExecuteAsync(
                 async () =>
                 {
                     var id = ValidateOrganizationId(organizationId);
@@ -611,11 +601,6 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                         ValidateLimit(limit),
                         cancellationToken);
                     var page = RequireMachineSuccess(result);
-                    WriteMachineAudit(
-                        logger,
-                        "organization_members_list",
-                        "succeeded",
-                        principal);
                     return Results.Ok(
                         new ApiResponse<OrganizationMemberPageResponse>(
                             new(
@@ -832,47 +817,6 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         }
     }
 
-    private static async Task<IResult> AuditMachineAsync(
-        Func<Task<IResult>> execute,
-        string operation,
-        ApiKeyPrincipal principal,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await execute();
-        }
-        catch (ApiValidationException)
-        {
-            WriteMachineAudit(
-                logger,
-                operation,
-                ApiProblemCodes.ValidationFailed,
-                principal);
-            throw;
-        }
-        catch (ApiProblemException problem)
-        {
-            WriteMachineAudit(logger, operation, problem.Code, principal);
-            throw;
-        }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-            WriteMachineAudit(
-                logger,
-                operation,
-                ApiProblemCodes.InternalError,
-                principal);
-            throw;
-        }
-    }
-
     private static T RequireMachineSuccess<T>(
         MachineApiOperationResult<T> result)
         where T : class
@@ -900,22 +844,6 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                 "A failed machine API operation returned no failure.")
         };
     }
-
-    private static void WriteMachineAudit(
-        ILogger logger,
-        string operation,
-        string outcome,
-        ApiKeyPrincipal principal) =>
-        ApiKeySecurityEvents.WriteMachine(
-            logger,
-            operation,
-            outcome,
-            principal.Owner.Kind == ApiKeyOwnerKind.User
-                ? "user"
-                : "organization",
-            principal.Owner.UserId?.Value ??
-            principal.Owner.OrganizationId?.Value,
-            principal.Id.Value);
 
     private static void WriteBoundaryAudit(
         string operation,

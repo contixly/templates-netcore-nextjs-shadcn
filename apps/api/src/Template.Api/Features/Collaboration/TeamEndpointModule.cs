@@ -139,7 +139,7 @@ internal sealed class TeamEndpointModule : IEndpointModule
         CollaborationEndpointBoundary.NoStore(http);
         if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
         {
-            return await AuditMachineAsync(
+            return await MachineApiEndpointExecution.ExecuteAsync(
                 async () =>
                 {
                     var boundary = new TeamListBoundary(
@@ -156,11 +156,6 @@ internal sealed class TeamEndpointModule : IEndpointModule
                         boundary.Limit,
                         cancellationToken);
                     var page = RequireMachineSuccess(result);
-                    WriteMachineAudit(
-                        logger,
-                        "team_list",
-                        "succeeded",
-                        principal);
                     return Results.Ok(
                         new ApiResponse<TeamPageResponse>(Map(page)));
                 },
@@ -346,7 +341,7 @@ internal sealed class TeamEndpointModule : IEndpointModule
         CollaborationEndpointBoundary.NoStore(http);
         if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
         {
-            return await AuditMachineAsync(
+            return await MachineApiEndpointExecution.ExecuteAsync(
                 async () =>
                 {
                     var boundary = new TeamResourceListBoundary(
@@ -363,11 +358,6 @@ internal sealed class TeamEndpointModule : IEndpointModule
                         boundary.Limit,
                         cancellationToken);
                     var page = RequireMachineSuccess(result);
-                    WriteMachineAudit(
-                        logger,
-                        "team_members_list",
-                        "succeeded",
-                        principal);
                     return Results.Ok(
                         new ApiResponse<TeamMemberPageResponse>(Map(page)));
                 },
@@ -597,63 +587,6 @@ internal sealed class TeamEndpointModule : IEndpointModule
                 "A failed machine team operation returned no failure.")
         };
     }
-
-    private static async Task<IResult> AuditMachineAsync(
-        Func<Task<IResult>> execute,
-        string operation,
-        ApiKeyPrincipal principal,
-        ILogger logger,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await execute();
-        }
-        catch (ApiValidationException)
-        {
-            WriteMachineAudit(
-                logger,
-                operation,
-                ApiProblemCodes.ValidationFailed,
-                principal);
-            throw;
-        }
-        catch (ApiProblemException problem)
-        {
-            WriteMachineAudit(logger, operation, problem.Code, principal);
-            throw;
-        }
-        catch (OperationCanceledException)
-            when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-            WriteMachineAudit(
-                logger,
-                operation,
-                ApiProblemCodes.InternalError,
-                principal);
-            throw;
-        }
-    }
-
-    private static void WriteMachineAudit(
-        ILogger logger,
-        string operation,
-        string outcome,
-        ApiKeyPrincipal principal) =>
-        ApiKeySecurityEvents.WriteMachine(
-            logger,
-            operation,
-            outcome,
-            principal.Owner.Kind == ApiKeyOwnerKind.User
-                ? "user"
-                : "organization",
-            principal.Owner.UserId?.Value ??
-            principal.Owner.OrganizationId?.Value,
-            principal.Id.Value);
 
     private static ApiProblemException MapFailure(TeamFailure failure) =>
         failure switch
