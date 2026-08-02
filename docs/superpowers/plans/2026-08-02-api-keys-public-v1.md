@@ -415,11 +415,13 @@ git commit -m "feat: persist hashed api key credentials"
 **Files:**
 
 - Create: `apps/api/src/Template.Infrastructure/ApiKeys/EfApiKeyStore.cs`
+- Modify: `apps/api/src/Template.Application/ApiKeys/ApiKeyManagementService.cs`
 - Modify: `apps/api/src/Template.Infrastructure/Persistence/InfrastructureServiceCollectionExtensions.cs`
 - Modify: `apps/api/tests/Template.Api.Tests/Accounts/AccountPersistenceTests.cs`
 - Modify: `apps/api/tests/Template.Api.Tests/Organizations/OrganizationUserLifecycleTests.cs`
 - Test: `apps/api/tests/Template.Api.Tests/ApiKeys/ApiKeyStoreTests.cs`
 - Test: `apps/api/tests/Template.Api.Tests/ApiKeys/ApiKeyConcurrencyTests.cs`
+- Test: `apps/api/tests/Template.Application.Tests/ApiKeys/ApiKeyManagementServiceTests.cs`
 
 The account/organization test modifications only add cascade/lifecycle coverage;
 database foreign keys remain the production cleanup mechanism.
@@ -456,9 +458,13 @@ Expected: DI or `NotImplementedException` failures because `EfApiKeyStore` is ab
 
 Use explicit transactions and owner-qualified row locks. Organization operations
 lock/read actor membership and require owner/admin inside every fresh attempt.
-Map only SQLSTATE `40001`/`40P01` to a maximum of three complete attempts.
-Classify unique hash collision as a fresh generated-credential retry during
-create/rotate, bounded to three materials; never retry permission or validation.
+Inside the store, retry only SQLSTATE `40001`/`40P01`, to a maximum of three
+complete transaction attempts. Map a unique hash collision to
+`ConcurrencyConflict`; in `ApiKeyManagementService` create/rotate, generate a
+fresh credential material and retry that operation, bounded to three materials,
+so Application can return the matching reveal-once credential. Never retry
+permission or validation failures, and never generate credential material inside
+the store where the raw replacement could be lost.
 
 - [ ] **Step 4: Run store tests GREEN**
 
