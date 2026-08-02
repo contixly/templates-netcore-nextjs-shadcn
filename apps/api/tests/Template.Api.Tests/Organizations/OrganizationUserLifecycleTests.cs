@@ -13,6 +13,7 @@ using Template.Domain.Authentication;
 using Template.Domain.Collaboration;
 using Template.Domain.Organizations;
 using Template.Infrastructure.Collaboration;
+using Template.Infrastructure.ApiKeys;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Organizations;
 using Template.Infrastructure.Persistence;
@@ -111,6 +112,21 @@ public sealed class OrganizationUserLifecycleTests(
         Assert.True(await fixture.OrganizationExistsAsync(organizationId));
         Assert.Equal(1, await fixture.CountMembersAsync(organizationId));
         Assert.Equal(1, await fixture.CountOwnersAsync(organizationId));
+    }
+
+    [Fact]
+    public async Task Deleting_the_organization_key_creator_does_not_delete_the_organization_key()
+    {
+        await using var fixture = await OrganizationUserLifecycleFixture.CreateAsync(postgres);
+        var creator = await fixture.CreateUserAsync("key-creator@local-agent.test");
+        var remainingOwner = await fixture.CreateUserAsync("key-owner@local-agent.test");
+        var organizationId = await fixture.CreateOrganizationAsync(creator, remainingOwner, secondMemberIsOwner: true);
+        var keyId = await fixture.CreateOrganizationApiKeyAsync(organizationId);
+
+        var result = await fixture.DeleteAccountAsync(creator);
+
+        Assert.True(result.Succeeded);
+        Assert.True(await fixture.ApiKeyExistsAsync(keyId));
     }
 
     [Fact]
@@ -435,6 +451,38 @@ internal sealed class OrganizationUserLifecycleFixture : IAsyncDisposable
 
         await db.SaveChangesAsync(TestContext.Current.CancellationToken);
         return organizationId;
+    }
+
+    internal async Task<Guid> CreateOrganizationApiKeyAsync(OrganizationId organizationId)
+    {
+        var id = Guid.CreateVersion7();
+        await using var db = CreateDbContext();
+        db.ApiKeys.Add(new ApiKeyEntity
+        {
+            Id = id,
+            OrganizationId = organizationId.Value,
+            Name = "Organization key",
+            KeyHash = Enumerable.Repeat((byte)88, 32).ToArray(),
+            KeyStart = "org_abcdefghijkl",
+            Scopes = ["basic:read"],
+            Enabled = true,
+            RateLimitEnabled = true,
+            RateLimitWindowSeconds = 60,
+            RateLimitMax = 10,
+            RequestCount = 0,
+            CreatedAt = Now,
+            UpdatedAt = Now
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+        return id;
+    }
+
+    internal async Task<bool> ApiKeyExistsAsync(Guid id)
+    {
+        await using var db = CreateDbContext();
+        return await db.ApiKeys.AsNoTracking().AnyAsync(
+            row => row.Id == id,
+            TestContext.Current.CancellationToken);
     }
 
     internal async Task CreateSessionAsync(

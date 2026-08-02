@@ -8,6 +8,7 @@ using Template.Api.Tests.Infrastructure;
 using Template.Domain.Accounts;
 using Template.Domain.Authentication;
 using Template.Infrastructure.Accounts;
+using Template.Infrastructure.ApiKeys;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Persistence;
 
@@ -68,6 +69,37 @@ public sealed class AccountPersistenceTests(PostgreSqlContainerFixture postgres)
                 databaseName,
                 TestContext.Current.CancellationToken);
         }
+    }
+
+    [Fact]
+    public async Task Deleting_a_user_cascades_their_personal_api_keys()
+    {
+        await MigrateAsync();
+        await using var db = CreateContext();
+        var user = CreateUser("personal-key-cascade@example.test");
+        db.Users.Add(user);
+        db.ApiKeys.Add(new ApiKeyEntity
+        {
+            Id = Guid.CreateVersion7(),
+            UserId = user.Id,
+            Name = "Personal",
+            KeyHash = Enumerable.Repeat((byte)77, 32).ToArray(),
+            KeyStart = "user_abcdefghijk",
+            Scopes = ["basic:read"],
+            Enabled = true,
+            RateLimitEnabled = true,
+            RateLimitWindowSeconds = 60,
+            RateLimitMax = 10,
+            RequestCount = 0,
+            CreatedAt = Now,
+            UpdatedAt = Now
+        });
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        db.Users.Remove(user);
+        await db.SaveChangesAsync(TestContext.Current.CancellationToken);
+
+        Assert.Empty(await db.ApiKeys.AsNoTracking().ToArrayAsync(TestContext.Current.CancellationToken));
     }
 
     [Fact]

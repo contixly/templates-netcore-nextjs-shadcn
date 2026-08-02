@@ -69,14 +69,69 @@ public sealed class ApiKeyManagementServiceTests
         Assert.Equal(ApiKeyFailure.NotFound, revoked.Failure);
     }
 
+    [Fact]
+    public async Task Create_retries_hash_collisions_with_fresh_material_and_reveals_only_the_persisted_credential()
+    {
+        var owner = new ApiKeyOwner(ApiKeyOwnerKind.User, Actor, null);
+        var store = new RecordingStore
+        {
+            CreateResults =
+            [
+                ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.ConcurrencyConflict),
+                ApiKeyOperationResult<ApiKeySummary>.Success(Summary(owner))
+            ]
+        };
+        var credentials = new RecordingCredentials();
+
+        var result = await Service(store, credentials).CreateAsync(
+            Create(ApiKeyOwnerKind.User, null),
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, store.CreateCalls);
+        Assert.Equal(2, credentials.GenerateCalls);
+        Assert.Equal(credentials.Generated[1].Hash, store.CreateCommands[1].Hash);
+        Assert.Equal(credentials.Generated[1].Credential, result.Value!.Credential);
+    }
+
+    [Fact]
+    public async Task Rotate_stops_after_three_hash_collisions()
+    {
+        var store = new RecordingStore
+        {
+            RotateResults = Enumerable.Repeat(
+                ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.ConcurrencyConflict),
+                3).ToArray()
+        };
+        var credentials = new RecordingCredentials();
+
+        var result = await Service(store, credentials).RotateAsync(
+            new(Actor, ApiKeyOwnerKind.User, null, Key),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ApiKeyFailure.ConcurrencyConflict, result.Failure);
+        Assert.Equal(3, store.RotateCalls);
+        Assert.Equal(3, credentials.GenerateCalls);
+    }
+
     private static ApiKeyManagementService Service(RecordingStore store, RecordingCredentials credentials) => new(store, credentials, new FakeTimeProvider(Now));
     private static CreateApiKeyCommand Create(ApiKeyOwnerKind kind, OrganizationId? organization) => new(Actor, kind, organization, " Key ", ["basic-read"], "30d", true, 1000, "1h");
     private static ApiKeySummary Summary(ApiKeyOwner owner) => new(Key, owner, "Key", "safe-start", [ApiKeyScopes.BasicRead], true, true, 1000, TimeSpan.FromHours(1), 0, null, null, Now.AddDays(30), null, Now, Now);
 
     private sealed class RecordingCredentials : IApiKeyCredentialService
     {
-        public ApiKeyCredentialMaterial Material { get; } = new("credential-is-not-in-an-assertion", [1, 2], "safe-start");
-        public ApiKeyCredentialMaterial Generate(ApiKeyOwnerKind ownerKind) => Material;
+        public List<ApiKeyCredentialMaterial> Generated { get; } = [];
+        public int GenerateCalls => Generated.Count;
+        public ApiKeyCredentialMaterial Material => Generated.Count == 0
+            ? Generate(ApiKeyOwnerKind.User)
+            : Generated[0];
+        public ApiKeyCredentialMaterial Generate(ApiKeyOwnerKind ownerKind)
+        {
+            var index = Generated.Count + 1;
+            var material = new ApiKeyCredentialMaterial($"credential-{index}", [(byte)index, 2], $"safe-start-{index}");
+            Generated.Add(material);
+            return material;
+        }
         public bool TryHashCanonical(string credential, out byte[] hash) { hash = []; return false; }
     }
 
@@ -85,16 +140,24 @@ public sealed class ApiKeyManagementServiceTests
         public CreateApiKeyStoreCommand? LastCreate { get; private set; }
         public UpdateApiKeyCommand? LastUpdate { get; private set; }
         public int UpdateCalls { get; private set; }
+        public int CreateCalls { get; private set; }
+        public int RotateCalls { get; private set; }
+        public List<CreateApiKeyStoreCommand> CreateCommands { get; } = [];
+        public IReadOnlyList<ApiKeyOperationResult<ApiKeySummary>>? CreateResults { get; set; }
+        public IReadOnlyList<ApiKeyOperationResult<ApiKeySummary>>? RotateResults { get; set; }
         public ApiKeyOperationResult<ApiKeySummary> CreateResult { get; set; } = ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.NotFound);
         public ApiKeyOperationResult<ApiKeySummary> UpdateResult { get; set; } = ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.NotFound);
         public ApiKeyOperationResult<ApiKeySummary> RotateResult { get; set; } = ApiKeyOperationResult<ApiKeySummary>.Failed(ApiKeyFailure.NotFound);
         public ApiKeyOperationResult<ApiKeyRevocation> RevokeResult { get; set; } = ApiKeyOperationResult<ApiKeyRevocation>.Failed(ApiKeyFailure.NotFound);
         public Task<ApiKeyOperationResult<ApiKeyStorePage>> ListAsync(ApiKeyListQuery query, CancellationToken cancellationToken) => throw new NotImplementedException();
-        public Task<ApiKeyOperationResult<ApiKeySummary>> CreateAsync(CreateApiKeyStoreCommand command, CancellationToken cancellationToken) { LastCreate = command; return Task.FromResult(CreateResult); }
+        public Task<ApiKeyOperationResult<ApiKeySummary>> CreateAsync(CreateApiKeyStoreCommand command, CancellationToken cancellationToken) { LastCreate = command; CreateCommands.Add(command); return Task.FromResult(CreateResults?[CreateCalls++] ?? IncrementCreate()); }
         public Task<ApiKeyOperationResult<ApiKeySummary>> UpdateAsync(UpdateApiKeyCommand command, CancellationToken cancellationToken) { UpdateCalls++; LastUpdate = command; return Task.FromResult(UpdateResult); }
         public Task<ApiKeyOperationResult<ApiKeyRevocation>> RevokeAsync(RevokeApiKeyCommand command, CancellationToken cancellationToken) => Task.FromResult(RevokeResult);
-        public Task<ApiKeyOperationResult<ApiKeySummary>> RotateAsync(RotateApiKeyStoreCommand command, CancellationToken cancellationToken) => Task.FromResult(RotateResult);
+        public Task<ApiKeyOperationResult<ApiKeySummary>> RotateAsync(RotateApiKeyStoreCommand command, CancellationToken cancellationToken) => Task.FromResult(RotateResults?[RotateCalls++] ?? IncrementRotate());
         public Task<ApiKeyAuthenticationResult> AuthenticateAndConsumeAsync(byte[] hash, DateTimeOffset now, CancellationToken cancellationToken) => throw new NotImplementedException();
+
+        private ApiKeyOperationResult<ApiKeySummary> IncrementCreate() { CreateCalls++; return CreateResult; }
+        private ApiKeyOperationResult<ApiKeySummary> IncrementRotate() { RotateCalls++; return RotateResult; }
     }
 
     private sealed class FakeTimeProvider(DateTimeOffset now) : TimeProvider { public override DateTimeOffset GetUtcNow() => now; }

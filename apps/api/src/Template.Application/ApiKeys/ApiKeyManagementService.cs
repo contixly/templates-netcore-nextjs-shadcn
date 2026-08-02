@@ -61,22 +61,31 @@ public sealed class ApiKeyManagementService(
         }
 
         var now = timeProvider.GetUtcNow();
-        var material = credentials.Generate(command.OwnerKind);
-        var result = await store.CreateAsync(new(
-            command.ActorUserId,
-            owner,
-            name,
-            ApiKeyPolicy.ExpandPresets(command.PresetIds),
-            expiration is null ? null : now + expiration.Value,
-            command.RateLimitEnabled,
-            command.RateLimitMax,
-            rateLimitWindow,
-            material.Hash,
-            material.Start,
-            now), cancellationToken);
-        return result.Succeeded
-            ? ApiKeyOperationResult<ApiKeySecret>.Success(new(RequireValue(result), material.Credential))
-            : ApiKeyOperationResult<ApiKeySecret>.Failed(RequireFailure(result));
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            var material = credentials.Generate(command.OwnerKind);
+            var result = await store.CreateAsync(new(
+                command.ActorUserId,
+                owner,
+                name,
+                ApiKeyPolicy.ExpandPresets(command.PresetIds),
+                expiration is null ? null : now + expiration.Value,
+                command.RateLimitEnabled,
+                command.RateLimitMax,
+                rateLimitWindow,
+                material.Hash,
+                material.Start,
+                now), cancellationToken);
+            if (result.Succeeded)
+            {
+                return ApiKeyOperationResult<ApiKeySecret>.Success(new(RequireValue(result), material.Credential));
+            }
+            if (RequireFailure(result) != ApiKeyFailure.ConcurrencyConflict || attempt == 3)
+            {
+                return ApiKeyOperationResult<ApiKeySecret>.Failed(RequireFailure(result));
+            }
+        }
+        throw new InvalidOperationException("Unreachable API key create retry state.");
     }
 
     public Task<ApiKeyOperationResult<ApiKeySummary>> UpdateAsync(UpdateApiKeyCommand command, CancellationToken cancellationToken)
@@ -131,11 +140,21 @@ public sealed class ApiKeyManagementService(
             return ApiKeyOperationResult<ApiKeySecret>.Failed(ApiKeyFailure.PermissionDenied);
         }
 
-        var material = credentials.Generate(command.OwnerKind);
-        var result = await store.RotateAsync(new(command.ActorUserId, owner, command.ApiKeyId, material.Hash, material.Start, timeProvider.GetUtcNow()), cancellationToken);
-        return result.Succeeded
-            ? ApiKeyOperationResult<ApiKeySecret>.Success(new(RequireValue(result), material.Credential))
-            : ApiKeyOperationResult<ApiKeySecret>.Failed(RequireFailure(result));
+        var now = timeProvider.GetUtcNow();
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            var material = credentials.Generate(command.OwnerKind);
+            var result = await store.RotateAsync(new(command.ActorUserId, owner, command.ApiKeyId, material.Hash, material.Start, now), cancellationToken);
+            if (result.Succeeded)
+            {
+                return ApiKeyOperationResult<ApiKeySecret>.Success(new(RequireValue(result), material.Credential));
+            }
+            if (RequireFailure(result) != ApiKeyFailure.ConcurrencyConflict || attempt == 3)
+            {
+                return ApiKeyOperationResult<ApiKeySecret>.Failed(RequireFailure(result));
+            }
+        }
+        throw new InvalidOperationException("Unreachable API key rotation retry state.");
     }
 
     private static bool TryGetOwner(Template.Domain.Authentication.UserId actorUserId, ApiKeyOwnerKind ownerKind, Template.Domain.Organizations.OrganizationId? organizationId, out ApiKeyOwner owner)
