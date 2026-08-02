@@ -13,10 +13,15 @@ import {
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";
 import { getAuthCsrfToken } from "@/src/lib/api/auth/browser/get-auth-csrf";
 import {
+  createOrganizationApiKey,
   createPersonalApiKey,
+  listOrganizationApiKeys,
   listPersonalApiKeys,
+  revokeOrganizationApiKey,
   revokePersonalApiKey,
+  rotateOrganizationApiKey,
   rotatePersonalApiKey,
+  updateOrganizationApiKey,
   updatePersonalApiKey,
 } from "@/src/lib/api/generated/sdk.gen";
 import type { ApiKeyResponse } from "@/src/lib/api/generated/types.gen";
@@ -25,10 +30,15 @@ import { createServerApiClient } from "@/src/lib/api/server/client";
 import { readForwardedApiHeaders } from "@/src/lib/api/server/request-headers";
 
 jest.mock("@/src/lib/api/generated/sdk.gen", () => ({
+  createOrganizationApiKey: jest.fn(),
   createPersonalApiKey: jest.fn(),
+  listOrganizationApiKeys: jest.fn(),
   listPersonalApiKeys: jest.fn(),
+  revokeOrganizationApiKey: jest.fn(),
   revokePersonalApiKey: jest.fn(),
+  rotateOrganizationApiKey: jest.fn(),
   rotatePersonalApiKey: jest.fn(),
+  updateOrganizationApiKey: jest.fn(),
   updatePersonalApiKey: jest.fn(),
 }));
 jest.mock("@/src/lib/api/auth/browser/get-auth-csrf", () => ({
@@ -43,6 +53,7 @@ jest.mock("@/src/lib/api/server/request-headers", () => ({
 
 const client = { role: "request-bound" } as unknown as Client;
 const keyId = "01900000-0000-7000-8000-000000000909";
+const organizationId = "01900000-0000-7000-8000-000000000910";
 const key: ApiKeyResponse = {
   id: keyId,
   ownerKind: "user",
@@ -65,10 +76,15 @@ const key: ApiKeyResponse = {
 };
 
 const mockedGetCsrf = jest.mocked(getAuthCsrfToken);
+const mockedCreateOrganization = jest.mocked(createOrganizationApiKey);
 const mockedCreate = jest.mocked(createPersonalApiKey);
+const mockedListOrganization = jest.mocked(listOrganizationApiKeys);
 const mockedList = jest.mocked(listPersonalApiKeys);
+const mockedRevokeOrganization = jest.mocked(revokeOrganizationApiKey);
 const mockedRevoke = jest.mocked(revokePersonalApiKey);
+const mockedRotateOrganization = jest.mocked(rotateOrganizationApiKey);
 const mockedRotate = jest.mocked(rotatePersonalApiKey);
+const mockedUpdateOrganization = jest.mocked(updateOrganizationApiKey);
 const mockedUpdate = jest.mocked(updatePersonalApiKey);
 const mockedCreateServerClient = jest.mocked(createServerApiClient);
 const mockedReadForwardedHeaders = jest.mocked(readForwardedApiHeaders);
@@ -170,6 +186,84 @@ it("uses generated safe GET directly and obtains fresh CSRF for every unsafe cal
     client,
     headers: { "X-CSRF-TOKEN": "csrf-api-key" },
     path: { apiKeyId: keyId },
+  });
+});
+
+it("passes the exact organization owner path, API-key ID, and body through every generated operation", async () => {
+  const owner = { kind: "organization", organizationId } as const;
+  const createBody = {
+    name: "Organization CLI",
+    presetIds: ["organization-read"] as const,
+    expiresIn: "30d" as const,
+    rateLimitEnabled: true,
+    rateLimitMax: 1000,
+    rateLimitWindow: "1h" as const,
+  };
+  const updateBody = { name: "Organization build agent" } as const;
+  mockedListOrganization.mockResolvedValue(
+    sdkSuccess({ items: [key], nextCursor: null }),
+  );
+  mockedCreateOrganization.mockResolvedValue(
+    sdkSuccess({ ...key, ownerKind: "organization" as const, key: "raw-once" }),
+  );
+  mockedUpdateOrganization.mockResolvedValue(
+    sdkSuccess({ ...key, ownerKind: "organization" as const, ...updateBody }),
+  );
+  mockedRotateOrganization.mockResolvedValue(
+    sdkSuccess({
+      ...key,
+      ownerKind: "organization" as const,
+      key: "rotated-once",
+    }),
+  );
+  mockedRevokeOrganization.mockResolvedValue(
+    sdkSuccess({ id: keyId, revokedAt: "2026-08-02T01:00:00Z" }),
+  );
+
+  await loadApiKeys(owner, { limit: 25 });
+  await listBrowserApiKeys(client, owner, { cursor: "organization-next" });
+  await createBrowserApiKey(client, owner, {
+    ...createBody,
+    presetIds: [...createBody.presetIds],
+  });
+  await updateBrowserApiKey(client, owner, keyId, updateBody);
+  await rotateBrowserApiKey(client, owner, keyId);
+  await revokeBrowserApiKey(client, owner, keyId);
+
+  expect(mockedListOrganization).toHaveBeenNthCalledWith(1, {
+    client,
+    cache: "no-store",
+    headers: { "X-Template-Session-Renewal": "suppress" },
+    path: { organizationId },
+    query: { limit: 25 },
+  });
+  expect(mockedListOrganization).toHaveBeenNthCalledWith(2, {
+    client,
+    cache: "no-store",
+    path: { organizationId },
+    query: { cursor: "organization-next" },
+  });
+  expect(mockedCreateOrganization).toHaveBeenCalledWith({
+    client,
+    body: { ...createBody, presetIds: [...createBody.presetIds] },
+    headers: { "X-CSRF-TOKEN": "csrf-api-key" },
+    path: { organizationId },
+  });
+  expect(mockedUpdateOrganization).toHaveBeenCalledWith({
+    client,
+    body: updateBody,
+    headers: { "X-CSRF-TOKEN": "csrf-api-key" },
+    path: { organizationId, apiKeyId: keyId },
+  });
+  expect(mockedRotateOrganization).toHaveBeenCalledWith({
+    client,
+    headers: { "X-CSRF-TOKEN": "csrf-api-key" },
+    path: { organizationId, apiKeyId: keyId },
+  });
+  expect(mockedRevokeOrganization).toHaveBeenCalledWith({
+    client,
+    headers: { "X-CSRF-TOKEN": "csrf-api-key" },
+    path: { organizationId, apiKeyId: keyId },
   });
 });
 

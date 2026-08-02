@@ -86,3 +86,26 @@ it("localizes a stable Problem Details failure without exposing its detail", asy
   expect(await screen.findByText(/do not have permission/)).toBeVisible();
   expect(screen.getByText("trace-rotate")).toBeVisible();
 });
+
+it("drops a mismatched rotate credential without reconciling or revealing it", async () => {
+  const onConfirmed = jest.fn();
+  const mismatched = { ...apiKeySecret, id: "different-key" };
+  rotateKey.mockResolvedValue({ ok: true, data: mismatched });
+  renderWithMessages(
+    <ApiKeyRotateDialog
+      apiKey={apiKey}
+      onConfirmed={onConfirmed}
+      owner={{ kind: "personal" }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Rotate" }));
+  fireEvent.click(screen.getByRole("button", { name: "Rotate key" }));
+
+  expect(
+    await screen.findByText("The request could not be completed."),
+  ).toBeVisible();
+  expect(onConfirmed).not.toHaveBeenCalled();
+  expect(screen.queryByText(apiKeySecret.key)).not.toBeInTheDocument();
+  expect(mismatched.key).toBe("");
+});

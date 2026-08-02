@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -18,6 +18,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import {
+  apiKeyFailureMessage,
+  apiKeyIdentityMismatchFailure,
+} from "@/src/features/api-keys/api-key-failures";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import { revokeBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -35,12 +39,32 @@ export function ApiKeyRevokeDialog({
 }>) {
   const t = useTranslations("apiKeys");
   const interactionReady = useInteractionReady();
+  const mounted = useRef(true);
+  const actionGeneration = useRef(0);
+  const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      actionGeneration.current += 1;
+      requestInFlight.current = false;
+    };
+  }, []);
+
+  function changeOpen(nextOpen: boolean) {
+    if (requestInFlight.current) return;
+    setOpen(nextOpen);
+    if (nextOpen) setFailure(null);
+  }
+
   async function revoke() {
-    if (pending) return;
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    const generation = ++actionGeneration.current;
     setPending(true);
     setFailure(null);
     const result = await revokeBrowserApiKey(
@@ -48,14 +72,20 @@ export function ApiKeyRevokeDialog({
       owner,
       apiKey.id,
     );
+    if (!mounted.current || generation !== actionGeneration.current) return;
+    requestInFlight.current = false;
     setPending(false);
     if (!result.ok) return setFailure(result.failure);
-    onConfirmed(result.data.id);
+    if (result.data.id !== apiKey.id) {
+      setFailure(apiKeyIdentityMismatchFailure());
+      return;
+    }
     setOpen(false);
+    onConfirmed(result.data.id);
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>
         <Button
           {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
@@ -76,22 +106,7 @@ export function ApiKeyRevokeDialog({
           <Alert variant="destructive">
             <AlertTitle>{t("failures.revoke")}</AlertTitle>
             <AlertDescription>
-              <p>
-                {t(
-                  `failures.codes.${
-                    failure.kind === "problem" &&
-                    [
-                      "antiforgery_failed",
-                      "api_key_not_found",
-                      "api_key_permission_denied",
-                      "api_key_update_unchanged",
-                      "validation_failed",
-                    ].includes(failure.code)
-                      ? (failure.code as "api_key_permission_denied")
-                      : "generic"
-                  }`,
-                )}
-              </p>
+              <p>{t(`failures.codes.${apiKeyFailureMessage(failure)}`)}</p>
               {failure.kind === "problem" && failure.traceId ? (
                 <p className="font-mono">{failure.traceId}</p>
               ) : null}
@@ -101,7 +116,7 @@ export function ApiKeyRevokeDialog({
         <DialogFooter>
           <Button
             disabled={pending}
-            onClick={() => setOpen(false)}
+            onClick={() => changeOpen(false)}
             type="button"
             variant="outline"
           >

@@ -34,6 +34,9 @@ export const ApiKeySecretView = forwardRef<ApiKeySecretViewHandle>(
   function ApiKeySecretView(_props, ref) {
     const t = useTranslations("apiKeys.secret");
     const interactionReady = useInteractionReady();
+    const mounted = useRef(true);
+    const revealGeneration = useRef(0);
+    const copyInFlight = useRef(false);
     const credentialRef = useRef("");
     const [credential, setCredential] = useState<string | null>(null);
     const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
@@ -41,6 +44,8 @@ export const ApiKeySecretView = forwardRef<ApiKeySecretViewHandle>(
     );
 
     function clear() {
+      revealGeneration.current += 1;
+      copyInFlight.current = false;
       credentialRef.current = "";
       setCredential(null);
       setCopyState("idle");
@@ -50,6 +55,8 @@ export const ApiKeySecretView = forwardRef<ApiKeySecretViewHandle>(
       ref,
       () => ({
         reveal(nextCredential) {
+          revealGeneration.current += 1;
+          copyInFlight.current = false;
           credentialRef.current = nextCredential;
           setCredential(nextCredential);
           setCopyState("idle");
@@ -59,19 +66,41 @@ export const ApiKeySecretView = forwardRef<ApiKeySecretViewHandle>(
       [],
     );
 
-    useEffect(
-      () => () => {
+    useEffect(() => {
+      mounted.current = true;
+      return () => {
+        mounted.current = false;
+        revealGeneration.current += 1;
+        copyInFlight.current = false;
         credentialRef.current = "";
-      },
-      [],
-    );
+      };
+    }, []);
 
     async function copyCredential() {
-      if (!credentialRef.current) return;
+      const value = credentialRef.current;
+      if (!value || copyInFlight.current) return;
+      const generation = revealGeneration.current;
+      copyInFlight.current = true;
       try {
-        await navigator.clipboard.writeText(credentialRef.current);
+        await navigator.clipboard.writeText(value);
+        if (
+          !mounted.current ||
+          generation !== revealGeneration.current ||
+          credentialRef.current !== value
+        ) {
+          return;
+        }
+        copyInFlight.current = false;
         setCopyState("copied");
       } catch {
+        if (
+          !mounted.current ||
+          generation !== revealGeneration.current ||
+          credentialRef.current !== value
+        ) {
+          return;
+        }
+        copyInFlight.current = false;
         setCopyState("failed");
       }
     }

@@ -107,7 +107,7 @@ it("keeps every server-rendered interaction unavailable until hydration", () => 
   }
 });
 
-it("deduplicates continuation pages by key ID", async () => {
+it("appends continuation pages without overwriting an authoritative first-page row", async () => {
   const second = {
     ...apiKey,
     id: "01900000-0000-7000-8000-000000000902",
@@ -128,9 +128,11 @@ it("deduplicates continuation pages by key ID", async () => {
   );
 
   fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
-  await screen.findByText("CLI refreshed");
+  await screen.findByText("Deploy");
 
   expect(screen.getAllByRole("row")).toHaveLength(3);
+  expect(screen.getByText("CLI integration")).toBeVisible();
+  expect(screen.queryByText("CLI refreshed")).not.toBeInTheDocument();
   expect(listKeys).toHaveBeenCalledWith(
     client,
     { kind: "personal" },
@@ -263,4 +265,160 @@ it("keeps a rotate secret through failed refresh and retries only the safe GET",
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
   expect(rotateKey).toHaveBeenCalledTimes(1);
   expect(screen.getByText(apiKeySecret.key)).toBeVisible();
+});
+
+it("serializes a mutation refresh against tail reads and retains an update overlay until exact first-page acknowledgement", async () => {
+  const refresh = deferred<ApiResult<ApiKeyPageResponse>>();
+  const disabled = { ...apiKey, status: "disabled" as const, enabled: false };
+  updateKey.mockResolvedValue({ ok: true, data: disabled });
+  listKeys.mockReturnValueOnce(refresh.promise).mockResolvedValueOnce({
+    ok: true,
+    data: {
+      items: [{ ...apiKey, name: "Stale tail row" }],
+      nextCursor: null,
+    },
+  });
+  renderWithMessages(
+    <ApiKeyManagement
+      initialPage={{ ...apiKeyPage, nextCursor: "tail" }}
+      owner={{ kind: "personal" }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(1));
+  const loadMore = screen.getByRole("button", { name: "Load more API keys" });
+  expect(loadMore).toBeDisabled();
+  fireEvent.click(loadMore);
+  expect(listKeys).toHaveBeenCalledTimes(1);
+
+  await act(async () => {
+    refresh.resolve({
+      ok: true,
+      data: { items: [apiKey], nextCursor: "tail" },
+    });
+  });
+  expect(screen.getByText("Disabled")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("Disabled")).toBeVisible();
+  expect(screen.queryByText("Stale tail row")).not.toBeInTheDocument();
+});
+
+it("keeps a tail read from committing after a confirmed mutation starts first-page reconciliation", async () => {
+  const tail = deferred<ApiResult<ApiKeyPageResponse>>();
+  const refresh = deferred<ApiResult<ApiKeyPageResponse>>();
+  const disabled = { ...apiKey, status: "disabled" as const, enabled: false };
+  listKeys
+    .mockReturnValueOnce(tail.promise)
+    .mockReturnValueOnce(refresh.promise);
+  updateKey.mockResolvedValue({ ok: true, data: disabled });
+  renderWithMessages(
+    <ApiKeyManagement
+      initialPage={{ ...apiKeyPage, nextCursor: "tail" }}
+      owner={{ kind: "personal" }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
+  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
+  await act(async () => {
+    tail.resolve({
+      ok: true,
+      data: {
+        items: [{ ...apiKey, name: "Late stale tail" }],
+        nextCursor: null,
+      },
+    });
+  });
+  expect(screen.getByText("Disabled")).toBeVisible();
+  expect(screen.queryByText("Late stale tail")).not.toBeInTheDocument();
+
+  await act(async () => {
+    refresh.resolve({
+      ok: true,
+      data: { items: [disabled], nextCursor: null },
+    });
+  });
+  expect(screen.getByText("Disabled")).toBeVisible();
+});
+
+it("renders toggle Problem Details separately from pagination and never offers a tail retry", async () => {
+  updateKey.mockResolvedValue({
+    ok: false,
+    failure: {
+      kind: "problem",
+      code: "api_key_permission_denied",
+      status: 403,
+      traceId: "trace-toggle",
+    },
+  });
+  renderWithMessages(
+    <ApiKeyManagement
+      initialPage={{ ...apiKeyPage, nextCursor: "tail" }}
+      owner={{ kind: "personal" }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+
+  expect(await screen.findByText(/do not have permission/)).toBeVisible();
+  expect(screen.getByText("trace-toggle")).toBeVisible();
+  expect(
+    screen.queryByText("More API keys could not be loaded."),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Retry list refresh" }),
+  ).not.toBeInTheDocument();
+  expect(listKeys).not.toHaveBeenCalled();
+});
+
+it("rejects a mismatched toggle response without adding or reconciling the wrong row", async () => {
+  updateKey.mockResolvedValue({
+    ok: true,
+    data: {
+      ...apiKey,
+      id: "different-key",
+      status: "disabled",
+      enabled: false,
+    },
+  });
+  renderWithMessages(
+    <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+
+  expect(
+    await screen.findByText("The request could not be completed."),
+  ).toBeVisible();
+  expect(screen.getByText("Active")).toBeVisible();
+  expect(screen.queryByText("Disabled")).not.toBeInTheDocument();
+  expect(listKeys).not.toHaveBeenCalled();
+});
+
+it("rejects a mismatched revoke response without removing the requested row", async () => {
+  revokeKey.mockResolvedValue({
+    ok: true,
+    data: { id: "different-key", revokedAt: "2026-08-02T11:00:00Z" },
+  });
+  renderWithMessages(
+    <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+  fireEvent.click(
+    within(
+      screen.getByRole("dialog", { name: "Revoke CLI integration?" }),
+    ).getByRole("button", { name: "Revoke key" }),
+  );
+
+  expect(
+    await screen.findByText("The request could not be completed."),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(screen.getByRole("row", { name: /CLI integration/ })).toBeVisible();
+  expect(listKeys).not.toHaveBeenCalled();
 });

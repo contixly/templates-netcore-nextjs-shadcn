@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -22,6 +22,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import {
+  apiKeyFailureMessage,
+  apiKeyIdentityMismatchFailure,
+} from "@/src/features/api-keys/api-key-failures";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import { rotateBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -43,12 +47,32 @@ export function ApiKeyRotateDialog({
   const interactionReady = useInteractionReady();
   const localSecretView = useRef<ApiKeySecretViewHandle>(null);
   const secretView = secretViewRef ?? localSecretView;
+  const mounted = useRef(true);
+  const actionGeneration = useRef(0);
+  const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      actionGeneration.current += 1;
+      requestInFlight.current = false;
+    };
+  }, []);
+
+  function changeOpen(nextOpen: boolean) {
+    if (requestInFlight.current) return;
+    setOpen(nextOpen);
+    if (nextOpen) setFailure(null);
+  }
+
   async function rotate() {
-    if (pending) return;
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
+    const generation = ++actionGeneration.current;
     setPending(true);
     setFailure(null);
     const result = await rotateBrowserApiKey(
@@ -56,18 +80,28 @@ export function ApiKeyRotateDialog({
       owner,
       apiKey.id,
     );
+    if (!mounted.current || generation !== actionGeneration.current) {
+      if (result.ok) result.data.key = "";
+      return;
+    }
+    requestInFlight.current = false;
     setPending(false);
     if (!result.ok) return setFailure(result.failure);
+    if (result.data.id !== apiKey.id) {
+      result.data.key = "";
+      setFailure(apiKeyIdentityMismatchFailure());
+      return;
+    }
 
     const { key, ...safeApiKey } = result.data;
-    onConfirmed(safeApiKey);
     setOpen(false);
     secretView.current?.reveal(key);
+    onConfirmed(safeApiKey);
   }
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+      <Dialog open={open} onOpenChange={changeOpen}>
         <DialogTrigger asChild>
           <Button
             {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
@@ -90,22 +124,7 @@ export function ApiKeyRotateDialog({
             <Alert variant="destructive">
               <AlertTitle>{t("failures.rotate")}</AlertTitle>
               <AlertDescription>
-                <p>
-                  {t(
-                    `failures.codes.${
-                      failure.kind === "problem" &&
-                      [
-                        "antiforgery_failed",
-                        "api_key_not_found",
-                        "api_key_permission_denied",
-                        "api_key_update_unchanged",
-                        "validation_failed",
-                      ].includes(failure.code)
-                        ? (failure.code as "api_key_permission_denied")
-                        : "generic"
-                    }`,
-                  )}
-                </p>
+                <p>{t(`failures.codes.${apiKeyFailureMessage(failure)}`)}</p>
                 {failure.kind === "problem" && failure.traceId ? (
                   <p className="font-mono">{failure.traceId}</p>
                 ) : null}
@@ -115,7 +134,7 @@ export function ApiKeyRotateDialog({
           <DialogFooter>
             <Button
               disabled={pending}
-              onClick={() => setOpen(false)}
+              onClick={() => changeOpen(false)}
               type="button"
               variant="outline"
             >

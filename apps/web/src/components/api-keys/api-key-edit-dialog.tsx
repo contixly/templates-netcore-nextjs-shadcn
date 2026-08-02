@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import {
@@ -36,6 +36,10 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Switch } from "@/src/components/ui/switch";
+import {
+  apiKeyFailureMessage,
+  apiKeyIdentityMismatchFailure,
+} from "@/src/features/api-keys/api-key-failures";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import {
   API_KEY_EXPIRY_OPTIONS,
@@ -62,6 +66,10 @@ function sameValues(left: readonly string[], right: readonly string[]) {
   );
 }
 
+function validRateLimitMax(value: number) {
+  return Number.isInteger(value) && value >= 1 && value <= 1_000_000;
+}
+
 export function ApiKeyEditDialog({
   apiKey,
   onConfirmed,
@@ -74,6 +82,9 @@ export function ApiKeyEditDialog({
   const t = useTranslations("apiKeys");
   const interactionReady = useInteractionReady();
   const initialPresets = apiKeyPresetIdsForScopes(apiKey.scopes);
+  const mounted = useRef(true);
+  const actionGeneration = useRef(0);
+  const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(apiKey.name);
   const [presetIds, setPresetIds] = useState<ApiKeyPresetId[]>(initialPresets);
@@ -92,6 +103,15 @@ export function ApiKeyEditDialog({
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      actionGeneration.current += 1;
+      requestInFlight.current = false;
+    };
+  }, []);
+
   function resetForm() {
     setName(apiKey.name);
     setPresetIds(apiKeyPresetIdsForScopes(apiKey.scopes));
@@ -105,7 +125,7 @@ export function ApiKeyEditDialog({
   }
 
   function changeOpen(nextOpen: boolean) {
-    if (pending) return;
+    if (requestInFlight.current) return;
     if (nextOpen) resetForm();
     setOpen(nextOpen);
   }
@@ -122,17 +142,13 @@ export function ApiKeyEditDialog({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (requestInFlight.current) return;
     const normalizedName = name.trim();
     if (!normalizedName) return setValidation("nameRequired");
     if ([...normalizedName].length > 32) return setValidation("nameTooLong");
     if (/[\p{Cc}]/u.test(normalizedName)) return setValidation("nameControl");
     if (presetIds.length === 0) return setValidation("presetRequired");
-    if (
-      rateLimitEnabled &&
-      (!Number.isInteger(rateLimitMax) ||
-        rateLimitMax < 1 ||
-        rateLimitMax > 1_000_000)
-    )
+    if (rateLimitEnabled && !validRateLimitMax(rateLimitMax))
       return setValidation("rateLimitRange");
 
     const body: UpdateApiKeyRequest = {};
@@ -145,7 +161,12 @@ export function ApiKeyEditDialog({
     if (rateLimitEnabled !== apiKey.rateLimitEnabled) {
       body.rateLimitEnabled = rateLimitEnabled;
     }
-    if (rateLimitMax !== apiKey.rateLimitMax) body.rateLimitMax = rateLimitMax;
+    if (
+      validRateLimitMax(rateLimitMax) &&
+      rateLimitMax !== apiKey.rateLimitMax
+    ) {
+      body.rateLimitMax = rateLimitMax;
+    }
     if (rateLimitWindow !== apiKey.rateLimitWindow) {
       body.rateLimitWindow = rateLimitWindow;
     }
@@ -153,6 +174,8 @@ export function ApiKeyEditDialog({
 
     setValidation(null);
     setFailure(null);
+    requestInFlight.current = true;
+    const generation = ++actionGeneration.current;
     setPending(true);
     const result = await updateBrowserApiKey(
       createBrowserApiClient(),
@@ -160,28 +183,19 @@ export function ApiKeyEditDialog({
       apiKey.id,
       body,
     );
+    if (!mounted.current || generation !== actionGeneration.current) return;
+    requestInFlight.current = false;
     setPending(false);
     if (!result.ok) return setFailure(result.failure);
-    onConfirmed(result.data);
+    if (result.data.id !== apiKey.id) {
+      setFailure(apiKeyIdentityMismatchFailure());
+      return;
+    }
     setOpen(false);
+    onConfirmed(result.data);
   }
 
-  const failureCode =
-    failure?.kind === "problem" &&
-    [
-      "antiforgery_failed",
-      "api_key_not_found",
-      "api_key_permission_denied",
-      "api_key_update_unchanged",
-      "validation_failed",
-    ].includes(failure.code)
-      ? (failure.code as
-          | "antiforgery_failed"
-          | "api_key_not_found"
-          | "api_key_permission_denied"
-          | "api_key_update_unchanged"
-          | "validation_failed")
-      : "generic";
+  const failureCode = failure ? apiKeyFailureMessage(failure) : "generic";
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
@@ -289,7 +303,12 @@ export function ApiKeyEditDialog({
               <Switch
                 id={`api-key-edit-rate-enabled-${apiKey.id}`}
                 checked={rateLimitEnabled}
-                onCheckedChange={setRateLimitEnabled}
+                onCheckedChange={(checked) => {
+                  if (!checked && !validRateLimitMax(rateLimitMax)) {
+                    setRateLimitMax(apiKey.rateLimitMax);
+                  }
+                  setRateLimitEnabled(checked);
+                }}
               />
             </Field>
             <Field data-disabled={!rateLimitEnabled}>
@@ -359,7 +378,7 @@ export function ApiKeyEditDialog({
           <DialogFooter>
             <Button
               disabled={pending}
-              onClick={() => setOpen(false)}
+              onClick={() => changeOpen(false)}
               type="button"
               variant="outline"
             >

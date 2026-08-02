@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { IconPlus } from "@tabler/icons-react";
 
+import { apiKeyFailureMessage } from "@/src/features/api-keys/api-key-failures";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
@@ -62,6 +63,10 @@ type Validation = Readonly<{
   rateLimit?: "rateLimitRange";
 }>;
 
+function validRateLimitMax(value: number) {
+  return Number.isInteger(value) && value >= 1 && value <= 1_000_000;
+}
+
 function validate(
   name: string,
   presetIds: readonly ApiKeyPresetId[],
@@ -74,17 +79,10 @@ function validate(
     ...([...normalized].length > 32 ? { name: "nameTooLong" as const } : {}),
     ...(/[\p{Cc}]/u.test(normalized) ? { name: "nameControl" as const } : {}),
     ...(presetIds.length === 0 ? { presets: "presetRequired" as const } : {}),
-    ...(rateLimitEnabled &&
-    (!Number.isInteger(rateLimitMax) ||
-      rateLimitMax < 1 ||
-      rateLimitMax > 1_000_000)
+    ...(rateLimitEnabled && !validRateLimitMax(rateLimitMax)
       ? { rateLimit: "rateLimitRange" as const }
       : {}),
   };
-}
-
-function failureCode(failure: ApiFailure): string {
-  return failure.kind === "problem" ? failure.code : "generic";
 }
 
 function failureTrace(failure: ApiFailure): string | undefined {
@@ -104,6 +102,9 @@ export function ApiKeyCreateDialog({
   const interactionReady = useInteractionReady();
   const localSecretView = useRef<ApiKeySecretViewHandle>(null);
   const secretView = secretViewRef ?? localSecretView;
+  const mounted = useRef(true);
+  const actionGeneration = useRef(0);
+  const requestInFlight = useRef(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [presetIds, setPresetIds] = useState<ApiKeyPresetId[]>([
@@ -125,6 +126,32 @@ export function ApiKeyCreateDialog({
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [pending, setPending] = useState(false);
 
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      actionGeneration.current += 1;
+      requestInFlight.current = false;
+    };
+  }, []);
+
+  function resetForm() {
+    setName("");
+    setPresetIds([...PERSONAL_API_KEY_DEFAULTS.presetIds]);
+    setExpiresIn(PERSONAL_API_KEY_DEFAULTS.expiresIn);
+    setRateLimitEnabled(PERSONAL_API_KEY_DEFAULTS.rateLimitEnabled);
+    setRateLimitMax(PERSONAL_API_KEY_DEFAULTS.rateLimitMax);
+    setRateLimitWindow(PERSONAL_API_KEY_DEFAULTS.rateLimitWindow);
+    setValidation({});
+    setFailure(null);
+  }
+
+  function changeOpen(nextOpen: boolean) {
+    if (requestInFlight.current) return;
+    if (nextOpen) resetForm();
+    setOpen(nextOpen);
+  }
+
   function togglePreset(id: ApiKeyPresetId, checked: boolean) {
     setPresetIds((current) =>
       checked
@@ -137,7 +164,7 @@ export function ApiKeyCreateDialog({
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending) return;
+    if (requestInFlight.current) return;
     const nextValidation = validate(
       name,
       presetIds,
@@ -148,15 +175,25 @@ export function ApiKeyCreateDialog({
     setFailure(null);
     if (Object.keys(nextValidation).length > 0) return;
 
+    const submittedRateLimitMax = validRateLimitMax(rateLimitMax)
+      ? rateLimitMax
+      : PERSONAL_API_KEY_DEFAULTS.rateLimitMax;
+    requestInFlight.current = true;
+    const generation = ++actionGeneration.current;
     setPending(true);
     const result = await createBrowserApiKey(createBrowserApiClient(), owner, {
       name: name.trim(),
       presetIds,
       expiresIn,
       rateLimitEnabled,
-      rateLimitMax,
+      rateLimitMax: submittedRateLimitMax,
       rateLimitWindow,
     });
+    if (!mounted.current || generation !== actionGeneration.current) {
+      if (result.ok) result.data.key = "";
+      return;
+    }
+    requestInFlight.current = false;
     setPending(false);
     if (!result.ok) {
       setFailure(result.failure);
@@ -164,24 +201,17 @@ export function ApiKeyCreateDialog({
     }
 
     const { key, ...safeApiKey } = result.data;
-    onConfirmed(safeApiKey);
     setOpen(false);
+    resetForm();
     secretView.current?.reveal(key);
+    onConfirmed(safeApiKey);
   }
 
-  const code = failure ? failureCode(failure) : null;
-  const knownFailure =
-    code === "antiforgery_failed" ||
-    code === "api_key_not_found" ||
-    code === "api_key_permission_denied" ||
-    code === "api_key_update_unchanged" ||
-    code === "validation_failed"
-      ? code
-      : "generic";
+  const knownFailure = failure ? apiKeyFailureMessage(failure) : "generic";
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(next) => !pending && setOpen(next)}>
+      <Dialog open={open} onOpenChange={changeOpen}>
         <DialogTrigger asChild>
           <Button
             {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
@@ -290,7 +320,12 @@ export function ApiKeyCreateDialog({
                 <Switch
                   checked={rateLimitEnabled}
                   id="api-key-create-rate-enabled"
-                  onCheckedChange={setRateLimitEnabled}
+                  onCheckedChange={(checked) => {
+                    if (!checked && !validRateLimitMax(rateLimitMax)) {
+                      setRateLimitMax(PERSONAL_API_KEY_DEFAULTS.rateLimitMax);
+                    }
+                    setRateLimitEnabled(checked);
+                  }}
                 />
               </Field>
 
@@ -365,7 +400,7 @@ export function ApiKeyCreateDialog({
             <DialogFooter>
               <Button
                 disabled={pending}
-                onClick={() => setOpen(false)}
+                onClick={() => changeOpen(false)}
                 type="button"
                 variant="outline"
               >
