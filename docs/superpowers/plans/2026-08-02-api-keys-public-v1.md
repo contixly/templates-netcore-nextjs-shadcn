@@ -633,6 +633,8 @@ git commit -m "feat: expose session-authenticated api key management"
 - Modify: `apps/api/src/Template.Api/Authentication/AuthenticationServiceCollectionExtensions.cs`
 - Modify: `apps/api/src/Template.Api/Authentication/ApiAuthenticationDefaults.cs`
 - Modify: `apps/api/src/Template.Api/Authentication/ApiPolicies.cs`
+- Modify: `apps/api/src/Template.Api/Endpoints/EndpointRouteContext.cs`
+- Modify: `apps/api/src/Template.Api/Endpoints/EndpointModuleExtensions.cs`
 - Modify: `apps/api/src/Template.Api/Features/ApiKeys/ApiKeyEndpointModule.cs` for `GET /api/v1/me`.
 - Test: `apps/api/tests/Template.Api.Tests/ApiKeys/ApiKeyAuthenticationTests.cs`
 - Test: `apps/api/tests/Template.Application.Tests/ApiKeys/ApiKeyAuthenticationServiceTests.cs`
@@ -691,9 +693,11 @@ singleton authorization handler and endpoint convention extension.
 
 - [ ] **Step 6: Implement `/api/v1/me`**
 
-Map through a machine-only route group. Require `basic:read`. Return owner kind,
-nullable user/organization ID, key ID/start/config ID and canonical scopes in
-`ApiResponse<ApiKeyMeResponse>`.
+Extend `EndpointRouteContext` with `VersionedMachineApi`, created at `/api/v1`
+with only `Api.MachineKey`; keep the existing `VersionedApi` browser group
+unchanged. Map `/me` through the machine-only group and require `basic:read`.
+Return owner kind, nullable user/organization ID, key ID/start/config ID and
+canonical scopes in `ApiResponse<ApiKeyMeResponse>`.
 
 - [ ] **Step 7: Run authentication and auth regression tests GREEN**
 
@@ -756,7 +760,7 @@ Expected: browser policy denies keys and UUID detail route is absent.
 
 - [ ] **Step 3: Add explicit route groups**
 
-Extend `EndpointRouteContext` to carry:
+Complete `EndpointRouteContext` by adding the mixed group, so it carries:
 
 ```csharp
 RouteGroupBuilder VersionedApi;          // browser only
