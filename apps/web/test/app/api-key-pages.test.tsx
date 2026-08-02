@@ -60,14 +60,29 @@ jest.mock("@/src/components/api-keys/api-key-management", () => ({
     initialPage,
     owner,
   }: {
-    initialPage: { items: unknown[] };
+    initialPage: {
+      items: Array<{ id: string; name: string; start: string }>;
+      nextCursor?: string | null;
+    };
     owner: unknown;
   }) => (
     <section
       data-owner={JSON.stringify(owner)}
       data-testid="api-key-management"
     >
-      {initialPage.items.length}
+      <span>{JSON.stringify(initialPage)}</span>
+      <table>
+        <tbody>
+          {initialPage.items.map((apiKey) => (
+            <tr key={apiKey.id}>
+              <td>{apiKey.name}</td>
+              <td>{apiKey.start}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <span data-testid="api-key-secret-view">Secret reveal view</span>
+      <button type="button">Create API key</button>
     </section>
   ),
 }));
@@ -255,6 +270,63 @@ it("renders the safe API-key failure and no rows or mutations when the organizat
   expect(screen.queryByTestId("api-key-management")).not.toBeInTheDocument();
   expect(screen.queryByRole("row")).not.toBeInTheDocument();
   expect(screen.queryByRole("button")).not.toBeInTheDocument();
+});
+
+it("fails closed after the actual list succeeds when the trusted API-key capability is false", async () => {
+  const recognizableName = "Member must not see this organization key";
+  const recognizableStart = "tk_org_forbidden";
+  loadDetail.mockResolvedValue({
+    ok: true,
+    data: {
+      ...detail,
+      currentRole: "member",
+      capabilities: { ...detail.capabilities, canManageApiKeys: false },
+    },
+  });
+  loadKeys.mockResolvedValue({
+    ok: true,
+    data: {
+      items: [
+        {
+          ...apiKeyPage.items[0],
+          ownerKind: "organization",
+          ownerId: organizationId,
+          name: recognizableName,
+          start: recognizableStart,
+        },
+      ],
+      nextCursor: "must-not-render",
+    },
+  });
+
+  const page = await OrganizationApiKeysPage({
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+  renderWithMessages(page);
+
+  expect(loadKeys).toHaveBeenCalledTimes(1);
+  expect(loadKeys).toHaveBeenCalledWith(
+    {
+      kind: "organization",
+      organizationId,
+      organizationKey: "acme",
+      capabilities: { canManageApiKeys: false },
+    },
+    { limit: 50 },
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "API keys are unavailable",
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent("Try again");
+  expect(screen.queryByTestId("api-key-management")).not.toBeInTheDocument();
+  expect(screen.queryByRole("row")).not.toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent(recognizableName);
+  expect(document.body).not.toHaveTextContent(recognizableStart);
+  expect(document.body).not.toHaveTextContent("must-not-render");
+  expect(screen.queryByTestId("api-key-secret-view")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Create API key" }),
+  ).not.toBeInTheDocument();
 });
 
 it("provides localized organization loading/error boundaries and its switcher slot", async () => {

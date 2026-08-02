@@ -98,6 +98,19 @@ export default async function OrganizationApiKeysPage({
       />
     );
   }
+  if (!owner.capabilities.canManageApiKeys) {
+    return (
+      <Failure
+        description={t("failureDescription")}
+        failure={{
+          kind: "problem",
+          code: "api_key_permission_denied",
+          status: 403,
+        }}
+        title={t("failureTitle")}
+      />
+    );
+  }
 
   return (
     <article className="flex flex-col gap-8">
