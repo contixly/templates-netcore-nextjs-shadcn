@@ -163,7 +163,7 @@ public interface IApiKeyStore
     Task<ApiKeyOperationResult<ApiKeySummary>> RotateAsync(
         RotateApiKeyStoreCommand command, CancellationToken cancellationToken);
     Task<ApiKeyAuthenticationResult> AuthenticateAndConsumeAsync(
-        byte[] hash, DateTimeOffset now, CancellationToken cancellationToken);
+        byte[] hash, CancellationToken cancellationToken);
 }
 ```
 
@@ -492,10 +492,11 @@ Expected: failures for missing quota implementation.
 
 - [x] **Step 7: Implement `AuthenticateAndConsumeAsync`**
 
-Lock by unique hash; sample the supplied `now` once; evaluate terminal state;
-reset stale windows; compute ceiling seconds for retry; increment and persist
-count/last-request before returning a safe `ApiKeyPrincipal`. Do not materialize
-name/hash into the principal.
+Lock by unique hash; sample authoritative time after that lock on every fresh
+transaction attempt; clamp it against committed key/window/use timestamps;
+evaluate terminal state; reset stale windows; compute ceiling seconds for retry;
+increment and persist count/last-request before returning a safe
+`ApiKeyPrincipal`. Do not materialize name/hash into the principal.
 
 - [x] **Step 8: Run concurrency and lifecycle regressions GREEN**
 

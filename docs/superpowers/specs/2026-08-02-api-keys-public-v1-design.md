@@ -191,8 +191,8 @@ OpenAPI operation в неоднозначный `oneOf`, усложняет gene
   atomically consumes usage quota;
 - `MachineOrganizationService` resolves user-vs-organization scope and calls
   explicit machine-safe read ports without fake user IDs;
-- commands use typed user/organization/team/key IDs and TimeProvider-derived
-  timestamps;
+- commands use typed user/organization/team/key IDs and validated relative
+  durations; Infrastructure owns post-lock authoritative timestamps;
 - Application never sees browser cookies or HTTP headers.
 
 ### Infrastructure
@@ -325,6 +325,12 @@ On mixed GET routes:
 2. Otherwise select the primary browser session cookie scheme.
 3. A valid cookie never rescues a missing/blank/malformed/invalid supplied key.
 4. The API-key scheme never issues a cookie or browser session.
+
+Machine-only routes select only `Template.ApiKey`, even when the header is
+absent, and therefore never authenticate, renew or delete a browser cookie.
+Browser-only routes continue to select only `Template.Session` even when an
+unrelated `x-api-key` header is present. Endpoint metadata/policy, not path
+string matching, owns this route classification.
 
 The header must have exactly one value, remain within the bounded credential
 length and match one canonical owner-prefixed format. Missing or whitespace-only
@@ -484,9 +490,17 @@ journey.
   transaction retry; only exhaustion becomes `concurrency_conflict`;
 - validation, permission, not-found and cancellation outcomes are not retried.
 
+Every transaction attempt samples its clock only after the listed
+authorization/key locks. Create/rotate assign their timestamps there and update
+converts `expiresIn` from a validated relative duration to `expiresAt` there.
+Committed key, use and quota-window timestamps are monotonic lower bounds when
+the system clock moves backward; rotation can never precede a persisted use.
+
 ### Authentication and quota
 
-For a structurally valid header, one transaction locks the `key_hash` row and:
+For a structurally valid header, one transaction locks the `key_hash` row,
+samples its authoritative time after the lock on every fresh attempt, clamps it
+against the committed key/window/use timeline, and:
 
 1. verifies not revoked, enabled and unexpired;
 2. resets a stale fixed window when necessary;
@@ -607,6 +621,12 @@ confirmed success.
 - reveal state is cleared only by explicit close/unmount, not by a background
   refresh racing the successful create/rotate response.
 
+Accepted first-page and continuation reads form one authoritative traversal.
+Rows at the same or a newer precision-preserving RFC 3339 `updatedAt` retire a
+matching non-null overlay; older or malformed timestamps cannot. A revoke
+overlay remains through nonterminal traversal and retires only after a terminal
+accepted traversal proves the key absent from every page.
+
 Components use existing interaction-readiness and localized Problem Details
 patterns. Required shadcn primitives may be added in the target UI only; no
 code is copied into or generated inside `template/`.
@@ -696,7 +716,11 @@ Port the reference scenarios:
 - missing/blank/invalid/cookie-only `/me` denial;
 - insufficient scope denial;
 - personal `organization-read-all` starter reads;
-- personal key denied after membership loss;
+- personal-key membership-loss denial is covered by the PostgreSQL/API
+  integration test
+  `MachineOrganizationEndpointTests.PersonalKeyReadsOnlyCurrentMembershipsWithUserAccessProjection`;
+  black-box Playwright does not claim this journey because the public contract
+  has no member-removal operation;
 - organization key limited to its owner organization and survives creator role
   change/removal where organization lifecycle permits;
 - organization/member/team/team-member pagination and safe response shapes;

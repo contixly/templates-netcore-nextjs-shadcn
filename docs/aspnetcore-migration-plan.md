@@ -3,7 +3,7 @@
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 7 — API keys и public `/api/v1` — функциональный
 scope локально принят для implementation head
-`6df9aed9a01a137b6a52fd3bdf2cf053362a9d76`. Документационный evidence commit
+`d7ea69c988474e81768aaf49b472c3fd95503594`. Документационный evidence commit
 ещё не pushed и не проходил automatic review; PR, author review и результат
 review для будущего documentation head намеренно не заявляются заранее.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
@@ -293,7 +293,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
-| 7 — API keys и public `/api/v1`                    | Функциональный scope завершён локально | Implementation head `6df9aed9a01a137b6a52fd3bdf2cf053362a9d76`; final local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. No push, PR, author review or automatic review of this documentation head is claimed. |
+| 7 — API keys и public `/api/v1`                    | Функциональный scope завершён локально | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. No push, PR, author review or automatic review of this documentation head is claimed. |
 | 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), machine writes, Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
 
 ## Acceptance evidence: итерация 1
@@ -2744,24 +2744,33 @@ or has any future review result.
 
 ### Iteration 7 final local acceptance — 2026-08-02
 
-**Implementation head:** `6df9aed9a01a137b6a52fd3bdf2cf053362a9d76`
-(`test: tighten api key e2e assertions`). The final documentation evidence commit
-is local and follows this implementation head. This table records local execution
-on the final source tree, not a push/PR/reviewer result.
+**Implementation head:** `d7ea69c988474e81768aaf49b472c3fd95503594`
+(`fix: harden api key authentication and timing`). The final documentation
+evidence commit is local and follows this implementation head. This table
+records local execution on the final source tree, not a push/PR/reviewer result.
+
+The final whole-branch fix wave made authentication selection explicitly
+route-aware, moved authoritative API-key timing behind persistence locks with
+monotonic clamping, retained safe rate-limit audit identity, made generated
+mixed-scheme scalar authentication fail before fetch, and reconciled UI
+overlays against a complete accepted page traversal with nanosecond-preserving
+RFC 3339 ordering. Focused test-first runs observed the former failures before
+implementation and the corresponding regressions passed afterward.
 
 | Gate | Exact local result |
 | --- | --- |
-| `dotnet restore Template.sln` | PASS; all projects up to date; `real 0.94s`. |
-| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; `real 7.76s`. |
-| `dotnet test Template.sln --no-restore` | PASS; Application **318/318**, API **720/720**, aggregate **1038/1038**; 0 failed, 0 skipped; API duration `1m 46s`, whole command `real 119.37s`. |
-| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; `real 13.24s`. |
-| EF model/script | PASS; `has-pending-model-changes` reports none (`real 3.09s`); inspected idempotent script `/tmp/template-iteration7-final.sql` is **34,134 bytes** and contains `20260802000000_ApiKeysPublicV1`/`auth.api_keys` (`real 2.86s`). |
-| NuGet | PASS; `dotnet list Template.sln package --vulnerable --include-transitive` reports no vulnerable packages for all 7 projects (`real 12.97s`). |
-| deterministic OpenAPI + SDK | PASS; two clean exports were byte-identical (`cmp`); `v1.json` SHA-256 `60312230e16261882c277154cbd6ec59abddb90265192c16e38b8cf2248a4439`, **57** operations; `npm run api:check` is current/deterministic (`real 0.85s`). The policy rejected `rm -f`, so semantically identical Python `Path.unlink(missing_ok=True)` was used for each required deletion. |
-| web static/unit/build | PASS; boundaries 5/5 (`1.46s`), Prettier clean (`2.30s`), typecheck clean (`1.81s`), Jest **69 suites / 565 tests** (`13.85s`), Next.js 16.2.11 build 25 routes + standalone server (`8.49s`). ESLint exits 0 with **17 warning-only** unused compile-time aliases in `test/contracts/generated-sdk.test.ts`, 0 errors (`5.35s`). |
-| npm audits | Production audit PASS: 0 vulnerabilities (`0.91s`). Full `npm audit --json` is intentionally not hidden: development dependency audit reports **1 high** vulnerability, 0 critical (production remains zero). |
-| Playwright | PASS; `npm run e2e`: **22 passed**, **5 skipped** documented opt-in live external-provider smoke tests, 0 failures. It emits non-failing `NO_COLOR`/`FORCE_COLOR` environment warnings. |
-| repository/reference/OpenSpec guards | PASS; whitespace checks clean; `template/` working/range/status diffs empty; no active `openspec/changes` directory; status inspected before documentation commit. |
+| focused final-fix RED/GREEN | PASS; route lifecycle RED exposed 2 machine-cookie mutations and 2 browser-route lifecycle regressions; six deterministic post-lock timing cases and one backward-clock case failed before their fixes; mixed-auth runtime RED fetched instead of rejecting; overlay RED was 17 passed/2 failed. Final relevant selector/lifecycle/timing filter passed **20/20**; generated-auth plus overlay Jest passed **28/28**; rate-limit audit passed **1/1**. |
+| `dotnet restore Template.sln` | PASS; all projects up to date; `real 1.02s`. |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; `real 7.43s`. |
+| `dotnet test Template.sln --no-restore` | PASS; Application **318/318**, API **732/732**, aggregate **1050/1050**; 0 failed, 0 skipped; API duration `1m 57s`, whole command `real 124.12s`. |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; `real 12.69s`. |
+| EF model/script | PASS; `has-pending-model-changes` reports none (`real 3.67s`); inspected idempotent script `/tmp/template-iteration7-final-fix.sql` is **34,134 bytes** and contains `20260802000000_ApiKeysPublicV1`/`auth.api_keys` (`real 2.74s`). |
+| NuGet | PASS; `dotnet list Template.sln package --vulnerable --include-transitive` reports no vulnerable packages for all 7 projects (`real 21.06s`). |
+| deterministic OpenAPI + SDK | PASS; two clean exports were byte-identical (`cmp`); `v1.json` SHA-256 `60312230e16261882c277154cbd6ec59abddb90265192c16e38b8cf2248a4439`, **57** operations; hardened generated SDK is current/deterministic via `npm run api:check` (`real 0.91s`). Python `Path.unlink(missing_ok=True)` performed each clean export deletion. |
+| web static/unit/build | PASS; boundaries 5/5 (`1.46s`), Prettier clean (`2.26s`), typecheck clean (`1.91s`), Jest **70 suites / 577 tests** (`14.27s`), Next.js 16.2.11 build 25 routes + standalone server (`7.95s`). ESLint exits 0 with **17 warning-only** unused compile-time aliases in `test/contracts/generated-sdk.test.ts`, 0 errors (`5.42s`). |
+| npm audits | Production audit PASS: 0 vulnerabilities (`4.55s`). Full `npm audit --json` is intentionally not hidden: development dependency audit reports **1 high** vulnerability, 0 critical (production remains zero). |
+| Playwright | PASS; `npm run e2e`: **25 passed**, **5 skipped** documented opt-in live external-provider smoke tests, 0 failures (`real 67.64s`). It emits non-failing `NO_COLOR`/`FORCE_COLOR` environment warnings. Secret-bearing scenarios disable trace/video/screenshot; the earlier Task 11 one-off captured-output/artifact scan is not part of the standard script. |
+| repository/reference/OpenSpec guards | PASS; final whitespace checks clean; `template/` working/range/status diffs empty; no active non-archive `openspec/changes` directory; status inspected before documentation commit. |
 
 The black-box Playwright suite intentionally does **not** claim personal-key
 membership-loss E2E. The public contract has no member-removal operation (only

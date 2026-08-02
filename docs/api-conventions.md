@@ -771,14 +771,20 @@ is deleted.
 
 ### Authentication selector and route schemes
 
-The selector is deliberately fail-closed: mixed routes authorize through the
-`Api.BrowserOrMachine` policy, whose authentication scheme is
-`Template.Consumer.Selector`. On any `x-api-key` header it forwards exclusively
-to `Template.ApiKey`; only an absent header forwards to the browser
-`Template.Session` scheme. Exactly one nonblank canonical header is required. Blank/missing maps to `401 api_key_missing`; duplicate, malformed,
-unknown, disabled, revoked and expired values map to `401 api_key_invalid`.
-A valid cookie can never rescue a supplied bad key. API-key authentication never
-creates or renews a browser cookie.
+Authentication selection is route-aware and deliberately fail-closed. A
+machine-only endpoint selects only `Template.ApiKey`, even when `x-api-key` is
+absent; browser-cookie authentication, renewal and invalid-cookie deletion are
+therefore never run for that request. A browser-only endpoint continues to
+select only `Template.Session`, even if a caller supplies an unrelated
+`x-api-key` header. Mixed routes authorize through the `Api.BrowserOrMachine`
+policy, whose `Template.Consumer.Selector` forwards exclusively to
+`Template.ApiKey` when any `x-api-key` header is present and forwards to
+`Template.Session` only when the header is absent. Exactly one nonblank
+canonical header is required on the machine path. Blank/missing maps to
+`401 api_key_missing`; duplicate, malformed, unknown, disabled, revoked and
+expired values map to `401 api_key_invalid`. A valid cookie can never rescue a
+supplied bad key. API-key authentication never creates, renews or deletes a
+browser cookie.
 
 | Route class | Authorization policy | Authentication scheme(s) | Notes |
 | --- | --- | --- | --- |
@@ -829,23 +835,35 @@ and order. A consumer returns `nextCursor` unchanged and never treats cursors
 as interchangeable or decodable data.
 
 Create/update/revoke/rotate lock and re-authorize the owner-qualified row or
-owner role inside the PostgreSQL transaction. Classified serialization/deadlock
-outcomes retry with a fresh bounded transaction; only exhaustion is
-`concurrency_conflict`. Rotate keeps the logical ID/configuration, atomically
-invalidates the old credential, resets the active quota window/count, preserves
-`lastRequestAt`, and reveals exactly one new credential. Revoke is terminal and
-subsequent management repeats are not found.
+owner role inside the PostgreSQL transaction. Each fresh transaction attempt
+samples its authoritative clock only after those authorization/key locks.
+Create and rotate timestamps are assigned there, and update converts a relative
+expiry to an absolute timestamp there, so lock waits and retries do not shorten
+the requested lifetime. Mutation timestamps are clamped against already
+committed key/window/use timestamps when the clock moves backward. Classified
+serialization/deadlock outcomes retry with a fresh bounded transaction; only
+exhaustion is `concurrency_conflict`. Rotate keeps the logical ID/configuration,
+atomically invalidates the old credential, resets the active quota window/count,
+preserves `lastRequestAt`, and reveals exactly one new credential. Revoke is
+terminal and subsequent management repeats are not found.
 
-A valid-key presentation is serialized through its hash row: the transaction
-checks revoked/enabled/expiry, resets stale fixed windows, rejects exhausted
-windows with `429 api_key_rate_limited` and integer `Retry-After` (1..86400),
-and increments the counter/last use before resource authorization. A later
+A valid-key presentation is serialized through its hash row. Every fresh
+transaction attempt samples time only after acquiring that row lock, then
+clamps it against committed mutation, rotation, window and last-use timestamps
+before checking revoked/enabled/expiry, resetting a stale fixed window,
+rejecting an exhausted live window with `429 api_key_rate_limited` and integer
+`Retry-After` (1..86400), or incrementing the counter/last use. This prevents
+waiting or retried callers—and a backward-moving system clock—from regressing
+the persisted timeline or consuming a newer window with stale time. A later
 scope or organization denial still consumes a valid-key quota unit; invalid
 credentials disclose no existence information. Redis, Bearer tokens,
 distributed high-volume quota policy, and production rate-tier load testing are
 not part of this iteration.
 
 Audit events use only closed operation/outcome, correlation context, trusted
-opaque key/owner IDs when available, and route identity. They exclude raw
+opaque key/owner IDs when available, and route identity. Once a credential row
+has been validated, a rate-limited result retains only its safe principal so the
+denial audit can attribute key ID and owner kind/ID; the failed authentication
+and Problem Details remain non-disclosing. Audits exclude raw
 headers/credentials/hashes/key starts, names, scopes, cookies, body values,
 emails, cursor/query values and exception text. No metrics backend is added.

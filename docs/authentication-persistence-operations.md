@@ -458,9 +458,12 @@ recovered; issue/rotate a replacement.
 Key management remains a browser session operation. It uses the normal secure
 HttpOnly cookie; unsafe calls additionally require a fresh CSRF token from
 `GET /api/v1/auth/csrf` and `X-CSRF-TOKEN`. API keys and Bearer credentials
-cannot manage keys. `Template.Consumer.Selector` is the mixed-route
-**authentication scheme**: it forwards a supplied key to `Template.ApiKey`, or
-an absent key to browser `Template.Session`. `Api.MachineKey`,
+cannot manage keys. Endpoint metadata makes global selection route-aware:
+machine-only routes select only `Template.ApiKey` even without a header and do
+not read, renew or delete a browser cookie; browser-only routes select only
+`Template.Session` even with an unrelated key header. `Template.Consumer.Selector`
+is the mixed-route **authentication scheme**: it forwards a supplied key to
+`Template.ApiKey`, or an absent key to browser `Template.Session`. `Api.MachineKey`,
 `Api.BrowserSession`, and `Api.BrowserOrMachine` are **authorization policies**,
 not schemes; they respectively select key-only, session-only, and selector-based
 route requirements. Organization key operations re-read owner/admin authority
@@ -474,6 +477,15 @@ reset that window. A `429 api_key_rate_limited` has a bounded integer
 `Retry-After`; clients use bounded backoff. Capacity planning, Redis/Valkey,
 Bearer issuance/consumption, distributed high-volume tiering, deployment wiring
 and load testing remain explicitly out of scope.
+
+Every fresh persistence attempt samples its clock after authorization/key row
+locks and clamps it against the committed key/window/use timeline. Relative
+create/update expiry is converted only there; rotate cannot predate a persisted
+use. Thus lock waits, retries and a backward-moving system clock cannot regress
+quota, last-use or mutation timestamps. Once a valid row is known, a
+rate-limited result carries only the safe key/owner principal for audit
+attribution; authentication still fails and neither logs nor Problem Details
+expose credential material or key configuration.
 
 Management and machine audit records must remain redacted: only bounded
 operation/outcome, trace/correlation context and trusted opaque IDs may be

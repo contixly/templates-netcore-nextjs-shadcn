@@ -22,6 +22,44 @@ selects API-key authentication exclusively. A valid session cookie does not
 rescue a blank, duplicate, malformed, unknown, disabled, revoked, or expired
 key.
 
+### Safe generated Node client usage
+
+The generated SDK describes a mixed browser-or-machine operation with separate
+cookie and API-key security alternatives. Do not configure a nonempty scalar
+`auth` value for such an operation: the generation-owned runtime guard rejects
+it locally before fetch so one secret cannot be copied into both `Cookie` and
+`x-api-key`. Select the API-key scheme explicitly instead:
+
+```ts
+const apiKey = process.env.TEMPLATE_API_KEY;
+if (!apiKey) throw new Error("TEMPLATE_API_KEY is required");
+
+const client = createClient({
+  baseUrl: process.env.TEMPLATE_API_URL,
+  auth: (scheme) => (scheme.name === "x-api-key" ? apiKey : undefined),
+});
+
+await getOrganizations({ client });
+```
+
+An explicit header on a dedicated client is also supported:
+
+```ts
+const apiKey = process.env.TEMPLATE_API_KEY;
+if (!apiKey) throw new Error("TEMPLATE_API_KEY is required");
+
+const client = createClient({
+  baseUrl: process.env.TEMPLATE_API_URL,
+  headers: { "x-api-key": apiKey },
+});
+```
+
+Never set a `Cookie` header to an API key. A scalar `auth` value remains valid
+for a single-scheme machine operation such as `/api/v1/me`, but the selective
+callback or explicit-header forms are safer when one client calls both mixed
+and machine-only operations. Keep the environment value in a secrets manager
+and out of browser bundles, command history and captured test artifacts.
+
 ## Read-only scope matrix
 
 API keys grant reads only. They cannot create or mutate organizations, members,
