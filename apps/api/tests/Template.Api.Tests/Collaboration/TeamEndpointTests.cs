@@ -387,6 +387,7 @@ public sealed class TeamEndpointTests(ApiWebApplicationFactory factory)
             value.GetProperty("organizationId").GetGuid());
         Assert.Equal(name, value.GetProperty("name").GetString());
         Assert.Equal(memberCount, value.GetProperty("memberCount").GetInt32());
+        Assert.True(value.GetProperty("membersIncluded").GetBoolean());
         Assert.NotEqual(default, value.GetProperty("createdAt").GetDateTimeOffset());
         Assert.NotEqual(default, value.GetProperty("updatedAt").GetDateTimeOffset());
         Assert.Equal(

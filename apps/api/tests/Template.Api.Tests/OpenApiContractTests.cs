@@ -1,7 +1,22 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Template.Api.Authentication;
+using Template.Api.Contracts;
+using Template.Api.Endpoints;
+using Template.Api.Features.ApiKeys;
+using Template.Api.Features.Organizations;
+using Template.Api.OpenApi;
 using Template.Api.Tests.Infrastructure;
+using Template.Domain.ApiKeys;
 
 namespace Template.Api.Tests;
 
@@ -61,6 +76,98 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task EveryPathTemplateVariableHasExactlyOneRequiredPathParameterAndNoExtras()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var methods = new HashSet<string>(
+            ["get", "put", "post", "delete", "options", "head", "patch", "trace"],
+            StringComparer.Ordinal);
+
+        foreach (var pathEntry in document["paths"]!.AsObject())
+        {
+            var variables = Regex.Matches(pathEntry.Key, "\\{([^{}]+)\\}")
+                .Select(match => match.Groups[1].Value)
+                .ToArray();
+            Assert.Equal(variables.Distinct(StringComparer.Ordinal), variables);
+
+            foreach (var operationEntry in pathEntry.Value!.AsObject()
+                         .Where(entry => methods.Contains(entry.Key)))
+            {
+                var parameters = (pathEntry.Value["parameters"]?.AsArray() ?? [])
+                    .Concat(operationEntry.Value!["parameters"]?.AsArray() ?? [])
+                    .Where(parameter =>
+                        parameter?["in"]?.GetValue<string>() == "path")
+                    .ToArray();
+                Assert.Equal(
+                    variables.Order(StringComparer.Ordinal),
+                    parameters.Select(parameter =>
+                            parameter!["name"]!.GetValue<string>())
+                        .Order(StringComparer.Ordinal));
+                foreach (var variable in variables)
+                {
+                    var parameter = Assert.Single(parameters, parameter =>
+                        parameter!["name"]!.GetValue<string>() == variable);
+                    Assert.True(parameter!["required"]!.GetValue<bool>());
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public Task ApiKeyContractRejectsUnregisteredScopedOperation() =>
+        AssertOpenApiGenerationFailsAsync<UnknownScopedApiKeyEndpointModule>();
+
+    [Fact]
+    public Task ApiKeyContractRejectsUnregisteredOwnerOperation() =>
+        AssertOpenApiGenerationFailsAsync<UnknownOwnerApiKeyEndpointModule>();
+
+    [Theory]
+    [InlineData(ApiPolicies.MachineKey)]
+    [InlineData(ApiPolicies.BrowserOrMachine)]
+    public Task ApiKeyContractRejectsUnregisteredEffectiveApiKeyPolicies(
+        string policy) =>
+        AssertOpenApiGenerationFailsAsync(
+            new UnknownPolicyApiKeyEndpointModule(policy),
+            replaceModules: false);
+
+    [Theory]
+    [InlineData(ApiPolicies.MachineKey)]
+    [InlineData(ApiPolicies.BrowserOrMachine)]
+    [InlineData(ApiPolicies.BrowserSession)]
+    public Task ApiKeyContractRejectsAnonymousOverrideForEverySecurityKind(
+        string policy) =>
+        AssertOpenApiGenerationFailsAsync(
+            new AnonymousApiKeyEndpointModule(policy),
+            replaceModules: true);
+
+    [Fact]
+    public Task ApiKeyContractRejectsRegisteredOperationWithRoutePolicyDrift() =>
+        AssertOpenApiGenerationFailsAsync<RoutePolicyDriftApiKeyEndpointModule>(
+            replaceModules: true);
+
+    [Fact]
+    public async Task ApiKeyContractRejectsManagementMutationWithoutAntiforgeryMetadata()
+    {
+        await using var driftFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IEndpointModule>();
+                services.AddSingleton<IEndpointModule,
+                    MissingAntiforgeryApiKeyEndpointModule>();
+            }));
+        using var client = CreateDriftClient(driftFactory);
+
+        using var response = await client.GetAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    [Fact]
     public async Task CookieSchemeAppliesOnlyToProtectedOperation()
     {
         using var client = factory.CreateApiClient();
@@ -106,7 +213,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         foreach (var ((path, method), operationId) in expected)
         {
             var operation = AssertOperation(document, path, method, operationId);
-            AssertCookieSecurity(operation);
+            if (operationId is "GetTeams" or "GetTeamMembers")
+            {
+                AssertBrowserOrApiKeySecurity(operation);
+            }
+            else
+            {
+                AssertCookieSecurity(operation);
+            }
             Assert.Equal("no-store", operation["x-cache-control"]!.GetValue<string>());
         }
 
@@ -294,7 +408,15 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         foreach (var (path, method, operationId, success, envelope, mutation, rateLimited) in expected)
         {
             var operation = AssertOperation(document, path, method, operationId);
-            AssertCookieSecurity(operation);
+            var mixedMachineRead = operationId is "GetTeams" or "GetTeamMembers";
+            if (mixedMachineRead)
+            {
+                AssertBrowserOrApiKeySecurity(operation);
+            }
+            else
+            {
+                AssertCookieSecurity(operation);
+            }
             foreach (var parameter in operation["parameters"]?.AsArray() ?? [])
             {
                 if (parameter!["in"]?.GetValue<string>() == "path")
@@ -306,7 +428,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             var responses = operation["responses"]!;
             var expectedProblems = operationId == "ConfirmLocalAutomationEmail"
                 ? new[] { "400", "401", "403", "404", "405", "500" }
-                : rateLimited
+                : rateLimited || mixedMachineRead
                     ? new[] { "400", "401", "403", "404", "405", "409", "429", "500" }
                     : new[] { "400", "401", "403", "404", "405", "409", "500" };
             Assert.Equal(
@@ -447,7 +569,9 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.NotNull(paths["/api/local-auth/scenario"]!["delete"]!["security"]);
 
         var schemes = document["components"]!["securitySchemes"]!.AsObject();
-        Assert.Equal(["cookieAuth"], schemes.Select(pair => pair.Key).ToArray());
+        Assert.Equal(
+            ["cookieAuth", "apiKeyAuth"],
+            schemes.Select(pair => pair.Key).ToArray());
     }
 
     [Fact]
@@ -993,7 +1117,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "GetOrganizations",
                 SuccessStatus = "200",
                 Envelope = "ApiResponseOfOrganizationPageResponse",
-                ProblemStatuses = new[] { "400", "401", "405", "500" },
+                ProblemStatuses = new[] { "400", "401", "403", "405", "429", "500" },
                 Mutation = false,
                 BadRequestIsUnion = true
             },
@@ -1059,7 +1183,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 OperationId = "GetOrganizationMembers",
                 SuccessStatus = "200",
                 Envelope = "ApiResponseOfOrganizationMemberPageResponse",
-                ProblemStatuses = new[] { "400", "401", "404", "405", "409", "500" },
+                ProblemStatuses = new[] { "400", "401", "403", "404", "405", "409", "429", "500" },
                 Mutation = false,
                 BadRequestIsUnion = true
             },
@@ -1094,7 +1218,15 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 expected.Path,
                 expected.Method,
                 expected.OperationId);
-            AssertCookieSecurity(operation);
+            if (expected.OperationId is "GetOrganizations" or
+                "GetOrganizationMembers")
+            {
+                AssertBrowserOrApiKeySecurity(operation);
+            }
+            else
+            {
+                AssertCookieSecurity(operation);
+            }
             if (expected.Mutation)
             {
                 AssertRequiredHeader(operation, "X-CSRF-TOKEN");
@@ -1139,7 +1271,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task OrganizationMemberListPublishesItsConcurrencyConflictButNoForbiddenResponse()
+    public async Task OrganizationMemberListPublishesMachineForbiddenRateLimitAndConcurrencyResponses()
     {
         using var client = factory.CreateApiClient();
         var document = JsonNode.Parse(await client.GetStringAsync(
@@ -1153,7 +1285,8 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
 
         Assert.NotNull(responses["409"]);
         AssertSchemaReference(responses["409"]!, "ProblemDetails");
-        Assert.Null(responses["403"]);
+        AssertSchemaReference(responses["403"]!, "ProblemDetails");
+        AssertSchemaReference(responses["429"]!, "ProblemDetails");
     }
 
     [Fact]
@@ -1370,6 +1503,706 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task ApiKeySchemeSecurityAndScopesAreExactAndBounded()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        var scheme = document["components"]!["securitySchemes"]!["apiKeyAuth"]!;
+        Assert.Equal("apiKey", scheme["type"]!.GetValue<string>());
+        Assert.Equal("header", scheme["in"]!.GetValue<string>());
+        Assert.Equal("x-api-key", scheme["name"]!.GetValue<string>());
+
+        var expectedScopes = new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["GetApiKeyPrincipal"] = ["basic:read"],
+            ["GetOrganizations"] = ["organization:read"],
+            ["GetMachineOrganization"] = ["organization:read"],
+            ["GetOrganizationMembers"] = ["organization:read", "member:read"],
+            ["GetTeams"] = ["organization:read", "team:read"],
+            ["GetTeamMembers"] =
+                ["organization:read", "team:read", "teamMember:read"]
+        };
+        var expectedOperations = new Dictionary<string, (string Path, string Method)>(
+            StringComparer.Ordinal)
+        {
+            ["GetApiKeyPrincipal"] = ("/api/v1/me", "get"),
+            ["GetOrganizations"] = ("/api/v1/organizations", "get"),
+            ["GetMachineOrganization"] =
+                ("/api/v1/organizations/{organizationId}", "get"),
+            ["GetOrganizationMembers"] =
+                ("/api/v1/organizations/{organizationId}/members", "get"),
+            ["GetTeams"] =
+                ("/api/v1/organizations/{organizationId}/teams", "get"),
+            ["GetTeamMembers"] =
+                ("/api/v1/organizations/{organizationId}/teams/{teamId}/members", "get")
+        };
+
+        Assert.Equal(
+            expectedOperations.Keys.Order(StringComparer.Ordinal),
+            expectedScopes.Keys.Order(StringComparer.Ordinal));
+        foreach (var (operationId, location) in expectedOperations)
+        {
+            var operation = AssertOperation(
+                document,
+                location.Path,
+                location.Method,
+                operationId);
+            AssertApiKeyScopes(operation, expectedScopes[operationId]);
+            if (operationId is "GetApiKeyPrincipal" or "GetMachineOrganization")
+            {
+                AssertApiKeySecurity(operation);
+            }
+            else
+            {
+                AssertBrowserOrApiKeySecurity(operation);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApiKeyMachineReadsPublishExactStatusesProblemsAndRetryAfter()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        var operations = new[]
+        {
+            new
+            {
+                Path = "/api/v1/me",
+                Method = "get",
+                OperationId = "GetApiKeyPrincipal",
+                Success = "ApiResponseOfApiKeyMeResponse",
+                Problems = new[] { 401, 403, 405, 429, 500 },
+                BadRequestUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/organizations",
+                Method = "get",
+                OperationId = "GetOrganizations",
+                Success = "ApiResponseOfOrganizationPageResponse",
+                Problems = new[] { 400, 401, 403, 405, 429, 500 },
+                BadRequestUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}",
+                Method = "get",
+                OperationId = "GetMachineOrganization",
+                Success = "ApiResponseOfMachineOrganizationDetailResponse",
+                Problems = new[] { 400, 401, 403, 404, 405, 429, 500 },
+                BadRequestUnion = false
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}/members",
+                Method = "get",
+                OperationId = "GetOrganizationMembers",
+                Success = "ApiResponseOfOrganizationMemberPageResponse",
+                Problems = new[] { 400, 401, 403, 404, 405, 409, 429, 500 },
+                BadRequestUnion = true
+            },
+            new
+            {
+                Path = "/api/v1/organizations/{organizationId}/teams",
+                Method = "get",
+                OperationId = "GetTeams",
+                Success = "ApiResponseOfTeamPageResponse",
+                Problems = new[] { 400, 401, 403, 404, 405, 409, 429, 500 },
+                BadRequestUnion = true
+            },
+            new
+            {
+                Path =
+                    "/api/v1/organizations/{organizationId}/teams/{teamId}/members",
+                Method = "get",
+                OperationId = "GetTeamMembers",
+                Success = "ApiResponseOfTeamMemberPageResponse",
+                Problems = new[] { 400, 401, 403, 404, 405, 409, 429, 500 },
+                BadRequestUnion = true
+            }
+        };
+
+        foreach (var expected in operations)
+        {
+            var operation = AssertOperation(
+                document,
+                expected.Path,
+                expected.Method,
+                expected.OperationId);
+            var responses = operation["responses"]!;
+            Assert.Equal(
+                new[] { "200" }.Concat(expected.Problems.Select(value => value.ToString()))
+                    .Order(StringComparer.Ordinal),
+                responses.AsObject().Select(response => response.Key)
+                    .Order(StringComparer.Ordinal));
+            Assert.Equal(
+                $"#/components/schemas/{expected.Success}",
+                responses["200"]!["content"]!["application/json"]!["schema"]!
+                    ["$ref"]!.GetValue<string>());
+            foreach (var status in expected.Problems)
+            {
+                if (status == 400 && expected.BadRequestUnion)
+                {
+                    AssertSchemaUnion(
+                        responses["400"]!,
+                        "ProblemDetails",
+                        "HttpValidationProblemDetails");
+                }
+                else if (status == 400)
+                {
+                    AssertSchemaReference(
+                        responses["400"]!,
+                        "HttpValidationProblemDetails");
+                }
+                else
+                {
+                    AssertSchemaReference(
+                        responses[status.ToString()]!,
+                        "ProblemDetails");
+                }
+            }
+
+            foreach (var response in responses.AsObject())
+            {
+                AssertNoStoreResponseHeader(response.Value!);
+            }
+
+            var retryAfter = responses["429"]!["headers"]!["Retry-After"]!;
+            Assert.True(retryAfter["required"]!.GetValue<bool>());
+            Assert.Equal("integer", retryAfter["schema"]!["type"]!.GetValue<string>());
+            Assert.Equal("int32", retryAfter["schema"]!["format"]!.GetValue<string>());
+            Assert.Equal(1, retryAfter["schema"]!["minimum"]!.GetValue<int>());
+            Assert.Equal(86400, retryAfter["schema"]!["maximum"]!.GetValue<int>());
+            Assert.Equal(
+                "Whole seconds until this API key's fixed rate-limit window permits another request.",
+                retryAfter["description"]!.GetValue<string>());
+        }
+    }
+
+    [Fact]
+    public async Task ApiKeyManagementPublishesExactCookieCsrfStatusAndEnvelopeContract()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+
+        var operations = new[]
+        {
+            new { Path = "/api/v1/account/api-keys", Method = "get", Id = "ListPersonalApiKeys", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeyPageResponse", Problems = new[] { 400, 401, 405, 500 }, Mutation = false, Body = false, Location = false, BadRequestUnion = false },
+            new { Path = "/api/v1/account/api-keys", Method = "post", Id = "CreatePersonalApiKey", SuccessStatus = "201", Envelope = "ApiResponseOfApiKeySecretResponse", Problems = new[] { 400, 401, 405, 409, 500 }, Mutation = true, Body = true, Location = true, BadRequestUnion = true },
+            new { Path = "/api/v1/account/api-keys/{apiKeyId}", Method = "patch", Id = "UpdatePersonalApiKey", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeyResponse", Problems = new[] { 400, 401, 404, 405, 409, 500 }, Mutation = true, Body = true, Location = false, BadRequestUnion = true },
+            new { Path = "/api/v1/account/api-keys/{apiKeyId}", Method = "delete", Id = "RevokePersonalApiKey", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeyRevocationResponse", Problems = new[] { 400, 401, 404, 405, 409, 500 }, Mutation = true, Body = false, Location = false, BadRequestUnion = true },
+            new { Path = "/api/v1/account/api-keys/{apiKeyId}/rotate", Method = "post", Id = "RotatePersonalApiKey", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeySecretResponse", Problems = new[] { 400, 401, 404, 405, 409, 500 }, Mutation = true, Body = false, Location = false, BadRequestUnion = true },
+            new { Path = "/api/v1/organizations/{organizationId}/api-keys", Method = "get", Id = "ListOrganizationApiKeys", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeyPageResponse", Problems = new[] { 400, 401, 403, 404, 405, 409, 500 }, Mutation = false, Body = false, Location = false, BadRequestUnion = false },
+            new { Path = "/api/v1/organizations/{organizationId}/api-keys", Method = "post", Id = "CreateOrganizationApiKey", SuccessStatus = "201", Envelope = "ApiResponseOfApiKeySecretResponse", Problems = new[] { 400, 401, 403, 404, 405, 409, 500 }, Mutation = true, Body = true, Location = true, BadRequestUnion = true },
+            new { Path = "/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}", Method = "patch", Id = "UpdateOrganizationApiKey", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeyResponse", Problems = new[] { 400, 401, 403, 404, 405, 409, 500 }, Mutation = true, Body = true, Location = false, BadRequestUnion = true },
+            new { Path = "/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}", Method = "delete", Id = "RevokeOrganizationApiKey", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeyRevocationResponse", Problems = new[] { 400, 401, 403, 404, 405, 409, 500 }, Mutation = true, Body = false, Location = false, BadRequestUnion = true },
+            new { Path = "/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}/rotate", Method = "post", Id = "RotateOrganizationApiKey", SuccessStatus = "200", Envelope = "ApiResponseOfApiKeySecretResponse", Problems = new[] { 400, 401, 403, 404, 405, 409, 500 }, Mutation = true, Body = false, Location = false, BadRequestUnion = true }
+        };
+
+        Assert.Equal(
+            new[]
+            {
+                "CreateOrganizationApiKey",
+                "CreatePersonalApiKey",
+                "ListOrganizationApiKeys",
+                "ListPersonalApiKeys",
+                "RevokeOrganizationApiKey",
+                "RevokePersonalApiKey",
+                "RotateOrganizationApiKey",
+                "RotatePersonalApiKey",
+                "UpdateOrganizationApiKey",
+                "UpdatePersonalApiKey"
+            },
+            operations.Select(value => value.Id).Order(StringComparer.Ordinal));
+        foreach (var expected in operations)
+        {
+            var operation = AssertOperation(
+                document,
+                expected.Path,
+                expected.Method,
+                expected.Id);
+            AssertCookieSecurity(operation);
+            foreach (Match variable in Regex.Matches(
+                         expected.Path,
+                         "\\{([^{}]+)\\}"))
+            {
+                var parameter = Assert.Single(
+                    operation["parameters"]!.AsArray(),
+                    value => value!["in"]!.GetValue<string>() == "path" &&
+                        value["name"]!.GetValue<string>() ==
+                        variable.Groups[1].Value);
+                Assert.True(parameter!["required"]!.GetValue<bool>());
+                Assert.Equal(
+                    "uuid",
+                    parameter["schema"]!["format"]!.GetValue<string>());
+                Assert.Equal(
+                    CanonicalUuidPattern,
+                    parameter["schema"]!["pattern"]!.GetValue<string>());
+            }
+            Assert.Equal(expected.Body, operation["requestBody"] is not null);
+            if (expected.Body)
+            {
+                Assert.True(operation["requestBody"]!["required"]!.GetValue<bool>());
+                Assert.Equal(
+                    ["application/json"],
+                    operation["requestBody"]!["content"]!.AsObject()
+                        .Select(content => content.Key));
+            }
+
+            if (expected.Mutation)
+            {
+                AssertRequiredHeader(operation, "X-CSRF-TOKEN");
+            }
+            else
+            {
+                Assert.DoesNotContain(
+                    operation["parameters"]?.AsArray() ?? [],
+                    parameter => parameter!["name"]?.GetValue<string>() ==
+                        "X-CSRF-TOKEN");
+            }
+
+            var responses = operation["responses"]!;
+            Assert.Equal(
+                new[] { expected.SuccessStatus }
+                    .Concat(expected.Problems.Select(value => value.ToString()))
+                    .Order(StringComparer.Ordinal),
+                responses.AsObject().Select(response => response.Key)
+                    .Order(StringComparer.Ordinal));
+            Assert.Equal(
+                $"#/components/schemas/{expected.Envelope}",
+                responses[expected.SuccessStatus]!["content"]!["application/json"]!
+                    ["schema"]!["$ref"]!.GetValue<string>());
+            foreach (var status in expected.Problems)
+            {
+                if (status == 400 && expected.BadRequestUnion)
+                {
+                    AssertSchemaUnion(
+                        responses["400"]!,
+                        "ProblemDetails",
+                        "HttpValidationProblemDetails");
+                }
+                else if (status == 400)
+                {
+                    AssertSchemaReference(
+                        responses["400"]!,
+                        "HttpValidationProblemDetails");
+                }
+                else
+                {
+                    AssertSchemaReference(
+                        responses[status.ToString()]!,
+                        "ProblemDetails");
+                }
+            }
+
+            foreach (var response in responses.AsObject())
+            {
+                AssertNoStoreResponseHeader(response.Value!);
+            }
+
+            if (expected.Location)
+            {
+                var location = responses[expected.SuccessStatus]!["headers"]!["Location"]!;
+                Assert.True(location["required"]!.GetValue<bool>());
+                Assert.Equal("uri-reference", location["schema"]!["format"]!.GetValue<string>());
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApiKeyRequestsResponsesAndPaginationPublishClosedSchemas()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+        var create = schemas["CreateApiKeyRequest"]!;
+        var update = schemas["UpdateApiKeyRequest"]!;
+
+        Assert.False(create["additionalProperties"]!.GetValue<bool>());
+        Assert.False(update["additionalProperties"]!.GetValue<bool>());
+        AssertRequiredNonNullProperties(
+            create,
+            "name",
+            "presetIds",
+            "expiresIn",
+            "rateLimitEnabled",
+            "rateLimitMax",
+            "rateLimitWindow");
+        AssertTrimmedString(create["properties"]!["name"]!, 1, 32);
+        Assert.Equal(
+            "Trimmed before use; the result must contain 1 to 32 Unicode scalars and no control characters.",
+            create["properties"]!["name"]!["description"]!.GetValue<string>());
+        Assert.Equal(1, create["properties"]!["presetIds"]!["minItems"]!.GetValue<int>());
+
+        var presets = new[]
+        {
+            "basic-read",
+            "organization-read",
+            "organization-members-read",
+            "organization-teams-read",
+            "organization-team-members-read",
+            "organization-read-all"
+        };
+        AssertStringEnum(create["properties"]!["presetIds"]!["items"]!, presets);
+        AssertStringEnum(update["properties"]!["presetIds"]!["items"]!, presets);
+        var expirations = new[] { "never", "7d", "30d", "90d", "365d" };
+        AssertStringEnum(create["properties"]!["expiresIn"]!, expirations);
+        AssertStringEnum(update["properties"]!["expiresIn"]!, expirations);
+        var windows = new[] { "1m", "1h", "1d" };
+        AssertStringEnum(create["properties"]!["rateLimitWindow"]!, windows);
+        AssertStringEnum(update["properties"]!["rateLimitWindow"]!, windows);
+        foreach (var request in new[] { create, update })
+        {
+            var maximum = request["properties"]!["rateLimitMax"]!;
+            Assert.Equal("integer", maximum["type"]!.GetValue<string>());
+            Assert.Equal("int32", maximum["format"]!.GetValue<string>());
+            Assert.Null(maximum["pattern"]);
+            Assert.Equal(1, maximum["minimum"]!.GetValue<int>());
+            Assert.Equal(1_000_000, maximum["maximum"]!.GetValue<int>());
+        }
+
+        Assert.DoesNotContain(
+            update["required"]?.AsArray() ?? [],
+            property => property?.GetValue<string>() is not null);
+        foreach (var property in update["properties"]!.AsObject())
+        {
+            Assert.DoesNotContain("null", EnumerateSchemaTypes(property.Value!));
+        }
+
+        var scopes = new[]
+        {
+            "basic:read",
+            "organization:read",
+            "member:read",
+            "team:read",
+            "teamMember:read"
+        };
+        foreach (var schemaName in new[]
+                 {
+                     "ApiKeyResponse",
+                     "ApiKeySecretResponse"
+                 })
+        {
+            var schema = schemas[schemaName]!;
+            var properties = schema["properties"]!;
+            AssertRequiredProperties(
+                schema,
+                "id",
+                "ownerKind",
+                "ownerId",
+                "name",
+                "start",
+                "status",
+                "enabled",
+                "scopes",
+                "rateLimitEnabled",
+                "rateLimitMax",
+                "rateLimitWindow",
+                "requestCount",
+                "windowStartedAt",
+                "lastRequestAt",
+                "expiresAt",
+                "rotatedAt",
+                "createdAt",
+                "updatedAt");
+            Assert.Equal("uuid", properties["id"]!["format"]!.GetValue<string>());
+            Assert.Equal("uuid", properties["ownerId"]!["format"]!.GetValue<string>());
+            AssertStringEnum(properties["ownerKind"]!, "user", "organization");
+            AssertStringEnum(properties["status"]!, "active", "disabled", "expired");
+            AssertStringEnum(properties["scopes"]!["items"]!, scopes);
+            AssertStringEnum(properties["rateLimitWindow"]!, windows);
+            Assert.Equal(
+                "integer",
+                properties["rateLimitMax"]!["type"]!.GetValue<string>());
+            Assert.Equal(
+                "int32",
+                properties["rateLimitMax"]!["format"]!.GetValue<string>());
+            Assert.Null(properties["rateLimitMax"]!["pattern"]);
+            Assert.Equal(1, properties["rateLimitMax"]!["minimum"]!.GetValue<int>());
+            Assert.Equal(
+                1_000_000,
+                properties["rateLimitMax"]!["maximum"]!.GetValue<int>());
+            Assert.Equal(
+                "integer",
+                properties["requestCount"]!["type"]!.GetValue<string>());
+            Assert.Equal(
+                "int32",
+                properties["requestCount"]!["format"]!.GetValue<string>());
+            Assert.Null(properties["requestCount"]!["pattern"]);
+            Assert.Equal(0, properties["requestCount"]!["minimum"]!.GetValue<int>());
+        }
+
+        AssertPagination(
+            AssertOperation(
+                document,
+                "/api/v1/account/api-keys",
+                "get",
+                "ListPersonalApiKeys"),
+            1,
+            100,
+            50,
+            "Opaque, typed, versioned, checksum-protected canonical base64url cursor " +
+            "for (createdAt DESC, apiKeyId DESC). Return nextCursor verbatim; do not " +
+            "decode or synthesize it.");
+        AssertPagination(
+            AssertOperation(
+                document,
+                "/api/v1/organizations/{organizationId}/api-keys",
+                "get",
+                "ListOrganizationApiKeys"),
+            1,
+            100,
+            50,
+            "Opaque, typed, versioned, checksum-protected canonical base64url cursor " +
+            "for (createdAt DESC, apiKeyId DESC). Return nextCursor verbatim; do not " +
+            "decode or synthesize it.");
+
+        foreach (var operation in new[]
+                 {
+                     AssertOperation(
+                         document,
+                         "/api/v1/account/api-keys/{apiKeyId}",
+                         "patch",
+                         "UpdatePersonalApiKey"),
+                     AssertOperation(
+                         document,
+                         "/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}",
+                         "delete",
+                         "RevokeOrganizationApiKey"),
+                     AssertOperation(
+                         document,
+                         "/api/v1/organizations/{organizationId}",
+                         "get",
+                         "GetMachineOrganization")
+                 })
+        {
+            foreach (var parameter in operation["parameters"]?.AsArray() ?? [])
+            {
+                if (parameter!["in"]?.GetValue<string>() != "path")
+                {
+                    continue;
+                }
+
+                Assert.Equal("uuid", parameter["schema"]!["format"]!.GetValue<string>());
+                Assert.Equal(
+                    CanonicalUuidPattern,
+                    parameter["schema"]!["pattern"]!.GetValue<string>());
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ApiKeySecretIsRevealOnceAndAbsentFromEveryOtherApiKeyGraph()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+        Assert.Null(schemas["Key"]);
+
+        var revealingOperations = new[]
+        {
+            ("/api/v1/account/api-keys", "post", "201"),
+            ("/api/v1/account/api-keys/{apiKeyId}/rotate", "post", "200"),
+            ("/api/v1/organizations/{organizationId}/api-keys", "post", "201"),
+            ("/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}/rotate", "post", "200")
+        };
+        foreach (var (path, method, status) in revealingOperations)
+        {
+            var properties = EnumerateReferencedSchemaPropertyNames(
+                document["paths"]![path]![method]!["responses"]![status]!
+                    ["content"]!["application/json"]!["schema"]!,
+                schemas);
+            Assert.Contains("key", properties);
+        }
+
+        var nonRevealingOperations = new[]
+        {
+            ("/api/v1/account/api-keys", "get", "200"),
+            ("/api/v1/account/api-keys/{apiKeyId}", "patch", "200"),
+            ("/api/v1/account/api-keys/{apiKeyId}", "delete", "200"),
+            ("/api/v1/organizations/{organizationId}/api-keys", "get", "200"),
+            ("/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}", "patch", "200"),
+            ("/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}", "delete", "200")
+        };
+        foreach (var (path, method, status) in nonRevealingOperations)
+        {
+            var properties = EnumerateReferencedSchemaPropertyNames(
+                document["paths"]![path]![method]!["responses"]![status]!
+                    ["content"]!["application/json"]!["schema"]!,
+                schemas).ToArray();
+            Assert.DoesNotContain("key", properties);
+            Assert.DoesNotContain(
+                properties,
+                property => property.Contains("hash", StringComparison.OrdinalIgnoreCase) ||
+                    property.Contains("secret", StringComparison.OrdinalIgnoreCase));
+        }
+
+        var meKeyProperties = EnumerateReferencedSchemaPropertyNames(
+            schemas["ApiKeyMeKeyResponse"]!,
+            schemas).ToArray();
+        Assert.DoesNotContain("key", meKeyProperties);
+        Assert.DoesNotContain(
+            meKeyProperties,
+            property => property.Contains("hash", StringComparison.OrdinalIgnoreCase) ||
+                property.Contains("secret", StringComparison.OrdinalIgnoreCase));
+
+        var key = schemas["ApiKeySecretResponse"]!["properties"]!["key"]!;
+        AssertRequiredNonNullProperties(schemas["ApiKeySecretResponse"]!, "key");
+        Assert.Equal(
+            "Reveal-once credential. Store it securely now; it is never returned by " +
+            "list, update, revoke, /me, or resource-read operations.",
+            key["description"]!.GetValue<string>());
+        Assert.Null(key["example"]);
+        Assert.Null(key["default"]);
+    }
+
+    [Fact]
+    public async Task MachineProjectionDiscriminatorsAreRequiredAndExplainSentinelRedaction()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var schemas = document["components"]!["schemas"]!;
+        const string principalDescription =
+            "Principal used for organization access. user uses the current stored " +
+            "membership role and capabilities; organization uses the non-membership " +
+            "currentRole sentinel organization and has every browser mutation capability " +
+            "set to false.";
+
+        var apiKeyPrincipal = schemas["ApiKeyMePrincipalResponse"]!;
+        var apiKeyVariants = apiKeyPrincipal["oneOf"]!.AsArray();
+        Assert.Equal(2, apiKeyVariants.Count);
+        var userPrincipal = AssertDiscriminatorVariant(
+            apiKeyVariants,
+            "ownerKind",
+            "user");
+        AssertRequiredProperties(
+            userPrincipal,
+            "ownerKind",
+            "userId",
+            "organizationId");
+        AssertUuidSchema(userPrincipal["properties"]!["userId"]!);
+        Assert.Equal(
+            ["null"],
+            EnumerateSchemaTypes(
+                userPrincipal["properties"]!["organizationId"]!));
+        var organizationPrincipal = AssertDiscriminatorVariant(
+            apiKeyVariants,
+            "ownerKind",
+            "organization");
+        AssertRequiredProperties(
+            organizationPrincipal,
+            "ownerKind",
+            "userId",
+            "organizationId");
+        Assert.Equal(
+            ["null"],
+            EnumerateSchemaTypes(
+                organizationPrincipal["properties"]!["userId"]!));
+        AssertUuidSchema(
+            organizationPrincipal["properties"]!["organizationId"]!);
+
+        foreach (var schemaName in new[]
+                 {
+                     "OrganizationSummaryResponse",
+                     "MachineOrganizationDetailResponse"
+                 })
+        {
+            var schema = schemas[schemaName]!;
+            AssertRequiredNonNullProperties(schema, "accessPrincipal", "currentRole");
+            AssertStringEnum(
+                schema["properties"]!["accessPrincipal"]!,
+                "user",
+                "organization");
+            AssertStringEnum(
+                schema["properties"]!["currentRole"]!,
+                "member",
+                "admin",
+                "owner",
+                "organization");
+            Assert.Equal(
+                principalDescription,
+                schema["properties"]!["accessPrincipal"]!["description"]!
+                    .GetValue<string>());
+
+            var variants = schema["oneOf"]!.AsArray();
+            Assert.Equal(2, variants.Count);
+            var user = AssertDiscriminatorVariant(
+                variants,
+                "accessPrincipal",
+                "user");
+            AssertRequiredProperties(
+                user,
+                "accessPrincipal",
+                "currentRole",
+                "capabilities");
+            AssertStringEnum(
+                user["properties"]!["currentRole"]!,
+                "member",
+                "admin",
+                "owner");
+
+            var organization = AssertDiscriminatorVariant(
+                variants,
+                "accessPrincipal",
+                "organization");
+            AssertRequiredProperties(
+                organization,
+                "accessPrincipal",
+                "currentRole",
+                "capabilities");
+            AssertStringEnum(
+                organization["properties"]!["currentRole"]!,
+                "organization");
+            var capabilities = organization["properties"]!["capabilities"]!;
+            AssertRequiredProperties(
+                capabilities,
+                "canUpdateOrganization",
+                "canDeleteOrganization",
+                "canAddMembers",
+                "canUpdateMemberRoles",
+                "canManageTeams",
+                "canManageInvitations",
+                "canManageApiKeys");
+            foreach (var capability in capabilities["properties"]!.AsObject())
+            {
+                Assert.Equal("boolean", capability.Value!["type"]!.GetValue<string>());
+                Assert.False(capability.Value["enum"]![0]!.GetValue<bool>());
+                Assert.Single(capability.Value["enum"]!.AsArray());
+            }
+        }
+
+        var browserDetail = schemas["OrganizationDetailResponse"]!;
+        AssertRequiredNonNullProperties(browserDetail, "accessPrincipal");
+        AssertStringEnum(
+            browserDetail["properties"]!["accessPrincipal"]!,
+            "user");
+
+        var team = schemas["TeamResponse"]!;
+        AssertRequiredNonNullProperties(team, "membersIncluded");
+        Assert.Equal(
+            "Whether the embedded members page is included. Browser reads return true; " +
+            "machine reads without teamMember:read return false with an empty embedded " +
+            "page while memberCount remains available.",
+            team["properties"]!["membersIncluded"]!["description"]!
+                .GetValue<string>());
+    }
+
+    [Fact]
     public async Task OrganizationProjectionsPaginationAndPathsPublishClosedSchemas()
     {
         using var client = factory.CreateApiClient();
@@ -1380,7 +2213,6 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
 
         foreach (var (schemaName, roleProperty) in new[]
                  {
-                     ("OrganizationSummaryResponse", "currentRole"),
                      ("OrganizationDetailResponse", "currentRole"),
                      ("OrganizationMemberResponse", "role")
                  })
@@ -1549,7 +2381,14 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             "invitation_expired",
             "invitation_not_pending",
             "invitation_membership_conflict",
-            "invitation_limit_reached");
+            "invitation_limit_reached",
+            "api_key_not_found",
+            "api_key_permission_denied",
+            "api_key_update_unchanged",
+            "api_key_missing",
+            "api_key_invalid",
+            "api_key_rate_limited",
+            "organization_access_denied");
     }
 
     [Fact]
@@ -1888,6 +2727,37 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         Assert.Empty(scheme.Value!.AsArray());
     }
 
+    private static void AssertApiKeySecurity(JsonNode operation)
+    {
+        var security = Assert.Single(operation["security"]!.AsArray());
+        var requirement = security!.AsObject();
+        var scheme = Assert.Single(requirement);
+        Assert.Equal("apiKeyAuth", scheme.Key);
+        Assert.Empty(scheme.Value!.AsArray());
+    }
+
+    private static void AssertBrowserOrApiKeySecurity(JsonNode operation)
+    {
+        var requirements = operation["security"]!.AsArray();
+        Assert.Equal(2, requirements.Count);
+        var cookie = Assert.Single(requirements[0]!.AsObject());
+        Assert.Equal("cookieAuth", cookie.Key);
+        Assert.Empty(cookie.Value!.AsArray());
+        var apiKey = Assert.Single(requirements[1]!.AsObject());
+        Assert.Equal("apiKeyAuth", apiKey.Key);
+        Assert.Empty(apiKey.Value!.AsArray());
+    }
+
+    private static void AssertApiKeyScopes(
+        JsonNode operation,
+        params string[] scopes)
+    {
+        Assert.Equal(
+            scopes,
+            operation["x-api-key-scopes"]!.AsArray()
+                .Select(scope => scope!.GetValue<string>()));
+    }
+
     private static void AssertConditionalCookieSecurity(JsonNode operation)
     {
         var requirements = operation["security"]!.AsArray();
@@ -1985,6 +2855,24 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                 .Select(value => value!.GetValue<string>()));
     }
 
+    private static JsonNode AssertDiscriminatorVariant(
+        JsonArray variants,
+        string propertyName,
+        string value) =>
+        Assert.Single(variants, variant =>
+            variant!["properties"]![propertyName]!["enum"]!.AsArray()
+                .Select(item => item!.GetValue<string>())
+                .SequenceEqual([value], StringComparer.Ordinal))!;
+
+    private static void AssertUuidSchema(JsonNode schema)
+    {
+        Assert.Equal(["string"], EnumerateSchemaTypes(schema));
+        Assert.Equal("uuid", schema["format"]!.GetValue<string>());
+        Assert.Equal(
+            CanonicalUuidPattern,
+            schema["pattern"]!.GetValue<string>());
+    }
+
     private static int[] ProblemStatuses(JsonNode operation) =>
         operation["responses"]!.AsObject()
             .Select(response => response.Key)
@@ -2016,6 +2904,215 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
                     yield return type;
                 }
             }
+        }
+    }
+
+    private static IReadOnlyCollection<string>
+        EnumerateReferencedSchemaPropertyNames(
+            JsonNode root,
+            JsonNode schemas)
+    {
+        var properties = new HashSet<string>(StringComparer.Ordinal);
+        var visitedReferences = new HashSet<string>(StringComparer.Ordinal);
+
+        Visit(root);
+        return properties;
+
+        void Visit(JsonNode? schema)
+        {
+            if (schema is null)
+            {
+                return;
+            }
+
+            if (schema["$ref"]?.GetValue<string>() is { } reference)
+            {
+                const string prefix = "#/components/schemas/";
+                Assert.StartsWith(prefix, reference, StringComparison.Ordinal);
+                var name = reference[prefix.Length..];
+                Assert.NotEmpty(name);
+                Assert.NotNull(schemas[name]);
+                if (visitedReferences.Add(name))
+                {
+                    Visit(schemas[name]);
+                }
+            }
+
+            if (schema["properties"] is JsonObject objectProperties)
+            {
+                foreach (var property in objectProperties)
+                {
+                    properties.Add(property.Key);
+                    Visit(property.Value);
+                }
+            }
+
+            Visit(schema["items"]);
+            foreach (var keyword in new[] { "oneOf", "anyOf", "allOf" })
+            {
+                if (schema[keyword] is not JsonArray alternatives)
+                {
+                    continue;
+                }
+
+                foreach (var alternative in alternatives)
+                {
+                    Visit(alternative);
+                }
+            }
+        }
+    }
+
+    private Task AssertOpenApiGenerationFailsAsync<TModule>(
+        bool replaceModules = false)
+        where TModule : class, IEndpointModule, new() =>
+        AssertOpenApiGenerationFailsAsync(new TModule(), replaceModules);
+
+    private async Task AssertOpenApiGenerationFailsAsync(
+        IEndpointModule module,
+        bool replaceModules)
+    {
+        await using var driftFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                if (replaceModules)
+                {
+                    services.RemoveAll<IEndpointModule>();
+                }
+
+                services.AddSingleton(module);
+            }));
+        using var client = CreateDriftClient(driftFactory);
+
+        using var response = await client.GetAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    private static ApiKeyEndpointModule.ApiKeyOwnerRouteMetadata
+        ApiKeyOwnerMetadata(ApiKeyOwnerKind ownerKind) =>
+        new(ownerKind);
+
+    private static HttpClient CreateDriftClient(
+        WebApplicationFactory<Program> driftFactory) =>
+        driftFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = true
+        });
+
+    private sealed class UnknownScopedApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedMachineApi.MapGet(
+                    "/testing/openapi-unknown-scope",
+                    () => Results.Ok())
+                .WithName("UnknownScopedApiKeyOperation")
+                .RequireApiKeyScopes(ApiKeyScopes.BasicRead);
+        }
+    }
+
+    private sealed class UnknownOwnerApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedApi.MapGet(
+                    "/testing/openapi-unknown-owner",
+                    () => Results.Ok())
+                .WithName("UnknownOwnerApiKeyOperation")
+                .WithMetadata(ApiKeyOwnerMetadata(ApiKeyOwnerKind.User));
+        }
+    }
+
+    private sealed class UnknownPolicyApiKeyEndpointModule(string policy)
+        : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.Root.MapGet(
+                    $"/api/v1/testing/openapi-unknown-policy/{policy}",
+                    () => Results.Ok())
+                .WithName($"UnknownApiKeyPolicyOperation{policy}")
+                .RequireAuthorization(policy);
+        }
+    }
+
+    private sealed class AnonymousApiKeyEndpointModule(string policy)
+        : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            switch (policy)
+            {
+                case ApiPolicies.MachineKey:
+                    context.VersionedMachineApi.MapGet(
+                            "/me",
+                            () => Results.Ok())
+                        .WithName("GetApiKeyPrincipal")
+                        .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
+                        .AllowAnonymous()
+                        .Produces<ApiResponse<ApiKeyMeResponse>>()
+                        .ProducesProtectedApiProblems();
+                    break;
+                case ApiPolicies.BrowserOrMachine:
+                    context.VersionedMixedApi.MapGet(
+                            "/organizations",
+                            (string? cursor, string? limit) => Results.Ok())
+                        .WithName("GetOrganizations")
+                        .RequireApiKeyScopes(ApiKeyScopes.OrganizationRead)
+                        .AllowAnonymous()
+                        .Produces<ApiResponse<OrganizationPageResponse>>()
+                        .ProducesValidationProblem()
+                        .ProducesProtectedApiProblems();
+                    break;
+                case ApiPolicies.BrowserSession:
+                    context.VersionedApi.MapGet(
+                            "/account/api-keys",
+                            (string? cursor, string? limit) => Results.Ok())
+                        .WithName("ListPersonalApiKeys")
+                        .WithMetadata(ApiKeyOwnerMetadata(ApiKeyOwnerKind.User))
+                        .AllowAnonymous()
+                        .Produces<ApiResponse<ApiKeyPageResponse>>()
+                        .ProducesValidationProblem()
+                        .ProducesProtectedApiProblems();
+                    break;
+                default:
+                    throw new InvalidOperationException(
+                        $"Unsupported test API policy {policy}.");
+            }
+        }
+    }
+
+    private sealed class RoutePolicyDriftApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedApi.MapGet(
+                    "/testing/openapi-route-policy-drift",
+                    () => Results.Ok())
+                .WithName("GetApiKeyPrincipal")
+                .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
+                .Produces<ApiResponse<ApiKeyMeResponse>>()
+                .ProducesProtectedApiProblems();
+        }
+    }
+
+    private sealed class MissingAntiforgeryApiKeyEndpointModule : IEndpointModule
+    {
+        public void MapEndpoints(EndpointRouteContext context)
+        {
+            context.VersionedApi.MapPost(
+                    "/account/api-keys",
+                    () => Results.Created())
+                .WithName("CreatePersonalApiKey")
+                .WithMetadata(ApiKeyOwnerMetadata(ApiKeyOwnerKind.User))
+                .Produces<ApiResponse<ApiKeySecretResponse>>(
+                    StatusCodes.Status201Created)
+                .ProducesProtectedApiProblems();
         }
     }
 }

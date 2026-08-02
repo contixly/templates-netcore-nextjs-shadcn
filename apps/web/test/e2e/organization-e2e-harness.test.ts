@@ -53,6 +53,40 @@ it("fails a successful scenario when an exact cleanup count does not match", asy
   ).rejects.toThrow("owner cleanup deleted 0 organizations; expected 1");
 });
 
+it("does not run fixture cleanup again after a tracked local user is deleted explicitly", async () => {
+  const cleanup = jest.fn(async () => ({ deletedOrganizations: 0 }));
+  const registry = new OrganizationTeardownRegistry();
+  const creator = registry.trackLocalUser("creator", cleanup);
+
+  registry.localUserDeleted(creator);
+  await finalizeOrganizationTeardown(registry, { scenarioFailed: false });
+
+  expect(cleanup).not.toHaveBeenCalled();
+  expect(() => registry.localUserDeleted(creator)).toThrow(
+    "creator local user was not registered as created",
+  );
+});
+
+it("can transfer organization cleanup accounting after a second owner is added", async () => {
+  const calls: string[] = [];
+  const registry = new OrganizationTeardownRegistry();
+  const creator = registry.trackLocalUser("creator", async () => {
+    calls.push("cleanup creator");
+    return { deletedOrganizations: 0 };
+  });
+  const keeper = registry.trackLocalUser("keeper", async () => {
+    calls.push("cleanup keeper");
+    return { deletedOrganizations: 1 };
+  });
+  const organizationId = "01900000-0000-7000-8000-000000000001";
+  registry.organizationCreated(creator, organizationId);
+
+  registry.transferOrganization(creator, keeper, organizationId);
+  await finalizeOrganizationTeardown(registry, { scenarioFailed: false });
+
+  expect(calls).toEqual(["cleanup keeper", "cleanup creator"]);
+});
+
 it("creates absent fixed identities without a preflight sign-in", async () => {
   const identities = ["owner", "member"] as const;
   const calls: string[] = [];

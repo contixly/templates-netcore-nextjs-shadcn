@@ -16,8 +16,13 @@ import {
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";
 
-export type OrganizationCardView = Pick<
+type UserOrganizationSummary = Extract<
   OrganizationSummaryResponse,
+  { accessPrincipal: "user" }
+>;
+
+export type OrganizationCardView = Pick<
+  UserOrganizationSummary,
   "canonicalKey" | "currentRole" | "id" | "name" | "slug"
 > &
   Readonly<{

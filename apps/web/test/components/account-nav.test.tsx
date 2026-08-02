@@ -58,6 +58,7 @@ it("renders the collaboration invitation destination in account settings", () =>
     "Connections",
     "Security",
     "Invitations",
+    "API keys",
     "Danger",
   ]);
   expect(
@@ -67,12 +68,13 @@ it("renders the collaboration invitation destination in account settings", () =>
     "/user/connections",
     "/user/security",
     "/user/invitations",
+    "/user/api-keys",
     "/user/danger",
   ]);
   expect(
     screen.getByRole("navigation", { name: "Account settings" }),
   ).toBeInTheDocument();
-  expect(screen.queryByText("API Keys")).not.toBeInTheDocument();
+  expect(screen.getByText("API keys")).toBeVisible();
   expect(usePathname).not.toHaveBeenCalled();
 });
 
@@ -121,6 +123,7 @@ it("uses the fixed Russian deployment locale for account navigation", () => {
     "Подключения",
     "Безопасность",
     "Приглашения",
+    "API-ключи",
     "Опасная зона",
   ]);
 });

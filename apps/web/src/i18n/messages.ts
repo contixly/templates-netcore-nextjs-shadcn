@@ -1,5 +1,7 @@
 import accountEn from "@/src/messages/account.en.json";
 import accountRu from "@/src/messages/account.ru.json";
+import apiKeysEn from "@/src/messages/api-keys.en.json";
+import apiKeysRu from "@/src/messages/api-keys.ru.json";
 import authEn from "@/src/messages/auth.en.json";
 import authRu from "@/src/messages/auth.ru.json";
 import commonEn from "@/src/messages/common.en.json";
@@ -18,6 +20,7 @@ import {
 
 const englishMessages = {
   account: accountEn,
+  apiKeys: apiKeysEn,
   auth: authEn,
   common: commonEn,
   collaboration: collaborationEn,
@@ -31,6 +34,7 @@ const messagesByLocale = {
   en: englishMessages,
   ru: {
     account: accountRu,
+    apiKeys: apiKeysRu,
     auth: authRu,
     common: commonRu,
     collaboration: collaborationRu,

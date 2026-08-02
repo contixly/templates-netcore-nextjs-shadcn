@@ -1,0 +1,165 @@
+{
+  "page": {
+    "title": "API keys",
+    "description": "Create and manage personal API credentials for read-only automation.",
+    "organizationDescription": "Create and manage read-only API credentials owned by this organization.",
+    "loading": "Loading API keys",
+    "failureTitle": "API keys are unavailable",
+    "failureDescription": "API keys could not be loaded safely. Try again."
+  },
+  "education": {
+    "title": "Choose the right owner",
+    "personalTitle": "Personal keys",
+    "personalDescription": "Act as your user account and lose organization access when your membership ends.",
+    "personalAction": "Manage personal keys",
+    "organizationTitle": "Organization keys",
+    "organizationDescription": "Belong to one organization and are managed from that organization’s settings.",
+    "securityTitle": "Store secrets safely",
+    "securityDescription": "Each credential is shown once. Use a secret manager and rotate or revoke it immediately if exposed."
+  },
+  "list": {
+    "label": "API keys",
+    "emptyTitle": "No API keys yet",
+    "emptyDescription": "Create a least-privilege key when an integration needs API access.",
+    "partialFailure": "More API keys could not be loaded.",
+    "refreshFailure": "The change succeeded, but the API-key list could not be refreshed.",
+    "loadMore": "Load more API keys",
+    "loadingMore": "Loading more API keys",
+    "retry": "Retry list refresh",
+    "retrying": "Refreshing API keys",
+    "columns": {
+      "key": "Key",
+      "status": "Status",
+      "access": "Access",
+      "rateLimit": "Rate limit",
+      "expires": "Expires",
+      "lastUsed": "Last used",
+      "created": "Created",
+      "actions": "Actions"
+    },
+    "safeStart": "Starts with {start}",
+    "never": "Never",
+    "notYet": "Not yet",
+    "rateDisabled": "Disabled",
+    "rateEnabled": "{max, number} per {window}",
+    "requestCount": "{count, number} requests in the current window"
+  },
+  "statuses": {
+    "active": "Active",
+    "disabled": "Disabled",
+    "expired": "Expired"
+  },
+  "scopes": {
+    "basic:read": "Basic account read",
+    "organization:read": "Organizations read",
+    "member:read": "Members read",
+    "team:read": "Teams read",
+    "teamMember:read": "Team members read"
+  },
+  "presets": {
+    "label": "Access presets",
+    "description": "Select one or more closed presets. Raw scopes cannot be entered.",
+    "basic-read": "Basic read",
+    "organization-read": "Organization read",
+    "organization-members-read": "Organization members read",
+    "organization-teams-read": "Organization teams read",
+    "organization-team-members-read": "Organization team members read",
+    "organization-read-all": "All organization reads"
+  },
+  "expiry": {
+    "label": "Expiry",
+    "unchanged": "Keep current expiry",
+    "never": "Never",
+    "7d": "7 days",
+    "30d": "30 days",
+    "90d": "90 days",
+    "365d": "365 days"
+  },
+  "rateWindow": {
+    "label": "Rate-limit window",
+    "1m": "1 minute",
+    "1h": "1 hour",
+    "1d": "1 day"
+  },
+  "fields": {
+    "name": "Name",
+    "nameHint": "Use 1 to 32 characters. Leading and trailing spaces are removed.",
+    "enabled": "Key enabled",
+    "rateLimitEnabled": "Rate limiting enabled",
+    "rateLimitMax": "Maximum requests"
+  },
+  "validation": {
+    "nameRequired": "Enter a name.",
+    "nameTooLong": "Use 32 characters or fewer.",
+    "nameControl": "Control characters are not allowed.",
+    "presetRequired": "Select at least one access preset.",
+    "rateLimitRange": "Use a maximum from 1 to 1,000,000."
+  },
+  "actions": {
+    "create": "Create API key",
+    "edit": "Edit",
+    "enable": "Enable",
+    "disable": "Disable",
+    "rotate": "Rotate",
+    "revoke": "Revoke",
+    "cancel": "Cancel",
+    "save": "Save changes",
+    "more": "Actions for {name}"
+  },
+  "create": {
+    "title": "Create API key",
+    "description": "Configure a read-only credential. Its secret will be shown once.",
+    "submitting": "Creating API key"
+  },
+  "edit": {
+    "title": "Edit {name}",
+    "description": "Change the safe configuration without replacing the credential.",
+    "submitting": "Saving changes",
+    "noChanges": "Make at least one change before saving."
+  },
+  "rotate": {
+    "title": "Rotate {name}?",
+    "description": "The current credential will stop working immediately. The replacement secret is shown once.",
+    "confirm": "Rotate key",
+    "submitting": "Rotating key"
+  },
+  "revoke": {
+    "title": "Revoke {name}?",
+    "description": "This credential will stop working immediately and disappear from this list. This cannot be undone.",
+    "confirm": "Revoke key",
+    "submitting": "Revoking key"
+  },
+  "secret": {
+    "title": "Save this API key now",
+    "warning": "This is the only time the complete credential will be shown.",
+    "label": "API key credential",
+    "copy": "Copy credential",
+    "copied": "Credential copied",
+    "copyFailure": "The credential could not be copied. Select and copy it manually.",
+    "close": "I saved it"
+  },
+  "feedback": {
+    "created": "API key created.",
+    "updated": "API key updated.",
+    "enabled": "API key enabled.",
+    "disabled": "API key disabled.",
+    "rotated": "API key rotated.",
+    "revoked": "API key revoked."
+  },
+  "failures": {
+    "create": "The API key could not be created.",
+    "update": "The API key could not be updated.",
+    "rotate": "The API key could not be rotated.",
+    "revoke": "The API key could not be revoked.",
+    "load": "API keys could not be loaded.",
+    "codes": {
+      "antiforgery_failed": "The security check expired. Try again.",
+      "api_key_not_found": "This API key no longer exists.",
+      "api_key_permission_denied": "You do not have permission to manage this API key.",
+      "api_key_action_busy": "Another action is already in progress for this API key.",
+      "api_key_update_unchanged": "Make at least one change before saving.",
+      "validation_failed": "Review the highlighted values and try again.",
+      "generic": "The request could not be completed."
+    }
+  }
+}

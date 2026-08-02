@@ -748,3 +748,122 @@ Development/Test with `LocalAutomationAuth:Enabled=true`; Production returns
 `404 local_auth_disabled` even if configured. It verifies only the current local
 automation user's primary email and renews/reissues that browser session. It is
 an E2E boundary, not a production verification mechanism.
+
+## API keys and public machine reads (iteration 7)
+
+Iteration 7 adds a machine credential alongside, never in place of, the secure
+browser-session cookie. The durable external credential is a 256-bit random
+base64url secret without padding, prefixed `user_` or `org_`. PostgreSQL stores
+only a 32-byte SHA-256 hash of the complete canonical value and the non-secret
+safe start. A raw credential is returned only by successful create and rotate;
+it is absent from database projections, lists, updates, revocations, `/me`,
+resource reads, audit events, request logs, Problem Details, OpenAPI examples,
+and browser storage.
+
+`auth.api_keys` has exactly one nullable owner FK (`auth.users` or
+`organizations.organizations`), enforced with `num_nonnulls(...) = 1`. It also
+holds the closed scope array, enabled/expiry/revocation/rotation timestamps,
+rate-window/counter state, last-use timestamp and the owner-qualified
+`created_at DESC, id DESC` indexes. User deletion cascades personal keys;
+organization deletion cascades organization keys. An organization key remains
+valid for its organization when its original creator later loses membership or
+is deleted.
+
+### Authentication selector and route schemes
+
+Authentication selection is route-aware and deliberately fail-closed. A
+machine-only endpoint selects only `Template.ApiKey`, even when `x-api-key` is
+absent; browser-cookie authentication, renewal and invalid-cookie deletion are
+therefore never run for that request. A browser-only endpoint continues to
+select only `Template.Session`, even if a caller supplies an unrelated
+`x-api-key` header. Mixed routes authorize through the `Api.BrowserOrMachine`
+policy, whose `Template.Consumer.Selector` forwards exclusively to
+`Template.ApiKey` when any `x-api-key` header is present and forwards to
+`Template.Session` only when the header is absent. Exactly one nonblank
+canonical header is required on the machine path. Blank/missing maps to
+`401 api_key_missing`; duplicate, malformed, unknown, disabled, revoked and
+expired values map to `401 api_key_invalid`. A valid cookie can never rescue a
+supplied bad key. API-key authentication never creates, renews or deletes a
+browser cookie.
+
+| Route class | Authorization policy | Authentication scheme(s) | Notes |
+| --- | --- | --- | --- |
+| API-key management | `Api.BrowserSession` | `Template.Session` | Cookie + CSRF for unsafe requests; an API key is never management authority. |
+| `/api/v1/me`, organization detail | `Api.MachineKey` | `Template.ApiKey` | API key only. |
+| organization, member, team and team-member GETs | `Api.BrowserOrMachine` | `Template.Consumer.Selector` → `Template.ApiKey` or `Template.Session` | Cookie only when no key is supplied; otherwise API key only. |
+
+Machine scope requirements are `basic:read` for `/me`, `organization:read` for
+organization reads, plus `member:read`, `team:read`, or `teamMember:read` for
+the progressively narrower collections. The API expands the six closed
+management presets server-side; callers do not submit raw scopes. A valid key
+without all required scopes receives `403 api_key_permission_denied`.
+
+Personal keys re-check their owner's current membership on every organization
+request. Organization keys may target only their owner organization and do not
+depend on their creator after issue. Authorization precedes a resource lookup
+which could disclose a foreign target; an inaccessible target is
+`403 organization_access_denied`. `accessPrincipal` is a discriminator:
+user/cookie projections carry current role/capabilities, while organization-key
+projections use `accessPrincipal: "organization"`,
+`currentRole: "organization"`, and all browser-mutation capabilities `false`.
+`membersIncluded` similarly prevents an embedded team member page from leaking
+identities without `teamMember:read`.
+
+### Management, pages, mutations and operations
+
+Personal management is under `/api/v1/account/api-keys`; organization management
+is under `/api/v1/organizations/{organizationId}/api-keys`. Organization list
+and create also require a canonical UUID path value, as do item update, revoke,
+and rotate. Every success is `{ "data": ... }`, every management/authenticated
+response (including a failure) is `Cache-Control: no-store`, and all errors are
+RFC Problem Details with stable `code` and safe `traceId`.
+
+Create has no server defaults: it requires `name`, nonempty `presetIds`,
+`expiresIn`, `rateLimitEnabled`, `rateLimitMax`, and `rateLimitWindow`. Name is
+trimmed 1..32 Unicode scalars without controls; expiry, presets and window are
+closed enums; max is 1..1,000,000. PATCH is strict, partial and rejects a
+semantic no-op as `409 api_key_update_unchanged`. Missing, foreign and revoked
+management IDs coalesce to `404 api_key_not_found`. Unsafe browser operations
+require the antiforgery cookie and `X-CSRF-TOKEN`; bodies reject unknown JSON
+members.
+
+Lists exclude revoked rows, expose no name/status/search filtering, and use
+opaque typed versioned checksum-protected canonical base64url cursors. The
+management order is `(createdAt DESC, apiKeyId DESC)`; default limit is 50 and
+range is 1..100. Existing resource cursors retain their own collection kinds
+and order. A consumer returns `nextCursor` unchanged and never treats cursors
+as interchangeable or decodable data.
+
+Create/update/revoke/rotate lock and re-authorize the owner-qualified row or
+owner role inside the PostgreSQL transaction. Each fresh transaction attempt
+samples its authoritative clock only after those authorization/key locks.
+Create and rotate timestamps are assigned there, and update converts a relative
+expiry to an absolute timestamp there, so lock waits and retries do not shorten
+the requested lifetime. Mutation timestamps are clamped against already
+committed key/window/use timestamps when the clock moves backward. Classified
+serialization/deadlock outcomes retry with a fresh bounded transaction; only
+exhaustion is `concurrency_conflict`. Rotate keeps the logical ID/configuration,
+atomically invalidates the old credential, resets the active quota window/count,
+preserves `lastRequestAt`, and reveals exactly one new credential. Revoke is
+terminal and subsequent management repeats are not found.
+
+A valid-key presentation is serialized through its hash row. Every fresh
+transaction attempt samples time only after acquiring that row lock, then
+clamps it against committed mutation, rotation, window and last-use timestamps
+before checking revoked/enabled/expiry, resetting a stale fixed window,
+rejecting an exhausted live window with `429 api_key_rate_limited` and integer
+`Retry-After` (1..86400), or incrementing the counter/last use. This prevents
+waiting or retried callers—and a backward-moving system clock—from regressing
+the persisted timeline or consuming a newer window with stale time. A later
+scope or organization denial still consumes a valid-key quota unit; invalid
+credentials disclose no existence information. Redis, Bearer tokens,
+distributed high-volume quota policy, and production rate-tier load testing are
+not part of this iteration.
+
+Audit events use only closed operation/outcome, correlation context, trusted
+opaque key/owner IDs when available, and route identity. Once a credential row
+has been validated, a rate-limited result retains only its safe principal so the
+denial audit can attribute key ID and owner kind/ID; the failed authentication
+and Problem Details remain non-disclosing. Audits exclude raw
+headers/credentials/hashes/key starts, names, scopes, cookies, body values,
+emails, cursor/query values and exception text. No metrics backend is added.

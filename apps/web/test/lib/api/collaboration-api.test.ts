@@ -90,6 +90,7 @@ const team: TeamResponse = {
   organizationId,
   name: "Platform",
   memberCount: 1,
+  membersIncluded: true,
   members: { items: [teamMember], nextCursor: "members-next" },
   createdAt: "2026-08-01T00:00:00Z",
   updatedAt: "2026-08-01T00:00:00Z",

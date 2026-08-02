@@ -353,6 +353,128 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.ToTable("openiddict_tokens", "auth");
                 });
 
+            modelBuilder.Entity("Template.Infrastructure.ApiKeys.ApiKeyEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("Enabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("enabled");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<byte[]>("KeyHash")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("key_hash");
+
+                    b.Property<string>("KeyStart")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("key_start");
+
+                    b.Property<DateTimeOffset?>("LastRequestAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_request_at");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("organization_id");
+
+                    b.Property<bool>("RateLimitEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("rate_limit_enabled");
+
+                    b.Property<int>("RateLimitMax")
+                        .HasColumnType("integer")
+                        .HasColumnName("rate_limit_max");
+
+                    b.Property<int>("RateLimitWindowSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("rate_limit_window_seconds");
+
+                    b.Property<int>("RequestCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("request_count");
+
+                    b.Property<DateTimeOffset?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("revoked_at");
+
+                    b.Property<DateTimeOffset?>("RotatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("rotated_at");
+
+                    b.PrimitiveCollection<string[]>("Scopes")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("scopes");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<DateTimeOffset?>("WindowStartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("window_started_at");
+
+                    b.HasKey("Id")
+                        .HasName("pk_api_keys");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique()
+                        .HasDatabaseName("ux_api_keys_key_hash");
+
+                    b.HasIndex("OrganizationId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("ix_api_keys_organization_id_created_at_id")
+                        .HasFilter("revoked_at IS NULL");
+
+                    b.HasIndex("UserId", "CreatedAt", "Id")
+                        .IsDescending(false, true, true)
+                        .HasDatabaseName("ix_api_keys_user_id_created_at_id")
+                        .HasFilter("revoked_at IS NULL");
+
+                    b.ToTable("api_keys", "auth", t =>
+                        {
+                            t.HasCheckConstraint("ck_api_keys_exactly_one_owner", "num_nonnulls(user_id, organization_id) = 1");
+
+                            t.HasCheckConstraint("ck_api_keys_key_hash", "octet_length(key_hash) = 32");
+
+                            t.HasCheckConstraint("ck_api_keys_key_start", "char_length(key_start) = 16 AND (left(key_start, 5) = 'user_' OR left(key_start, 4) = 'org_') AND key_start !~ '[^A-Za-z0-9_-]'");
+
+                            t.HasCheckConstraint("ck_api_keys_name", "char_length(name) BETWEEN 1 AND 32 AND name = btrim(name) AND name !~ '[[:cntrl:]]'");
+
+                            t.HasCheckConstraint("ck_api_keys_rate_limit_max", "rate_limit_max BETWEEN 1 AND 1000000");
+
+                            t.HasCheckConstraint("ck_api_keys_rate_limit_window", "rate_limit_window_seconds IN (60, 3600, 86400)");
+
+                            t.HasCheckConstraint("ck_api_keys_request_count", "request_count >= 0");
+
+                            t.HasCheckConstraint("ck_api_keys_scopes", "cardinality(scopes) > 0 AND scopes <@ ARRAY['basic:read', 'organization:read', 'member:read', 'team:read', 'teamMember:read']::text[]");
+                        });
+                });
+
             modelBuilder.Entity("Template.Infrastructure.Collaboration.InvitationEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -958,6 +1080,21 @@ namespace Template.Infrastructure.Persistence.Migrations
                     b.Navigation("Application");
 
                     b.Navigation("Authorization");
+                });
+
+            modelBuilder.Entity("Template.Infrastructure.ApiKeys.ApiKeyEntity", b =>
+                {
+                    b.HasOne("Template.Infrastructure.Organizations.OrganizationEntity", null)
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_api_keys_organizations_organization_id");
+
+                    b.HasOne("Template.Infrastructure.Identity.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_api_keys_users_user_id");
                 });
 
             modelBuilder.Entity("Template.Infrastructure.Collaboration.InvitationEntity", b =>

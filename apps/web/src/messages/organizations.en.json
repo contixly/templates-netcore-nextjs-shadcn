@@ -63,6 +63,7 @@
       "roles": "Roles",
       "teams": "Teams",
       "invitations": "Invitations",
+      "apiKeys": "API keys",
       "loading": "Loading workspace settings"
     },
     "pages": {

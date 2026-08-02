@@ -57,7 +57,8 @@ internal sealed record OrganizationCapabilitiesResponse(
     bool CanAddMembers,
     bool CanUpdateMemberRoles,
     bool CanManageTeams,
-    bool CanManageInvitations);
+    bool CanManageInvitations,
+    bool CanManageApiKeys);
 
 internal sealed record OrganizationSummaryResponse(
     Guid Id,
@@ -66,6 +67,7 @@ internal sealed record OrganizationSummaryResponse(
     string CanonicalKey,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
+    string AccessPrincipal,
     string CurrentRole,
     OrganizationCapabilitiesResponse Capabilities);
 
@@ -76,9 +78,21 @@ internal sealed record OrganizationDetailResponse(
     string CanonicalKey,
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
+    string AccessPrincipal,
     string CurrentRole,
     OrganizationCapabilitiesResponse Capabilities,
     IReadOnlyList<string> AllowedEmailDomains);
+
+internal sealed record MachineOrganizationDetailResponse(
+    Guid Id,
+    string Name,
+    string Slug,
+    string CanonicalKey,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    string AccessPrincipal,
+    string CurrentRole,
+    OrganizationCapabilitiesResponse Capabilities);
 
 internal sealed record OrganizationPageResponse(
     IReadOnlyList<OrganizationSummaryResponse> Items,

@@ -32,6 +32,7 @@ describe("fixed deployment locale", () => {
     ]);
 
     expect(Object.keys(russian.account)).toEqual(Object.keys(english.account));
+    expect(Object.keys(russian.apiKeys)).toEqual(Object.keys(english.apiKeys));
     expect(Object.keys(russian.auth)).toEqual(Object.keys(english.auth));
     expect(Object.keys(russian.common)).toEqual(Object.keys(english.common));
     expect(Object.keys(russian.collaboration)).toEqual(
@@ -43,6 +44,32 @@ describe("fixed deployment locale", () => {
     expect(Object.keys(russian.system)).toEqual(Object.keys(english.system));
     expect(russian.auth.login.title).not.toBe(english.auth.login.title);
     expect(russian.system.page.title).not.toBe(english.system.page.title);
+  });
+
+  it("registers matching English and Russian API-key messages", async () => {
+    const [english, russian] = await Promise.all([
+      loadMessages("en"),
+      loadMessages("ru"),
+    ]);
+    const messagePaths = (value: unknown, prefix = ""): string[] =>
+      Object.entries(value as Record<string, unknown>).flatMap(
+        ([key, child]) => {
+          const path = prefix ? `${prefix}.${key}` : key;
+          return typeof child === "object" && child !== null
+            ? messagePaths(child, path)
+            : [path];
+        },
+      );
+
+    expect(messagePaths(russian.apiKeys).sort()).toEqual(
+      messagePaths(english.apiKeys).sort(),
+    );
+    expect(english.apiKeys.page.title).toBe("API keys");
+    expect(russian.apiKeys.page.title).not.toBe(english.apiKeys.page.title);
+    expect(english.apiKeys.secret.warning).toContain("only time");
+    expect(russian.apiKeys.secret.warning).not.toBe(
+      english.apiKeys.secret.warning,
+    );
   });
 
   it("keeps every English and Russian collaboration message at the same path", async () => {

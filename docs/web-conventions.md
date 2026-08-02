@@ -645,3 +645,63 @@ copy. Unknown, network, thrown, and malformed-success cases use generic safe
 copy. Components may inspect only normalized `kind`, `code`, `status`, and safe
 `traceId`; raw Problem Details `detail`, exception messages, clipboard errors,
 email/link text, and notifier/provider detail are never rendered.
+
+## API-key management UI (iteration 7)
+
+The browser management routes are `/user/api-keys` and
+`/w/{organizationKey}/settings/api-keys`. Both use the committed generated REST
+SDK, typed generated DTOs and existing protected server/browser client
+boundaries; they contain no raw `fetch`, Server Action, Prisma/Better Auth,
+direct database access, bearer storage or handwritten transport DTO.
+
+The personal route is available to every authenticated user. The organization
+route resolves session and trusted organization detail, canonicalizes the key
+before the API-key list call, uses the trusted organization UUID, and requires
+trusted `canManageApiKeys` before rendering any management boundary. A direct
+member route or an unexpected successful list response with that capability
+false renders the same safe authorization failure: no row, secret reveal,
+mutation controls or payload becomes visible. Navigation exposes the
+organization entry only when the trusted capability is true.
+
+One shared, owner-keyed management surface renders safe metadata, opaque
+pagination, create/edit/enable-disable, rotate/reveal and revoke. An immutable
+owner key isolates personal and organization local state. UI convenience
+defaults (personal `basic-read`, organization `organization-read-all`, 30 days,
+1,000/hour) do not relax the explicit API request contract. The UI submits
+preset IDs only, never raw scopes.
+
+A create/rotate raw credential lives only in the reveal component's transient
+state. It is copied by an explicit user action and cleared on close/unmount;
+background reconciliation cannot erase a confirmed mutation or preserve the
+secret. No credential enters URL/cookie/local/session storage, telemetry, error
+copy, screenshot/video/trace artifact or test output. A failed post-mutation
+refresh is a committed partial success: retain the safe local projection and
+offer a generated GET-only reconciliation, never replay the mutation.
+
+Pagination passes opaque cursor values verbatim, de-duplicates by immutable key
+ID and rejects stale completions. Confirmed create/update/rotate/revoke results
+remain authoritative over older reads. Every accepted fresh first page starts
+an authoritative traversal and every accepted continuation appends to that
+traversal; immutable IDs are de-duplicated with the first accepted occurrence
+winning, and stale or failed reads do not acknowledge overlays. A non-revocation
+overlay retires only when the same owner/key row has a valid RFC 3339 `updatedAt`
+at or after the confirmed value.
+Comparison preserves up to nine fractional-second digits, so an older
+sub-millisecond value or malformed calendar timestamp fails closed. A revoked
+null overlay remains through nonterminal pages and through a completed traversal
+that still contains the stale row; it retires only when the key is absent from
+the complete accepted traversal.
+
+The generated SDK represents mixed cookie-or-key security as multiple security
+descriptors. Generation therefore runs the deterministic auth-hardening step:
+a nonempty scalar `auth` value fails locally on such an operation before fetch,
+while a scheme-selective callback or explicit `x-api-key` header remains valid.
+Scalar auth remains supported on a single-scheme machine operation. This guard
+is generation-owned and `npm run api:check` verifies it with the rest of the
+generated tree.
+
+Secret-bearing API-key Playwright scenarios disable trace, video and screenshot
+capture. Task 11 acceptance separately performed a one-off scan of captured
+stdout and artifacts without printing a matching secret. The standard
+`npm run e2e` script does not automate that scan and must not be cited as though
+it does.

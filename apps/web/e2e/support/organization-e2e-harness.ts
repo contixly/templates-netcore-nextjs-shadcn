@@ -130,6 +130,12 @@ export class OrganizationTeardownRegistry {
     this.#createdUsers.add(user);
   }
 
+  localUserDeleted(user: TrackedLocalUser) {
+    if (!this.#createdUsers.delete(user)) {
+      throw new Error(`${user.label} local user was not registered as created`);
+    }
+  }
+
   organizationCreated(user: TrackedLocalUser, organizationId?: string) {
     if (organizationId) {
       if (user.organizationIds.has(organizationId)) {
@@ -151,6 +157,27 @@ export class OrganizationTeardownRegistry {
       }
     }
     user.expectedDeletedOrganizations -= 1;
+  }
+
+  transferOrganization(
+    from: TrackedLocalUser,
+    to: TrackedLocalUser,
+    organizationId: string,
+  ) {
+    if (!from.organizationIds.has(organizationId)) {
+      throw new Error(
+        `${from.label} organization ${organizationId} was not accounted as created`,
+      );
+    }
+    if (to.organizationIds.has(organizationId)) {
+      throw new Error(
+        `${to.label} organization ${organizationId} was already accounted as created`,
+      );
+    }
+    from.organizationIds.delete(organizationId);
+    from.expectedDeletedOrganizations -= 1;
+    to.organizationIds.add(organizationId);
+    to.expectedDeletedOrganizations += 1;
   }
 
   async teardown(): Promise<Error[]> {

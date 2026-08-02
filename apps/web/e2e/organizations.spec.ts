@@ -63,13 +63,13 @@ const paginationOwner: OrganizationTestIdentity = {
   password: localPassword,
 };
 
-async function expectNoFutureOrganizationLinks(page: Page) {
+async function expectOrganizationSettingsLinks(page: Page) {
   for (const collaborationSurface of [/invitations?/i, /teams?/i]) {
     await expect(
       page.getByRole("link", { name: collaborationSurface }),
     ).toBeVisible();
   }
-  await expect(page.getByRole("link", { name: /api keys?/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /api keys?/i })).toBeVisible();
 }
 
 function isOrganizationCreateResponse(url: string, method: string) {
@@ -269,7 +269,7 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("navigation", { name: "Workspace settings" }),
     ).toBeVisible();
-    await expectNoFutureOrganizationLinks(page);
+    await expectOrganizationSettingsLinks(page);
   });
 
   test("owner adds an outside-domain member and member settings stay read-only", async ({
@@ -572,6 +572,7 @@ test.describe.serial("organization full-stack workflows", () => {
       canonicalKey,
       createdAt: "2026-07-31T10:00:00Z",
       updatedAt: "2026-07-31T10:00:00Z",
+      accessPrincipal: "user",
       currentRole: "owner",
       capabilities: {
         canUpdateOrganization: true,
@@ -580,6 +581,7 @@ test.describe.serial("organization full-stack workflows", () => {
         canUpdateMemberRoles: true,
         canManageTeams: true,
         canManageInvitations: true,
+        canManageApiKeys: true,
       },
     });
     await page.route("**/api/v1/organizations?cursor=*", async (route) => {

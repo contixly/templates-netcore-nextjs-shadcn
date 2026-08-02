@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, AddOrganizationMemberData, AddOrganizationMemberErrors, AddOrganizationMemberResponses, AddTeamMemberData, AddTeamMemberErrors, AddTeamMemberResponses, ChallengeExternalAuthData, ChallengeExternalAuthErrors, ChallengeExternalAuthResponses, ConfirmLocalAutomationEmailData, ConfirmLocalAutomationEmailErrors, ConfirmLocalAutomationEmailResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, CreateTeamData, CreateTeamErrors, CreateTeamResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, DeleteOrganizationData, DeleteOrganizationErrors, DeleteOrganizationResponses, DeleteTeamData, DeleteTeamErrors, DeleteTeamResponses, DisconnectAccountProviderData, DisconnectAccountProviderErrors, DisconnectAccountProviderResponses, GetAccountConnectionsData, GetAccountConnectionsErrors, GetAccountConnectionsResponses, GetAccountData, GetAccountErrors, GetAccountInvitationsData, GetAccountInvitationsErrors, GetAccountInvitationsResponses, GetAccountResponses, GetAccountSessionsData, GetAccountSessionsErrors, GetAccountSessionsResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInvitationDecisionData, GetInvitationDecisionErrors, GetInvitationDecisionResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetOrganizationByKeyData, GetOrganizationByKeyErrors, GetOrganizationByKeyResponses, GetOrganizationInvitationsData, GetOrganizationInvitationsErrors, GetOrganizationInvitationsResponses, GetOrganizationMembersData, GetOrganizationMembersErrors, GetOrganizationMembersResponses, GetOrganizationsData, GetOrganizationsErrors, GetOrganizationsResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, GetTeamMemberCandidatesData, GetTeamMemberCandidatesErrors, GetTeamMemberCandidatesResponses, GetTeamMembersData, GetTeamMembersErrors, GetTeamMembersResponses, GetTeamsData, GetTeamsErrors, GetTeamsResponses, LogoutData, LogoutErrors, LogoutResponses, RejectInvitationData, RejectInvitationErrors, RejectInvitationResponses, RemoveTeamMemberData, RemoveTeamMemberErrors, RemoveTeamMemberResponses, RevokeAccountSessionData, RevokeAccountSessionErrors, RevokeAccountSessionResponses, RevokeOtherAccountSessionsData, RevokeOtherAccountSessionsErrors, RevokeOtherAccountSessionsResponses, SetActiveOrganizationData, SetActiveOrganizationErrors, SetActiveOrganizationResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses, UpdateAccountProfileData, UpdateAccountProfileErrors, UpdateAccountProfileResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationMemberRoleData, UpdateOrganizationMemberRoleErrors, UpdateOrganizationMemberRoleResponses, UpdateOrganizationResponses, UpdateTeamData, UpdateTeamErrors, UpdateTeamResponses } from './types.gen';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, AddOrganizationMemberData, AddOrganizationMemberErrors, AddOrganizationMemberResponses, AddTeamMemberData, AddTeamMemberErrors, AddTeamMemberResponses, ChallengeExternalAuthData, ChallengeExternalAuthErrors, ChallengeExternalAuthResponses, ConfirmLocalAutomationEmailData, ConfirmLocalAutomationEmailErrors, ConfirmLocalAutomationEmailResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateLocalAutomationScenarioData, CreateLocalAutomationScenarioErrors, CreateLocalAutomationScenarioResponses, CreateOrganizationApiKeyData, CreateOrganizationApiKeyErrors, CreateOrganizationApiKeyResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, CreatePersonalApiKeyData, CreatePersonalApiKeyErrors, CreatePersonalApiKeyResponses, CreateTeamData, CreateTeamErrors, CreateTeamResponses, DeleteAccountData, DeleteAccountErrors, DeleteAccountResponses, DeleteLocalAutomationScenarioData, DeleteLocalAutomationScenarioErrors, DeleteLocalAutomationScenarioResponses, DeleteOrganizationData, DeleteOrganizationErrors, DeleteOrganizationResponses, DeleteTeamData, DeleteTeamErrors, DeleteTeamResponses, DisconnectAccountProviderData, DisconnectAccountProviderErrors, DisconnectAccountProviderResponses, GetAccountConnectionsData, GetAccountConnectionsErrors, GetAccountConnectionsResponses, GetAccountData, GetAccountErrors, GetAccountInvitationsData, GetAccountInvitationsErrors, GetAccountInvitationsResponses, GetAccountResponses, GetAccountSessionsData, GetAccountSessionsErrors, GetAccountSessionsResponses, GetApiKeyPrincipalData, GetApiKeyPrincipalErrors, GetApiKeyPrincipalResponses, GetAuthCapabilitiesData, GetAuthCapabilitiesErrors, GetAuthCapabilitiesResponses, GetAuthCsrfData, GetAuthCsrfErrors, GetAuthCsrfResponses, GetAuthenticatedStatusData, GetAuthenticatedStatusErrors, GetAuthenticatedStatusResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInvitationDecisionData, GetInvitationDecisionErrors, GetInvitationDecisionResponses, GetLivenessData, GetLivenessErrors, GetLivenessResponses, GetMachineOrganizationData, GetMachineOrganizationErrors, GetMachineOrganizationResponses, GetOrganizationByKeyData, GetOrganizationByKeyErrors, GetOrganizationByKeyResponses, GetOrganizationInvitationsData, GetOrganizationInvitationsErrors, GetOrganizationInvitationsResponses, GetOrganizationMembersData, GetOrganizationMembersErrors, GetOrganizationMembersResponses, GetOrganizationsData, GetOrganizationsErrors, GetOrganizationsResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetSystemStatusData, GetSystemStatusErrors, GetSystemStatusResponses, GetTeamMemberCandidatesData, GetTeamMemberCandidatesErrors, GetTeamMemberCandidatesResponses, GetTeamMembersData, GetTeamMembersErrors, GetTeamMembersResponses, GetTeamsData, GetTeamsErrors, GetTeamsResponses, ListOrganizationApiKeysData, ListOrganizationApiKeysErrors, ListOrganizationApiKeysResponses, ListPersonalApiKeysData, ListPersonalApiKeysErrors, ListPersonalApiKeysResponses, LogoutData, LogoutErrors, LogoutResponses, RejectInvitationData, RejectInvitationErrors, RejectInvitationResponses, RemoveTeamMemberData, RemoveTeamMemberErrors, RemoveTeamMemberResponses, RevokeAccountSessionData, RevokeAccountSessionErrors, RevokeAccountSessionResponses, RevokeOrganizationApiKeyData, RevokeOrganizationApiKeyErrors, RevokeOrganizationApiKeyResponses, RevokeOtherAccountSessionsData, RevokeOtherAccountSessionsErrors, RevokeOtherAccountSessionsResponses, RevokePersonalApiKeyData, RevokePersonalApiKeyErrors, RevokePersonalApiKeyResponses, RotateOrganizationApiKeyData, RotateOrganizationApiKeyErrors, RotateOrganizationApiKeyResponses, RotatePersonalApiKeyData, RotatePersonalApiKeyErrors, RotatePersonalApiKeyResponses, SetActiveOrganizationData, SetActiveOrganizationErrors, SetActiveOrganizationResponses, SignInLocalAutomationData, SignInLocalAutomationErrors, SignInLocalAutomationResponses, UpdateAccountProfileData, UpdateAccountProfileErrors, UpdateAccountProfileResponses, UpdateOrganizationApiKeyData, UpdateOrganizationApiKeyErrors, UpdateOrganizationApiKeyResponses, UpdateOrganizationData, UpdateOrganizationErrors, UpdateOrganizationMemberRoleData, UpdateOrganizationMemberRoleErrors, UpdateOrganizationMemberRoleResponses, UpdateOrganizationResponses, UpdatePersonalApiKeyData, UpdatePersonalApiKeyErrors, UpdatePersonalApiKeyResponses, UpdateTeamData, UpdateTeamErrors, UpdateTeamResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -144,7 +144,7 @@ export const getOrganizations = <ThrowOnError extends boolean = false>(options?:
             in: 'cookie',
             name: '__Host-template.session',
             type: 'apiKey'
-        }],
+        }, { name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/organizations',
     ...options
 });
@@ -187,6 +187,12 @@ export const deleteOrganization = <ThrowOnError extends boolean = false>(options
     }
 });
 
+export const getMachineOrganization = <ThrowOnError extends boolean = false>(options: Options<GetMachineOrganizationData, ThrowOnError>): RequestResult<GetMachineOrganizationResponses, GetMachineOrganizationErrors, ThrowOnError> => (options.client ?? client).get<GetMachineOrganizationResponses, GetMachineOrganizationErrors, ThrowOnError>({
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
+    url: '/api/v1/organizations/{organizationId}',
+    ...options
+});
+
 export const updateOrganization = <ThrowOnError extends boolean = false>(options: Options<UpdateOrganizationData, ThrowOnError>): RequestResult<UpdateOrganizationResponses, UpdateOrganizationErrors, ThrowOnError> => (options.client ?? client).patch<UpdateOrganizationResponses, UpdateOrganizationErrors, ThrowOnError>({
     security: [{
             in: 'cookie',
@@ -220,7 +226,7 @@ export const getOrganizationMembers = <ThrowOnError extends boolean = false>(opt
             in: 'cookie',
             name: '__Host-template.session',
             type: 'apiKey'
-        }],
+        }, { name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/organizations/{organizationId}/members',
     ...options
 });
@@ -258,7 +264,7 @@ export const getTeams = <ThrowOnError extends boolean = false>(options: Options<
             in: 'cookie',
             name: '__Host-template.session',
             type: 'apiKey'
-        }],
+        }, { name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/organizations/{organizationId}/teams',
     ...options
 });
@@ -306,7 +312,7 @@ export const getTeamMembers = <ThrowOnError extends boolean = false>(options: Op
             in: 'cookie',
             name: '__Host-template.session',
             type: 'apiKey'
-        }],
+        }, { name: 'x-api-key', type: 'apiKey' }],
     url: '/api/v1/organizations/{organizationId}/teams/{teamId}/members',
     ...options
 });
@@ -409,6 +415,134 @@ export const rejectInvitation = <ThrowOnError extends boolean = false>(options: 
     ...options
 });
 
+export const listPersonalApiKeys = <ThrowOnError extends boolean = false>(options?: Options<ListPersonalApiKeysData, ThrowOnError>): RequestResult<ListPersonalApiKeysResponses, ListPersonalApiKeysErrors, ThrowOnError> => (options?.client ?? client).get<ListPersonalApiKeysResponses, ListPersonalApiKeysErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/api-keys',
+    ...options
+});
+
+/**
+ * Returns the raw API key exactly once. Store it securely before discarding this response; it cannot be retrieved later.
+ */
+export const createPersonalApiKey = <ThrowOnError extends boolean = false>(options: Options<CreatePersonalApiKeyData, ThrowOnError>): RequestResult<CreatePersonalApiKeyResponses, CreatePersonalApiKeyErrors, ThrowOnError> => (options.client ?? client).post<CreatePersonalApiKeyResponses, CreatePersonalApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/api-keys',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const revokePersonalApiKey = <ThrowOnError extends boolean = false>(options: Options<RevokePersonalApiKeyData, ThrowOnError>): RequestResult<RevokePersonalApiKeyResponses, RevokePersonalApiKeyErrors, ThrowOnError> => (options.client ?? client).delete<RevokePersonalApiKeyResponses, RevokePersonalApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/api-keys/{apiKeyId}',
+    ...options
+});
+
+export const updatePersonalApiKey = <ThrowOnError extends boolean = false>(options: Options<UpdatePersonalApiKeyData, ThrowOnError>): RequestResult<UpdatePersonalApiKeyResponses, UpdatePersonalApiKeyErrors, ThrowOnError> => (options.client ?? client).patch<UpdatePersonalApiKeyResponses, UpdatePersonalApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/api-keys/{apiKeyId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Returns the raw API key exactly once. Store it securely before discarding this response; it cannot be retrieved later.
+ */
+export const rotatePersonalApiKey = <ThrowOnError extends boolean = false>(options: Options<RotatePersonalApiKeyData, ThrowOnError>): RequestResult<RotatePersonalApiKeyResponses, RotatePersonalApiKeyErrors, ThrowOnError> => (options.client ?? client).post<RotatePersonalApiKeyResponses, RotatePersonalApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/account/api-keys/{apiKeyId}/rotate',
+    ...options
+});
+
+export const listOrganizationApiKeys = <ThrowOnError extends boolean = false>(options: Options<ListOrganizationApiKeysData, ThrowOnError>): RequestResult<ListOrganizationApiKeysResponses, ListOrganizationApiKeysErrors, ThrowOnError> => (options.client ?? client).get<ListOrganizationApiKeysResponses, ListOrganizationApiKeysErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/api-keys',
+    ...options
+});
+
+/**
+ * Returns the raw API key exactly once. Store it securely before discarding this response; it cannot be retrieved later.
+ */
+export const createOrganizationApiKey = <ThrowOnError extends boolean = false>(options: Options<CreateOrganizationApiKeyData, ThrowOnError>): RequestResult<CreateOrganizationApiKeyResponses, CreateOrganizationApiKeyErrors, ThrowOnError> => (options.client ?? client).post<CreateOrganizationApiKeyResponses, CreateOrganizationApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/api-keys',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+export const revokeOrganizationApiKey = <ThrowOnError extends boolean = false>(options: Options<RevokeOrganizationApiKeyData, ThrowOnError>): RequestResult<RevokeOrganizationApiKeyResponses, RevokeOrganizationApiKeyErrors, ThrowOnError> => (options.client ?? client).delete<RevokeOrganizationApiKeyResponses, RevokeOrganizationApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}',
+    ...options
+});
+
+export const updateOrganizationApiKey = <ThrowOnError extends boolean = false>(options: Options<UpdateOrganizationApiKeyData, ThrowOnError>): RequestResult<UpdateOrganizationApiKeyResponses, UpdateOrganizationApiKeyErrors, ThrowOnError> => (options.client ?? client).patch<UpdateOrganizationApiKeyResponses, UpdateOrganizationApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Returns the raw API key exactly once. Store it securely before discarding this response; it cannot be retrieved later.
+ */
+export const rotateOrganizationApiKey = <ThrowOnError extends boolean = false>(options: Options<RotateOrganizationApiKeyData, ThrowOnError>): RequestResult<RotateOrganizationApiKeyResponses, RotateOrganizationApiKeyErrors, ThrowOnError> => (options.client ?? client).post<RotateOrganizationApiKeyResponses, RotateOrganizationApiKeyErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: '__Host-template.session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/organizations/{organizationId}/api-keys/{apiKeyId}/rotate',
+    ...options
+});
+
 /**
  * Returns API status and echoes a validated optional value.
  */
@@ -424,6 +558,12 @@ export const getAuthenticatedStatus = <ThrowOnError extends boolean = false>(opt
             type: 'apiKey'
         }],
     url: '/api/v1/system/authenticated',
+    ...options
+});
+
+export const getApiKeyPrincipal = <ThrowOnError extends boolean = false>(options?: Options<GetApiKeyPrincipalData, ThrowOnError>): RequestResult<GetApiKeyPrincipalResponses, GetApiKeyPrincipalErrors, ThrowOnError> => (options?.client ?? client).get<GetApiKeyPrincipalResponses, GetApiKeyPrincipalErrors, ThrowOnError>({
+    security: [{ name: 'x-api-key', type: 'apiKey' }],
+    url: '/api/v1/me',
     ...options
 });
 

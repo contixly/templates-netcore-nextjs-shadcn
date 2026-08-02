@@ -67,6 +67,11 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
         var listData = await OrganizationEndpointTestSupport.ReadDataAsync(list);
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.Equal(2, listData.GetProperty("items").GetArrayLength());
+        Assert.All(
+            listData.GetProperty("items").EnumerateArray(),
+            item => Assert.Equal(
+                "user",
+                item.GetProperty("accessPrincipal").GetString()));
         Assert.Equal(JsonValueKind.Null, listData.GetProperty("nextCursor").ValueKind);
 
         using var detail = await client.GetAsync(
@@ -287,6 +292,13 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             "Member Directory Target",
             target.Email,
             "member");
+        using var memberDetail = await targetClient.GetAsync(
+            "/api/v1/organizations/by-key/directory-workspace",
+            TestContext.Current.CancellationToken);
+        Assert.False((await OrganizationEndpointTestSupport.ReadDataAsync(memberDetail))
+            .GetProperty("capabilities")
+            .GetProperty("canManageApiKeys")
+            .GetBoolean());
 
         using var list = await ownerClient.GetAsync(
             $"/api/v1/organizations/{organizationId:D}/members?limit=50",
@@ -317,8 +329,20 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             "Member Directory Target",
             target.Email,
             "admin");
+        using var adminDetail = await targetClient.GetAsync(
+            "/api/v1/organizations/by-key/directory-workspace",
+            TestContext.Current.CancellationToken);
+        Assert.True((await OrganizationEndpointTestSupport.ReadDataAsync(adminDetail))
+            .GetProperty("capabilities")
+            .GetProperty("canManageApiKeys")
+            .GetBoolean());
 
-        OrganizationEndpointTestSupport.AssertNoStore(add, list, roleUpdate);
+        OrganizationEndpointTestSupport.AssertNoStore(
+            add,
+            memberDetail,
+            list,
+            roleUpdate,
+            adminDetail);
     }
 
     [Fact]
@@ -801,6 +825,7 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
         Assert.Equal(name, data.GetProperty("name").GetString());
         Assert.Equal(slug, data.GetProperty("slug").GetString());
         Assert.Equal(slug, data.GetProperty("canonicalKey").GetString());
+        Assert.Equal("user", data.GetProperty("accessPrincipal").GetString());
         Assert.Equal(role, data.GetProperty("currentRole").GetString());
         Assert.NotEqual(default, data.GetProperty("createdAt").GetDateTimeOffset());
         Assert.NotEqual(default, data.GetProperty("updatedAt").GetDateTimeOffset());
@@ -813,6 +838,9 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
             capabilities.GetProperty("canDeleteOrganization").GetBoolean());
         Assert.True(capabilities.GetProperty("canAddMembers").GetBoolean());
         Assert.True(capabilities.GetProperty("canUpdateMemberRoles").GetBoolean());
+        Assert.Equal(
+            role is "owner" or "admin",
+            capabilities.GetProperty("canManageApiKeys").GetBoolean());
         Assert.Equal(JsonValueKind.Array, data.GetProperty("allowedEmailDomains").ValueKind);
     }
 

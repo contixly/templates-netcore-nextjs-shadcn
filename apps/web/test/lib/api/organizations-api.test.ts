@@ -74,6 +74,7 @@ const organization: OrganizationDetailResponse = {
   canonicalKey: "acme",
   createdAt: "2026-07-30T00:00:00Z",
   updatedAt: "2026-07-30T00:00:00Z",
+  accessPrincipal: "user",
   currentRole: "owner",
   capabilities: {
     canUpdateOrganization: true,
@@ -82,6 +83,7 @@ const organization: OrganizationDetailResponse = {
     canUpdateMemberRoles: true,
     canManageTeams: true,
     canManageInvitations: true,
+    canManageApiKeys: true,
   },
   allowedEmailDomains: ["example.test"],
 };

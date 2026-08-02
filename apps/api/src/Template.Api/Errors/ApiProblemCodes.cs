@@ -86,4 +86,11 @@ internal static class ApiProblemCodes
         "invitation_membership_conflict";
     internal const string InvitationLimitReached =
         "invitation_limit_reached";
+    internal const string ApiKeyNotFound = "api_key_not_found";
+    internal const string ApiKeyPermissionDenied = "api_key_permission_denied";
+    internal const string ApiKeyUpdateUnchanged = "api_key_update_unchanged";
+    internal const string ApiKeyMissing = "api_key_missing";
+    internal const string ApiKeyInvalid = "api_key_invalid";
+    internal const string ApiKeyRateLimited = "api_key_rate_limited";
+    internal const string OrganizationAccessDenied = "organization_access_denied";
 }

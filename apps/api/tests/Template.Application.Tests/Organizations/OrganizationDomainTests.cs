@@ -179,13 +179,13 @@ public sealed class OrganizationDomainTests
     public void Role_capabilities_are_explicit_and_role_specific()
     {
         Assert.Equal(
-            new OrganizationCapabilities(false, false, false, false, false, false),
+            new OrganizationCapabilities(false, false, false, false, false, false, false),
             OrganizationPermissionPolicy.GetCapabilities(OrganizationRole.Member));
         Assert.Equal(
-            new OrganizationCapabilities(true, false, true, true, true, true),
+            new OrganizationCapabilities(true, false, true, true, true, true, true),
             OrganizationPermissionPolicy.GetCapabilities(OrganizationRole.Admin));
         Assert.Equal(
-            new OrganizationCapabilities(true, true, true, true, true, true),
+            new OrganizationCapabilities(true, true, true, true, true, true, true),
             OrganizationPermissionPolicy.GetCapabilities(OrganizationRole.Owner));
     }
 

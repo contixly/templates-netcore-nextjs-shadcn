@@ -436,3 +436,60 @@ topology, database backup/restore procedures, and external-provider smoke in
 that environment. KMS/Vault and certificate-rotation orchestration remain
 future deployment decisions. API-key `x-api-key` support remains iteration 7,
 and no Bearer scheme is registered.
+
+## API-key persistence and operating procedure (iteration 7)
+
+Migration `20260802000000_ApiKeysPublicV1` creates `auth.api_keys`; it is
+additive over the clean target schema. Inspect an idempotent script before a
+release and use forward-fix or restore for production rollback: generated
+`Down` paths are destructive and Development/Test-only. The table's only
+credential material is a required 32-byte SHA-256 hash plus a safe display
+start; never insert, query, back up in plaintext, or log a raw API key.
+
+The service creates a 32-byte random secret, canonical base64url-encodes it
+without padding, prefixes it according to owner (`user_`/`org_`), hashes the
+full canonical credential and reveals it only in the successful create/rotate
+response. Operators and users must place it directly in an approved secrets
+manager, validate it by a minimal read, and clear clipboard/transient UI state.
+Do not place it in source, `.env` committed files, URLs, screenshots, browser
+storage, telemetry, support tickets or diagnostic logs. Loss cannot be
+recovered; issue/rotate a replacement.
+
+Key management remains a browser session operation. It uses the normal secure
+HttpOnly cookie; unsafe calls additionally require a fresh CSRF token from
+`GET /api/v1/auth/csrf` and `X-CSRF-TOKEN`. API keys and Bearer credentials
+cannot manage keys. Endpoint metadata makes global selection route-aware:
+machine-only routes select only `Template.ApiKey` even without a header and do
+not read, renew or delete a browser cookie; browser-only routes select only
+`Template.Session` even with an unrelated key header. `Template.Consumer.Selector`
+is the mixed-route **authentication scheme**: it forwards a supplied key to
+`Template.ApiKey`, or an absent key to browser `Template.Session`. `Api.MachineKey`,
+`Api.BrowserSession`, and `Api.BrowserOrMachine` are **authorization policies**,
+not schemes; they respectively select key-only, session-only, and selector-based
+route requirements. Organization key operations re-read owner/admin authority
+within their transaction. Current browser role/capabilities are never a
+substitute for this server check.
+
+The initial implementation uses a PostgreSQL fixed-window counter locked with
+the key row, so it is authoritative across API processes without Redis. It
+intentionally serializes authentication per key. Rate-limit changes and rotation
+reset that window. A `429 api_key_rate_limited` has a bounded integer
+`Retry-After`; clients use bounded backoff. Capacity planning, Redis/Valkey,
+Bearer issuance/consumption, distributed high-volume tiering, deployment wiring
+and load testing remain explicitly out of scope.
+
+Every fresh persistence attempt samples its clock after authorization/key row
+locks and clamps it against the committed key/window/use timeline. Relative
+create/update expiry is converted only there; rotate cannot predate a persisted
+use. Thus lock waits, retries and a backward-moving system clock cannot regress
+quota, last-use or mutation timestamps. Once a valid row is known, a
+rate-limited result carries only the safe key/owner principal for audit
+attribution; authentication still fails and neither logs nor Problem Details
+expose credential material or key configuration.
+
+Management and machine audit records must remain redacted: only bounded
+operation/outcome, trace/correlation context and trusted opaque IDs may be
+recorded. Headers, secrets, hashes, safe starts, names, scopes, request bodies,
+cookies, query/cursor values, e-mail and exception/provider text are forbidden.
+Problem Details are the operational diagnostic surface: use stable `code` and
+safe `traceId`, not a credential or an exception detail.

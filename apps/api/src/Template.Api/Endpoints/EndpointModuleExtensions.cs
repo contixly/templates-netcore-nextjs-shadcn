@@ -1,6 +1,7 @@
 using Template.Api.Authentication;
 using Template.Api.Features.Account;
 using Template.Api.Features.Auth;
+using Template.Api.Features.ApiKeys;
 using Template.Api.Features.Collaboration;
 using Template.Api.Features.Health;
 using Template.Api.Features.Organizations;
@@ -17,6 +18,7 @@ internal static class EndpointModuleExtensions
         services.AddScoped<ExternalOAuthChallengeService>();
         services.AddSingleton<IEndpointModule, ExternalAuthEndpointModule>();
         services.AddSingleton<IEndpointModule, AccountEndpointModule>();
+        services.AddSingleton<IEndpointModule, ApiKeyEndpointModule>();
         services.AddSingleton<IEndpointModule, OrganizationEndpointModule>();
         services.AddSingleton<IEndpointModule, TeamEndpointModule>();
         services.AddSingleton<IEndpointModule, InvitationEndpointModule>();
@@ -31,7 +33,13 @@ internal static class EndpointModuleExtensions
         var context = new EndpointRouteContext(
             endpoints,
             endpoints.MapGroup("/api/v1")
-                .RequireAuthorization(ApiPolicies.BrowserSession));
+                .RequireAuthorization(ApiPolicies.BrowserSession),
+            endpoints.MapGroup("/api/v1")
+                .RequireAuthorization(ApiPolicies.BrowserOrMachine)
+                .WithMetadata(new MixedConsumerEndpointMetadata()),
+            endpoints.MapGroup("/api/v1")
+                .RequireAuthorization(ApiPolicies.MachineKey)
+                .WithMetadata(new MachineApiEndpointMetadata()));
 
         foreach (var module in endpoints.ServiceProvider
                      .GetRequiredService<IEnumerable<IEndpointModule>>())

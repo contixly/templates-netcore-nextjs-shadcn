@@ -9,6 +9,8 @@ import {
   acceptInvitation,
   challengeExternalAuth,
   confirmLocalAutomationEmail,
+  createOrganizationApiKey,
+  createPersonalApiKey,
   createTeam,
   createOrganization,
   createLocalAutomationScenario,
@@ -25,6 +27,8 @@ import {
   getAuthCsrf,
   getAuthSession,
   getOrganizationByKey,
+  getApiKeyPrincipal,
+  getMachineOrganization,
   getOrganizationMembers,
   getOrganizationInvitations,
   getAccountInvitations,
@@ -35,19 +39,30 @@ import {
   getTeamMembers,
   getTeams,
   logout,
+  listOrganizationApiKeys,
+  listPersonalApiKeys,
   revokeAccountSession,
   revokeOtherAccountSessions,
+  revokeOrganizationApiKey,
+  revokePersonalApiKey,
   rejectInvitation,
   removeTeamMember,
   setActiveOrganization,
   signInLocalAutomation,
+  rotateOrganizationApiKey,
+  rotatePersonalApiKey,
   updateAccountProfile,
   updateOrganization,
+  updateOrganizationApiKey,
   updateOrganizationMemberRole,
   updateTeam,
+  updatePersonalApiKey,
 } from "@/src/lib/api/generated";
 import type {
   ApiResponseOfInvitationResponse,
+  ApiKeyMePrincipalResponse,
+  ApiKeyResponse,
+  ApiKeySecretResponse,
   AcceptInvitationErrors,
   AddOrganizationMemberErrors,
   AddTeamMemberErrors,
@@ -56,12 +71,18 @@ import type {
   CreateInvitationErrors,
   CreateInvitationData,
   CreateInvitationResponses,
+  CreateOrganizationApiKeyData,
+  CreateOrganizationApiKeyErrors,
   CreateOrganizationErrors,
+  CreatePersonalApiKeyData,
+  CreatePersonalApiKeyErrors,
   CreateTeamErrors,
   DeleteOrganizationErrors,
   DeleteTeamErrors,
   GetAccountInvitationsErrors,
   GetInvitationDecisionErrors,
+  GetApiKeyPrincipalErrors,
+  GetMachineOrganizationErrors,
   GetOrganizationByKeyErrors,
   GetOrganizationInvitationsData,
   GetOrganizationInvitationsErrors,
@@ -71,13 +92,27 @@ import type {
   GetTeamMembersErrors,
   GetTeamsErrors,
   InvitationResponse,
+  ListOrganizationApiKeysData,
+  ListOrganizationApiKeysErrors,
+  ListPersonalApiKeysErrors,
   RejectInvitationErrors,
   RemoveTeamMemberErrors,
+  RevokeOrganizationApiKeyData,
+  RevokeOrganizationApiKeyErrors,
+  RevokePersonalApiKeyErrors,
+  RotateOrganizationApiKeyErrors,
+  RotateOrganizationApiKeyData,
+  RotatePersonalApiKeyErrors,
   SetActiveOrganizationErrors,
   GetTeamMemberCandidatesData,
   UpdateOrganizationErrors,
+  UpdateOrganizationApiKeyData,
+  UpdateOrganizationApiKeyErrors,
   UpdateOrganizationMemberRoleErrors,
   UpdateTeamErrors,
+  UpdatePersonalApiKeyErrors,
+  MachineOrganizationDetailResponse,
+  OrganizationSummaryResponse,
 } from "@/src/lib/api/generated";
 
 type Assert<T extends true> = T;
@@ -126,7 +161,12 @@ type ErrorStatuses<Error> = keyof Error;
 type StandardCollaborationErrors = 400 | 401 | 403 | 404 | 405 | 409 | 500;
 type RateLimitedCollaborationErrors = StandardCollaborationErrors | 429;
 type _OrganizationErrorStatuses = [
-  Assert<Equal<ErrorStatuses<GetOrganizationsErrors>, 400 | 401 | 405 | 500>>,
+  Assert<
+    Equal<
+      ErrorStatuses<GetOrganizationsErrors>,
+      400 | 401 | 403 | 405 | 429 | 500
+    >
+  >,
   Assert<
     Equal<ErrorStatuses<CreateOrganizationErrors>, 400 | 401 | 405 | 409 | 500>
   >,
@@ -151,7 +191,7 @@ type _OrganizationErrorStatuses = [
   Assert<
     Equal<
       ErrorStatuses<GetOrganizationMembersErrors>,
-      400 | 401 | 404 | 405 | 409 | 500
+      400 | 401 | 403 | 404 | 405 | 409 | 429 | 500
     >
   >,
   Assert<
@@ -174,12 +214,17 @@ type _CollaborationErrorStatuses = [
       "notification_failed" | null | undefined
     >
   >,
-  Assert<Equal<ErrorStatuses<GetTeamsErrors>, StandardCollaborationErrors>>,
+  Assert<
+    Equal<ErrorStatuses<GetTeamsErrors>, StandardCollaborationErrors | 429>
+  >,
   Assert<Equal<ErrorStatuses<CreateTeamErrors>, StandardCollaborationErrors>>,
   Assert<Equal<ErrorStatuses<UpdateTeamErrors>, StandardCollaborationErrors>>,
   Assert<Equal<ErrorStatuses<DeleteTeamErrors>, StandardCollaborationErrors>>,
   Assert<
-    Equal<ErrorStatuses<GetTeamMembersErrors>, StandardCollaborationErrors>
+    Equal<
+      ErrorStatuses<GetTeamMembersErrors>,
+      StandardCollaborationErrors | 429
+    >
   >,
   Assert<
     Equal<ErrorStatuses<AddTeamMemberErrors>, StandardCollaborationErrors>
@@ -225,6 +270,204 @@ type _CollaborationErrorStatuses = [
       ErrorStatuses<ConfirmLocalAutomationEmailErrors>,
       400 | 401 | 403 | 404 | 405 | 500
     >
+  >,
+];
+
+type _ApiKeyErrorStatuses = [
+  Assert<
+    Equal<ErrorStatuses<GetApiKeyPrincipalErrors>, 401 | 403 | 405 | 429 | 500>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<GetMachineOrganizationErrors>,
+      400 | 401 | 403 | 404 | 405 | 429 | 500
+    >
+  >,
+  Assert<
+    Equal<ErrorStatuses<ListPersonalApiKeysErrors>, 400 | 401 | 405 | 500>
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<CreatePersonalApiKeyErrors>,
+      400 | 401 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<UpdatePersonalApiKeyErrors>,
+      400 | 401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<RevokePersonalApiKeyErrors>,
+      400 | 401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<RotatePersonalApiKeyErrors>,
+      400 | 401 | 404 | 405 | 409 | 500
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<ListOrganizationApiKeysErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<CreateOrganizationApiKeyErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<UpdateOrganizationApiKeyErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<RevokeOrganizationApiKeyErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+  Assert<
+    Equal<
+      ErrorStatuses<RotateOrganizationApiKeyErrors>,
+      StandardCollaborationErrors
+    >
+  >,
+];
+
+type _ApiKeyCreateBodyIsRequired = Assert<
+  Equal<
+    undefined extends CreatePersonalApiKeyData["body"] ? true : false,
+    false
+  >
+>;
+type _ApiKeySecretIsRevealOnceString = Assert<
+  Equal<ApiKeySecretResponse["key"], string>
+>;
+type _OrganizationApiKeyPathsAreRequired = [
+  Assert<
+    Equal<ListOrganizationApiKeysData["path"], { organizationId: string }>
+  >,
+  Assert<
+    Equal<CreateOrganizationApiKeyData["path"], { organizationId: string }>
+  >,
+  Assert<
+    Equal<
+      UpdateOrganizationApiKeyData["path"],
+      { organizationId: string; apiKeyId: string }
+    >
+  >,
+  Assert<
+    Equal<
+      RevokeOrganizationApiKeyData["path"],
+      { organizationId: string; apiKeyId: string }
+    >
+  >,
+  Assert<
+    Equal<
+      RotateOrganizationApiKeyData["path"],
+      { organizationId: string; apiKeyId: string }
+    >
+  >,
+  Assert<
+    Equal<
+      undefined extends Parameters<typeof listOrganizationApiKeys>[0]
+        ? true
+        : false,
+      false
+    >
+  >,
+];
+type _ApiKeyCountersAreNumbers = [
+  Assert<Equal<ApiKeyResponse["rateLimitMax"], number>>,
+  Assert<Equal<ApiKeyResponse["requestCount"], number>>,
+  Assert<Equal<ApiKeySecretResponse["rateLimitMax"], number>>,
+  Assert<Equal<ApiKeySecretResponse["requestCount"], number>>,
+];
+type ApiKeyUserPrincipal = Extract<
+  ApiKeyMePrincipalResponse,
+  { ownerKind: "user" }
+>;
+type ApiKeyOrganizationPrincipal = Extract<
+  ApiKeyMePrincipalResponse,
+  { ownerKind: "organization" }
+>;
+type OrganizationSummaryUser = Extract<
+  OrganizationSummaryResponse,
+  { accessPrincipal: "user" }
+>;
+type OrganizationSummaryMachine = Extract<
+  OrganizationSummaryResponse,
+  { accessPrincipal: "organization" }
+>;
+type MachineOrganizationUser = Extract<
+  MachineOrganizationDetailResponse,
+  { accessPrincipal: "user" }
+>;
+type MachineOrganizationOwner = Extract<
+  MachineOrganizationDetailResponse,
+  { accessPrincipal: "organization" }
+>;
+type _ApiKeyPrincipalNarrowing = [
+  Assert<Equal<ApiKeyUserPrincipal["userId"], string>>,
+  Assert<Equal<ApiKeyUserPrincipal["organizationId"], null>>,
+  Assert<Equal<ApiKeyOrganizationPrincipal["userId"], null>>,
+  Assert<Equal<ApiKeyOrganizationPrincipal["organizationId"], string>>,
+];
+type _OrganizationPrincipalNarrowing = [
+  Assert<
+    Equal<OrganizationSummaryUser["currentRole"], "member" | "admin" | "owner">
+  >,
+  Assert<
+    Equal<OrganizationSummaryUser["capabilities"]["canManageApiKeys"], boolean>
+  >,
+  Assert<Equal<OrganizationSummaryMachine["currentRole"], "organization">>,
+  Assert<
+    Equal<OrganizationSummaryMachine["capabilities"]["canManageApiKeys"], false>
+  >,
+  Assert<
+    Equal<MachineOrganizationUser["currentRole"], "member" | "admin" | "owner">
+  >,
+  Assert<Equal<MachineOrganizationOwner["currentRole"], "organization">>,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canUpdateOrganization"],
+      false
+    >
+  >,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canDeleteOrganization"],
+      false
+    >
+  >,
+  Assert<
+    Equal<MachineOrganizationOwner["capabilities"]["canAddMembers"], false>
+  >,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canUpdateMemberRoles"],
+      false
+    >
+  >,
+  Assert<
+    Equal<MachineOrganizationOwner["capabilities"]["canManageTeams"], false>
+  >,
+  Assert<
+    Equal<
+      MachineOrganizationOwner["capabilities"]["canManageInvitations"],
+      false
+    >
+  >,
+  Assert<
+    Equal<MachineOrganizationOwner["capabilities"]["canManageApiKeys"], false>
   >,
 ];
 
@@ -311,6 +554,21 @@ describe("generated system status SDK", () => {
     expect(getOrganizationMembers).toEqual(expect.any(Function));
     expect(addOrganizationMember).toEqual(expect.any(Function));
     expect(updateOrganizationMemberRole).toEqual(expect.any(Function));
+  });
+
+  it("tracks all API key management and machine-only operations", () => {
+    expect(listPersonalApiKeys).toEqual(expect.any(Function));
+    expect(createPersonalApiKey).toEqual(expect.any(Function));
+    expect(updatePersonalApiKey).toEqual(expect.any(Function));
+    expect(revokePersonalApiKey).toEqual(expect.any(Function));
+    expect(rotatePersonalApiKey).toEqual(expect.any(Function));
+    expect(listOrganizationApiKeys).toEqual(expect.any(Function));
+    expect(createOrganizationApiKey).toEqual(expect.any(Function));
+    expect(updateOrganizationApiKey).toEqual(expect.any(Function));
+    expect(revokeOrganizationApiKey).toEqual(expect.any(Function));
+    expect(rotateOrganizationApiKey).toEqual(expect.any(Function));
+    expect(getApiKeyPrincipal).toEqual(expect.any(Function));
+    expect(getMachineOrganization).toEqual(expect.any(Function));
   });
 
   it("proves generated error unions through compile-time equality", () => {

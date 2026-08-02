@@ -17,6 +17,7 @@ internal static class OpenApiServiceCollectionExtensions
             options.AddSchemaTransformer<ApiContractSchemaTransformer>();
             options.AddSchemaTransformer<OrganizationContractSchemaTransformer>();
             options.AddSchemaTransformer<CollaborationContractSchemaTransformer>();
+            options.AddSchemaTransformer<ApiKeyContractSchemaTransformer>();
             options.AddOperationTransformer<OrganizationContractOperationTransformer>();
             options.AddOperationTransformer<CollaborationContractOperationTransformer>();
             options.AddDocumentTransformer((document, _, _) =>
@@ -34,6 +35,15 @@ internal static class OpenApiServiceCollectionExtensions
                         In = ParameterLocation.Cookie,
                         Name = ApiAuthenticationDefaults.CookieName,
                         Description = "Secure HttpOnly same-origin session cookie."
+                    };
+                document.Components.SecuritySchemes[OpenApiDefaults.ApiKeySecurityScheme] =
+                    new OpenApiSecurityScheme
+                    {
+                        Type = SecuritySchemeType.ApiKey,
+                        In = ParameterLocation.Header,
+                        Name = ApiKeyAuthenticationDefaults.HeaderName,
+                        Description =
+                            "Reveal-once personal or organization API key."
                     };
                 document.Components.Schemas ??=
                     new Dictionary<string, IOpenApiSchema>(
@@ -118,6 +128,7 @@ internal static class OpenApiServiceCollectionExtensions
                     context.Document!));
                 return Task.CompletedTask;
             });
+            options.AddOperationTransformer<ApiKeyContractOperationTransformer>();
         });
 
         return services;

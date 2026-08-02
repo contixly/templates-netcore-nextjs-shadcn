@@ -1,13 +1,16 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Identity;
+using System.Security.Claims;
 using Template.Api.Authentication;
 using Template.Api.Endpoints;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
+using Template.Domain.ApiKeys;
 using Template.Domain.Authentication;
 using Template.Infrastructure.Identity;
 
@@ -119,9 +122,105 @@ internal sealed class TestEndpointModule : IEndpointModule
             .AllowAnonymous()
             .ExcludeFromDescription();
 
-        context.VersionedApi.MapGet("/testing/consumer", () => Results.Ok())
+        context.VersionedMixedApi.MapGet(
+                "/testing/consumer",
+                (ClaimsPrincipal principal) => Results.Ok(new
+                {
+                    authenticationType = principal.Identity?.AuthenticationType,
+                    claims = principal.Claims
+                        .OrderBy(claim => claim.Type, StringComparer.Ordinal)
+                        .ThenBy(claim => claim.Value, StringComparer.Ordinal)
+                        .Select(claim => new { claim.Type, claim.Value })
+                }))
+            .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
+            .ExcludeFromDescription();
+
+        context.VersionedMixedApi.MapGet(
+                "/testing/consumer/organization-read",
+                (ClaimsPrincipal principal) => Results.Ok(new
+                {
+                    authenticationType = principal.Identity?.AuthenticationType
+                }))
+            .RequireApiKeyScopes(ApiKeyScopes.OrganizationRead)
+            .ExcludeFromDescription();
+
+        context.Root.MapGet(
+                "/api/testing/api-key-principal/{scenario}",
+                async (
+                    string scenario,
+                    IAuthorizationService authorization) =>
+                {
+                    var principal = InjectedApiKeyPrincipal(scenario);
+                    var result = await authorization.AuthorizeAsync(
+                        principal,
+                        resource: null,
+                        [new ApiKeyScopeRequirement([ApiKeyScopes.BasicRead])]);
+                    return Results.Ok(new
+                    {
+                        authorized = result.Succeeded,
+                        readable = ApiKeyPrincipalReader.TryRead(
+                            principal,
+                            out _)
+                    });
+                })
+            .AllowAnonymous()
             .ExcludeFromDescription();
     }
+
+    private static ClaimsPrincipal InjectedApiKeyPrincipal(string scenario)
+    {
+        var identity = ValidApiKeyIdentity();
+        switch (scenario)
+        {
+            case "valid":
+                return new(identity);
+            case "duplicate-identity":
+                return new([identity, ValidApiKeyIdentity()]);
+            case "additional-identity":
+                return new([
+                    identity,
+                    new ClaimsIdentity(
+                        [new Claim("test", "unrelated")],
+                        "Test.Unrelated")
+                ]);
+            case "unknown-claim":
+                identity.AddClaim(new Claim("urn:template:claim:unknown", "unsafe"));
+                break;
+            case "duplicate-claim":
+                identity.AddClaim(new Claim(
+                    ApiKeyClaimTypes.Id,
+                    "0198a7ac-d0f8-7832-b711-211f56c57701"));
+                break;
+            case "mixed-owner":
+                identity.AddClaim(new Claim(
+                    ApiKeyClaimTypes.OrganizationId,
+                    "0198a7ac-d0f8-7832-b711-211f56c57703"));
+                break;
+            case "invalid-scope":
+                identity.AddClaim(new Claim(
+                    ApiKeyClaimTypes.Scope,
+                    "basic:write"));
+                break;
+            default:
+                throw new BadHttpRequestException("Unknown test principal scenario.");
+        }
+
+        return new(identity);
+    }
+
+    private static ClaimsIdentity ValidApiKeyIdentity() => new(
+        [
+            new Claim(
+                ApiKeyClaimTypes.Id,
+                "0198a7ac-d0f8-7832-b711-211f56c57701"),
+            new Claim(ApiKeyClaimTypes.Start, "user_abcdefghijk"),
+            new Claim(ApiKeyClaimTypes.OwnerKind, "user"),
+            new Claim(
+                ApiKeyClaimTypes.UserId,
+                "0198a7ac-d0f8-7832-b711-211f56c57702"),
+            new Claim(ApiKeyClaimTypes.Scope, ApiKeyScopes.BasicRead)
+        ],
+        ApiKeyAuthenticationDefaults.SchemeName);
 
     private static IResult ThrowFault() =>
         throw new InvalidOperationException("sensitive-database-message");

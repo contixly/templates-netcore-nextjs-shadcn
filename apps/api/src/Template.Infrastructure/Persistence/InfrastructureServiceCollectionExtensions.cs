@@ -10,11 +10,13 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Template.Application.Accounts.Ports;
+using Template.Application.ApiKeys.Ports;
 using Template.Application.Authentication.Ports;
 using Template.Application.Collaboration.Ports;
 using Template.Application.Common.Ports;
 using Template.Application.Organizations.Ports;
 using Template.Infrastructure.Accounts;
+using Template.Infrastructure.ApiKeys;
 using Template.Infrastructure.Authentication;
 using Template.Infrastructure.Collaboration;
 using Template.Infrastructure.Identity;
@@ -112,6 +114,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IOrganizationStore, EfOrganizationStore>();
         services.AddScoped<ITeamStore, EfTeamStore>();
         services.AddScoped<IInvitationStore, EfInvitationStore>();
+        services.AddScoped<IApiKeyStore, EfApiKeyStore>();
+        services.AddScoped<IMachineApiStore, EfMachineApiStore>();
+        services.AddSingleton<IApiKeyCredentialService, CryptographicApiKeyCredentialService>();
         services.AddSingleton<NoOpInvitationNotifier>();
         services.AddSingleton<IInvitationNotifier>(provider =>
             new SafeInvitationNotifier(

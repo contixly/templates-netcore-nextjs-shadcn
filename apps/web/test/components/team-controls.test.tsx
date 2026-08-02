@@ -61,6 +61,7 @@ const team: TeamResponse = {
   organizationId: "org-1",
   name: "Platform",
   memberCount: 1,
+  membersIncluded: true,
   members: { items: [member], nextCursor: null },
   createdAt: "2026-08-01T00:00:00Z",
   updatedAt: "2026-08-01T00:00:00Z",
@@ -98,6 +99,7 @@ it("lets administrators create, rename, and confirm deletion with duplicate subm
     ...team,
     id: "team-2",
     name: "Design",
+    membersIncluded: true,
     members: { items: [], nextCursor: null },
     memberCount: 0,
   };
@@ -155,6 +157,7 @@ it("accepts exactly 50 supplementary-plane letters when creating and renaming te
     ...team,
     id: "team-2",
     name: fiftyUnicodeScalars,
+    membersIncluded: true,
     members: { items: [], nextCursor: null },
     memberCount: 0,
   };
@@ -694,6 +697,7 @@ it("invalidates a stale member continuation success and its finally state when t
           items: [
             {
               ...team,
+              membersIncluded: true,
               members: {
                 items: [refreshedMember],
                 nextCursor: "current-cursor",
@@ -774,6 +778,7 @@ it("invalidates a stale member continuation error without clearing a newer pendi
           items: [
             {
               ...team,
+              membersIncluded: true,
               members: { items: [member], nextCursor: "current-cursor" },
             },
           ],
@@ -815,6 +820,7 @@ it("reconciles a successful team recovery page and its continuation cursor after
     id: "team-2",
     name: "Design",
     memberCount: 0,
+    membersIncluded: true,
     members: { items: [], nextCursor: null },
   };
   jest.mocked(createBrowserTeam).mockResolvedValue({ ok: true, data: created });
@@ -865,6 +871,7 @@ it("keeps a confirmed create over a stale RSC page when recovery fails", async (
     id: "team-created",
     name: "Created locally",
     memberCount: 0,
+    membersIncluded: true,
     members: { items: [], nextCursor: null },
   };
   const staleRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
@@ -983,6 +990,7 @@ it("lets a causally newer continuation acknowledge an exact created team row", a
     id: "team-created-on-later-page",
     name: "Created confirmation",
     memberCount: 0,
+    membersIncluded: true,
     members: { items: [], nextCursor: null },
   };
   const continuation = deferred<Awaited<ReturnType<typeof getTeams>>>();
@@ -1031,6 +1039,7 @@ it("lets an exact renamed team row on a continuation retire the overlay before l
     ...team,
     id: "team-other",
     name: "Other team",
+    membersIncluded: true,
     members: { items: [], nextCursor: null },
     memberCount: 0,
   };
@@ -1148,6 +1157,7 @@ it("does not acknowledge a confirmed delete from absence on a tail continuation"
     ...team,
     id: "team-delete-tail-other",
     name: "Other team",
+    membersIncluded: true,
     members: { items: [], nextCursor: null },
     memberCount: 0,
   };
@@ -1267,6 +1277,7 @@ it("keeps a confirmed member add over a stale embedded RSC page until a newer ra
           items: [
             {
               ...team,
+              membersIncluded: true,
               members: {
                 items: [
                   member,
@@ -1417,6 +1428,7 @@ it("keeps a confirmed add count over stale RSC data until a newer team projectio
   const initialTeam = {
     ...team,
     memberCount: 50,
+    membersIncluded: true,
     members: { items: [member], nextCursor: "embedded-add-count" },
   };
   const staleMembers = {
@@ -1541,6 +1553,7 @@ it("keeps a complete member traversal count over a delayed stale RSC projection 
   const initialTeam = {
     ...team,
     memberCount: 52,
+    membersIncluded: true,
     members: { items: [member], nextCursor: "embedded-remove-count" },
   };
   jest.mocked(removeBrowserTeamMember).mockResolvedValue({
@@ -1640,6 +1653,7 @@ it("does not let an older overlapping team projection regress an authoritative m
   const initialTeam = {
     ...team,
     memberCount: 52,
+    membersIncluded: true,
     members: { items: [member], nextCursor: "embedded-overlap-count" },
   };
   const firstMemberPage =
@@ -1760,6 +1774,7 @@ it("keeps a confirmed member removal over a stale embedded RSC page when recover
           items: [
             {
               ...team,
+              membersIncluded: true,
               members: { items: [{ ...member }], nextCursor: null },
             },
           ],
@@ -1795,6 +1810,7 @@ it("does not acknowledge a confirmed member removal from absence on a tail conti
   const staleTeamRecovery = deferred<Awaited<ReturnType<typeof getTeams>>>();
   const initialTeam = {
     ...team,
+    membersIncluded: true,
     members: { items: [member], nextCursor: "embedded-remove-tail" },
   };
   jest.mocked(removeBrowserTeamMember).mockResolvedValue({
@@ -1838,6 +1854,7 @@ it("does not acknowledge a confirmed member removal from absence on a tail conti
           items: [
             {
               ...team,
+              membersIncluded: true,
               members: { items: [{ ...member }], nextCursor: null },
             },
           ],

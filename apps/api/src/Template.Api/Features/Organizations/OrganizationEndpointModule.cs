@@ -6,10 +6,13 @@ using Template.Api.Contracts;
 using Template.Api.Endpoints;
 using Template.Api.Errors;
 using Template.Api.Features.Auth;
+using Template.Api.Features.ApiKeys;
 using Template.Api.OpenApi;
+using Template.Application.ApiKeys;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
 using Template.Application.Organizations;
+using Template.Domain.ApiKeys;
 using Template.Domain.Authentication;
 using Template.Domain.Organizations;
 
@@ -23,10 +26,11 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
 
     public void MapEndpoints(EndpointRouteContext context)
     {
-        context.VersionedApi.MapGet(
+        context.VersionedMixedApi.MapGet(
                 "/organizations",
                 ListOrganizationsAsync)
             .WithName("GetOrganizations")
+            .RequireApiKeyScopes(ApiKeyScopes.OrganizationRead)
             .Produces<ApiResponse<OrganizationPageResponse>>()
             .ProducesValidationProblem()
             .ProducesProtectedApiProblems();
@@ -44,6 +48,15 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             .Produces<ProblemDetails>(
                 StatusCodes.Status409Conflict,
                 OpenApiDefaults.ProblemContentType)
+            .ProducesProtectedApiProblems();
+
+        context.VersionedMachineApi.MapGet(
+                "/organizations/{organizationId}",
+                GetMachineOrganizationAsync)
+            .WithName("GetMachineOrganization")
+            .RequireApiKeyScopes(ApiKeyScopes.OrganizationRead)
+            .Produces<ApiResponse<MachineOrganizationDetailResponse>>()
+            .ProducesValidationProblem()
             .ProducesProtectedApiProblems();
 
         context.VersionedApi.MapGet(
@@ -98,10 +111,13 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                 OpenApiDefaults.ProblemContentType)
             .ProducesProtectedApiProblems();
 
-        context.VersionedApi.MapGet(
+        context.VersionedMixedApi.MapGet(
                 "/organizations/{organizationId}/members",
                 ListOrganizationMembersAsync)
             .WithName("GetOrganizationMembers")
+            .RequireApiKeyScopes(
+                ApiKeyScopes.OrganizationRead,
+                ApiKeyScopes.MemberRead)
             .Produces<ApiResponse<OrganizationMemberPageResponse>>()
             .ProducesValidationProblem()
             .ProducesProtectedApiProblems();
@@ -140,12 +156,35 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         string? cursor,
         string? limit,
         OrganizationService organizations,
+        MachineApiService machineApi,
         IBrowserSessionGateway browserSessions,
         ILogger<OrganizationEndpointModule> logger,
         HttpContext http,
         CancellationToken cancellationToken)
     {
         NoStore(http);
+        if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
+        {
+            return await MachineApiEndpointExecution.ExecuteAsync(
+                async () =>
+                {
+                    var result = await machineApi.ListOrganizationsAsync(
+                        principal,
+                        cursor,
+                        ValidateLimit(limit),
+                        cancellationToken);
+                    var page = RequireMachineSuccess(result);
+                    return Results.Ok(new ApiResponse<OrganizationPageResponse>(
+                        new(
+                            page.Items.Select(Map).ToArray(),
+                            page.NextCursor)));
+                },
+                "organization_list",
+                principal,
+                logger,
+                cancellationToken);
+        }
+
         var actor = await RequiredActorAsync(
             browserSessions,
             http.User,
@@ -179,6 +218,39 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             new(
                 page.Items.Select(Map).ToArray(),
                 page.NextCursor)));
+    }
+
+    private static async Task<IResult> GetMachineOrganizationAsync(
+        string organizationId,
+        MachineApiService machineApi,
+        ILogger<OrganizationEndpointModule> logger,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        NoStore(http);
+        if (!ApiKeyPrincipalReader.TryRead(http.User, out var principal))
+        {
+            throw new InvalidOperationException(
+                "An authenticated API key principal is required.");
+        }
+
+        return await MachineApiEndpointExecution.ExecuteAsync(
+            async () =>
+            {
+                var id = ValidateOrganizationId(organizationId);
+                var result = await machineApi.GetOrganizationAsync(
+                    principal,
+                    id,
+                    cancellationToken);
+                var organization = RequireMachineSuccess(result);
+                return Results.Ok(
+                    new ApiResponse<MachineOrganizationDetailResponse>(
+                        MapDetail(organization)));
+            },
+            "organization_get",
+            principal,
+            logger,
+            cancellationToken);
     }
 
     private static async Task<IResult> CreateOrganizationAsync(
@@ -509,12 +581,38 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         string? cursor,
         string? limit,
         OrganizationMembershipService memberships,
+        MachineApiService machineApi,
         IBrowserSessionGateway browserSessions,
         ILogger<OrganizationEndpointModule> logger,
         HttpContext http,
         CancellationToken cancellationToken)
     {
         NoStore(http);
+        if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
+        {
+            return await MachineApiEndpointExecution.ExecuteAsync(
+                async () =>
+                {
+                    var id = ValidateOrganizationId(organizationId);
+                    var result = await machineApi.ListOrganizationMembersAsync(
+                        principal,
+                        id,
+                        cursor,
+                        ValidateLimit(limit),
+                        cancellationToken);
+                    var page = RequireMachineSuccess(result);
+                    return Results.Ok(
+                        new ApiResponse<OrganizationMemberPageResponse>(
+                            new(
+                                page.Items.Select(Map).ToArray(),
+                                page.NextCursor)));
+                },
+                "organization_members_list",
+                principal,
+                logger,
+                cancellationToken);
+        }
+
         var actor = await RequiredActorAsync(
             browserSessions,
             http.User,
@@ -719,6 +817,34 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         }
     }
 
+    private static T RequireMachineSuccess<T>(
+        MachineApiOperationResult<T> result)
+        where T : class
+    {
+        if (result.Succeeded)
+        {
+            return result.Value
+                ?? throw new InvalidOperationException(
+                    "A successful machine API operation returned no value.");
+        }
+
+        throw result.Failure switch
+        {
+            MachineApiFailure.InvalidCursor => new ApiProblemException(
+                StatusCodes.Status400BadRequest,
+                ApiProblemCodes.InvalidCursor),
+            MachineApiFailure.OrganizationAccessDenied =>
+                new ApiProblemException(
+                    StatusCodes.Status403Forbidden,
+                    ApiProblemCodes.OrganizationAccessDenied),
+            MachineApiFailure.NotFound => new ApiProblemException(
+                StatusCodes.Status404NotFound,
+                ApiProblemCodes.OrganizationNotFound),
+            _ => new InvalidOperationException(
+                "A failed machine API operation returned no failure.")
+        };
+    }
+
     private static void WriteBoundaryAudit(
         string operation,
         string outcome,
@@ -869,6 +995,7 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             value.Slug.Value,
             value.CreatedAt,
             value.UpdatedAt,
+            "user",
             value.CurrentRole.Value,
             Map(value.Capabilities));
 
@@ -880,9 +1007,36 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             value.Slug.Value,
             value.CreatedAt,
             value.UpdatedAt,
+            "user",
             value.CurrentRole.Value,
             Map(value.Capabilities),
             value.AllowedEmailDomains);
+
+    private static OrganizationSummaryResponse Map(
+        MachineOrganizationSummary value) =>
+        new(
+            value.Id.Value,
+            value.Name,
+            value.Slug,
+            value.Slug,
+            value.CreatedAt,
+            value.UpdatedAt,
+            value.AccessPrincipal,
+            value.CurrentRole,
+            Map(value.Capabilities));
+
+    private static MachineOrganizationDetailResponse MapDetail(
+        MachineOrganizationSummary value) =>
+        new(
+            value.Id.Value,
+            value.Name,
+            value.Slug,
+            value.Slug,
+            value.CreatedAt,
+            value.UpdatedAt,
+            value.AccessPrincipal,
+            value.CurrentRole,
+            Map(value.Capabilities));
 
     private static OrganizationCapabilitiesResponse Map(
         OrganizationCapabilities value) =>
@@ -892,7 +1046,8 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             value.CanAddMembers,
             value.CanUpdateMemberRoles,
             value.CanManageTeams,
-            value.CanManageInvitations);
+            value.CanManageInvitations,
+            value.CanManageApiKeys);
 
     private static OrganizationMemberResponse Map(OrganizationMember value) =>
         new(

@@ -5,6 +5,7 @@
     "connections": "Connections",
     "security": "Security",
     "invitations": "Invitations",
+    "apiKeys": "API keys",
     "danger": "Danger",
     "loading": "Loading account settings"
   },

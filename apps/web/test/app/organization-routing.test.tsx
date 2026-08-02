@@ -84,6 +84,7 @@ const capabilities = {
   canUpdateMemberRoles: true,
   canManageTeams: true,
   canManageInvitations: true,
+  canManageApiKeys: true,
 };
 const acme = {
   id: "01900000-0000-7000-8000-000000000010",
@@ -92,6 +93,7 @@ const acme = {
   canonicalKey: "acme",
   createdAt: "2026-07-30T10:00:00Z",
   updatedAt: "2026-07-30T10:00:00Z",
+  accessPrincipal: "user",
   currentRole: "owner",
   capabilities,
 } satisfies OrganizationSummaryResponse;

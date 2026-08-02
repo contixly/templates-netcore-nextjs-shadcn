@@ -17,7 +17,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "audit:prod": "npm audit --omit=dev",
-    "api:generate": "openapi-ts --file openapi-ts.config.ts",
+    "api:generate": "openapi-ts --file openapi-ts.config.ts && node ./scripts/harden-generated-auth.mjs",
     "api:check": "node ./scripts/check-generated.mjs",
     "boundaries:test": "node --test ./scripts/check-boundaries.node-test.mjs",
     "boundaries:check": "npm run boundaries:test && node ./scripts/check-boundaries.mjs",

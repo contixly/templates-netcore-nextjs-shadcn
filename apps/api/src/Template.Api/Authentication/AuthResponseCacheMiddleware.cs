@@ -7,6 +7,7 @@ internal sealed class AuthResponseCacheMiddleware(RequestDelegate next)
         if (context.Request.Path.StartsWithSegments("/api/local-auth") ||
             context.Request.Path.StartsWithSegments("/api/v1/auth") ||
             context.Request.Path.StartsWithSegments("/api/v1/account") ||
+            context.Request.Path.StartsWithSegments("/api/v1/me") ||
             context.Request.Path.StartsWithSegments("/api/v1/organizations") ||
             context.Request.Path.StartsWithSegments("/api/v1/invitations") ||
             context.Request.Path.StartsWithSegments("/api/auth"))

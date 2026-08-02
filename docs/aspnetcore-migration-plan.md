@@ -1,11 +1,15 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 6 — Teams и invitations — принята для reviewed
-implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: automatic
-review не нашёл major issues, все 11 review threads resolved, PR #7 ready и
-mergeable. Документационный evidence-commit с этой записью ещё должен быть
-отправлен и автоматически проверен; его review result не заявляется заранее.
+**Текущая итерация:** 7 — API keys и public `/api/v1` — функциональный
+scope локально принят для implementation head
+`d7ea69c988474e81768aaf49b472c3fd95503594`. Ready PR #8 (base `main`) был
+mergeable при наблюдении на reviewed head
+`8bdf31f828c29f7fff75058b7261404718cec47f`; первый GitHub Codex review не
+нашёл major issues. Этот durable документ фиксирует только наблюдённый clean
+review head `8bdf31f828c29f7fff75058b7261404718cec47f`; последующие
+documentation-only commits намеренно не self-assert собственный review result,
+а exact-current-head review state остаётся PR metadata/controller evidence.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -293,7 +297,8 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
-| 7–12                                                 | Не начаты | API keys and `x-api-key` remain iteration 7, product dashboard iteration 9, Aspire iteration 10, and production proxy/container iterations 11–12; iteration 6 does not pre-implement them. |
+| 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
+| 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), machine writes, Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
 
 ## Acceptance evidence: итерация 1
 
@@ -2724,6 +2729,87 @@ This documentation-only evidence update records that already observed state.
 Its commit will be pushed and automatically reviewed next, so this section does
 not claim that the documentation commit itself has been reviewed, remains clean,
 or has any future review result.
+
+
+### Iteration 7 delivery checklist
+
+- [x] Task 1 — Domain Policy and Application Contracts
+- [x] Task 2 — EF Model, Migration, and Credential Cryptography
+- [x] Task 3 — Transactional API-Key Store
+- [x] Task 4 — Browser-Session Management REST
+- [x] Task 5 — API-Key Authentication Scheme and `/me`
+- [x] Task 6 — Mixed Organization Machine Reads
+- [x] Task 7 — Mixed Team Machine Reads and Scope Redaction
+- [x] Task 8 — OpenAPI, Generated SDK, and Consumer Contract
+- [x] Task 9 — Personal API-Key Management UI
+- [x] Task 10 — Organization API-Key Management UI
+- [x] Task 11 — Black-Box API-Key Playwright Coverage
+- [x] Task 12 — Durable Documentation and Full Acceptance
+
+### Iteration 7 final local acceptance — 2026-08-02
+
+**Implementation head:** `d7ea69c988474e81768aaf49b472c3fd95503594`
+(`fix: harden api key authentication and timing`). The final documentation
+evidence commit is local and follows this implementation head. This table
+records local execution on the final source tree, not a push/PR/reviewer result.
+
+The final whole-branch fix wave made authentication selection explicitly
+route-aware, moved authoritative API-key timing behind persistence locks with
+monotonic clamping, retained safe rate-limit audit identity, made generated
+mixed-scheme scalar authentication fail before fetch, and reconciled UI
+overlays against a complete accepted page traversal with nanosecond-preserving
+RFC 3339 ordering. Focused test-first runs observed the former failures before
+implementation and the corresponding regressions passed afterward.
+
+| Gate | Exact local result |
+| --- | --- |
+| focused final-fix RED/GREEN | PASS; route lifecycle RED exposed 2 machine-cookie mutations and 2 browser-route lifecycle regressions; six deterministic post-lock timing cases and one backward-clock case failed before their fixes; mixed-auth runtime RED fetched instead of rejecting; overlay RED was 17 passed/2 failed. Final relevant selector/lifecycle/timing filter passed **20/20**; generated-auth plus overlay Jest passed **28/28**; rate-limit audit passed **1/1**. |
+| `dotnet restore Template.sln` | PASS; all projects up to date; `real 1.02s`. |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; `real 7.43s`. |
+| `dotnet test Template.sln --no-restore` | PASS; Application **318/318**, API **732/732**, aggregate **1050/1050**; 0 failed, 0 skipped; API duration `1m 57s`, whole command `real 124.12s`. |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; `real 12.69s`. |
+| EF model/script | PASS; `has-pending-model-changes` reports none (`real 3.67s`); inspected idempotent script `/tmp/template-iteration7-final-fix.sql` is **34,134 bytes** and contains `20260802000000_ApiKeysPublicV1`/`auth.api_keys` (`real 2.74s`). |
+| NuGet | PASS; `dotnet list Template.sln package --vulnerable --include-transitive` reports no vulnerable packages for all 7 projects (`real 21.06s`). |
+| deterministic OpenAPI + SDK | PASS; two clean exports were byte-identical (`cmp`); `v1.json` SHA-256 `60312230e16261882c277154cbd6ec59abddb90265192c16e38b8cf2248a4439`, **57** operations; hardened generated SDK is current/deterministic via `npm run api:check` (`real 0.91s`). Python `Path.unlink(missing_ok=True)` performed each clean export deletion. |
+| web static/unit/build | PASS; boundaries 5/5 (`1.46s`), Prettier clean (`2.26s`), typecheck clean (`1.91s`), Jest **70 suites / 577 tests** (`14.27s`), Next.js 16.2.11 build 25 routes + standalone server (`7.95s`). ESLint exits 0 with **17 warning-only** unused compile-time aliases in `test/contracts/generated-sdk.test.ts`, 0 errors (`5.42s`). |
+| npm audits | Production audit PASS: 0 vulnerabilities (`4.55s`). Full `npm audit --json` is intentionally not hidden: development dependency audit reports **1 high** vulnerability, 0 critical (production remains zero). |
+| Playwright | PASS; `npm run e2e`: **25 passed**, **5 skipped** documented opt-in live external-provider smoke tests, 0 failures (`real 67.64s`). It emits non-failing `NO_COLOR`/`FORCE_COLOR` environment warnings. Secret-bearing scenarios disable trace/video/screenshot; the earlier Task 11 one-off captured-output/artifact scan is not part of the standard script. |
+| repository/reference/OpenSpec guards | PASS; final whitespace checks clean; `template/` working/range/status diffs empty; no active non-archive `openspec/changes` directory; status inspected before documentation commit. |
+
+The black-box Playwright suite intentionally does **not** claim personal-key
+membership-loss E2E. The public contract has no member-removal operation (only
+member-role PATCH), and this iteration added no endpoint, database hook or test
+backdoor. Existing PostgreSQL/API integration runtime evidence is
+`MachineOrganizationEndpointTests.PersonalKeyReadsOnlyCurrentMembershipsWithUserAccessProjection`:
+it issues a personal key, removes membership in PostgreSQL, and confirms the
+next machine list omits the organization. This is the truthful coverage boundary.
+
+### PR #8 first GitHub Codex review observation — 2026-08-02
+
+Ready PR [#8](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/8)
+(base `main`) was mergeable at observation on reviewed head
+`8bdf31f828c29f7fff75058b7261404718cec47f`. The request `@codex review` is
+issue comment `5159707156`. The bot comment database id is `5159728311`, node
+id `IC_kwDOThDXX88AAAABM4s0tw`, created `2026-08-02T18:24:04Z`; its exact leading
+line is: `Codex Review: Didn't find any major issues. Breezy!`
+([direct comment](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/8#issuecomment-5159728311)).
+A thread-aware snapshot found **0** review threads and **0** unresolved, with
+no inline findings or reviews.
+
+This durable document records the observed clean review only for that head.
+Subsequent documentation-only commits intentionally do not self-assert their
+own review result; exact-current-head review state remains PR
+metadata/controller evidence.
+
+**Known differences/out of scope:** target uses ASP.NET Core auth/Problem
+Details, UUID/FK owners, SHA-256 reveal-once credentials, bounded opaque pages,
+strict supplied-key precedence, persisted PostgreSQL fixed-window quotas,
+owner/admin/member `CanManageApiKeys`, and team-member redaction instead of the
+reference's weaker shapes. Iteration 7 does not add public documents/search,
+product dashboard work, machine writes, Redis/Valkey, Bearer issuer/consumer
+contracts, Aspire, deployment/proxy/container topology, production quota
+tiering/load tests, or member removal merely to create an E2E fixture.
+
 
 ## 9. Правило обновления этого документа
 

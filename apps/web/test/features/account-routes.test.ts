@@ -16,11 +16,12 @@ it("exposes the exact typed account routes including invitations", () => {
     connections: "/user/connections",
     security: "/user/security",
     invitations: "/user/invitations",
+    apiKeys: "/user/api-keys",
     danger: "/user/danger",
   });
 
   const typedRoutes: readonly Route[] = Object.values(accountRoutes);
-  expect(typedRoutes).toHaveLength(6);
+  expect(typedRoutes).toHaveLength(7);
 });
 
 it("redirects the account root to profile", () => {

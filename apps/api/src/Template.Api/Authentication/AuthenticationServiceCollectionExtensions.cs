@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Api.Features.Health;
@@ -28,17 +29,35 @@ internal static class AuthenticationServiceCollectionExtensions
                 options => options.ForwardDefaultSelector = context =>
                 {
                     var path = context.Request.Path.Value;
-                    return string.Equals(
+                    if (string.Equals(
                                path,
                                HealthEndpointModule.LivenessPath,
                                StringComparison.OrdinalIgnoreCase)
                            || string.Equals(
                                path,
                                $"{HealthEndpointModule.LivenessPath}/",
-                               StringComparison.OrdinalIgnoreCase)
-                        ? ApiAuthenticationDefaults.ProcessOnlySchemeName
+                               StringComparison.OrdinalIgnoreCase))
+                    {
+                        return ApiAuthenticationDefaults.ProcessOnlySchemeName;
+                    }
+
+                    return ApiKeyAuthenticationDefaults
+                        .IsDefaultAuthenticationSelected(context)
+                        ? ApiKeyAuthenticationDefaults.SchemeName
                         : ApiAuthenticationDefaults.SchemeName;
                 })
+            .AddPolicyScheme(
+                ApiKeyAuthenticationDefaults.ConsumerSelectorSchemeName,
+                displayName: null,
+                options => options.ForwardDefaultSelector = context =>
+                    ApiKeyAuthenticationDefaults.IsSelected(context)
+                        ? ApiKeyAuthenticationDefaults.SchemeName
+                        : ApiAuthenticationDefaults.SchemeName)
+            .AddScheme<
+                AuthenticationSchemeOptions,
+                ApiKeyAuthenticationHandler>(
+                ApiKeyAuthenticationDefaults.SchemeName,
+                _ => { })
             .AddScheme<
                 AuthenticationSchemeOptions,
                 ProcessOnlyAuthenticationHandler>(
@@ -79,7 +98,21 @@ internal static class AuthenticationServiceCollectionExtensions
                 policy => policy
                     .AddAuthenticationSchemes(ApiAuthenticationDefaults.SchemeName)
                     .RequireAuthenticatedUser());
+            options.AddPolicy(
+                ApiPolicies.MachineKey,
+                policy => policy
+                    .AddAuthenticationSchemes(
+                        ApiKeyAuthenticationDefaults.SchemeName)
+                    .RequireAuthenticatedUser());
+            options.AddPolicy(
+                ApiPolicies.BrowserOrMachine,
+                policy => policy
+                    .AddAuthenticationSchemes(
+                        ApiKeyAuthenticationDefaults.ConsumerSelectorSchemeName)
+                    .RequireAuthenticatedUser());
         });
+        services.AddSingleton<IAuthorizationHandler,
+            ApiKeyScopeAuthorizationHandler>();
 
         return services;
     }
