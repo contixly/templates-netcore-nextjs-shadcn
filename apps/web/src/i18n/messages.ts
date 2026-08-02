@@ -8,6 +8,8 @@ import commonEn from "@/src/messages/common.en.json";
 import commonRu from "@/src/messages/common.ru.json";
 import collaborationEn from "@/src/messages/collaboration.en.json";
 import collaborationRu from "@/src/messages/collaboration.ru.json";
+import documentsEn from "@/src/messages/documents.en.json";
+import documentsRu from "@/src/messages/documents.ru.json";
 import organizationsEn from "@/src/messages/organizations.en.json";
 import organizationsRu from "@/src/messages/organizations.ru.json";
 import systemEn from "@/src/messages/system.en.json";
@@ -24,6 +26,7 @@ const englishMessages = {
   auth: authEn,
   common: commonEn,
   collaboration: collaborationEn,
+  documents: documentsEn,
   organizations: organizationsEn,
   system: systemEn,
 };
@@ -38,6 +41,7 @@ const messagesByLocale = {
     auth: authRu,
     common: commonRu,
     collaboration: collaborationRu,
+    documents: documentsRu,
     organizations: organizationsRu,
     system: systemRu,
   },

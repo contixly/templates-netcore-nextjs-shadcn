@@ -1,0 +1,21 @@
+{
+  "navigation": {
+    "label": "Documentation",
+    "home": "Home"
+  },
+  "sidebar": {
+    "title": "Documentation",
+    "open": "Open navigation",
+    "close": "Close navigation"
+  },
+  "page": {
+    "previous": "Previous document",
+    "next": "Next document",
+    "onThisPage": "On this page"
+  },
+  "search": {
+    "open": "Search docs",
+    "placeholder": "Search docs...",
+    "unavailable": "Search is temporarily unavailable"
+  }
+}
