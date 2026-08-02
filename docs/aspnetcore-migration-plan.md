@@ -1,11 +1,11 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 6 — Teams и invitations — принята для reviewed
-implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: automatic
-review не нашёл major issues, все 11 review threads resolved, PR #7 ready и
-mergeable. Документационный evidence-commit с этой записью ещё должен быть
-отправлен и автоматически проверен; его review result не заявляется заранее.
+**Текущая итерация:** 7 — API keys и public `/api/v1` — функциональный
+scope локально принят для implementation head
+`6df9aed9a01a137b6a52fd3bdf2cf053362a9d76`. Документационный evidence commit
+ещё не pushed и не проходил automatic review; PR, author review и результат
+review для будущего documentation head намеренно не заявляются заранее.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -293,7 +293,8 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
-| 7–12                                                 | Не начаты | API keys and `x-api-key` remain iteration 7, product dashboard iteration 9, Aspire iteration 10, and production proxy/container iterations 11–12; iteration 6 does not pre-implement them. |
+| 7 — API keys и public `/api/v1`                    | Функциональный scope завершён локально | Implementation head `6df9aed9a01a137b6a52fd3bdf2cf053362a9d76`; final local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. No push, PR, author review or automatic review of this documentation head is claimed. |
+| 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
 
 ## Acceptance evidence: итерация 1
 
@@ -2724,6 +2725,61 @@ This documentation-only evidence update records that already observed state.
 Its commit will be pushed and automatically reviewed next, so this section does
 not claim that the documentation commit itself has been reviewed, remains clean,
 or has any future review result.
+
+
+### Iteration 7 delivery checklist
+
+- [x] Task 1 — Domain Policy and Application Contracts
+- [x] Task 2 — EF Model, Migration, and Credential Cryptography
+- [x] Task 3 — Transactional API-Key Store
+- [x] Task 4 — Browser-Session Management REST
+- [x] Task 5 — API-Key Authentication Scheme and `/me`
+- [x] Task 6 — Mixed Organization Machine Reads
+- [x] Task 7 — Mixed Team Machine Reads and Scope Redaction
+- [x] Task 8 — OpenAPI, Generated SDK, and Consumer Contract
+- [x] Task 9 — Personal API-Key Management UI
+- [x] Task 10 — Organization API-Key Management UI
+- [x] Task 11 — Black-Box API-Key Playwright Coverage
+- [x] Task 12 — Durable Documentation and Full Acceptance
+
+### Iteration 7 final local acceptance — 2026-08-02
+
+**Implementation head:** `6df9aed9a01a137b6a52fd3bdf2cf053362a9d76`
+(`test: tighten api key e2e assertions`). The final documentation evidence commit
+is local and follows this implementation head. This table records local execution
+on the final source tree, not a push/PR/reviewer result.
+
+| Gate | Exact local result |
+| --- | --- |
+| `dotnet restore Template.sln` | PASS; all projects up to date; `real 0.94s`. |
+| `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; `real 7.76s`. |
+| `dotnet test Template.sln --no-restore` | PASS; Application **318/318**, API **720/720**, aggregate **1038/1038**; 0 failed, 0 skipped; API duration `1m 47s`. |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; `real 13.24s`. |
+| EF model/script | PASS; `has-pending-model-changes` reports none (`real 3.09s`); inspected idempotent script `/tmp/template-iteration7-final.sql` is **34,134 bytes** and contains `20260802000000_ApiKeysPublicV1`/`auth.api_keys` (`real 2.86s`). |
+| NuGet | PASS; `dotnet list Template.sln package --vulnerable --include-transitive` reports no vulnerable packages for all 7 projects (`real 12.97s`). |
+| deterministic OpenAPI + SDK | PASS; two clean exports were byte-identical (`cmp`); `v1.json` SHA-256 `60312230e16261882c277154cbd6ec59abddb90265192c16e38b8cf2248a4439`, **57** operations; `npm run api:check` is current/deterministic (`real 0.85s`). The policy rejected `rm -f`, so semantically identical Python `Path.unlink(missing_ok=True)` was used for each required deletion. |
+| web static/unit/build | PASS; boundaries 5/5 (`1.46s`), Prettier clean (`2.30s`), typecheck clean (`1.81s`), Jest **69 suites / 565 tests** (`13.85s`), Next.js 16.2.11 build 25 routes + standalone server (`8.49s`). ESLint exits 0 with **17 warning-only** unused compile-time aliases in `test/contracts/generated-sdk.test.ts`, 0 errors (`5.35s`). |
+| npm audits | Production audit PASS: 0 vulnerabilities (`0.91s`). Full `npm audit --json` is intentionally not hidden: development dependency audit reports **1 high** vulnerability, 0 critical (production remains zero). |
+| Playwright | PASS; `npm run e2e`: **22 passed**, **5 skipped** documented opt-in live external-provider smoke tests, 0 failures. It emits non-failing `NO_COLOR`/`FORCE_COLOR` environment warnings. |
+| repository/reference/OpenSpec guards | PASS; whitespace checks clean; `template/` working/range/status diffs empty; no active `openspec/changes` directory; status inspected before documentation commit. |
+
+The black-box Playwright suite intentionally does **not** claim personal-key
+membership-loss E2E. The public contract has no member-removal operation (only
+member-role PATCH), and this iteration added no endpoint, database hook or test
+backdoor. Existing PostgreSQL/API integration runtime evidence is
+`MachineOrganizationEndpointTests.PersonalKeyReadsOnlyCurrentMembershipsWithUserAccessProjection`:
+it issues a personal key, removes membership in PostgreSQL, and confirms the
+next machine list omits the organization. This is the truthful coverage boundary.
+
+**Known differences/out of scope:** target uses ASP.NET Core auth/Problem
+Details, UUID/FK owners, SHA-256 reveal-once credentials, bounded opaque pages,
+strict supplied-key precedence, persisted PostgreSQL fixed-window quotas,
+owner/admin/member `CanManageApiKeys`, and team-member redaction instead of the
+reference's weaker shapes. Iteration 7 does not add public documents/search,
+product dashboard work, Redis/Valkey, Bearer issuer/consumer contracts, Aspire,
+deployment/proxy/container topology, production quota tiering/load tests, or
+member removal merely to create an E2E fixture.
+
 
 ## 9. Правило обновления этого документа
 

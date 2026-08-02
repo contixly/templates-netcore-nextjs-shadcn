@@ -176,3 +176,16 @@ historical `lastRequestAt`. Store the newly revealed key before closing the
 response. Revocation invalidates the credential and removes it from subsequent
 lists; a later repeat of the management request returns `404 api_key_not_found`.
 Neither rotation nor revocation can be performed with an API key itself.
+
+## Membership-loss coverage boundary
+
+The service re-authorizes a personal key against current membership for every
+organization request. The black-box browser E2E suite deliberately does **not**
+claim a membership-loss journey: the public contract has no member-removal
+operation (only member-role PATCH), and this iteration adds no endpoint,
+database hook, or test backdoor to manufacture one. Runtime behavior is covered
+at the PostgreSQL/API integration boundary by
+`MachineOrganizationEndpointTests.PersonalKeyReadsOnlyCurrentMembershipsWithUserAccessProjection`,
+which issues a personal key, removes membership in the test database, and
+asserts the next machine read omits the organization. This is an intentional
+coverage boundary, not an E2E claim.
