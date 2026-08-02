@@ -28,6 +28,78 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
         "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$";
 
     [Fact]
+    public async Task DocumentSearchPublishesExactAnonymousContract()
+    {
+        using var client = factory.CreateApiClient();
+        var document = JsonNode.Parse(await client.GetStringAsync(
+            "/api/openapi/v1.json",
+            TestContext.Current.CancellationToken))!;
+        var operation = AssertOperation(
+            document,
+            "/api/v1/documents-system/search",
+            "get",
+            "SearchDocumentsSystem");
+
+        Assert.Null(operation["security"]);
+        Assert.Equal("no-store", operation["x-cache-control"]!.GetValue<string>());
+        Assert.Equal(new[] { "200", "400", "406", "500" },
+            operation["responses"]!.AsObject().Select(pair => pair.Key));
+        foreach (var response in operation["responses"]!.AsObject())
+        {
+            AssertNoStoreResponseHeader(response.Value!);
+        }
+
+        var parameters = operation["parameters"]!.AsArray();
+        var query = Assert.Single(parameters, parameter =>
+            parameter!["name"]!.GetValue<string>() == "q");
+        Assert.NotEqual(true, query!["required"]?.GetValue<bool>());
+        Assert.Equal("string", query["schema"]!["type"]!.GetValue<string>());
+        Assert.Equal(120, query["schema"]!["maxLength"]!.GetValue<int>());
+
+        var locale = Assert.Single(parameters, parameter =>
+            parameter!["name"]!.GetValue<string>() == "locale");
+        Assert.NotEqual(true, locale!["required"]?.GetValue<bool>());
+        AssertStringEnum(locale["schema"]!, "en", "ru");
+
+        var schemas = document["components"]!["schemas"]!;
+        AssertRequiredNonNullProperties(
+            schemas["ApiResponseOfDocumentSearchResponse"]!,
+            "data");
+        AssertRequiredNonNullProperties(
+            schemas["DocumentSearchResponse"]!,
+            "pages",
+            "headings");
+        AssertRequiredNonNullProperties(
+            schemas["DocumentSearchPageResponse"]!,
+            "type",
+            "title",
+            "description",
+            "href",
+            "group",
+            "parentItem");
+        AssertRequiredNonNullProperties(
+            schemas["DocumentSearchHeadingResponse"]!,
+            "type",
+            "title",
+            "href",
+            "pageTitle",
+            "group",
+            "parentItem");
+
+        AssertStringEnum(
+            schemas["DocumentSearchPageResponse"]!["properties"]!["type"]!,
+            "page");
+        AssertStringEnum(
+            schemas["DocumentSearchHeadingResponse"]!["properties"]!["type"]!,
+            "heading");
+        AssertSchemaReference(
+            operation["responses"]!["400"]!,
+            "HttpValidationProblemDetails");
+        AssertSchemaReference(operation["responses"]!["406"]!, "ProblemDetails");
+        AssertSchemaReference(operation["responses"]!["500"]!, "ProblemDetails");
+    }
+
+    [Fact]
     public async Task TestHostPublishesVersionedOpenApi31Contract()
     {
         using var client = factory.CreateApiClient();

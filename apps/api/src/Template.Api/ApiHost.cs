@@ -11,7 +11,10 @@ using Template.Application.Accounts;
 using Template.Application.ApiKeys;
 using Template.Application.Authentication;
 using Template.Application.Collaboration;
+using Template.Application.Documents;
 using Template.Application.Organizations;
+using Template.Api.Features.Documents;
+using Template.Infrastructure.Documents;
 using Template.Infrastructure.Health;
 using Template.Infrastructure.Persistence;
 
@@ -64,6 +67,10 @@ public static class ApiHost
         builder.Services.AddScoped<OrganizationMembershipService>();
         builder.Services.AddScoped<TeamService>();
         builder.Services.AddScoped<InvitationService>();
+        builder.Services.Configure<DocumentSearchOptions>(
+            builder.Configuration.GetSection(DocumentSearchOptions.SectionName));
+        builder.Services.AddDocumentSearchInfrastructure();
+        builder.Services.AddSingleton<DocumentSearchService>();
         builder.Services
             .AddHealthChecks()
             .AddCheck<AuthDatabaseHealthCheck>(

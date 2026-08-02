@@ -8318,6 +8318,122 @@
         "x-cache-control": "no-store"
       }
     },
+    "/api/v1/documents-system/search": {
+      "get": {
+        "tags": [
+          "DocumentSearchEndpointModule"
+        ],
+        "operationId": "SearchDocumentsSystem",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "schema": {
+              "maxLength": 120,
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "in": "query",
+            "schema": {
+              "enum": [
+                "en",
+                "ru"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfDocumentSearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpValidationProblemDetails"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "Not Acceptable",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "enum": [
+                    "no-store"
+                  ],
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "x-cache-control": "no-store"
+      }
+    },
     "/api/v1/system/status": {
       "get": {
         "tags": [
@@ -10382,6 +10498,17 @@
           }
         }
       },
+      "ApiResponseOfDocumentSearchResponse": {
+        "required": [
+          "data"
+        ],
+        "type": "object",
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DocumentSearchResponse"
+          }
+        }
+      },
       "ApiResponseOfExternalAuthChallengeResponse": {
         "required": [
           "data"
@@ -10952,6 +11079,95 @@
           }
         },
         "additionalProperties": false
+      },
+      "DocumentSearchHeadingResponse": {
+        "required": [
+          "type",
+          "title",
+          "href",
+          "pageTitle",
+          "group",
+          "parentItem"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "heading"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string"
+          },
+          "pageTitle": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "parentItem": {
+            "type": "string"
+          }
+        }
+      },
+      "DocumentSearchPageResponse": {
+        "required": [
+          "type",
+          "title",
+          "description",
+          "href",
+          "group",
+          "parentItem"
+        ],
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "page"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "parentItem": {
+            "type": "string"
+          }
+        }
+      },
+      "DocumentSearchResponse": {
+        "required": [
+          "pages",
+          "headings"
+        ],
+        "type": "object",
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSearchPageResponse"
+            }
+          },
+          "headings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DocumentSearchHeadingResponse"
+            }
+          }
+        }
       },
       "ExternalAuthChallengeRequest": {
         "required": [
@@ -12703,6 +12919,9 @@
     },
     {
       "name": "ApiKeyEndpointModule"
+    },
+    {
+      "name": "DocumentSearchEndpointModule"
     },
     {
       "name": "local-only"
