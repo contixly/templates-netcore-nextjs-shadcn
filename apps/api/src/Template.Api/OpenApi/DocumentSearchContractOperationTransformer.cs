@@ -22,7 +22,7 @@ internal sealed class DocumentSearchContractOperationTransformer
             return Task.CompletedTask;
         }
 
-        operation.Security = null;
+        operation.Security = [];
         operation.Extensions ??=
             new Dictionary<string, IOpenApiExtension>(StringComparer.Ordinal);
         operation.Extensions["x-cache-control"] =

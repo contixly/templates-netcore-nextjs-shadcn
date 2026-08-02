@@ -40,7 +40,7 @@ public sealed class OpenApiContractTests(ApiWebApplicationFactory factory)
             "get",
             "SearchDocumentsSystem");
 
-        Assert.Null(operation["security"]);
+        Assert.Empty(operation["security"]!.AsArray());
         Assert.Equal("no-store", operation["x-cache-control"]!.GetValue<string>());
         Assert.Equal(new[] { "200", "400", "406", "500" },
             operation["responses"]!.AsObject().Select(pair => pair.Key));
