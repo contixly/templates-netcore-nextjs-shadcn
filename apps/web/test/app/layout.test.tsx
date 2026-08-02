@@ -20,6 +20,7 @@ function asElement<Props extends object>(node: ReactNode): ReactElement<Props> {
 
 describe("RootLayout", () => {
   const originalLocale = process.env.PUBLIC_DEFAULT_LOCALE;
+  const originalPublicOrigin = process.env.APP_PUBLIC_ORIGIN;
 
   afterEach(() => {
     if (originalLocale === undefined) {
@@ -27,12 +28,20 @@ describe("RootLayout", () => {
     } else {
       process.env.PUBLIC_DEFAULT_LOCALE = originalLocale;
     }
+
+    if (originalPublicOrigin === undefined) {
+      delete process.env.APP_PUBLIC_ORIGIN;
+    } else {
+      process.env.APP_PUBLIC_ORIGIN = originalPublicOrigin;
+    }
   });
 
   it("generates Russian metadata from the fixed-locale bundle", async () => {
     process.env.PUBLIC_DEFAULT_LOCALE = "ru";
+    process.env.APP_PUBLIC_ORIGIN = "https://docs.example.com";
 
     await expect(generateMetadata()).resolves.toEqual({
+      metadataBase: new URL("https://docs.example.com"),
       title: "Состояние системы Template",
       description: "Проверка REST-связи из браузера и с сервера",
     });

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { afterEach, test } from "node:test";
 import { dirname, relative, resolve } from "node:path";
@@ -59,6 +59,28 @@ test("rejects Route Handlers in every enabled source form", async () => {
   for (const extension of extensions) {
     await expectViolation(
       `src/app/__boundary_guard_test__/route.${extension}`,
+      "export const value = 1;\n",
+      /Next Route Handler/,
+    );
+  }
+});
+
+test("allows only the exact presentation-only documentation image handler", async () => {
+  const guard = await readFile(
+    resolve(webRoot, "scripts/check-boundaries.mjs"),
+    "utf8",
+  );
+
+  assert.match(
+    guard,
+    /const allowedRouteHandlers = new Set\(\[\s*"src\/app\/\(documents\)\/docs\/og\/\[\.\.\.slug\]\/route\.ts",?\s*\]\);/,
+  );
+});
+
+test("still rejects every Next Route Handler below the API namespace", async () => {
+  for (const extension of extensions) {
+    await expectViolation(
+      `src/app/api/__boundary_guard_test__/route.${extension}`,
       "export const value = 1;\n",
       /Next Route Handler/,
     );

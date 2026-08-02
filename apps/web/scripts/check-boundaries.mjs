@@ -10,6 +10,9 @@ const packageJson = JSON.parse(
 const violations = [];
 const sourceExtensionPattern = /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
 const routeHandlerPattern = /\/route\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/;
+const allowedRouteHandlers = new Set([
+  "src/app/(documents)/docs/og/[...slug]/route.ts",
+]);
 const handwrittenTransportTypePattern =
   /(?:interface|type)\s+(?:SystemStatusResponse|ProblemDetails|HttpValidationProblemDetails|ApiResponseOfSystemStatusResponse|AuthCapabilitiesResponse|AuthSessionResponse|AuthUserResponse|AuthSessionMetadataResponse|AuthCsrfResponse|LocalAutomationScenarioResponse|LocalAutomationCleanupResponse|CreateLocalAutomationScenarioRequest|LocalAutomationSignInRequest|AcceptedInvitationResponse|AccountInvitationPageResponse|AddTeamMemberRequest|CreateInvitationRequest|InvitationDecisionResponse|InvitationResponse|OrganizationInvitationPageResponse|TeamCandidatePageResponse|TeamCandidateResponse|TeamDeletionResponse|TeamMemberPageResponse|TeamMemberRemovalResponse|TeamMemberResponse|TeamNameRequest|TeamPageResponse|TeamResponse|DocumentSearchHeadingResponse|DocumentSearchPageResponse|DocumentSearchResponse)\b/;
 
@@ -93,7 +96,9 @@ for (const path of await sourceFiles(sourceRoot)) {
   }
   if (
     localPath.startsWith("src/app/") &&
-    routeHandlerPattern.test(`/${localPath}`)
+    routeHandlerPattern.test(`/${localPath}`) &&
+    (localPath.startsWith("src/app/api/") ||
+      !allowedRouteHandlers.has(localPath))
   ) {
     violations.push(`Next Route Handler: ${localPath}`);
   }
