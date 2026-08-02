@@ -71,6 +71,12 @@ async function runFixture(name) {
       unsupported: "no",
     });
   }
+  if (name === "reading-minutes") {
+    files["guides/start.en.md"] = frontmatter({
+      ...metadata,
+      readingMinutes: 5,
+    });
+  }
   if (name === "duplicate-locale") {
     files["guides/start.en.mdx"] = frontmatter({
       ...metadata,
@@ -114,6 +120,13 @@ test("discovers localized variants in deterministic navigation order", async () 
 test("rejects unknown frontmatter fields", async () => {
   await assert.rejects(
     async () => (await runFixture("unknown-field")).result,
+    /documents_metadata_unknown_field/,
+  );
+});
+
+test("rejects readingMinutes outside the frontmatter allow-list", async () => {
+  await assert.rejects(
+    async () => (await runFixture("reading-minutes")).result,
     /documents_metadata_unknown_field/,
   );
 });

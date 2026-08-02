@@ -23,7 +23,6 @@ const METADATA_FIELDS = new Set([
   "version",
   "editedAt",
   "reading",
-  "readingMinutes",
   "source",
 ]);
 
@@ -154,7 +153,7 @@ function validateMetadata(data, sourcePath) {
     fail("documents_metadata_invalid", `${sourcePath} has an invalid status`);
   }
 
-  for (const field of ["groupOrder", "parentItemOrder", "readingMinutes"]) {
+  for (const field of ["groupOrder", "parentItemOrder"]) {
     if (data[field] !== undefined && !isFiniteNumber(data[field])) {
       fail("documents_metadata_invalid", `${sourcePath} has invalid ${field}`);
     }
