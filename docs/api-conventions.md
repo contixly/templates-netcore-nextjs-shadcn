@@ -771,19 +771,20 @@ is deleted.
 
 ### Authentication selector and route schemes
 
-The selector is deliberately fail-closed: on a mixed GET, the presence of any
-`x-api-key` header selects `Template.ApiKey` exclusively; only an absent header
-selects `Template.BrowserSession`. Exactly one nonblank canonical header is
-required. Blank/missing maps to `401 api_key_missing`; duplicate, malformed,
+The selector is deliberately fail-closed: mixed routes authorize through the
+`Api.BrowserOrMachine` policy, whose authentication scheme is
+`Template.Consumer.Selector`. On any `x-api-key` header it forwards exclusively
+to `Template.ApiKey`; only an absent header forwards to the browser
+`Template.Session` scheme. Exactly one nonblank canonical header is required. Blank/missing maps to `401 api_key_missing`; duplicate, malformed,
 unknown, disabled, revoked and expired values map to `401 api_key_invalid`.
 A valid cookie can never rescue a supplied bad key. API-key authentication never
 creates or renews a browser cookie.
 
-| Route class | Scheme | Notes |
-| --- | --- | --- |
-| API-key management | `Api.BrowserSession` | Cookie + CSRF for unsafe requests; an API key is never management authority. |
-| `/api/v1/me`, organization detail | `Api.MachineKey` | API key only. |
-| organization, member, team and team-member GETs | `Api.BrowserOrMachine` | Cookie if no key is supplied; otherwise API key only. |
+| Route class | Authorization policy | Authentication scheme(s) | Notes |
+| --- | --- | --- | --- |
+| API-key management | `Api.BrowserSession` | `Template.Session` | Cookie + CSRF for unsafe requests; an API key is never management authority. |
+| `/api/v1/me`, organization detail | `Api.MachineKey` | `Template.ApiKey` | API key only. |
+| organization, member, team and team-member GETs | `Api.BrowserOrMachine` | `Template.Consumer.Selector` → `Template.ApiKey` or `Template.Session` | Cookie only when no key is supplied; otherwise API key only. |
 
 Machine scope requirements are `basic:read` for `/me`, `organization:read` for
 organization reads, plus `member:read`, `team:read`, or `teamMember:read` for

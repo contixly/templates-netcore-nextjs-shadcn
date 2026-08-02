@@ -167,7 +167,7 @@ public interface IApiKeyStore
 }
 ```
 
-- [ ] **Step 1: Write failing policy tests**
+- [x] **Step 1: Write failing policy tests**
 
 Create `ApiKeyPolicyTests` asserting exact presets/scopes, trimmed 1..32 name rules,
 expiry options `never|7d|30d|90d|365d`, rate windows `1m|1h|1d`, max range
@@ -181,7 +181,7 @@ public void OrganizationReadAllExpandsToFourReadScopes() =>
         ApiKeyPolicy.ExpandPresets(["organization-read-all"]));
 ```
 
-- [ ] **Step 2: Run policy tests RED**
+- [x] **Step 2: Run policy tests RED**
 
 Run:
 
@@ -192,14 +192,14 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Expected: compile failure because the API-key Domain types do not exist.
 
-- [ ] **Step 3: Implement Domain types and capability**
+- [x] **Step 3: Implement Domain types and capability**
 
 Implement `ApiKeyId`, owner enum and `ApiKeyPolicy` with canonical sorted,
 de-duplicated scope output. Extend `OrganizationCapabilities` with the final
 constructor property `bool CanManageApiKeys`; return `true` for admin/owner and
 `false` for member in `OrganizationPermissionPolicy.GetCapabilities`.
 
-- [ ] **Step 4: Run policy and organization regression tests GREEN**
+- [x] **Step 4: Run policy and organization regression tests GREEN**
 
 Run:
 
@@ -210,7 +210,7 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Expected: all selected tests pass.
 
-- [ ] **Step 5: Write cursor and service tests RED**
+- [x] **Step 5: Write cursor and service tests RED**
 
 Create exact tests for:
 
@@ -226,7 +226,7 @@ Create exact tests for:
 Use fakes implementing the exact ports above; never place a sample raw key in an
 exception assertion.
 
-- [ ] **Step 6: Run service tests RED**
+- [x] **Step 6: Run service tests RED**
 
 Run:
 
@@ -237,7 +237,7 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Expected: compile failures for the Application contracts/services.
 
-- [ ] **Step 7: Implement models, ports, cursor and services**
+- [x] **Step 7: Implement models, ports, cursor and services**
 
 Use these public service signatures:
 
@@ -274,11 +274,11 @@ Define `ApiKeyFailure` as the closed set `InvalidName`, `InvalidPreset`,
 `NotFound`, `Unchanged`, `ConcurrencyConflict`. Define authentication outcomes
 `Succeeded`, `Invalid`, `RateLimited` with a nullable bounded retry duration.
 
-- [ ] **Step 8: Run all API-key Application tests GREEN**
+- [x] **Step 8: Run all API-key Application tests GREEN**
 
 Run the Task 1 filter again. Expected: all selected tests pass.
 
-- [ ] **Step 9: Run architecture boundaries**
+- [x] **Step 9: Run architecture boundaries**
 
 Run:
 
@@ -289,7 +289,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: Domain/Application dependency tests pass.
 
-- [ ] **Step 10: Commit Task 1**
+- [x] **Step 10: Commit Task 1**
 
 ```bash
 git add apps/api/src/Template.Domain apps/api/src/Template.Application \
@@ -319,20 +319,20 @@ git commit -m "feat: define api key domain and application contracts"
 - Consumes: Task 1 `IApiKeyCredentialService` and `ApiKeyCredentialMaterial`.
 - Produces: registered `CryptographicApiKeyCredentialService`, `DbSet<ApiKeyEntity> ApiKeys`, and exact relational schema.
 
-- [ ] **Step 1: Write EF model tests RED**
+- [x] **Step 1: Write EF model tests RED**
 
 Assert table/schema, exactly-one-owner check, 32-byte hash, 16-character start,
 allowed scope array, positive counters, both cascade FKs, unique hash and the two
 partial owner-list indexes. Assert `TemplateDbContext` exposes `ApiKeys`.
 
-- [ ] **Step 2: Write credential tests RED**
+- [x] **Step 2: Write credential tests RED**
 
 Assert 1000 generated values are unique, user keys start `user_`, organization
 keys start `org_`, decoded random portion is 32 bytes, hash is 32 bytes, start is
 16 characters, canonical credentials re-hash identically, and whitespace,
 padding, wrong prefix, wrong decoded size or overlong input fails closed.
 
-- [ ] **Step 3: Run focused tests RED**
+- [x] **Step 3: Run focused tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -341,13 +341,13 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: compile failures for missing Infrastructure types.
 
-- [ ] **Step 4: Implement entity/configuration/credential service**
+- [x] **Step 4: Implement entity/configuration/credential service**
 
 Use `RandomNumberGenerator.GetBytes(32)`, `WebEncoders.Base64UrlEncode`,
 `SHA256.HashData(Encoding.UTF8.GetBytes(credential))`, and ordinal prefix checks.
 The entity contains no `Key`/`Secret` string property.
 
-- [ ] **Step 5: Wire DbContext and DI**
+- [x] **Step 5: Wire DbContext and DI**
 
 Add:
 
@@ -362,7 +362,7 @@ services.AddSingleton<IApiKeyCredentialService,
     CryptographicApiKeyCredentialService>();
 ```
 
-- [ ] **Step 6: Generate and normalize the EF migration**
+- [x] **Step 6: Generate and normalize the EF migration**
 
 Run from repository root:
 
@@ -379,11 +379,11 @@ Rename the generated pair to `20260802000000_ApiKeysPublicV1.cs` and
 to exactly `20260802000000_ApiKeysPublicV1`. Inspect `Up`/`Down`; `Up` must be
 additive and must not alter/delete any existing table.
 
-- [ ] **Step 7: Run model/credential tests GREEN**
+- [x] **Step 7: Run model/credential tests GREEN**
 
 Run the Task 2 focused filter. Expected: all selected tests pass.
 
-- [ ] **Step 8: Verify migration completeness**
+- [x] **Step 8: Verify migration completeness**
 
 ```bash
 dotnet ef migrations has-pending-model-changes \
@@ -401,7 +401,7 @@ Expected: no pending model changes; script is nonempty and contains
 `auth.api_keys`, both owner FKs, exact-one-owner check, hash unique index and
 partial list indexes.
 
-- [ ] **Step 9: Commit Task 2**
+- [x] **Step 9: Commit Task 2**
 
 ```bash
 git add apps/api/src/Template.Infrastructure apps/api/tests/Template.Api.Tests/ApiKeys
@@ -431,7 +431,7 @@ database foreign keys remain the production cleanup mechanism.
 - Consumes: Task 1 `IApiKeyStore` commands/results and Task 2 entity.
 - Produces: scoped `IApiKeyStore` implementing management and persisted quota.
 
-- [ ] **Step 1: Write management store tests RED**
+- [x] **Step 1: Write management store tests RED**
 
 Against the real PostgreSQL fixture, assert:
 
@@ -445,7 +445,7 @@ Against the real PostgreSQL fixture, assert:
 - user/org cascade behavior is exact;
 - deleting the org-key creator does not remove the organization key.
 
-- [ ] **Step 2: Run store tests RED**
+- [x] **Step 2: Run store tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -454,7 +454,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: DI or `NotImplementedException` failures because `EfApiKeyStore` is absent.
 
-- [ ] **Step 3: Implement management transactions**
+- [x] **Step 3: Implement management transactions**
 
 Use explicit transactions and owner-qualified row locks. Organization operations
 lock/read actor membership and require owner/admin inside every fresh attempt.
@@ -466,11 +466,11 @@ so Application can return the matching reveal-once credential. Never retry
 permission or validation failures, and never generate credential material inside
 the store where the raw replacement could be lost.
 
-- [ ] **Step 4: Run store tests GREEN**
+- [x] **Step 4: Run store tests GREEN**
 
 Run the Task 3 store filter. Expected: all selected tests pass.
 
-- [ ] **Step 5: Write quota/concurrency tests RED**
+- [x] **Step 5: Write quota/concurrency tests RED**
 
 Use barriers and injected time to prove:
 
@@ -481,7 +481,7 @@ Use barriers and injected time to prove:
 - rotate-vs-use and revoke-vs-use serialize to one pre-commit or post-commit outcome;
 - disabled, expired, revoked and unknown hash are indistinguishable `Invalid`.
 
-- [ ] **Step 6: Run concurrency tests RED**
+- [x] **Step 6: Run concurrency tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -490,14 +490,14 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: failures for missing quota implementation.
 
-- [ ] **Step 7: Implement `AuthenticateAndConsumeAsync`**
+- [x] **Step 7: Implement `AuthenticateAndConsumeAsync`**
 
 Lock by unique hash; sample the supplied `now` once; evaluate terminal state;
 reset stale windows; compute ceiling seconds for retry; increment and persist
 count/last-request before returning a safe `ApiKeyPrincipal`. Do not materialize
 name/hash into the principal.
 
-- [ ] **Step 8: Run concurrency and lifecycle regressions GREEN**
+- [x] **Step 8: Run concurrency and lifecycle regressions GREEN**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -506,7 +506,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: all selected tests pass.
 
-- [ ] **Step 9: Commit Task 3**
+- [x] **Step 9: Commit Task 3**
 
 ```bash
 git add apps/api/src/Template.Infrastructure/ApiKeys \
@@ -541,14 +541,14 @@ git commit -m "feat: add transactional api key store"
 - Consumes: `ApiKeyManagementService`, browser session gateway, CSRF filter and Task 3 store.
 - Produces: the ten personal/organization management operations and safe DTOs.
 
-- [ ] **Step 1: Write endpoint contract tests RED**
+- [x] **Step 1: Write endpoint contract tests RED**
 
 Create tests for all personal and organization verbs, exact routes/statuses,
 strict bodies, UUID validation, default/no-store headers, anonymous `401`, unsafe
 CSRF `400`, owner/admin success, member `403`, missing/foreign `404`, semantic
 no-op `409`, reveal-only create/rotate, and no secret/hash in list/update/revoke.
 
-- [ ] **Step 2: Run endpoint tests RED**
+- [x] **Step 2: Run endpoint tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -557,7 +557,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: routes return 404.
 
-- [ ] **Step 3: Implement strict contracts and boundary**
+- [x] **Step 3: Implement strict contracts and boundary**
 
 Define exact request records:
 
@@ -583,14 +583,14 @@ internal sealed record UpdateApiKeyRequest(
 Apply `JsonUnmappedMemberHandling.Disallow`, manual JSON reading and the exact
 Task 1 policies. Define safe `ApiKeyResponse`, page, secret, revocation DTOs.
 
-- [ ] **Step 4: Implement personal and organization endpoints**
+- [x] **Step 4: Implement personal and organization endpoints**
 
 Map personal routes under `/account/api-keys`; map organization routes under
 `/organizations/{organizationId}/api-keys`. Require normal browser policy from
 the versioned group and `.RequireApiAntiforgery()` on POST/PATCH/DELETE. Rotate
 and DELETE call the existing empty-body validator.
 
-- [ ] **Step 5: Add stable failure mapping/audit/cache behavior**
+- [x] **Step 5: Add stable failure mapping/audit/cache behavior**
 
 Add codes `api_key_not_found`, `api_key_permission_denied`,
 `api_key_update_unchanged`, `api_key_missing`, `api_key_invalid`,
@@ -598,13 +598,13 @@ Add codes `api_key_not_found`, `api_key_permission_denied`,
 from the design and extend no-store middleware for `/api/v1/account/api-keys`,
 organization key-management paths and `/api/v1/me`.
 
-- [ ] **Step 6: Register services/module and run endpoint tests GREEN**
+- [x] **Step 6: Register services/module and run endpoint tests GREEN**
 
 Register `ApiKeyManagementService`, `ApiKeyAuthenticationService`, later
 `MachineApiService`, and `ApiKeyEndpointModule`. Run Task 4 endpoint filter;
 expected all pass.
 
-- [ ] **Step 7: Run security/organization regressions**
+- [x] **Step 7: Run security/organization regressions**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -613,7 +613,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: safe logs, no-store, existing organization JSON and capability tests pass after adding `canManageApiKeys`.
 
-- [ ] **Step 8: Commit Task 4**
+- [x] **Step 8: Commit Task 4**
 
 ```bash
 git add apps/api/src/Template.Api apps/api/tests/Template.Api.Tests/ApiKeys \
@@ -644,13 +644,13 @@ git commit -m "feat: expose session-authenticated api key management"
 - Consumes: `ApiKeyAuthenticationService.AuthenticateAsync` and API-key Problem Details codes.
 - Produces: schemes `Template.ApiKey`, `Template.Consumer.Selector`; policies `Api.MachineKey`, `Api.BrowserOrMachine`; scope metadata extension `RequireApiKeyScopes(params string[])`.
 
-- [ ] **Step 1: Write authentication tests RED**
+- [x] **Step 1: Write authentication tests RED**
 
 Assert missing, blank, multiple, malformed, unknown, disabled, expired, revoked,
 rate-limited and valid headers; exact Problem Details; `Retry-After`; no cookie
 issuance; claims contain only safe key/owner/scopes; `/me` rejects cookie-only.
 
-- [ ] **Step 2: Write selector precedence tests RED**
+- [x] **Step 2: Write selector precedence tests RED**
 
 Map a test mixed endpoint and assert:
 
@@ -660,7 +660,7 @@ Map a test mixed endpoint and assert:
 - valid cookie plus valid key uses machine principal;
 - scope forbid returns `api_key_permission_denied`, not browser `forbidden`.
 
-- [ ] **Step 3: Run authentication tests RED**
+- [x] **Step 3: Run authentication tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -669,7 +669,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: scheme/policy registration failures.
 
-- [ ] **Step 4: Implement schemes and claims**
+- [x] **Step 4: Implement schemes and claims**
 
 Use one policy scheme selector:
 
@@ -685,13 +685,13 @@ exactly one header value, calls Application once, builds a principal with
 authentication type `Template.ApiKey`, and writes failure-specific Problem
 Details from challenge/forbid without echoing credentials.
 
-- [ ] **Step 5: Implement scope authorization**
+- [x] **Step 5: Implement scope authorization**
 
 `ApiKeyScopeRequirement` succeeds automatically for the primary browser scheme;
 for `Template.ApiKey` it requires every endpoint scope claim. Register one
 singleton authorization handler and endpoint convention extension.
 
-- [ ] **Step 6: Implement `/api/v1/me`**
+- [x] **Step 6: Implement `/api/v1/me`**
 
 Extend `EndpointRouteContext` with `VersionedMachineApi`, created at `/api/v1`
 with only `Api.MachineKey`; keep the existing `VersionedApi` browser group
@@ -699,7 +699,7 @@ unchanged. Map `/me` through the machine-only group and require `basic:read`.
 Return owner kind, nullable user/organization ID, key ID/start/config ID and
 canonical scopes in `ApiResponse<ApiKeyMeResponse>`.
 
-- [ ] **Step 7: Run authentication and auth regression tests GREEN**
+- [x] **Step 7: Run authentication and auth regression tests GREEN**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -708,7 +708,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: all selected tests pass; liveness still never touches PostgreSQL.
 
-- [ ] **Step 8: Commit Task 5**
+- [x] **Step 8: Commit Task 5**
 
 ```bash
 git add apps/api/src/Template.Api/Authentication \
@@ -741,7 +741,7 @@ git commit -m "feat: authenticate scoped machine api keys"
 - Consumes: Task 5 machine principal reader and policies.
 - Produces: machine organization list/detail/member reads and additive `accessPrincipal`.
 
-- [ ] **Step 1: Write machine organization tests RED**
+- [x] **Step 1: Write machine organization tests RED**
 
 Assert personal key list contains only current memberships; organization key
 list contains exactly its owner organization; detail/members enforce scopes;
@@ -749,7 +749,7 @@ personal foreign membership and organization-key foreign ID return
 `organization_access_denied`; valid cookie behavior and current page shape remain
 unchanged; invalid key never falls back to cookie.
 
-- [ ] **Step 2: Run focused tests RED**
+- [x] **Step 2: Run focused tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -758,7 +758,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: browser policy denies keys and UUID detail route is absent.
 
-- [ ] **Step 3: Add explicit route groups**
+- [x] **Step 3: Add explicit route groups**
 
 Complete `EndpointRouteContext` by adding the mixed group, so it carries:
 
@@ -772,13 +772,13 @@ All three share `/api/v1`; each has exactly one named policy. Move only the
 overlapping GET mappings from browser group to mixed group. Mutations stay in
 browser group.
 
-- [ ] **Step 4: Implement machine organization store/service**
+- [x] **Step 4: Implement machine organization store/service**
 
 Use explicit projections and current membership checks. Organization-principal
 queries never construct a fake `UserId`. Decode existing organization/member
 cursors in Application and return the same bounded target pages.
 
-- [ ] **Step 5: Branch endpoint handlers by trusted principal**
+- [x] **Step 5: Branch endpoint handlers by trusted principal**
 
 Use `ApiKeyPrincipalReader.TryRead(http.User, out principal)`. Browser branch
 retains existing actor/session/audit code. Machine branch calls
@@ -791,7 +791,7 @@ retains existing actor/session/audit code. Machine branch calls
 Add machine-only `GET /organizations/{organizationId}` with a safe detail DTO
 that omits allowed-domain configuration.
 
-- [ ] **Step 6: Run machine and browser organization tests GREEN**
+- [x] **Step 6: Run machine and browser organization tests GREEN**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -800,7 +800,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: all selected tests pass.
 
-- [ ] **Step 7: Commit Task 6**
+- [x] **Step 7: Commit Task 6**
 
 ```bash
 git add apps/api/src/Template.Application/ApiKeys \
@@ -833,7 +833,7 @@ git commit -m "feat: authorize machine organization reads"
 - Consumes: Task 6 machine principal/read store.
 - Produces: scoped team/team-member reads and additive `membersIncluded`.
 
-- [ ] **Step 1: Write machine team tests RED**
+- [x] **Step 1: Write machine team tests RED**
 
 Assert:
 
@@ -845,7 +845,7 @@ Assert:
 - a team ID from another organization returns non-disclosing not-found;
 - browser session responses remain `membersIncluded=true`.
 
-- [ ] **Step 2: Run focused tests RED**
+- [x] **Step 2: Run focused tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -854,26 +854,26 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: API-key calls denied or nested members leaked by the existing shape.
 
-- [ ] **Step 3: Implement machine team store/service methods**
+- [x] **Step 3: Implement machine team store/service methods**
 
 Qualify every query by organization. Project safe team fields and aggregate
 member count. Only load embedded member rows when principal scopes contain
 `teamMember:read`; the dedicated route always checks team ownership before rows.
 
-- [ ] **Step 4: Move team GET routes to the mixed group**
+- [x] **Step 4: Move team GET routes to the mixed group**
 
 Move only list teams and list team members. Keep team create/update/delete,
 member add/remove and candidates browser-only. Add required API-key scope
 metadata without changing browser authorization.
 
-- [ ] **Step 5: Add `membersIncluded` mappings**
+- [x] **Step 5: Add `membersIncluded` mappings**
 
 Append `bool MembersIncluded` to `TeamResponse`. Set `true` for every existing
 browser mutation/list response. Machine list sets it from the actual projection.
 Update exact OpenAPI/Jest consumers later through generation, never hand-edit
 generated files here.
 
-- [ ] **Step 6: Run team machine/browser regression GREEN**
+- [x] **Step 6: Run team machine/browser regression GREEN**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -882,7 +882,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: all selected tests pass with no cross-scope nested member disclosure.
 
-- [ ] **Step 7: Commit Task 7**
+- [x] **Step 7: Commit Task 7**
 
 ```bash
 git add apps/api/src/Template.Application/ApiKeys \
@@ -914,7 +914,7 @@ git commit -m "feat: authorize machine team reads"
 - Consumes: Tasks 4–7 final operations/DTOs.
 - Produces: exact `apiKeyAuth`, security alternatives, generated management SDK and consumer guide.
 
-- [ ] **Step 1: Write OpenAPI assertions RED**
+- [x] **Step 1: Write OpenAPI assertions RED**
 
 Assert:
 
@@ -928,7 +928,7 @@ Assert:
 - `Retry-After` is documented on machine 429;
 - `accessPrincipal` and `membersIncluded` are required additive fields.
 
-- [ ] **Step 2: Run OpenAPI tests RED**
+- [x] **Step 2: Run OpenAPI tests RED**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
@@ -937,17 +937,17 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: missing scheme/operations/schema annotations.
 
-- [ ] **Step 3: Implement bounded transformers**
+- [x] **Step 3: Implement bounded transformers**
 
 Register operation/schema transformers after existing organization/collaboration
 transformers. Match operations by endpoint metadata/name, not fragile path text
 alone. Preserve existing cookie/local-only contracts.
 
-- [ ] **Step 4: Run OpenAPI tests GREEN**
+- [x] **Step 4: Run OpenAPI tests GREEN**
 
 Run the Task 8 filter. Expected: all contract assertions pass.
 
-- [ ] **Step 5: Export deterministically twice**
+- [x] **Step 5: Export deterministically twice**
 
 ```bash
 rm -f contracts/openapi/v1.json
@@ -962,7 +962,7 @@ cmp /tmp/iteration7-openapi-first.json contracts/openapi/v1.json
 
 Expected: byte-identical documents.
 
-- [ ] **Step 6: Regenerate and verify the TypeScript SDK**
+- [x] **Step 6: Regenerate and verify the TypeScript SDK**
 
 ```bash
 cd apps/web
@@ -972,13 +972,13 @@ npm run api:check
 
 Expected: generated files current and deterministic.
 
-- [ ] **Step 7: Write the consumer guide**
+- [x] **Step 7: Write the consumer guide**
 
 Document exact header syntax without a real secret, scope matrix, personal/org
 principal semantics, cursor use, target envelopes, 401/403/429 handling,
 `Retry-After`, reveal-once storage, rotate/revoke and explicit read-only scope.
 
-- [ ] **Step 8: Commit Task 8**
+- [x] **Step 8: Commit Task 8**
 
 ```bash
 git add apps/api/src/Template.Api/OpenApi \
@@ -1012,7 +1012,7 @@ git commit -m "docs: publish api key consumer contract"
 - Consumes: Task 8 generated functions/types for personal management.
 - Produces: functional `/user/api-keys` and reusable components for Task 10.
 
-- [ ] **Step 1: Read installed Next/shadcn guidance**
+- [x] **Step 1: Read installed Next/shadcn guidance**
 
 Re-read the installed Next docs named in the design. Run:
 
@@ -1025,12 +1025,12 @@ npx shadcn@latest docs checkbox dropdown-menu switch table
 Keep RSC data loading server-only and interactive state in the narrow client
 management boundary.
 
-- [ ] **Step 2: Write option/API-boundary tests RED**
+- [x] **Step 2: Write option/API-boundary tests RED**
 
 Assert exact preset metadata/defaults, expiry/rate enums, generated SDK imports,
 CSRF wrapper use, no raw fetch, no Server Action and no handwritten request DTO.
 
-- [ ] **Step 3: Run option/boundary tests RED**
+- [x] **Step 3: Run option/boundary tests RED**
 
 ```bash
 cd apps/web
@@ -1039,7 +1039,7 @@ npm test -- --runInBand --testPathPatterns='api-key-options|api-key-boundaries'
 
 Expected: missing feature/API modules.
 
-- [ ] **Step 4: Add UI primitives and API adapters**
+- [x] **Step 4: Add UI primitives and API adapters**
 
 ```bash
 cd apps/web
@@ -1050,20 +1050,20 @@ Implement server loader with forwarded cookie/correlation/renewal suppression.
 Implement browser create/update/revoke/rotate with `runCsrfMutation`; implement
 safe continuation GET directly through the generated client.
 
-- [ ] **Step 5: Implement options/messages/routes/nav**
+- [x] **Step 5: Implement options/messages/routes/nav**
 
 Personal defaults are `basic-read`, `30d`, rate enabled, max 1000, window `1h`.
 Register `apiKeys` messages in English/Russian and add the account nav entry
 before Danger.
 
-- [ ] **Step 6: Write component tests RED**
+- [x] **Step 6: Write component tests RED**
 
 Assert empty/list/status rows, create validation, one-time secret, copy/close,
 edit/no-op, enable-disable, rotate reveal, revoke removal, load-more dedupe, stale
 GET rejection, confirmed mutation precedence and failed-refresh retry without
 mutation replay.
 
-- [ ] **Step 7: Run component tests RED**
+- [x] **Step 7: Run component tests RED**
 
 ```bash
 npm test -- --runInBand --testPathPatterns='api-key-management|api-key-create|api-key-edit|api-key-rotate'
@@ -1071,20 +1071,20 @@ npm test -- --runInBand --testPathPatterns='api-key-management|api-key-create|ap
 
 Expected: missing components.
 
-- [ ] **Step 8: Implement shared client components**
+- [x] **Step 8: Implement shared client components**
 
 Keep raw `key` only in `ApiKeySecretView` state passed from the confirmed
 create/rotate result. Clear on close/unmount. Use generated safe DTOs for rows,
 the existing interaction-ready attribute, localized Problem Details and a
 read-generation counter for stale GET suppression.
 
-- [ ] **Step 9: Implement the personal route and slots**
+- [x] **Step 9: Implement the personal route and slots**
 
 Server page loads exactly the first page and renders the shared management
 component. Add loading/error boundaries and the matching organization-switcher
 slot page so parallel routing remains complete.
 
-- [ ] **Step 10: Run personal UI focused GREEN**
+- [x] **Step 10: Run personal UI focused GREEN**
 
 ```bash
 npm test -- --runInBand --testPathPatterns='api-key|account-nav|messages'
@@ -1094,7 +1094,7 @@ npm run typecheck
 
 Expected: focused tests, boundary scan and typecheck pass.
 
-- [ ] **Step 11: Commit Task 9**
+- [x] **Step 11: Commit Task 9**
 
 ```bash
 git add apps/web/src apps/web/test apps/web/package.json apps/web/package-lock.json
@@ -1119,14 +1119,14 @@ git commit -m "feat: add personal api key management ui"
 - Consumes: Task 9 shared management UI and Task 8 generated organization management SDK.
 - Produces: owner/admin `/w/{key}/settings/api-keys`; member-hidden navigation and direct-call denial.
 
-- [ ] **Step 1: Write organization UI tests RED**
+- [x] **Step 1: Write organization UI tests RED**
 
 Assert canonical organization route, owner/admin nav item, member-hidden nav,
 organization default `organization-read-all`, educational personal-key link,
 organization IDs supplied only from trusted page data, and all mutations use
 organization generated operations.
 
-- [ ] **Step 2: Run organization UI tests RED**
+- [x] **Step 2: Run organization UI tests RED**
 
 ```bash
 cd apps/web
@@ -1135,20 +1135,20 @@ npm test -- --runInBand --testPathPatterns='api-key-pages|organization-settings-
 
 Expected: missing route/nav support.
 
-- [ ] **Step 3: Extend routes/navigation**
+- [x] **Step 3: Extend routes/navigation**
 
 Add `settingsApiKeys(organizationKey)`. Pass `canManageApiKeys` from the trusted
 organization detail projection to `OrganizationSettingsNav`. Do not infer it
 from client route or role text.
 
-- [ ] **Step 4: Implement organization server page**
+- [x] **Step 4: Implement organization server page**
 
 Resolve existing organization by key, canonicalize to slug, require the API
 loader result, and pass owner kind/id/key plus capabilities to the shared
 component. Direct member access renders the existing safe error path from API
 403; it does not fetch key rows.
 
-- [ ] **Step 5: Run organization UI GREEN and full Jest**
+- [x] **Step 5: Run organization UI GREEN and full Jest**
 
 ```bash
 npm test -- --runInBand --testPathPatterns='api-key|organization-settings-nav'
@@ -1159,7 +1159,7 @@ npm run typecheck
 
 Expected: focused and full Jest pass; boundaries/typecheck clean.
 
-- [ ] **Step 6: Commit Task 10**
+- [x] **Step 6: Commit Task 10**
 
 ```bash
 git add apps/web/src apps/web/test
@@ -1182,13 +1182,13 @@ git commit -m "feat: add organization api key management ui"
 - Consumes: final generated SDK, local automation, organization/team UI and API-key management UI.
 - Produces: black-box parity/security acceptance for iteration 7.
 
-- [ ] **Step 1: Write failing personal/auth boundary scenarios**
+- [x] **Step 1: Write failing personal/auth boundary scenarios**
 
 Add tests for unauthenticated management page, missing/blank/invalid/cookie-only
 `/me`, create/reveal/use/update/disable-enable/rotate/revoke personal key, and old
 secret invalidation.
 
-- [ ] **Step 2: Run personal E2E RED**
+- [x] **Step 2: Run personal E2E RED**
 
 ```bash
 cd apps/web
@@ -1197,24 +1197,29 @@ npx playwright test e2e/api-keys.spec.ts --project=chromium --grep 'personal|aut
 
 Expected: tests fail before helpers/scenarios are complete.
 
-- [ ] **Step 3: Implement generated E2E helper**
+- [x] **Step 3: Implement generated E2E helper**
 
 Use the generated SDK with explicit `x-api-key` header and JSON parsing through
 the generated client. UI helper locates accessible labels, captures the reveal
 input once and never prints it in assertion messages/traces.
 
-- [ ] **Step 4: Run personal E2E GREEN**
+- [x] **Step 4: Run personal E2E GREEN**
 
 Run the Task 11 personal command. Expected: all selected scenarios pass.
 
-- [ ] **Step 5: Write organization/scope scenarios RED**
+- [x] **Step 5: Write organization/scope scenarios RED**
 
 Add owner/admin management, member denial, personal/org separation,
-insufficient-scope denial, personal membership read-all, membership-loss
-denial, organization owner isolation, creator role/removal survival, teams and
-team-members scope redaction, and cursor continuation.
+insufficient-scope denial, personal membership read-all, organization owner
+isolation, creator role/removal survival, teams and team-members scope
+redaction, and cursor continuation. Do **not** claim black-box membership-loss
+coverage: the public contract has no member-removal operation (only member-role
+PATCH), and this plan must not add an endpoint, database hook, or test backdoor
+only to manufacture one. Accept the existing PostgreSQL/API integration evidence
+`MachineOrganizationEndpointTests.PersonalKeyReadsOnlyCurrentMembershipsWithUserAccessProjection`
+for immediate reauthorization after direct test-database membership removal.
 
-- [ ] **Step 6: Run organization/scope E2E RED then implement helper gaps**
+- [x] **Step 6: Run organization/scope E2E RED then implement helper gaps**
 
 ```bash
 npx playwright test e2e/api-keys.spec.ts --project=chromium --grep 'organization|scope|pagination'
@@ -1224,7 +1229,7 @@ Expected first run: deterministic failures identifying missing helper/UI flow.
 Implement only harness/UI synchronization needed for those scenarios; do not
 change production authorization to accommodate the test.
 
-- [ ] **Step 7: Run focused and full E2E GREEN**
+- [x] **Step 7: Run focused and full E2E GREEN**
 
 ```bash
 npx playwright test e2e/api-keys.spec.ts --project=chromium
@@ -1233,7 +1238,7 @@ npm run e2e
 
 Expected: API-key file passes; full suite passes with only documented opt-in live-provider skips.
 
-- [ ] **Step 8: Commit Task 11**
+- [x] **Step 8: Commit Task 11**
 
 ```bash
 git add apps/web/e2e apps/web/playwright.config.ts
@@ -1258,21 +1263,21 @@ git commit -m "test: cover api key management and machine access"
 - Consumes: exact implemented contract, migration ID, command output and PR/review state.
 - Produces: iteration register, security/operations guidance, acceptance evidence and final verified branch.
 
-- [ ] **Step 1: Update durable contract/security docs**
+- [x] **Step 1: Update durable contract/security docs**
 
 Record schema, key format/hash/reveal policy, auth selector precedence, schemes,
 scope matrix, mixed routes, management routes, pagination, transactions, rate
 limits, errors, audit redaction, UI routes and intentional reference differences.
 Do not claim a future review result.
 
-- [ ] **Step 2: Update migration plan scope/register**
+- [x] **Step 2: Update migration plan scope/register**
 
 Set current iteration to 7 while work is in progress; after all gates, mark the
 functional scope complete with the exact implementation head and acceptance
 table. Keep iterations 8+ unstarted and list documents search, machine writes,
 Redis/Bearer/deploy items as out of scope.
 
-- [ ] **Step 3: Run mandatory .NET gates**
+- [x] **Step 3: Run mandatory .NET gates**
 
 ```bash
 dotnet restore Template.sln
@@ -1283,7 +1288,7 @@ dotnet format Template.sln --no-restore --verify-no-changes
 
 Record exact project totals, failures/skips, warnings and elapsed results.
 
-- [ ] **Step 4: Run EF and NuGet gates**
+- [x] **Step 4: Run EF and NuGet gates**
 
 ```bash
 dotnet ef migrations has-pending-model-changes \
@@ -1299,7 +1304,7 @@ dotnet list Template.sln package --vulnerable --include-transitive
 
 Expected: no pending model changes, nonempty inspected script, no vulnerable NuGet packages.
 
-- [ ] **Step 5: Run deterministic contract/web gates**
+- [x] **Step 5: Run deterministic contract/web gates**
 
 ```bash
 rm -f contracts/openapi/v1.json
@@ -1329,7 +1334,7 @@ Expected: deterministic/current SDK, clean static/unit/build gates, zero
 production npm vulnerabilities, full E2E pass with only documented live-provider
 skips. Record development audit findings without hiding a nonzero result.
 
-- [ ] **Step 6: Run repository/reference/OpenSpec guards**
+- [x] **Step 6: Run repository/reference/OpenSpec guards**
 
 ```bash
 cd ../../
@@ -1338,20 +1343,20 @@ git diff --check origin/main...HEAD
 test -z "$(git status --short -- template/)"
 test -z "$(git diff -- template/)"
 test -z "$(git diff origin/main...HEAD -- template/)"
-test -z "$(find openspec/changes -mindepth 1 -maxdepth 1 -type d 2>/dev/null)"
+test -z "$(find openspec/changes -mindepth 1 -maxdepth 1 -type d ! -name archive -print 2>/dev/null)"
 git status --short
 ```
 
 Expected: no whitespace/reference/OpenSpec drift; only intentional tracked evidence changes remain.
 
-- [ ] **Step 7: Commit final documentation/evidence**
+- [x] **Step 7: Commit final documentation/evidence**
 
 ```bash
 git add docs contracts/openapi/v1.json
 git commit -m "docs: complete api key migration evidence"
 ```
 
-- [ ] **Step 8: Run verification-before-completion**
+- [x] **Step 8: Run verification-before-completion**
 
 Re-run any command invalidated by the evidence commit, inspect `git diff
 origin/main...HEAD`, confirm no untracked source, and record the exact final local

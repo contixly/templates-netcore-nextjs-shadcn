@@ -294,7 +294,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Функциональный scope завершён локально | Implementation head `6df9aed9a01a137b6a52fd3bdf2cf053362a9d76`; final local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. No push, PR, author review or automatic review of this documentation head is claimed. |
-| 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
+| 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), machine writes, Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
 
 ## Acceptance evidence: итерация 1
 
@@ -2753,7 +2753,7 @@ on the final source tree, not a push/PR/reviewer result.
 | --- | --- |
 | `dotnet restore Template.sln` | PASS; all projects up to date; `real 0.94s`. |
 | `dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; `real 7.76s`. |
-| `dotnet test Template.sln --no-restore` | PASS; Application **318/318**, API **720/720**, aggregate **1038/1038**; 0 failed, 0 skipped; API duration `1m 47s`. |
+| `dotnet test Template.sln --no-restore` | PASS; Application **318/318**, API **720/720**, aggregate **1038/1038**; 0 failed, 0 skipped; API duration `1m 46s`, whole command `real 119.37s`. |
 | `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; `real 13.24s`. |
 | EF model/script | PASS; `has-pending-model-changes` reports none (`real 3.09s`); inspected idempotent script `/tmp/template-iteration7-final.sql` is **34,134 bytes** and contains `20260802000000_ApiKeysPublicV1`/`auth.api_keys` (`real 2.86s`). |
 | NuGet | PASS; `dotnet list Template.sln package --vulnerable --include-transitive` reports no vulnerable packages for all 7 projects (`real 12.97s`). |
@@ -2776,9 +2776,9 @@ Details, UUID/FK owners, SHA-256 reveal-once credentials, bounded opaque pages,
 strict supplied-key precedence, persisted PostgreSQL fixed-window quotas,
 owner/admin/member `CanManageApiKeys`, and team-member redaction instead of the
 reference's weaker shapes. Iteration 7 does not add public documents/search,
-product dashboard work, Redis/Valkey, Bearer issuer/consumer contracts, Aspire,
-deployment/proxy/container topology, production quota tiering/load tests, or
-member removal merely to create an E2E fixture.
+product dashboard work, machine writes, Redis/Valkey, Bearer issuer/consumer
+contracts, Aspire, deployment/proxy/container topology, production quota
+tiering/load tests, or member removal merely to create an E2E fixture.
 
 
 ## 9. Правило обновления этого документа

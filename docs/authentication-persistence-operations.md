@@ -458,7 +458,12 @@ recovered; issue/rotate a replacement.
 Key management remains a browser session operation. It uses the normal secure
 HttpOnly cookie; unsafe calls additionally require a fresh CSRF token from
 `GET /api/v1/auth/csrf` and `X-CSRF-TOKEN`. API keys and Bearer credentials
-cannot manage keys. Organization key operations re-read owner/admin authority
+cannot manage keys. `Template.Consumer.Selector` is the mixed-route
+**authentication scheme**: it forwards a supplied key to `Template.ApiKey`, or
+an absent key to browser `Template.Session`. `Api.MachineKey`,
+`Api.BrowserSession`, and `Api.BrowserOrMachine` are **authorization policies**,
+not schemes; they respectively select key-only, session-only, and selector-based
+route requirements. Organization key operations re-read owner/admin authority
 within their transaction. Current browser role/capabilities are never a
 substitute for this server check.
 
