@@ -271,7 +271,7 @@ internal static class OrganizationTestData
             DateTimeOffset.Parse("2026-07-30T00:00:00Z"),
             DateTimeOffset.Parse("2026-07-30T00:00:00Z"),
             OrganizationRole.Owner,
-            new OrganizationCapabilities(true, true, true, true, true, true),
+            new OrganizationCapabilities(true, true, true, true, true, true, true),
             []);
     }
 
