@@ -52,6 +52,8 @@ describe("public origin", () => {
   );
 
   it.each([
+    "",
+    "   \t\n",
     "docs.example.com",
     "ftp://docs.example.com",
     "https://user:password@docs.example.com",

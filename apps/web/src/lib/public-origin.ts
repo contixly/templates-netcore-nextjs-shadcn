@@ -3,7 +3,7 @@ const DEFAULT_PUBLIC_ORIGIN = "http://localhost:3000";
 export function resolvePublicOrigin(
   value = process.env.APP_PUBLIC_ORIGIN,
 ): URL {
-  const candidate = value?.trim() || DEFAULT_PUBLIC_ORIGIN;
+  const candidate = value === undefined ? DEFAULT_PUBLIC_ORIGIN : value.trim();
 
   try {
     const url = new URL(candidate);
