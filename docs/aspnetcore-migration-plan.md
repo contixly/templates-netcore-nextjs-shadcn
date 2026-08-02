@@ -3,9 +3,12 @@
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 7 — API keys и public `/api/v1` — функциональный
 scope локально принят для implementation head
-`d7ea69c988474e81768aaf49b472c3fd95503594`. Документационный evidence commit
-ещё не pushed и не проходил automatic review; PR, author review и результат
-review для будущего documentation head намеренно не заявляются заранее.
+`d7ea69c988474e81768aaf49b472c3fd95503594`. Ready PR #8 (base `main`) был
+mergeable при наблюдении на reviewed head
+`8bdf31f828c29f7fff75058b7261404718cec47f`; первый GitHub Codex review не
+нашёл major issues. Этот новый documentation evidence commit ещё не pushed и
+не проходил review; его будущие результат и статус намеренно не заявляются
+заранее.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -293,7 +296,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
-| 7 — API keys и public `/api/v1`                    | Функциональный scope завершён локально | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. No push, PR, author review or automatic review of this documentation head is claimed. |
+| 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This new documentation evidence commit is not yet pushed or reviewed. |
 | 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), machine writes, Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
 
 ## Acceptance evidence: итерация 1
@@ -2779,6 +2782,22 @@ backdoor. Existing PostgreSQL/API integration runtime evidence is
 `MachineOrganizationEndpointTests.PersonalKeyReadsOnlyCurrentMembershipsWithUserAccessProjection`:
 it issues a personal key, removes membership in PostgreSQL, and confirms the
 next machine list omits the organization. This is the truthful coverage boundary.
+
+### PR #8 first GitHub Codex review observation — 2026-08-02
+
+Ready PR [#8](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/8)
+(base `main`) was mergeable at observation on reviewed head
+`8bdf31f828c29f7fff75058b7261404718cec47f`. The request `@codex review` is
+issue comment `5159707156`. The bot comment database id is `5159728311`, node
+id `IC_kwDOThDXX88AAAABM4s0tw`, created `2026-08-02T18:24:04Z`; its exact leading
+line is: `Codex Review: Didn't find any major issues. Breezy!`
+([direct comment](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/8#issuecomment-5159728311)).
+A thread-aware snapshot found **0** review threads and **0** unresolved, with
+no inline findings or reviews.
+
+This records the observed review only for that head. This new documentation
+evidence commit itself is not yet pushed or reviewed, and no future review
+result is claimed.
 
 **Known differences/out of scope:** target uses ASP.NET Core auth/Problem
 Details, UUID/FK owners, SHA-256 reveal-once credentials, bounded opaque pages,
