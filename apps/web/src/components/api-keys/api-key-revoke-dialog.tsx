@@ -21,7 +21,12 @@ import {
 import {
   apiKeyFailureMessage,
   apiKeyIdentityMismatchFailure,
+  apiKeyMutationBusyFailure,
 } from "@/src/features/api-keys/api-key-failures";
+import type {
+  ApiKeyMutationArbiter,
+  ApiKeyMutationLease,
+} from "@/src/features/api-keys/api-key-mutation-arbiter";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import { revokeBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -30,10 +35,14 @@ import type { ApiFailure } from "@/src/lib/api/result";
 
 export function ApiKeyRevokeDialog({
   apiKey,
+  mutationArbiter,
+  mutationBusy = false,
   onConfirmed,
   owner,
 }: Readonly<{
   apiKey: ApiKeyResponse;
+  mutationArbiter?: ApiKeyMutationArbiter;
+  mutationBusy?: boolean;
   onConfirmed: (apiKeyId: string) => void;
   owner: ApiKeyOwner;
 }>) {
@@ -63,25 +72,41 @@ export function ApiKeyRevokeDialog({
 
   async function revoke() {
     if (requestInFlight.current) return;
+    const lease: ApiKeyMutationLease | undefined =
+      mutationArbiter?.acquire(apiKey.id) ?? undefined;
+    if (mutationArbiter && !lease) {
+      setFailure(apiKeyMutationBusyFailure());
+      return;
+    }
     requestInFlight.current = true;
     const generation = ++actionGeneration.current;
     setPending(true);
     setFailure(null);
-    const result = await revokeBrowserApiKey(
-      createBrowserApiClient(),
-      owner,
-      apiKey.id,
-    );
-    if (!mounted.current || generation !== actionGeneration.current) return;
-    requestInFlight.current = false;
-    setPending(false);
-    if (!result.ok) return setFailure(result.failure);
-    if (result.data.id !== apiKey.id) {
-      setFailure(apiKeyIdentityMismatchFailure());
-      return;
+    try {
+      const result = await revokeBrowserApiKey(
+        createBrowserApiClient(),
+        owner,
+        apiKey.id,
+      );
+      if (
+        !mounted.current ||
+        generation !== actionGeneration.current ||
+        (lease && !mutationArbiter?.isCurrent(lease))
+      ) {
+        return;
+      }
+      requestInFlight.current = false;
+      setPending(false);
+      if (!result.ok) return setFailure(result.failure);
+      if (result.data.id !== apiKey.id) {
+        setFailure(apiKeyIdentityMismatchFailure());
+        return;
+      }
+      setOpen(false);
+      onConfirmed(result.data.id);
+    } finally {
+      if (lease) mutationArbiter?.release(lease);
     }
-    setOpen(false);
-    onConfirmed(result.data.id);
   }
 
   return (
@@ -89,7 +114,7 @@ export function ApiKeyRevokeDialog({
       <DialogTrigger asChild>
         <Button
           {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-          disabled={!interactionReady}
+          disabled={!interactionReady || mutationBusy}
           size="sm"
           type="button"
           variant="outline"
@@ -123,7 +148,7 @@ export function ApiKeyRevokeDialog({
             {t("actions.cancel")}
           </Button>
           <Button
-            disabled={pending}
+            disabled={pending || mutationBusy}
             onClick={() => void revoke()}
             type="button"
             variant="destructive"

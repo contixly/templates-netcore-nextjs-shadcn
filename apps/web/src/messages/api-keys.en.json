@@ -154,6 +154,7 @@
       "antiforgery_failed": "The security check expired. Try again.",
       "api_key_not_found": "This API key no longer exists.",
       "api_key_permission_denied": "You do not have permission to manage this API key.",
+      "api_key_action_busy": "Another action is already in progress for this API key.",
       "api_key_update_unchanged": "Make at least one change before saving.",
       "validation_failed": "Review the highlighted values and try again.",
       "generic": "The request could not be completed."

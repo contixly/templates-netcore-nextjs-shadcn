@@ -39,7 +39,12 @@ import { Switch } from "@/src/components/ui/switch";
 import {
   apiKeyFailureMessage,
   apiKeyIdentityMismatchFailure,
+  apiKeyMutationBusyFailure,
 } from "@/src/features/api-keys/api-key-failures";
+import type {
+  ApiKeyMutationArbiter,
+  ApiKeyMutationLease,
+} from "@/src/features/api-keys/api-key-mutation-arbiter";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import {
   API_KEY_EXPIRY_OPTIONS,
@@ -72,10 +77,14 @@ function validRateLimitMax(value: number) {
 
 export function ApiKeyEditDialog({
   apiKey,
+  mutationArbiter,
+  mutationBusy = false,
   onConfirmed,
   owner,
 }: Readonly<{
   apiKey: ApiKeyResponse;
+  mutationArbiter?: ApiKeyMutationArbiter;
+  mutationBusy?: boolean;
   onConfirmed: (apiKey: ApiKeyResponse) => void;
   owner: ApiKeyOwner;
 }>) {
@@ -172,27 +181,44 @@ export function ApiKeyEditDialog({
     }
     if (Object.keys(body).length === 0) return setValidation("noChanges");
 
+    const lease: ApiKeyMutationLease | undefined =
+      mutationArbiter?.acquire(apiKey.id) ?? undefined;
+    if (mutationArbiter && !lease) {
+      setFailure(apiKeyMutationBusyFailure());
+      return;
+    }
+
     setValidation(null);
     setFailure(null);
     requestInFlight.current = true;
     const generation = ++actionGeneration.current;
     setPending(true);
-    const result = await updateBrowserApiKey(
-      createBrowserApiClient(),
-      owner,
-      apiKey.id,
-      body,
-    );
-    if (!mounted.current || generation !== actionGeneration.current) return;
-    requestInFlight.current = false;
-    setPending(false);
-    if (!result.ok) return setFailure(result.failure);
-    if (result.data.id !== apiKey.id) {
-      setFailure(apiKeyIdentityMismatchFailure());
-      return;
+    try {
+      const result = await updateBrowserApiKey(
+        createBrowserApiClient(),
+        owner,
+        apiKey.id,
+        body,
+      );
+      if (
+        !mounted.current ||
+        generation !== actionGeneration.current ||
+        (lease && !mutationArbiter?.isCurrent(lease))
+      ) {
+        return;
+      }
+      requestInFlight.current = false;
+      setPending(false);
+      if (!result.ok) return setFailure(result.failure);
+      if (result.data.id !== apiKey.id) {
+        setFailure(apiKeyIdentityMismatchFailure());
+        return;
+      }
+      setOpen(false);
+      onConfirmed(result.data);
+    } finally {
+      if (lease) mutationArbiter?.release(lease);
     }
-    setOpen(false);
-    onConfirmed(result.data);
   }
 
   const failureCode = failure ? apiKeyFailureMessage(failure) : "generic";
@@ -202,7 +228,7 @@ export function ApiKeyEditDialog({
       <DialogTrigger asChild>
         <Button
           {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-          disabled={!interactionReady}
+          disabled={!interactionReady || mutationBusy}
           size="sm"
           type="button"
           variant="outline"
@@ -384,7 +410,7 @@ export function ApiKeyEditDialog({
             >
               {t("actions.cancel")}
             </Button>
-            <Button disabled={pending} type="submit">
+            <Button disabled={pending || mutationBusy} type="submit">
               {pending ? t("edit.submitting") : t("actions.save")}
             </Button>
           </DialogFooter>

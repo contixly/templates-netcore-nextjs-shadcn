@@ -27,7 +27,12 @@ import {
 import {
   apiKeyFailureMessage,
   apiKeyIdentityMismatchFailure,
+  apiKeyMutationBusyFailure,
 } from "@/src/features/api-keys/api-key-failures";
+import type {
+  ApiKeyMutationArbiter,
+  ApiKeyMutationLease,
+} from "@/src/features/api-keys/api-key-mutation-arbiter";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import {
   listBrowserApiKeys,
@@ -118,10 +123,10 @@ export function ApiKeyManagement({
   const mounted = useRef(true);
   const refreshGeneration = useRef(0);
   const continuationGeneration = useRef(0);
-  const toggleGeneration = useRef(0);
   const refreshInFlight = useRef(false);
   const continuationInFlight = useRef(false);
-  const toggleInFlight = useRef(false);
+  const nextMutationLease = useRef(0);
+  const activeMutationLeases = useRef(new Map<string, number>());
   const secretView = useRef<ApiKeySecretViewHandle>(null);
   const overlaysRef = useRef(new Map<string, ConfirmedOverlay>());
   const [authoritative, setAuthoritative] = useState(initialPage.items);
@@ -131,7 +136,9 @@ export function ApiKeyManagement({
   );
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [pendingKeyId, setPendingKeyId] = useState<string | null>(null);
+  const [busyKeyIds, setBusyKeyIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
   const [partialFailure, setPartialFailure] = useState<ApiFailure | null>(null);
   const [mutationFailure, setMutationFailure] = useState<ApiFailure | null>(
     null,
@@ -143,15 +150,15 @@ export function ApiKeyManagement({
   const [feedback, setFeedback] = useState<ConfirmedAction | null>(null);
 
   useEffect(() => {
+    const mutationLeases = activeMutationLeases.current;
     mounted.current = true;
     return () => {
       mounted.current = false;
       refreshGeneration.current += 1;
       continuationGeneration.current += 1;
-      toggleGeneration.current += 1;
       refreshInFlight.current = false;
       continuationInFlight.current = false;
-      toggleInFlight.current = false;
+      mutationLeases.clear();
     };
   }, []);
 
@@ -170,6 +177,35 @@ export function ApiKeyManagement({
     overlaysRef.current = next;
     setOverlays(next);
   }
+
+  const mutationArbiter: ApiKeyMutationArbiter = {
+    acquire(apiKeyId) {
+      if (!mounted.current || activeMutationLeases.current.has(apiKeyId)) {
+        return null;
+      }
+      const generation = ++nextMutationLease.current;
+      activeMutationLeases.current.set(apiKeyId, generation);
+      setBusyKeyIds(new Set(activeMutationLeases.current.keys()));
+      return { apiKeyId, generation };
+    },
+    isCurrent(lease) {
+      return (
+        mounted.current &&
+        activeMutationLeases.current.get(lease.apiKeyId) === lease.generation
+      );
+    },
+    release(lease) {
+      if (
+        activeMutationLeases.current.get(lease.apiKeyId) !== lease.generation
+      ) {
+        return;
+      }
+      activeMutationLeases.current.delete(lease.apiKeyId);
+      if (mounted.current) {
+        setBusyKeyIds(new Set(activeMutationLeases.current.keys()));
+      }
+    },
+  };
 
   async function read(
     cursor: string | undefined,
@@ -257,30 +293,35 @@ export function ApiKeyManagement({
   }
 
   async function toggle(apiKey: ApiKeyResponse) {
-    if (toggleInFlight.current) return;
-    toggleInFlight.current = true;
-    const generation = ++toggleGeneration.current;
-    setPendingKeyId(apiKey.id);
+    const lease: ApiKeyMutationLease | null = mutationArbiter.acquire(
+      apiKey.id,
+    );
+    if (!lease) {
+      setMutationFailure(apiKeyMutationBusyFailure());
+      return;
+    }
     setFeedback(null);
     setMutationFailure(null);
-    const result = await updateBrowserApiKey(
-      createBrowserApiClient(),
-      owner,
-      apiKey.id,
-      { enabled: !apiKey.enabled },
-    );
-    if (!mounted.current || generation !== toggleGeneration.current) return;
-    toggleInFlight.current = false;
-    setPendingKeyId(null);
-    if (!result.ok) {
-      setMutationFailure(result.failure);
-      return;
+    try {
+      const result = await updateBrowserApiKey(
+        createBrowserApiClient(),
+        owner,
+        apiKey.id,
+        { enabled: !apiKey.enabled },
+      );
+      if (!mounted.current || !mutationArbiter.isCurrent(lease)) return;
+      if (!result.ok) {
+        setMutationFailure(result.failure);
+        return;
+      }
+      if (result.data.id !== apiKey.id) {
+        setMutationFailure(apiKeyIdentityMismatchFailure());
+        return;
+      }
+      confirmed(result.data, result.data.enabled ? "enabled" : "disabled");
+    } finally {
+      mutationArbiter.release(lease);
     }
-    if (result.data.id !== apiKey.id) {
-      setMutationFailure(apiKeyIdentityMismatchFailure());
-      return;
-    }
-    confirmed(result.data, result.data.enabled ? "enabled" : "disabled");
   }
 
   return (
@@ -359,7 +400,8 @@ export function ApiKeyManagement({
             onRevoked={revoked}
             onToggle={(apiKey) => void toggle(apiKey)}
             owner={owner}
-            pendingKeyId={pendingKeyId}
+            busyKeyIds={busyKeyIds}
+            mutationArbiter={mutationArbiter}
             secretViewRef={secretView}
           />
         )}

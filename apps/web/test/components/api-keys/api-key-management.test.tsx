@@ -16,7 +16,10 @@ import {
 } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { ApiResult } from "@/src/lib/api/result";
-import type { ApiKeyPageResponse } from "@/src/lib/api/generated/types.gen";
+import type {
+  ApiKeyPageResponse,
+  ApiKeyResponse,
+} from "@/src/lib/api/generated/types.gen";
 import type { Client } from "@/src/lib/api/generated/client";
 import {
   apiKey,
@@ -421,4 +424,128 @@ it("rejects a mismatched revoke response without removing the requested row", as
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
   expect(screen.getByRole("row", { name: /CLI integration/ })).toBeVisible();
   expect(listKeys).not.toHaveBeenCalled();
+});
+
+it("leases a key to toggle before an already-open revoke and permits revoke only after the matching release", async () => {
+  const togglePending = deferred<ApiResult<ApiKeyResponse>>();
+  const disabled = { ...apiKey, status: "disabled" as const, enabled: false };
+  updateKey.mockReturnValue(togglePending.promise);
+  revokeKey.mockResolvedValue({
+    ok: true,
+    data: { id: apiKey.id, revokedAt: "2026-08-02T11:00:00Z" },
+  });
+  listKeys
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [disabled], nextCursor: null },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: { items: [], nextCursor: null },
+    });
+  renderWithMessages(
+    <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
+  );
+
+  const edit = screen.getByRole("button", { name: "Edit" });
+  const toggle = screen.getByRole("button", { name: "Disable" });
+  const rotate = screen.getByRole("button", { name: "Rotate" });
+  const revoke = screen.getByRole("button", { name: "Revoke" });
+  fireEvent.click(revoke);
+  const revokeSubmit = within(
+    screen.getByRole("dialog", { name: "Revoke CLI integration?" }),
+  ).getByRole("button", { name: "Revoke key" });
+
+  act(() => {
+    toggle.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+    revokeSubmit.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+  });
+
+  expect(updateKey).toHaveBeenCalledTimes(1);
+  expect(revokeKey).not.toHaveBeenCalled();
+  expect(
+    screen.getByText("Another action is already in progress for this API key."),
+  ).toBeVisible();
+  expect(edit).toBeDisabled();
+  expect(toggle).toBeDisabled();
+  expect(rotate).toBeDisabled();
+  expect(revoke).toBeDisabled();
+
+  await act(async () => {
+    togglePending.resolve({ ok: true, data: disabled });
+  });
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(revokeSubmit).toBeEnabled());
+
+  fireEvent.click(revokeSubmit);
+  await waitFor(() => expect(revokeKey).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
+  expect(
+    screen.queryByRole("row", { name: /CLI integration/ }),
+  ).not.toBeInTheDocument();
+});
+
+it("leases a key to rotate before toggle and prevents the blocked action from overwriting rotation", async () => {
+  const rotatePending =
+    deferred<Awaited<ReturnType<typeof rotateBrowserApiKey>>>();
+  const blockedToggle =
+    deferred<Awaited<ReturnType<typeof updateBrowserApiKey>>>();
+  const rotatedSecret = {
+    ...apiKeySecret,
+    start: "tmpl_live_rotated",
+    rotatedAt: "2026-08-02T11:00:00Z",
+    updatedAt: "2026-08-02T11:00:00Z",
+  };
+  const { key: _raw, ...rotated } = rotatedSecret;
+  void _raw;
+  rotateKey.mockReturnValue(rotatePending.promise);
+  updateKey.mockReturnValue(blockedToggle.promise);
+  listKeys.mockResolvedValue({
+    ok: true,
+    data: { items: [rotated], nextCursor: null },
+  });
+  renderWithMessages(
+    <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
+  );
+
+  const edit = screen.getByRole("button", { name: "Edit" });
+  const toggle = screen.getByRole("button", { name: "Disable" });
+  const rotate = screen.getByRole("button", { name: "Rotate" });
+  const revoke = screen.getByRole("button", { name: "Revoke" });
+  fireEvent.click(rotate);
+  const rotateSubmit = within(
+    screen.getByRole("dialog", { name: "Rotate CLI integration?" }),
+  ).getByRole("button", { name: "Rotate key" });
+
+  act(() => {
+    rotateSubmit.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+    toggle.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, cancelable: true }),
+    );
+  });
+
+  expect(rotateKey).toHaveBeenCalledTimes(1);
+  expect(updateKey).not.toHaveBeenCalled();
+  expect(
+    screen.getByText("Another action is already in progress for this API key."),
+  ).toBeVisible();
+  expect(edit).toBeDisabled();
+  expect(toggle).toBeDisabled();
+  expect(rotate).toBeDisabled();
+  expect(revoke).toBeDisabled();
+
+  await act(async () => {
+    rotatePending.resolve({ ok: true, data: rotatedSecret });
+  });
+  expect(await screen.findByText(rotatedSecret.key)).toBeVisible();
+  await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(1));
+  fireEvent.click(screen.getByRole("button", { name: "I saved it" }));
+  expect(screen.getByText("tmpl_live_rotated")).toBeVisible();
+  expect(screen.queryByText("tmpl_live_safe1")).not.toBeInTheDocument();
 });

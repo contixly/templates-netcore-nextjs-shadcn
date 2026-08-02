@@ -4,6 +4,7 @@ export type ApiKeyFailureMessage =
   | "antiforgery_failed"
   | "api_key_not_found"
   | "api_key_permission_denied"
+  | "api_key_action_busy"
   | "api_key_update_unchanged"
   | "validation_failed"
   | "generic";
@@ -12,6 +13,7 @@ const knownCodes = new Set<ApiKeyFailureMessage>([
   "antiforgery_failed",
   "api_key_not_found",
   "api_key_permission_denied",
+  "api_key_action_busy",
   "api_key_update_unchanged",
   "validation_failed",
 ]);
@@ -30,5 +32,13 @@ export function apiKeyIdentityMismatchFailure(): ApiFailure {
     kind: "problem",
     code: "api_response_identity_mismatch",
     status: 502,
+  };
+}
+
+export function apiKeyMutationBusyFailure(): ApiFailure {
+  return {
+    kind: "problem",
+    code: "api_key_action_busy",
+    status: 409,
   };
 }

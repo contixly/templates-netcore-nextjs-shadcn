@@ -25,7 +25,12 @@ import {
 import {
   apiKeyFailureMessage,
   apiKeyIdentityMismatchFailure,
+  apiKeyMutationBusyFailure,
 } from "@/src/features/api-keys/api-key-failures";
+import type {
+  ApiKeyMutationArbiter,
+  ApiKeyMutationLease,
+} from "@/src/features/api-keys/api-key-mutation-arbiter";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import { rotateBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -34,11 +39,15 @@ import type { ApiFailure } from "@/src/lib/api/result";
 
 export function ApiKeyRotateDialog({
   apiKey,
+  mutationArbiter,
+  mutationBusy = false,
   onConfirmed,
   owner,
   secretViewRef,
 }: Readonly<{
   apiKey: ApiKeyResponse;
+  mutationArbiter?: ApiKeyMutationArbiter;
+  mutationBusy?: boolean;
   onConfirmed: (apiKey: ApiKeyResponse) => void;
   owner: ApiKeyOwner;
   secretViewRef?: RefObject<ApiKeySecretViewHandle | null>;
@@ -71,32 +80,46 @@ export function ApiKeyRotateDialog({
 
   async function rotate() {
     if (requestInFlight.current) return;
+    const lease: ApiKeyMutationLease | undefined =
+      mutationArbiter?.acquire(apiKey.id) ?? undefined;
+    if (mutationArbiter && !lease) {
+      setFailure(apiKeyMutationBusyFailure());
+      return;
+    }
     requestInFlight.current = true;
     const generation = ++actionGeneration.current;
     setPending(true);
     setFailure(null);
-    const result = await rotateBrowserApiKey(
-      createBrowserApiClient(),
-      owner,
-      apiKey.id,
-    );
-    if (!mounted.current || generation !== actionGeneration.current) {
-      if (result.ok) result.data.key = "";
-      return;
-    }
-    requestInFlight.current = false;
-    setPending(false);
-    if (!result.ok) return setFailure(result.failure);
-    if (result.data.id !== apiKey.id) {
-      result.data.key = "";
-      setFailure(apiKeyIdentityMismatchFailure());
-      return;
-    }
+    try {
+      const result = await rotateBrowserApiKey(
+        createBrowserApiClient(),
+        owner,
+        apiKey.id,
+      );
+      if (
+        !mounted.current ||
+        generation !== actionGeneration.current ||
+        (lease && !mutationArbiter?.isCurrent(lease))
+      ) {
+        if (result.ok) result.data.key = "";
+        return;
+      }
+      requestInFlight.current = false;
+      setPending(false);
+      if (!result.ok) return setFailure(result.failure);
+      if (result.data.id !== apiKey.id) {
+        result.data.key = "";
+        setFailure(apiKeyIdentityMismatchFailure());
+        return;
+      }
 
-    const { key, ...safeApiKey } = result.data;
-    setOpen(false);
-    secretView.current?.reveal(key);
-    onConfirmed(safeApiKey);
+      const { key, ...safeApiKey } = result.data;
+      setOpen(false);
+      secretView.current?.reveal(key);
+      onConfirmed(safeApiKey);
+    } finally {
+      if (lease) mutationArbiter?.release(lease);
+    }
   }
 
   return (
@@ -105,7 +128,7 @@ export function ApiKeyRotateDialog({
         <DialogTrigger asChild>
           <Button
             {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-            disabled={!interactionReady}
+            disabled={!interactionReady || mutationBusy}
             size="sm"
             type="button"
             variant="outline"
@@ -141,7 +164,7 @@ export function ApiKeyRotateDialog({
               {t("actions.cancel")}
             </Button>
             <Button
-              disabled={pending}
+              disabled={pending || mutationBusy}
               onClick={() => void rotate()}
               type="button"
               variant="destructive"
