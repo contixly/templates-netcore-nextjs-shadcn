@@ -32,7 +32,7 @@ const MDX_HREF_PATTERN =
   /\bhref=(?:"([^"]+)"|'([^']+)'|\{`([^`]+)`\}|\{"([^"]+)"\}|\{'([^']+)'\})/gu;
 const MDX_SRC_PATTERN =
   /\bsrc=(?:"([^"]+)"|'([^']+)'|\{`([^`]+)`\}|\{"([^"]+)"\}|\{'([^']+)'\})/gu;
-const MDX_COMPONENT_PATTERN = /<\/?([A-Z][A-Za-z0-9]*)\b/gu;
+const MDX_COMPONENT_PATTERN = /<\/?([A-Z][^\s/>]*)/gu;
 const METADATA_FIELDS = new Set([
   "title",
   "description",
@@ -214,10 +214,16 @@ function safeDecode(value, decoder) {
   }
 }
 
-function normalizeDocumentHref(href) {
+function normalizeDocumentHref(href, currentUrl) {
   const trimmed = href.trim();
-  if (!trimmed || trimmed.startsWith("#") || /^https?:\/\//iu.test(trimmed)) {
+  if (!trimmed || /^https?:\/\//iu.test(trimmed)) {
     return undefined;
+  }
+  if (trimmed.startsWith("#")) {
+    return {
+      targetUrl: currentUrl,
+      fragment: safeDecode(trimmed.slice(1), decodeURIComponent),
+    };
   }
 
   const hashIndex = trimmed.indexOf("#");
@@ -304,7 +310,10 @@ async function validateContentTargets(documents, sourceByPath, publicRoot) {
       sourceByPath.get(document.sourcePath) ?? "",
     )) {
       if (target.kind === "link") {
-        const normalized = normalizeDocumentHref(target.href);
+        const normalized = normalizeDocumentHref(
+          target.href,
+          document.canonicalUrl,
+        );
         if (!normalized) continue;
         if (!allUrls.has(normalized.targetUrl)) {
           fail(

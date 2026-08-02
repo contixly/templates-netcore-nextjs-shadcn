@@ -110,6 +110,18 @@ async function runFixture(name) {
       '<DocumentLinkCard href="/docs/guides/start?from=home#missing" title="Start" />\n',
     );
   }
+  if (name === "same-page-fragment-valid") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "## Overview\n\n[Overview](#overview)\n",
+    );
+  }
+  if (name === "same-page-fragment-missing") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "## Overview\n\n[Missing](#missing)\n",
+    );
+  }
   if (name === "missing-image") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
@@ -123,6 +135,18 @@ async function runFixture(name) {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
       "<UnknownComponent />\n",
+    );
+  }
+  if (name === "member-component") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "<Steps.Unknown />\n",
+    );
+  }
+  if (name === "namespaced-component") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "<Steps:Unknown />\n",
     );
   }
   if (name === "content-export") {
@@ -230,6 +254,19 @@ test("rejects links to missing generated heading fragments", async () => {
   );
 });
 
+test("accepts same-document links to generated heading fragments", async () => {
+  const { result } = await runFixture("same-page-fragment-valid");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("rejects same-document links to missing heading fragments", async () => {
+  await assert.rejects(
+    async () => (await runFixture("same-page-fragment-missing")).result,
+    /documents_broken_fragment/,
+  );
+});
+
 test("rejects missing repository-local images", async () => {
   await assert.rejects(
     async () => (await runFixture("missing-image")).result,
@@ -247,6 +284,20 @@ test("requires both locales for production-visible documents", async () => {
 test("rejects MDX components outside the closed component set", async () => {
   await assert.rejects(
     async () => (await runFixture("unknown-component")).result,
+    /documents_unknown_mdx_component/,
+  );
+});
+
+test("rejects JSX member expressions that start with an allowed MDX component", async () => {
+  await assert.rejects(
+    async () => (await runFixture("member-component")).result,
+    /documents_unknown_mdx_component/,
+  );
+});
+
+test("rejects JSX namespaced expressions that start with an allowed MDX component", async () => {
+  await assert.rejects(
+    async () => (await runFixture("namespaced-component")).result,
     /documents_unknown_mdx_component/,
   );
 });
