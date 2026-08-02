@@ -51,6 +51,22 @@ public sealed class ApiKeyManagementServiceTests
     }
 
     [Fact]
+    public async Task Create_validation_failure_is_not_retried_and_never_generates_material()
+    {
+        var store = new RecordingStore();
+        var credentials = new RecordingCredentials();
+        var invalid = Create(ApiKeyOwnerKind.User, null) with { Name = "\u0001" };
+
+        var result = await Service(store, credentials).CreateAsync(
+            invalid,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(ApiKeyFailure.InvalidName, result.Failure);
+        Assert.Equal(0, store.CreateCalls);
+        Assert.Equal(0, credentials.GenerateCalls);
+    }
+
+    [Fact]
     public async Task Rotate_returns_the_replacement_credential_and_revoke_propagates_terminal_failure()
     {
         var owner = new ApiKeyOwner(ApiKeyOwnerKind.User, Actor, null);
