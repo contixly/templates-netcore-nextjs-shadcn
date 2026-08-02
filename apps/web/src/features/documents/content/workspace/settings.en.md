@@ -35,7 +35,7 @@ The root redirects to the first available section after access validation.
 
 PATCH accepts dirty fields and rejects an empty/no-op body. Names trim to 1-50 supported characters. Slugs normalize to at most 64 lowercase ASCII letters/digits separated by single hyphens and cannot be UUID-shaped. UI sends only changes against latest authoritative detail.
 
-Deletion is owner-only and requires exact case-sensitive current name in `confirmationName`. Inaccessible resources are non-disclosing.
+Deletion is owner-only and requires the exact case-sensitive current name in `confirmationName`. The user's last accessible organization cannot be deleted: the API returns `409 last_organization_required`. Inaccessible resources are non-disclosing.
 
 ## Security and scope
 

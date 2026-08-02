@@ -28,7 +28,7 @@ ASP.NET Core генерирует уникальный канонический 
 
 ## Открыть рабочее пространство
 
-`GET /api/v1/organizations?limit=50` возвращает доступные элементы и `nextCursor`; лимиты `1..100`, cursors непрозрачны. Маршруты используют `/w/:organizationKey/...`. UUID или старый slug разрешается через `GET /api/v1/organizations/by-key/{organizationKey}` с redirect на текущий slug при наличии доступа.
+`GET /api/v1/organizations?limit=50` возвращает доступные элементы и `nextCursor`; лимиты `1..100`, cursors непрозрачны. Маршруты используют `/w/:organizationKey/...`. Через `GET /api/v1/organizations/by-key/{organizationKey}` разрешается только UUID организации или ее точный текущий slug. Доступный маршрут с UUID перенаправляет UI на канонический текущий slug из ответа; предыдущие значения slug не являются alias.
 
 ## Переключить контекст рабочего пространства
 
@@ -36,7 +36,7 @@ ASP.NET Core генерирует уникальный канонический 
 
 ## Удалить рабочее пространство
 
-Только owner отправляет `DELETE /api/v1/organizations/{organizationId}` с точным регистрозависимым `confirmationName` и CSRF. Удаление очищает ссылки в сессиях и не выбирает другое пространство неявно.
+Только owner отправляет `DELETE /api/v1/organizations/{organizationId}` с точным регистрозависимым `confirmationName` и CSRF. API отклоняет удаление последней доступной пользователю организации с `409 last_organization_required`. Успешное удаление очищает ссылки в сессиях и не выбирает другое пространство неявно.
 
 ## Связанные страницы
 

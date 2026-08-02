@@ -20,13 +20,15 @@ Membership has one role from closed `owner | admin | member`. ASP.NET Core retur
 
 ## Built-in roles
 
-| Role     | Authorization                                                                                          |
-| -------- | ------------------------------------------------------------------------------------------------------ |
-| `owner`  | Update/delete organization, add members, assign any role, manage teams/invitations/keys.               |
-| `admin`  | Update, add members, assign `member`/`admin`, manage teams/invitations; cannot delete or create owner. |
-| `member` | Read-only safe organization, member, and team context.                                                 |
+| Role     | Authorization                                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------------------- |
+| `owner`  | Update/delete organization, add members, assign any role, manage teams/invitations/keys.                        |
+| `admin`  | Update, add members, assign `member`/`admin`, manage teams/invitations/API keys; cannot delete or create owner. |
+| `member` | Read-only safe organization, member, and team context.                                                          |
 
 Self/no-op changes, admin changes to owners, and loss of the last owner are blocked. Team membership grants no organization role. Custom roles are absent.
+
+Admins and owners can manage API keys. This capability does not let an admin delete the organization or assign the `owner` role.
 
 ## Member directory
 

@@ -20,7 +20,7 @@ Allowed domains are organization settings enforced by ASP.NET Core when members 
 
 ## Configure allowed domains
 
-`PATCH /api/v1/organizations/{organizationId}` sends `allowedEmailDomains`. Values are trimmed, lowercased, and stripped of one leading `@`; duplicates collapse. An exact DNS-like domain has at least two labels, ASCII letters/digits/internal hyphens, and at most 253 characters. At most 100 distinct normalized domains are accepted. Empty list disables restriction; `example.com` does not imply `sub.example.com`.
+`PATCH /api/v1/organizations/{organizationId}` sends `allowedEmailDomains`. The request may contain at most 100 submitted raw entries before normalization; this bound is checked before duplicates are collapsed. Values are then trimmed, lowercased, and stripped of one leading `@`. An exact DNS-like domain has at least two labels, ASCII letters/digits/internal hyphens, and at most 253 characters. Empty list disables restriction; `example.com` does not imply `sub.example.com`.
 
 ## Invitation checks
 
