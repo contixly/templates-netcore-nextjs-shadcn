@@ -306,6 +306,7 @@ beforeEach(() => {
 it("exposes Teams to every member and Invitations to invitation managers", () => {
   renderWithMessages(
     <OrganizationSettingsNav
+      canManageApiKeys
       canManageInvitations
       organizationKey="acme"
       pathname="/w/acme/settings/users"
@@ -329,12 +330,16 @@ it("exposes Teams to every member and Invitations to invitation managers", () =>
   expect(
     within(nav).getByRole("link", { name: "Invitations" }),
   ).toHaveAttribute("href", "/w/acme/settings/invitations");
-  expect(within(nav).queryByText("API Keys")).not.toBeInTheDocument();
+  expect(within(nav).getByRole("link", { name: "API keys" })).toHaveAttribute(
+    "href",
+    "/w/acme/settings/api-keys",
+  );
 });
 
-it("keeps Teams visible but hides Invitations without the server capability", () => {
+it("keeps Teams visible but hides capability-gated settings links", () => {
   renderWithMessages(
     <OrganizationSettingsNav
+      canManageApiKeys={false}
       canManageInvitations={false}
       organizationKey="acme"
       pathname="/w/acme/settings/teams"
@@ -347,6 +352,46 @@ it("keeps Teams visible but hides Invitations without the server capability", ()
     "page",
   );
   expect(within(nav).queryByText("Invitations")).not.toBeInTheDocument();
+  expect(within(nav).queryByText("API keys")).not.toBeInTheDocument();
+});
+
+it("threads the trusted API-key capability into settings navigation instead of inferring it from role", async () => {
+  loadDetail
+    .mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ...detail,
+        currentRole: "owner",
+        capabilities: { ...capabilities, canManageApiKeys: false },
+      },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      data: {
+        ...detail,
+        currentRole: "member",
+        capabilities: { ...capabilities, canManageApiKeys: true },
+      },
+    });
+
+  const hidden = await AuthenticatedOrganizationSettingsShell({
+    children: <p>hidden capability</p>,
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+  const view = renderWithMessages(hidden);
+  expect(
+    screen.queryByRole("link", { name: "API keys" }),
+  ).not.toBeInTheDocument();
+
+  const visible = await AuthenticatedOrganizationSettingsShell({
+    children: <p>visible capability</p>,
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+  view.rerender(withMessages(visible));
+  expect(screen.getByRole("link", { name: "API keys" })).toHaveAttribute(
+    "href",
+    "/w/acme/settings/api-keys",
+  );
 });
 
 it("canonicalizes settings root to the returned workspace settings URL", async () => {

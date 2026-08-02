@@ -2,6 +2,7 @@
   "page": {
     "title": "API keys",
     "description": "Create and manage personal API credentials for read-only automation.",
+    "organizationDescription": "Create and manage read-only API credentials owned by this organization.",
     "loading": "Loading API keys",
     "failureTitle": "API keys are unavailable",
     "failureDescription": "API keys could not be loaded safely. Try again."
@@ -10,6 +11,7 @@
     "title": "Choose the right owner",
     "personalTitle": "Personal keys",
     "personalDescription": "Act as your user account and lose organization access when your membership ends.",
+    "personalAction": "Manage personal keys",
     "organizationTitle": "Organization keys",
     "organizationDescription": "Belong to one organization and are managed from that organization’s settings.",
     "securityTitle": "Store secrets safely",

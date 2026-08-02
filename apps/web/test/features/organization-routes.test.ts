@@ -18,6 +18,9 @@ describe("organizationRoutes", () => {
     expect(organizationRoutes.settingsRoles("acme")).toBe(
       "/w/acme/settings/roles",
     );
+    expect(organizationRoutes.settingsApiKeys("acme")).toBe(
+      "/w/acme/settings/api-keys",
+    );
   });
 
   it("encodes organization keys as one dynamic route segment", () => {
@@ -26,6 +29,9 @@ describe("organizationRoutes", () => {
     );
     expect(organizationRoutes.settingsWorkspace("acme/team")).toBe(
       "/w/acme%2Fteam/settings/workspace",
+    );
+    expect(organizationRoutes.settingsApiKeys("acme/team")).toBe(
+      "/w/acme%2Fteam/settings/api-keys",
     );
 
     const typedRoutes: readonly Route[] = [
@@ -37,7 +43,8 @@ describe("organizationRoutes", () => {
       organizationRoutes.settingsWorkspace("acme"),
       organizationRoutes.settingsUsers("acme"),
       organizationRoutes.settingsRoles("acme"),
+      organizationRoutes.settingsApiKeys("acme"),
     ];
-    expect(typedRoutes).toHaveLength(8);
+    expect(typedRoutes).toHaveLength(9);
   });
 });

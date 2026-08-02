@@ -66,6 +66,24 @@ it("renders education and an empty state", () => {
   expect(screen.getByText("No API keys yet")).toBeVisible();
 });
 
+it("links organization managers to personal keys from the owner education", () => {
+  renderWithMessages(
+    <ApiKeyManagement
+      initialPage={{ items: [], nextCursor: null }}
+      owner={{
+        kind: "organization",
+        organizationId: "01900000-0000-7000-8000-000000000910",
+        organizationKey: "acme",
+        capabilities: { canManageApiKeys: true },
+      }}
+    />,
+  );
+
+  expect(
+    screen.getByRole("link", { name: "Manage personal keys" }),
+  ).toHaveAttribute("href", "/user/api-keys");
+});
+
 it("renders all safe fields without placing a raw credential in the table", () => {
   renderWithMessages(
     <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,

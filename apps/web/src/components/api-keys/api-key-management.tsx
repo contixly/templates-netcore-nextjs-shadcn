@@ -326,7 +326,7 @@ export function ApiKeyManagement({
 
   return (
     <div className="flex flex-col gap-8">
-      <ApiKeyEducation />
+      <ApiKeyEducation owner={owner} />
       <section
         aria-labelledby="api-key-list-title"
         className="flex flex-col gap-4"

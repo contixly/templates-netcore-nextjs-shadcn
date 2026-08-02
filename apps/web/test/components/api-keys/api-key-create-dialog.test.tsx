@@ -64,6 +64,48 @@ it("uses approved personal defaults and rejects invalid input before the API bou
   expect(createKey).not.toHaveBeenCalled();
 });
 
+it("uses the exact organization-read-all default for an organization owner", async () => {
+  createKey.mockResolvedValue({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+  const owner = {
+    kind: "organization",
+    organizationId: "01900000-0000-7000-8000-000000000910",
+    organizationKey: "acme",
+    capabilities: { canManageApiKeys: true },
+  } as const;
+  renderWithMessages(
+    <ApiKeyCreateDialog onConfirmed={jest.fn()} owner={owner} />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Create API key" }));
+  const dialog = screen.getByRole("dialog");
+  expect(
+    within(dialog).getByRole("checkbox", { name: "All organization reads" }),
+  ).toBeChecked();
+  expect(
+    within(dialog).getByRole("checkbox", { name: "Basic read" }),
+  ).not.toBeChecked();
+
+  fireEvent.change(within(dialog).getByLabelText("Name"), {
+    target: { value: "Organization automation" },
+  });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Create API key" }),
+  );
+
+  await waitFor(() => expect(createKey).toHaveBeenCalledTimes(1));
+  expect(createKey).toHaveBeenCalledWith(client, owner, {
+    name: "Organization automation",
+    presetIds: ["organization-read-all"],
+    expiresIn: "30d",
+    rateLimitEnabled: true,
+    rateLimitMax: 1000,
+    rateLimitWindow: "1h",
+  });
+});
+
 it("submits the generated request and limits the raw credential to explicit reveal and copy", async () => {
   const onConfirmed = jest.fn();
   createKey.mockResolvedValue({ ok: true, data: apiKeySecret });

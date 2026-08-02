@@ -47,6 +47,7 @@ import {
   API_KEY_EXPIRY_OPTIONS,
   API_KEY_PRESET_OPTIONS,
   API_KEY_RATE_LIMIT_WINDOW_OPTIONS,
+  ORGANIZATION_API_KEY_DEFAULTS,
   PERSONAL_API_KEY_DEFAULTS,
   type ApiKeyExpiry,
   type ApiKeyPresetId,
@@ -105,22 +106,24 @@ export function ApiKeyCreateDialog({
   const mounted = useRef(true);
   const actionGeneration = useRef(0);
   const requestInFlight = useRef(false);
+  const defaults =
+    owner.kind === "organization"
+      ? ORGANIZATION_API_KEY_DEFAULTS
+      : PERSONAL_API_KEY_DEFAULTS;
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [presetIds, setPresetIds] = useState<ApiKeyPresetId[]>([
-    ...PERSONAL_API_KEY_DEFAULTS.presetIds,
+    ...defaults.presetIds,
   ]);
-  const [expiresIn, setExpiresIn] = useState<ApiKeyExpiry>(
-    PERSONAL_API_KEY_DEFAULTS.expiresIn,
-  );
+  const [expiresIn, setExpiresIn] = useState<ApiKeyExpiry>(defaults.expiresIn);
   const [rateLimitEnabled, setRateLimitEnabled] = useState<boolean>(
-    PERSONAL_API_KEY_DEFAULTS.rateLimitEnabled,
+    defaults.rateLimitEnabled,
   );
   const [rateLimitMax, setRateLimitMax] = useState<number>(
-    PERSONAL_API_KEY_DEFAULTS.rateLimitMax,
+    defaults.rateLimitMax,
   );
   const [rateLimitWindow, setRateLimitWindow] = useState<ApiKeyRateLimitWindow>(
-    PERSONAL_API_KEY_DEFAULTS.rateLimitWindow,
+    defaults.rateLimitWindow,
   );
   const [validation, setValidation] = useState<Validation>({});
   const [failure, setFailure] = useState<ApiFailure | null>(null);
@@ -137,11 +140,11 @@ export function ApiKeyCreateDialog({
 
   function resetForm() {
     setName("");
-    setPresetIds([...PERSONAL_API_KEY_DEFAULTS.presetIds]);
-    setExpiresIn(PERSONAL_API_KEY_DEFAULTS.expiresIn);
-    setRateLimitEnabled(PERSONAL_API_KEY_DEFAULTS.rateLimitEnabled);
-    setRateLimitMax(PERSONAL_API_KEY_DEFAULTS.rateLimitMax);
-    setRateLimitWindow(PERSONAL_API_KEY_DEFAULTS.rateLimitWindow);
+    setPresetIds([...defaults.presetIds]);
+    setExpiresIn(defaults.expiresIn);
+    setRateLimitEnabled(defaults.rateLimitEnabled);
+    setRateLimitMax(defaults.rateLimitMax);
+    setRateLimitWindow(defaults.rateLimitWindow);
     setValidation({});
     setFailure(null);
   }
@@ -177,7 +180,7 @@ export function ApiKeyCreateDialog({
 
     const submittedRateLimitMax = validRateLimitMax(rateLimitMax)
       ? rateLimitMax
-      : PERSONAL_API_KEY_DEFAULTS.rateLimitMax;
+      : defaults.rateLimitMax;
     requestInFlight.current = true;
     const generation = ++actionGeneration.current;
     setPending(true);

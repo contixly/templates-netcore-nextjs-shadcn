@@ -20,6 +20,8 @@ export const organizationRoutes = {
     organizationPath(organizationKey, "/settings/users"),
   settingsRoles: (organizationKey: string) =>
     organizationPath(organizationKey, "/settings/roles"),
+  settingsApiKeys: (organizationKey: string) =>
+    organizationPath(organizationKey, "/settings/api-keys"),
   settingsTeams: collaborationRoutes.settingsTeams,
   settingsInvitations: collaborationRoutes.settingsInvitations,
 } as const;

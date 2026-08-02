@@ -190,7 +190,12 @@ it("uses generated safe GET directly and obtains fresh CSRF for every unsafe cal
 });
 
 it("passes the exact organization owner path, API-key ID, and body through every generated operation", async () => {
-  const owner = { kind: "organization", organizationId } as const;
+  const owner = {
+    kind: "organization",
+    organizationId,
+    organizationKey: "acme",
+    capabilities: { canManageApiKeys: true },
+  } as const;
   const createBody = {
     name: "Organization CLI",
     presetIds: ["organization-read"] as const,
@@ -265,6 +270,11 @@ it("passes the exact organization owner path, API-key ID, and body through every
     headers: { "X-CSRF-TOKEN": "csrf-api-key" },
     path: { organizationId, apiKeyId: keyId },
   });
+  expect(mockedList).not.toHaveBeenCalled();
+  expect(mockedCreate).not.toHaveBeenCalled();
+  expect(mockedUpdate).not.toHaveBeenCalled();
+  expect(mockedRotate).not.toHaveBeenCalled();
+  expect(mockedRevoke).not.toHaveBeenCalled();
 });
 
 it("keeps the feature on generated transport types without raw fetch or Server Actions", () => {

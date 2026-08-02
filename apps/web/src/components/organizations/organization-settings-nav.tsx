@@ -8,10 +8,12 @@ import { organizationRoutes } from "@/src/features/organizations/organization-ro
 import { cn } from "@/src/lib/utils";
 
 function OrganizationSettingsNavLinks({
+  canManageApiKeys,
   canManageInvitations,
   organizationKey,
   pathname,
 }: Readonly<{
+  canManageApiKeys: boolean;
   canManageInvitations: boolean;
   organizationKey: string;
   pathname: string;
@@ -39,6 +41,14 @@ function OrganizationSettingsNavLinks({
           {
             href: organizationRoutes.settingsInvitations(organizationKey),
             label: "invitations" as const,
+          },
+        ]
+      : []),
+    ...(canManageApiKeys
+      ? [
+          {
+            href: organizationRoutes.settingsApiKeys(organizationKey),
+            label: "apiKeys" as const,
           },
         ]
       : []),
@@ -75,11 +85,17 @@ function OrganizationSettingsNavLinks({
 }
 
 function CurrentOrganizationSettingsNav({
+  canManageApiKeys,
   canManageInvitations,
   organizationKey,
-}: Readonly<{ canManageInvitations: boolean; organizationKey: string }>) {
+}: Readonly<{
+  canManageApiKeys: boolean;
+  canManageInvitations: boolean;
+  organizationKey: string;
+}>) {
   return (
     <OrganizationSettingsNavLinks
+      canManageApiKeys={canManageApiKeys}
       canManageInvitations={canManageInvitations}
       organizationKey={organizationKey}
       pathname={usePathname()}
@@ -88,21 +104,25 @@ function CurrentOrganizationSettingsNav({
 }
 
 export function OrganizationSettingsNav({
+  canManageApiKeys,
   canManageInvitations,
   organizationKey,
   pathname,
 }: Readonly<{
+  canManageApiKeys: boolean;
   canManageInvitations: boolean;
   organizationKey: string;
   pathname?: string;
 }>) {
   return pathname === undefined ? (
     <CurrentOrganizationSettingsNav
+      canManageApiKeys={canManageApiKeys}
       canManageInvitations={canManageInvitations}
       organizationKey={organizationKey}
     />
   ) : (
     <OrganizationSettingsNavLinks
+      canManageApiKeys={canManageApiKeys}
       canManageInvitations={canManageInvitations}
       organizationKey={organizationKey}
       pathname={pathname}

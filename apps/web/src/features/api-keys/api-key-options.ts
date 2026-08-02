@@ -58,6 +58,11 @@ export const PERSONAL_API_KEY_DEFAULTS = {
   rateLimitWindow: "1h",
 } as const satisfies Omit<CreateApiKeyRequest, "name">;
 
+export const ORGANIZATION_API_KEY_DEFAULTS = {
+  ...PERSONAL_API_KEY_DEFAULTS,
+  presetIds: ["organization-read-all"],
+} as const satisfies Omit<CreateApiKeyRequest, "name">;
+
 export function apiKeyPresetIdsForScopes(
   scopes: readonly ApiKeyResponse["scopes"][number][],
 ): ApiKeyPresetId[] {
