@@ -4,9 +4,12 @@ using Template.Api.Contracts;
 using Template.Api.Endpoints;
 using Template.Api.Errors;
 using Template.Api.Features.Auth;
+using Template.Api.Features.ApiKeys;
 using Template.Api.OpenApi;
+using Template.Application.ApiKeys;
 using Template.Application.Authentication.Ports;
 using Template.Application.Collaboration;
+using Template.Domain.ApiKeys;
 using Template.Domain.Authentication;
 using Template.Domain.Collaboration;
 using Template.Domain.Organizations;
@@ -17,10 +20,13 @@ internal sealed class TeamEndpointModule : IEndpointModule
 {
     public void MapEndpoints(EndpointRouteContext context)
     {
-        context.VersionedApi.MapGet(
+        context.VersionedMixedApi.MapGet(
                 "/organizations/{organizationId}/teams",
                 ListTeamsAsync)
             .WithName("GetTeams")
+            .RequireApiKeyScopes(
+                ApiKeyScopes.OrganizationRead,
+                ApiKeyScopes.TeamRead)
             .Produces<ApiResponse<TeamPageResponse>>()
             .ProducesBadRequestVariants()
             .Produces<ProblemDetails>(
@@ -66,10 +72,14 @@ internal sealed class TeamEndpointModule : IEndpointModule
                 OpenApiDefaults.ProblemContentType)
             .ProducesProtectedApiProblems();
 
-        context.VersionedApi.MapGet(
+        context.VersionedMixedApi.MapGet(
                 "/organizations/{organizationId}/teams/{teamId}/members",
                 ListTeamMembersAsync)
             .WithName("GetTeamMembers")
+            .RequireApiKeyScopes(
+                ApiKeyScopes.OrganizationRead,
+                ApiKeyScopes.TeamRead,
+                ApiKeyScopes.TeamMemberRead)
             .Produces<ApiResponse<TeamMemberPageResponse>>()
             .ProducesBadRequestVariants()
             .Produces<ProblemDetails>(
@@ -120,12 +130,46 @@ internal sealed class TeamEndpointModule : IEndpointModule
         string? cursor,
         string? limit,
         TeamService teams,
+        MachineApiService machineApi,
         IBrowserSessionGateway browserSessions,
         ILogger<TeamEndpointModule> logger,
         HttpContext http,
         CancellationToken cancellationToken)
     {
         CollaborationEndpointBoundary.NoStore(http);
+        if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
+        {
+            return await AuditMachineAsync(
+                async () =>
+                {
+                    var boundary = new TeamListBoundary(
+                        CollaborationEndpointBoundary.OrganizationId(
+                            organizationId),
+                        CollaborationEndpointBoundary.Cursor(
+                            http,
+                            cursor),
+                        CollaborationEndpointBoundary.Limit(http, limit));
+                    var result = await machineApi.ListTeamsAsync(
+                        principal,
+                        boundary.OrganizationId,
+                        boundary.Cursor,
+                        boundary.Limit,
+                        cancellationToken);
+                    var page = RequireMachineSuccess(result);
+                    WriteMachineAudit(
+                        logger,
+                        "team_list",
+                        "succeeded",
+                        principal);
+                    return Results.Ok(
+                        new ApiResponse<TeamPageResponse>(Map(page)));
+                },
+                "team_list",
+                principal,
+                logger,
+                cancellationToken);
+        }
+
         var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
             browserSessions,
             http.User,
@@ -293,12 +337,46 @@ internal sealed class TeamEndpointModule : IEndpointModule
         string? cursor,
         string? limit,
         TeamService teams,
+        MachineApiService machineApi,
         IBrowserSessionGateway browserSessions,
         ILogger<TeamEndpointModule> logger,
         HttpContext http,
         CancellationToken cancellationToken)
     {
         CollaborationEndpointBoundary.NoStore(http);
+        if (ApiKeyPrincipalReader.TryRead(http.User, out var principal))
+        {
+            return await AuditMachineAsync(
+                async () =>
+                {
+                    var boundary = new TeamResourceListBoundary(
+                        CollaborationEndpointBoundary.OrganizationId(
+                            organizationId),
+                        CollaborationEndpointBoundary.TeamId(teamId),
+                        CollaborationEndpointBoundary.Cursor(http, cursor),
+                        CollaborationEndpointBoundary.Limit(http, limit));
+                    var result = await machineApi.ListTeamMembersAsync(
+                        principal,
+                        boundary.OrganizationId,
+                        boundary.TeamId,
+                        boundary.Cursor,
+                        boundary.Limit,
+                        cancellationToken);
+                    var page = RequireMachineSuccess(result);
+                    WriteMachineAudit(
+                        logger,
+                        "team_members_list",
+                        "succeeded",
+                        principal);
+                    return Results.Ok(
+                        new ApiResponse<TeamMemberPageResponse>(Map(page)));
+                },
+                "team_members_list",
+                principal,
+                logger,
+                cancellationToken);
+        }
+
         var actor = await CollaborationEndpointBoundary.RequiredActorAsync(
             browserSessions,
             http.User,
@@ -492,6 +570,91 @@ internal sealed class TeamEndpointModule : IEndpointModule
         throw MapFailure(failure);
     }
 
+    private static T RequireMachineSuccess<T>(
+        MachineApiOperationResult<T> result)
+        where T : class
+    {
+        if (result.Succeeded)
+        {
+            return result.Value
+                ?? throw new InvalidOperationException(
+                    "A successful machine team operation returned no value.");
+        }
+
+        throw result.Failure switch
+        {
+            MachineApiFailure.InvalidCursor => new ApiProblemException(
+                StatusCodes.Status400BadRequest,
+                ApiProblemCodes.InvalidCursor),
+            MachineApiFailure.OrganizationAccessDenied =>
+                new ApiProblemException(
+                    StatusCodes.Status403Forbidden,
+                    ApiProblemCodes.OrganizationAccessDenied),
+            MachineApiFailure.NotFound => new ApiProblemException(
+                StatusCodes.Status404NotFound,
+                ApiProblemCodes.TeamNotFound),
+            _ => new InvalidOperationException(
+                "A failed machine team operation returned no failure.")
+        };
+    }
+
+    private static async Task<IResult> AuditMachineAsync(
+        Func<Task<IResult>> execute,
+        string operation,
+        ApiKeyPrincipal principal,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await execute();
+        }
+        catch (ApiValidationException)
+        {
+            WriteMachineAudit(
+                logger,
+                operation,
+                ApiProblemCodes.ValidationFailed,
+                principal);
+            throw;
+        }
+        catch (ApiProblemException problem)
+        {
+            WriteMachineAudit(logger, operation, problem.Code, principal);
+            throw;
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            WriteMachineAudit(
+                logger,
+                operation,
+                ApiProblemCodes.InternalError,
+                principal);
+            throw;
+        }
+    }
+
+    private static void WriteMachineAudit(
+        ILogger logger,
+        string operation,
+        string outcome,
+        ApiKeyPrincipal principal) =>
+        ApiKeySecurityEvents.WriteMachine(
+            logger,
+            operation,
+            outcome,
+            principal.Owner.Kind == ApiKeyOwnerKind.User
+                ? "user"
+                : "organization",
+            principal.Owner.UserId?.Value ??
+            principal.Owner.OrganizationId?.Value,
+            principal.Id.Value);
+
     private static ApiProblemException MapFailure(TeamFailure failure) =>
         failure switch
         {
@@ -529,6 +692,10 @@ internal sealed class TeamEndpointModule : IEndpointModule
         value.Items.Select(Map).ToArray(),
         value.NextCursor);
 
+    private static TeamPageResponse Map(MachineTeamPage value) => new(
+        value.Items.Select(Map).ToArray(),
+        value.NextCursor);
+
     private static TeamResponse Map(TeamSummary value) => new(
         value.Id.Value,
         value.OrganizationId.Value,
@@ -536,7 +703,18 @@ internal sealed class TeamEndpointModule : IEndpointModule
         value.MemberCount,
         Map(value.Members),
         value.CreatedAt,
-        value.UpdatedAt);
+        value.UpdatedAt,
+        MembersIncluded: true);
+
+    private static TeamResponse Map(MachineTeamSummary value) => new(
+        value.Id.Value,
+        value.OrganizationId.Value,
+        value.Name.Value,
+        value.MemberCount,
+        Map(value.Members),
+        value.CreatedAt,
+        value.UpdatedAt,
+        value.MembersIncluded);
 
     private static TeamMemberPageResponse Map(TeamMemberPage value) => new(
         value.Items.Select(Map).ToArray(),

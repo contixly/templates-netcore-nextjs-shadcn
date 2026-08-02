@@ -186,7 +186,8 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                 },
                 "organization_list",
                 principal,
-                logger);
+                logger,
+                cancellationToken);
         }
 
         var actor = await RequiredActorAsync(
@@ -258,7 +259,8 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
             },
             "organization_get",
             principal,
-            logger);
+            logger,
+            cancellationToken);
     }
 
     private static async Task<IResult> CreateOrganizationAsync(
@@ -622,7 +624,8 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
                 },
                 "organization_members_list",
                 principal,
-                logger);
+                logger,
+                cancellationToken);
         }
 
         var actor = await RequiredActorAsync(
@@ -833,7 +836,8 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         Func<Task<IResult>> execute,
         string operation,
         ApiKeyPrincipal principal,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -851,6 +855,11 @@ internal sealed class OrganizationEndpointModule : IEndpointModule
         catch (ApiProblemException problem)
         {
             WriteMachineAudit(logger, operation, problem.Code, principal);
+            throw;
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
             throw;
         }
         catch

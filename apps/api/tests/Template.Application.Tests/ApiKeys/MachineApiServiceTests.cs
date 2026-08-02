@@ -1,8 +1,10 @@
 using Template.Application.ApiKeys;
 using Template.Application.ApiKeys.Ports;
+using Template.Application.Collaboration;
 using Template.Application.Organizations;
 using Template.Domain.ApiKeys;
 using Template.Domain.Authentication;
+using Template.Domain.Collaboration;
 using Template.Domain.Organizations;
 
 namespace Template.Application.Tests.ApiKeys;
@@ -119,11 +121,104 @@ public sealed class MachineApiServiceTests
         Assert.Equal(foreignId, store.GetUserOrganizationId);
     }
 
-    private static ApiKeyPrincipal PersonalPrincipal(UserId userId) => new(
+    [Fact]
+    public async Task Team_list_derives_embedded_member_inclusion_from_the_principal_scope()
+    {
+        var userId = new UserId(Guid.NewGuid());
+        var organizationId = new OrganizationId(Guid.NewGuid());
+        var withoutMembers = new FakeMachineApiStore
+        {
+            UserTeams = TeamPage(organizationId, membersIncluded: false)
+        };
+        var withMembers = new FakeMachineApiStore
+        {
+            UserTeams = TeamPage(organizationId, membersIncluded: true)
+        };
+
+        var redacted = await new MachineApiService(withoutMembers).ListTeamsAsync(
+            PersonalPrincipal(
+                userId,
+                ApiKeyScopes.OrganizationRead,
+                ApiKeyScopes.TeamRead),
+            organizationId,
+            cursor: null,
+            limit: 50,
+            TestContext.Current.CancellationToken);
+        var included = await new MachineApiService(withMembers).ListTeamsAsync(
+            PersonalPrincipal(
+                userId,
+                ApiKeyScopes.OrganizationRead,
+                ApiKeyScopes.TeamRead,
+                ApiKeyScopes.TeamMemberRead),
+            organizationId,
+            cursor: null,
+            limit: 50,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(withoutMembers.IncludeTeamMembers);
+        Assert.False(Assert.Single(redacted.Value!.Items).MembersIncluded);
+        Assert.True(withMembers.IncludeTeamMembers);
+        Assert.True(Assert.Single(included.Value!.Items).MembersIncluded);
+    }
+
+    [Fact]
+    public async Task Team_member_read_checks_route_organization_before_loading_a_team()
+    {
+        var ownerId = new OrganizationId(Guid.NewGuid());
+        var foreignId = new OrganizationId(Guid.NewGuid());
+        var store = new FakeMachineApiStore();
+
+        var result = await new MachineApiService(store).ListTeamMembersAsync(
+            OrganizationPrincipal(ownerId),
+            foreignId,
+            new TeamId(Guid.NewGuid()),
+            cursor: null,
+            limit: 50,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(MachineApiFailure.OrganizationAccessDenied, result.Failure);
+        Assert.Equal(0, store.Calls);
+    }
+
+    [Fact]
+    public async Task Machine_team_list_reuses_the_target_cursor_and_limit()
+    {
+        var userId = new UserId(Guid.NewGuid());
+        var organizationId = new OrganizationId(Guid.NewGuid());
+        var position = new TeamCursorPosition(
+            DateTimeOffset.Parse("2026-08-01T10:00:00Z"),
+            new TeamId(Guid.NewGuid()));
+        var cursor = TeamCursor.Encode(position);
+        var store = new FakeMachineApiStore
+        {
+            UserTeams = new([], position)
+        };
+
+        var result = await new MachineApiService(store).ListTeamsAsync(
+            PersonalPrincipal(
+                userId,
+                ApiKeyScopes.OrganizationRead,
+                ApiKeyScopes.TeamRead),
+            organizationId,
+            cursor,
+            limit: 25,
+            TestContext.Current.CancellationToken);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(position, store.TeamAfter);
+        Assert.Equal(25, store.TeamLimit);
+        Assert.Equal(cursor, result.Value!.NextCursor);
+    }
+
+    private static ApiKeyPrincipal PersonalPrincipal(
+        UserId userId,
+        params string[] scopes) => new(
         new ApiKeyId(Guid.NewGuid()),
         "user_abcdefghijk",
         new(ApiKeyOwnerKind.User, userId, null),
-        [ApiKeyScopes.OrganizationRead, ApiKeyScopes.MemberRead]);
+        scopes.Length == 0
+            ? [ApiKeyScopes.OrganizationRead, ApiKeyScopes.MemberRead]
+            : scopes);
 
     private static ApiKeyPrincipal OrganizationPrincipal(
         OrganizationId organizationId) => new(
@@ -154,6 +249,30 @@ public sealed class MachineApiServiceTests
         "organization",
         new(false, false, false, false, false, false, false));
 
+    private static TeamStorePage<MachineTeamStoreSummary, TeamCursorPosition>
+        TeamPage(OrganizationId organizationId, bool membersIncluded)
+    {
+        var teamId = new TeamId(Guid.NewGuid());
+        if (!TeamName.TryCreate("Machine team", out var name))
+        {
+            throw new InvalidOperationException("The test team name is invalid.");
+        }
+
+        return new(
+            [new(
+                teamId,
+                organizationId,
+                name,
+                MemberCount: 0,
+                new TeamStorePage<
+                    TeamMemberView,
+                    TeamMemberCursorPosition>([], null),
+                DateTimeOffset.Parse("2026-08-01T09:00:00Z"),
+                DateTimeOffset.Parse("2026-08-01T09:00:00Z"),
+                membersIncluded)],
+            null);
+    }
+
     private sealed class FakeMachineApiStore : IMachineApiStore
     {
         public OrganizationStorePage<MachineOrganizationSummary, OrganizationListCursorPosition>
@@ -168,6 +287,18 @@ public sealed class MachineApiServiceTests
         public OrganizationStorePage<OrganizationMember, OrganizationMemberCursorPosition>?
             OrganizationMembers
         { get; init; }
+        public TeamStorePage<MachineTeamStoreSummary, TeamCursorPosition>?
+            UserTeams
+        { get; init; }
+        public TeamStorePage<MachineTeamStoreSummary, TeamCursorPosition>?
+            OrganizationTeams
+        { get; init; }
+        public TeamStorePage<TeamMemberView, TeamMemberCursorPosition>?
+            UserTeamMembers
+        { get; init; }
+        public TeamStorePage<TeamMemberView, TeamMemberCursorPosition>?
+            OrganizationTeamMembers
+        { get; init; }
         public int Calls { get; private set; }
         public UserId? ListUserId { get; private set; }
         public OrganizationListCursorPosition? ListAfter { get; private set; }
@@ -175,6 +306,9 @@ public sealed class MachineApiServiceTests
         public OrganizationId? GetOrganizationId { get; private set; }
         public UserId? GetUserId { get; private set; }
         public OrganizationId? GetUserOrganizationId { get; private set; }
+        public bool? IncludeTeamMembers { get; private set; }
+        public TeamCursorPosition? TeamAfter { get; private set; }
+        public int? TeamLimit { get; private set; }
 
         public Task<OrganizationStorePage<MachineOrganizationSummary, OrganizationListCursorPosition>>
             ListUserOrganizationsAsync(
@@ -231,6 +365,62 @@ public sealed class MachineApiServiceTests
         {
             Calls++;
             return Task.FromResult(OrganizationMembers);
+        }
+
+        public Task<TeamStorePage<MachineTeamStoreSummary, TeamCursorPosition>?>
+            ListUserOrganizationTeamsAsync(
+                UserId userId,
+                OrganizationId organizationId,
+                TeamCursorPosition? after,
+                int limit,
+                bool includeMembers,
+                CancellationToken cancellationToken)
+        {
+            Calls++;
+            IncludeTeamMembers = includeMembers;
+            TeamAfter = after;
+            TeamLimit = limit;
+            return Task.FromResult(UserTeams);
+        }
+
+        public Task<TeamStorePage<MachineTeamStoreSummary, TeamCursorPosition>?>
+            ListOrganizationTeamsAsync(
+                OrganizationId organizationId,
+                TeamCursorPosition? after,
+                int limit,
+                bool includeMembers,
+                CancellationToken cancellationToken)
+        {
+            Calls++;
+            IncludeTeamMembers = includeMembers;
+            TeamAfter = after;
+            TeamLimit = limit;
+            return Task.FromResult(OrganizationTeams);
+        }
+
+        public Task<TeamStorePage<TeamMemberView, TeamMemberCursorPosition>?>
+            ListUserOrganizationTeamMembersAsync(
+                UserId userId,
+                OrganizationId organizationId,
+                TeamId teamId,
+                TeamMemberCursorPosition? after,
+                int limit,
+                CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(UserTeamMembers);
+        }
+
+        public Task<TeamStorePage<TeamMemberView, TeamMemberCursorPosition>?>
+            ListOrganizationTeamMembersAsync(
+                OrganizationId organizationId,
+                TeamId teamId,
+                TeamMemberCursorPosition? after,
+                int limit,
+                CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(OrganizationTeamMembers);
         }
     }
 }

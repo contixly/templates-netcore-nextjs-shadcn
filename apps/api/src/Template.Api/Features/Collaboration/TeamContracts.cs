@@ -21,7 +21,8 @@ internal sealed record TeamResponse(
     int MemberCount,
     TeamMemberPageResponse Members,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool MembersIncluded);
 
 internal sealed record TeamPageResponse(
     IReadOnlyList<TeamResponse> Items,

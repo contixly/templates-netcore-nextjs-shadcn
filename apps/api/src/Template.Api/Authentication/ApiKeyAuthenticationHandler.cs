@@ -165,6 +165,8 @@ internal sealed class ApiKeyAuthenticationHandler :
             "GetOrganizations" => "organization_list",
             "GetMachineOrganization" => "organization_get",
             "GetOrganizationMembers" => "organization_members_list",
+            "GetTeams" => "team_list",
+            "GetTeamMembers" => "team_members_list",
             _ => "unknown"
         };
 

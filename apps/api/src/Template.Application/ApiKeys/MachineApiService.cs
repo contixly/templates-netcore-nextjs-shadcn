@@ -1,6 +1,8 @@
 using Template.Application.ApiKeys.Ports;
+using Template.Application.Collaboration;
 using Template.Application.Organizations;
 using Template.Domain.ApiKeys;
+using Template.Domain.Collaboration;
 using Template.Domain.Organizations;
 
 namespace Template.Application.ApiKeys;
@@ -30,6 +32,30 @@ public sealed record MachineOrganizationPage(
 
 public sealed record MachineOrganizationMemberPage(
     IReadOnlyList<OrganizationMember> Items,
+    string? NextCursor);
+
+public sealed record MachineTeamSummary(
+    TeamId Id,
+    OrganizationId OrganizationId,
+    TeamName Name,
+    int MemberCount,
+    TeamMemberPage Members,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    bool MembersIncluded);
+
+public sealed record MachineTeamStoreSummary(
+    TeamId Id,
+    OrganizationId OrganizationId,
+    TeamName Name,
+    int MemberCount,
+    TeamStorePage<TeamMemberView, TeamMemberCursorPosition> Members,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset UpdatedAt,
+    bool MembersIncluded);
+
+public sealed record MachineTeamPage(
+    IReadOnlyList<MachineTeamSummary> Items,
     string? NextCursor);
 
 public sealed record MachineApiOperationResult<T>(
@@ -231,6 +257,165 @@ public sealed class MachineApiService(IMachineApiStore store)
                     ? null
                     : OrganizationCursor.Encode(page.Next)));
     }
+
+    public async Task<MachineApiOperationResult<MachineTeamPage>>
+        ListTeamsAsync(
+            ApiKeyPrincipal principal,
+            OrganizationId organizationId,
+            string? cursor,
+            int limit,
+            CancellationToken cancellationToken)
+    {
+        ValidateLimit(limit);
+        TeamCursorPosition? after = null;
+        if (cursor is not null)
+        {
+            if (!TeamCursor.TryDecode(cursor, out TeamCursorPosition decoded))
+            {
+                return MachineApiOperationResult<MachineTeamPage>.Failed(
+                    MachineApiFailure.InvalidCursor);
+            }
+
+            after = decoded;
+        }
+
+        var includeMembers = principal.Scopes.Contains(
+            ApiKeyScopes.TeamMemberRead,
+            StringComparer.Ordinal);
+        TeamStorePage<MachineTeamStoreSummary, TeamCursorPosition>? page;
+        if (principal.Owner.Kind == ApiKeyOwnerKind.User)
+        {
+            var userId = principal.Owner.UserId
+                ?? throw InvalidPrincipal();
+            page = await store.ListUserOrganizationTeamsAsync(
+                userId,
+                organizationId,
+                after,
+                limit,
+                includeMembers,
+                cancellationToken);
+            if (page is null)
+            {
+                return MachineApiOperationResult<MachineTeamPage>.Failed(
+                    MachineApiFailure.OrganizationAccessDenied);
+            }
+        }
+        else
+        {
+            var ownerOrganizationId = RequiredOrganizationOwner(principal);
+            if (ownerOrganizationId != organizationId)
+            {
+                return MachineApiOperationResult<MachineTeamPage>.Failed(
+                    MachineApiFailure.OrganizationAccessDenied);
+            }
+
+            page = await store.ListOrganizationTeamsAsync(
+                organizationId,
+                after,
+                limit,
+                includeMembers,
+                cancellationToken);
+            if (page is null)
+            {
+                return MachineApiOperationResult<MachineTeamPage>.Failed(
+                    MachineApiFailure.NotFound);
+            }
+        }
+
+        return MachineApiOperationResult<MachineTeamPage>.Success(new(
+            page.Items.Select(MapTeam).ToArray(),
+            page.Next is null ? null : TeamCursor.Encode(page.Next)));
+    }
+
+    public async Task<MachineApiOperationResult<TeamMemberPage>>
+        ListTeamMembersAsync(
+            ApiKeyPrincipal principal,
+            OrganizationId organizationId,
+            TeamId teamId,
+            string? cursor,
+            int limit,
+            CancellationToken cancellationToken)
+    {
+        ValidateLimit(limit);
+        TeamMemberCursorPosition? after = null;
+        if (cursor is not null)
+        {
+            if (!TeamCursor.TryDecode(
+                    cursor,
+                    out TeamMemberCursorPosition decoded))
+            {
+                return MachineApiOperationResult<TeamMemberPage>.Failed(
+                    MachineApiFailure.InvalidCursor);
+            }
+
+            after = decoded;
+        }
+
+        TeamStorePage<TeamMemberView, TeamMemberCursorPosition>? page;
+        if (principal.Owner.Kind == ApiKeyOwnerKind.User)
+        {
+            var userId = principal.Owner.UserId
+                ?? throw InvalidPrincipal();
+            var organization = await store.GetUserOrganizationAsync(
+                userId,
+                organizationId,
+                cancellationToken);
+            if (organization is null)
+            {
+                return MachineApiOperationResult<TeamMemberPage>.Failed(
+                    MachineApiFailure.OrganizationAccessDenied);
+            }
+
+            page = await store.ListUserOrganizationTeamMembersAsync(
+                userId,
+                organizationId,
+                teamId,
+                after,
+                limit,
+                cancellationToken);
+        }
+        else
+        {
+            var ownerOrganizationId = RequiredOrganizationOwner(principal);
+            if (ownerOrganizationId != organizationId)
+            {
+                return MachineApiOperationResult<TeamMemberPage>.Failed(
+                    MachineApiFailure.OrganizationAccessDenied);
+            }
+
+            page = await store.ListOrganizationTeamMembersAsync(
+                organizationId,
+                teamId,
+                after,
+                limit,
+                cancellationToken);
+        }
+
+        if (page is null)
+        {
+            return MachineApiOperationResult<TeamMemberPage>.Failed(
+                MachineApiFailure.NotFound);
+        }
+
+        return MachineApiOperationResult<TeamMemberPage>.Success(new(
+            page.Items,
+            page.Next is null ? null : TeamCursor.Encode(page.Next)));
+    }
+
+    private static MachineTeamSummary MapTeam(
+        MachineTeamStoreSummary value) => new(
+            value.Id,
+            value.OrganizationId,
+            value.Name,
+            value.MemberCount,
+            new(
+                value.Members.Items,
+                value.Members.Next is null
+                    ? null
+                    : TeamCursor.Encode(value.Members.Next)),
+            value.CreatedAt,
+            value.UpdatedAt,
+            value.MembersIncluded);
 
     private static OrganizationId RequiredOrganizationOwner(
         ApiKeyPrincipal principal) =>
