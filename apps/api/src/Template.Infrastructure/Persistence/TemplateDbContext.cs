@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.EntityFrameworkCore.Models;
+using Template.Infrastructure.ApiKeys;
 using Template.Infrastructure.Collaboration;
 using Template.Infrastructure.Identity;
 using Template.Infrastructure.Organizations;
@@ -30,6 +31,7 @@ public sealed class TemplateDbContext(DbContextOptions<TemplateDbContext> option
     public DbSet<TeamEntity> Teams => Set<TeamEntity>();
     public DbSet<TeamMemberEntity> TeamMembers => Set<TeamMemberEntity>();
     public DbSet<InvitationEntity> Invitations => Set<InvitationEntity>();
+    public DbSet<ApiKeyEntity> ApiKeys => Set<ApiKeyEntity>();
     public DbSet<DataProtectionKey> DataProtectionKeys => Set<DataProtectionKey>();
     public DbSet<OpenIddictEntityFrameworkCoreToken> OpenIddictTokens =>
         Set<OpenIddictEntityFrameworkCoreToken>();
@@ -54,6 +56,7 @@ public sealed class TemplateDbContext(DbContextOptions<TemplateDbContext> option
         builder.ApplyConfiguration(new TeamEntityConfiguration());
         builder.ApplyConfiguration(new TeamMemberEntityConfiguration());
         builder.ApplyConfiguration(new InvitationEntityConfiguration());
+        builder.ApplyConfiguration(new ApiKeyEntityConfiguration());
 
         builder.Entity<ApplicationUser>(entity =>
         {
