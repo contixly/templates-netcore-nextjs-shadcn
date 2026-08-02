@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
 
 import { createDocumentMdxComponents } from "@/src/components/documents/mdx/documents-mdx-components";
@@ -125,11 +125,15 @@ it("uses stable duplicate heading IDs and copies heading and code values", async
   expect(headings[0]).toHaveAttribute("id", "repeated");
   expect(headings[1]).toHaveAttribute("id", "repeated-2");
 
-  fireEvent.click(screen.getAllByRole("button", { name: "Copy link" })[0]!);
+  await act(async () => {
+    fireEvent.click(screen.getAllByRole("button", { name: "Copy link" })[0]!);
+  });
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
     expect.stringMatching(/#repeated$/),
   );
-  fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
+  });
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith("npm test\n");
 });
 
@@ -143,6 +147,11 @@ it("renders safe links, unavailable documentation targets, images, and GFM table
   render(
     <>
       <Anchor href="https://nextjs.org/docs">External</Anchor>
+      <Anchor href="/docs">Documentation home</Anchor>
+      <Anchor href="/docs/general/quick-start">Quick start</Anchor>
+      <Anchor href="/docsgeneral/quick-start">
+        Malformed documentation prefix
+      </Anchor>
       <Anchor href="/docs/private/draft">Unavailable</Anchor>
       <Anchor href="javascript:alert(1)">Unsafe</Anchor>
       <Image alt="Template logo" src="/img/branding/template_logo_nb_s.png" />
@@ -169,6 +178,16 @@ it("renders safe links, unavailable documentation targets, images, and GFM table
     "rel",
     "noopener noreferrer",
   );
+  expect(
+    screen.getByRole("link", { name: "Documentation home" }),
+  ).toHaveAttribute("href", "/docs");
+  expect(screen.getByRole("link", { name: "Quick start" })).toHaveAttribute(
+    "href",
+    "/docs/general/quick-start",
+  );
+  expect(
+    screen.queryByRole("link", { name: "Malformed documentation prefix" }),
+  ).not.toBeInTheDocument();
   expect(
     screen.queryByRole("link", { name: "Unavailable" }),
   ).not.toBeInTheDocument();

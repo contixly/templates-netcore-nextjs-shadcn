@@ -177,9 +177,13 @@ function DocumentsTabs({
 }
 
 function normalizedDocumentTarget(href: string): string | undefined {
-  if (!href.startsWith("/docs")) return undefined;
   const parsed = new URL(href, "https://documents.invalid");
-  if (parsed.origin !== "https://documents.invalid") return undefined;
+  if (
+    parsed.origin !== "https://documents.invalid" ||
+    (parsed.pathname !== "/docs" && !parsed.pathname.startsWith("/docs/"))
+  ) {
+    return undefined;
+  }
   let path = parsed.pathname.replace(/^\/docs\/?/u, "").replace(/\/$/u, "");
   if (!path || path === "index") return "index";
   if (path.endsWith("/index")) path = path.slice(0, -6);
