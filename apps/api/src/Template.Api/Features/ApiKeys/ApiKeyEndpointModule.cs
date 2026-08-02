@@ -24,6 +24,8 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
 
     private static void MapOwnerRoutes(RouteGroupBuilder group, bool organization)
     {
+        group.WithMetadata(new ApiKeyOwnerRouteMetadata(
+            organization ? ApiKeyOwnerKind.Organization : ApiKeyOwnerKind.User));
         var suffix = organization ? "Organization" : "Personal";
         group.MapGet("", ListAsync)
             .WithName($"List{suffix}ApiKeys")
@@ -63,7 +65,6 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
     }
 
     private static async Task<IResult> ListAsync(
-        string? organizationId,
         string? cursor,
         string? limit,
         ApiKeyManagementService apiKeys,
@@ -75,11 +76,12 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         CancellationToken cancellationToken)
     {
         var actor = await ApiKeyEndpointBoundary.RequiredActorAsync(sessions, http.User, cancellationToken);
-        var owner = Owner(actor, organizationId);
+        var owner = Owner(actor, http);
         const string operation = "list";
         try
         {
             await AuthorizeOwnerAsync(actor, owner, organizations, cancellationToken);
+            ApiKeyEndpointBoundary.RequireExactQuery(http, "cursor", "limit");
             var result = await apiKeys.ListAsync(new(
                 actor,
                 owner.Kind,
@@ -101,7 +103,6 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
     }
 
     private static async Task<IResult> CreateAsync(
-        string? organizationId,
         ApiJsonRequestReader reader,
         ApiKeyManagementService apiKeys,
         OrganizationService organizations,
@@ -112,11 +113,12 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         CancellationToken cancellationToken)
     {
         var actor = await ApiKeyEndpointBoundary.RequiredActorAsync(sessions, http.User, cancellationToken);
-        var owner = Owner(actor, organizationId);
+        var owner = Owner(actor, http);
         const string operation = "create";
         try
         {
             await AuthorizeOwnerAsync(actor, owner, organizations, cancellationToken);
+            ApiKeyEndpointBoundary.RequireExactQuery(http);
             var request = await reader.ReadAsync<CreateApiKeyRequest>(http, null, cancellationToken);
             ApiKeyEndpointBoundary.ValidateCreate(request);
             var result = await apiKeys.CreateAsync(new(
@@ -145,7 +147,6 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
     }
 
     private static async Task<IResult> UpdateAsync(
-        string? organizationId,
         string apiKeyId,
         ApiJsonRequestReader reader,
         ApiKeyManagementService apiKeys,
@@ -157,14 +158,17 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         CancellationToken cancellationToken)
     {
         var actor = await ApiKeyEndpointBoundary.RequiredActorAsync(sessions, http.User, cancellationToken);
-        var owner = Owner(actor, organizationId);
+        var owner = Owner(actor, http);
         ApiKeyId? trustedId = null;
         const string operation = "update";
         try
         {
             trustedId = ApiKeyEndpointBoundary.ApiKeyId(apiKeyId);
             await AuthorizeOwnerAsync(actor, owner, organizations, cancellationToken);
-            var request = await reader.ReadAsync<UpdateApiKeyRequest>(http, null, cancellationToken);
+            ApiKeyEndpointBoundary.RequireExactQuery(http);
+            var request = await reader.ReadRejectingExplicitNullsAsync<UpdateApiKeyRequest>(
+                http,
+                cancellationToken);
             var result = await apiKeys.UpdateAsync(new(
                 actor, owner.Kind, owner.OrganizationId, trustedId.Value,
                 request.Name, request.PresetIds, request.ExpiresIn, request.Enabled,
@@ -181,7 +185,6 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
     }
 
     private static async Task<IResult> RevokeAsync(
-        string? organizationId,
         string apiKeyId,
         ApiKeyManagementService apiKeys,
         OrganizationService organizations,
@@ -191,13 +194,14 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         CancellationToken cancellationToken)
     {
         var actor = await ApiKeyEndpointBoundary.RequiredActorAsync(sessions, http.User, cancellationToken);
-        var owner = Owner(actor, organizationId);
+        var owner = Owner(actor, http);
         ApiKeyId? trustedId = null;
         const string operation = "revoke";
         try
         {
             trustedId = ApiKeyEndpointBoundary.ApiKeyId(apiKeyId);
             await AuthorizeOwnerAsync(actor, owner, organizations, cancellationToken);
+            ApiKeyEndpointBoundary.RequireExactQuery(http);
             ApiKeyEndpointBoundary.RequireEmptyBody(http);
             var result = await apiKeys.RevokeAsync(new(
                 actor, owner.Kind, owner.OrganizationId, trustedId.Value), cancellationToken);
@@ -214,7 +218,6 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
     }
 
     private static async Task<IResult> RotateAsync(
-        string? organizationId,
         string apiKeyId,
         ApiKeyManagementService apiKeys,
         OrganizationService organizations,
@@ -225,13 +228,14 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         CancellationToken cancellationToken)
     {
         var actor = await ApiKeyEndpointBoundary.RequiredActorAsync(sessions, http.User, cancellationToken);
-        var owner = Owner(actor, organizationId);
+        var owner = Owner(actor, http);
         ApiKeyId? trustedId = null;
         const string operation = "rotate";
         try
         {
             trustedId = ApiKeyEndpointBoundary.ApiKeyId(apiKeyId);
             await AuthorizeOwnerAsync(actor, owner, organizations, cancellationToken);
+            ApiKeyEndpointBoundary.RequireExactQuery(http);
             ApiKeyEndpointBoundary.RequireEmptyBody(http);
             var result = await apiKeys.RotateAsync(new(
                 actor, owner.Kind, owner.OrganizationId, trustedId.Value), cancellationToken);
@@ -246,10 +250,29 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         }
     }
 
-    private static ApiKeyOwner Owner(UserId actor, string? organizationId) =>
-        organizationId is null
-            ? new(ApiKeyOwnerKind.User, actor, null)
-            : new(ApiKeyOwnerKind.Organization, null, ApiKeyEndpointBoundary.OrganizationId(organizationId));
+    private static ApiKeyOwner Owner(UserId actor, HttpContext http)
+    {
+        var metadata = http.GetEndpoint()?.Metadata
+            .GetMetadata<ApiKeyOwnerRouteMetadata>()
+            ?? throw new InvalidOperationException(
+                "API key owner route metadata is required.");
+        if (metadata.Kind == ApiKeyOwnerKind.User)
+        {
+            return new(ApiKeyOwnerKind.User, actor, null);
+        }
+
+        if (metadata.Kind != ApiKeyOwnerKind.Organization ||
+            http.Request.RouteValues["organizationId"] is not string organizationId)
+        {
+            throw new InvalidOperationException(
+                "Organization API key routes require an organization route value.");
+        }
+
+        return new(
+            ApiKeyOwnerKind.Organization,
+            null,
+            ApiKeyEndpointBoundary.OrganizationId(organizationId));
+    }
 
     private static async Task AuthorizeOwnerAsync(
         UserId actor,
@@ -397,4 +420,6 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
         };
         Audit(logger, operation, outcome, actor, owner, apiKeyId);
     }
+
+    private sealed record ApiKeyOwnerRouteMetadata(ApiKeyOwnerKind Kind);
 }

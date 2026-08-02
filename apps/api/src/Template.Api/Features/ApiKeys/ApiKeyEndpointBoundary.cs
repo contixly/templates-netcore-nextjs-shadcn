@@ -74,6 +74,19 @@ internal static class ApiKeyEndpointBoundary
     internal static string? Cursor(HttpContext http, string? boundValue) =>
         SingleQueryValue(http, "cursor", boundValue);
 
+    internal static void RequireExactQuery(
+        HttpContext http,
+        params string[] allowedNames)
+    {
+        var allowed = allowedNames.ToHashSet(StringComparer.Ordinal);
+        if (http.Request.Query.Keys.Any(key => !allowed.Contains(key)))
+        {
+            throw Validation(
+                "query",
+                "The query contains an unsupported field.");
+        }
+    }
+
     internal static void ValidateCreate(CreateApiKeyRequest request)
     {
         var errors = new Dictionary<string, string[]>(StringComparer.Ordinal);

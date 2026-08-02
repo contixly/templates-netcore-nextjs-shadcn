@@ -19,6 +19,28 @@ internal sealed class ApiJsonRequestReader(IOptions<JsonOptions> jsonOptions)
         Func<T>? emptyBodyFactory,
         CancellationToken cancellationToken)
         where T : class
+        => await ReadCoreAsync<T>(
+            context,
+            emptyBodyFactory,
+            rejectExplicitNullProperties: false,
+            cancellationToken);
+
+    internal async Task<T> ReadRejectingExplicitNullsAsync<T>(
+        HttpContext context,
+        CancellationToken cancellationToken)
+        where T : class
+        => await ReadCoreAsync<T>(
+            context,
+            emptyBodyFactory: null,
+            rejectExplicitNullProperties: true,
+            cancellationToken);
+
+    private async Task<T> ReadCoreAsync<T>(
+        HttpContext context,
+        Func<T>? emptyBodyFactory,
+        bool rejectExplicitNullProperties,
+        CancellationToken cancellationToken)
+        where T : class
     {
         using var reader = new StreamReader(
             context.Request.Body,
@@ -54,6 +76,11 @@ internal sealed class ApiJsonRequestReader(IOptions<JsonOptions> jsonOptions)
             throw new ApiProblemException(
                 StatusCodes.Status400BadRequest,
                 ApiProblemCodes.InvalidRequest);
+        }
+
+        if (rejectExplicitNullProperties)
+        {
+            RejectExplicitNullProperties(json);
         }
 
         T value;
@@ -93,5 +120,27 @@ internal sealed class ApiJsonRequestReader(IOptions<JsonOptions> jsonOptions)
         }
 
         return value;
+    }
+
+    private static void RejectExplicitNullProperties(string json)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind == JsonValueKind.Object &&
+                document.RootElement.EnumerateObject().Any(
+                    property => property.Value.ValueKind == JsonValueKind.Null))
+            {
+                throw new ApiProblemException(
+                    StatusCodes.Status400BadRequest,
+                    ApiProblemCodes.InvalidRequest);
+            }
+        }
+        catch (JsonException)
+        {
+            throw new ApiProblemException(
+                StatusCodes.Status400BadRequest,
+                ApiProblemCodes.InvalidRequest);
+        }
     }
 }
