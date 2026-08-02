@@ -158,13 +158,15 @@ internal sealed class ApiKeyAuthenticationHandler :
     }
 
     private string MachineOperation() =>
-        string.Equals(
-            Context.GetEndpoint()?.Metadata.GetMetadata<IEndpointNameMetadata>()
-                ?.EndpointName,
-            "GetApiKeyPrincipal",
-            StringComparison.Ordinal)
-            ? "me"
-            : "unknown";
+        Context.GetEndpoint()?.Metadata.GetMetadata<IEndpointNameMetadata>()
+            ?.EndpointName switch
+        {
+            "GetApiKeyPrincipal" => "me",
+            "GetOrganizations" => "organization_list",
+            "GetMachineOrganization" => "organization_get",
+            "GetOrganizationMembers" => "organization_members_list",
+            _ => "unknown"
+        };
 
     private async Task WriteProblemAsync(
         int status,

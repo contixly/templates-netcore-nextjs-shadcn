@@ -115,6 +115,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<ITeamStore, EfTeamStore>();
         services.AddScoped<IInvitationStore, EfInvitationStore>();
         services.AddScoped<IApiKeyStore, EfApiKeyStore>();
+        services.AddScoped<IMachineApiStore, EfMachineApiStore>();
         services.AddSingleton<IApiKeyCredentialService, CryptographicApiKeyCredentialService>();
         services.AddSingleton<NoOpInvitationNotifier>();
         services.AddSingleton<IInvitationNotifier>(provider =>

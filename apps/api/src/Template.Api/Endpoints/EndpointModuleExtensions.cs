@@ -35,6 +35,8 @@ internal static class EndpointModuleExtensions
             endpoints.MapGroup("/api/v1")
                 .RequireAuthorization(ApiPolicies.BrowserSession),
             endpoints.MapGroup("/api/v1")
+                .RequireAuthorization(ApiPolicies.BrowserOrMachine),
+            endpoints.MapGroup("/api/v1")
                 .RequireAuthorization(ApiPolicies.MachineKey));
 
         foreach (var module in endpoints.ServiceProvider

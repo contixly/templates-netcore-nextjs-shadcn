@@ -59,6 +59,7 @@ public static class ApiHost
         builder.Services.AddScoped<AccountSessionService>();
         builder.Services.AddScoped<ApiKeyManagementService>();
         builder.Services.AddScoped<ApiKeyAuthenticationService>();
+        builder.Services.AddScoped<MachineApiService>();
         builder.Services.AddScoped<OrganizationService>();
         builder.Services.AddScoped<OrganizationMembershipService>();
         builder.Services.AddScoped<TeamService>();

@@ -67,6 +67,11 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
         var listData = await OrganizationEndpointTestSupport.ReadDataAsync(list);
         Assert.Equal(HttpStatusCode.OK, list.StatusCode);
         Assert.Equal(2, listData.GetProperty("items").GetArrayLength());
+        Assert.All(
+            listData.GetProperty("items").EnumerateArray(),
+            item => Assert.Equal(
+                "user",
+                item.GetProperty("accessPrincipal").GetString()));
         Assert.Equal(JsonValueKind.Null, listData.GetProperty("nextCursor").ValueKind);
 
         using var detail = await client.GetAsync(
@@ -820,6 +825,7 @@ public sealed class OrganizationEndpointTests(ApiWebApplicationFactory factory)
         Assert.Equal(name, data.GetProperty("name").GetString());
         Assert.Equal(slug, data.GetProperty("slug").GetString());
         Assert.Equal(slug, data.GetProperty("canonicalKey").GetString());
+        Assert.Equal("user", data.GetProperty("accessPrincipal").GetString());
         Assert.Equal(role, data.GetProperty("currentRole").GetString());
         Assert.NotEqual(default, data.GetProperty("createdAt").GetDateTimeOffset());
         Assert.NotEqual(default, data.GetProperty("updatedAt").GetDateTimeOffset());
