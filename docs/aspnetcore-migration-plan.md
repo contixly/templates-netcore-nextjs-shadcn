@@ -6,9 +6,10 @@ scope локально принят для implementation head
 `d7ea69c988474e81768aaf49b472c3fd95503594`. Ready PR #8 (base `main`) был
 mergeable при наблюдении на reviewed head
 `8bdf31f828c29f7fff75058b7261404718cec47f`; первый GitHub Codex review не
-нашёл major issues. Этот новый documentation evidence commit ещё не pushed и
-не проходил review; его будущие результат и статус намеренно не заявляются
-заранее.
+нашёл major issues. Этот durable документ фиксирует только наблюдённый clean
+review head `8bdf31f828c29f7fff75058b7261404718cec47f`; последующие
+documentation-only commits намеренно не self-assert собственный review result,
+а exact-current-head review state остаётся PR metadata/controller evidence.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -296,7 +297,7 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 4 — accounts и внешний OAuth                       | Завершена | Functional scope принят; five-provider OAuth/account lifecycle, verified emails, sessions, hard delete, Data Protection, REST/UI/E2E реализованы; live screen smoke частичный, callbacks не выполнялись.                                                                                                                       |
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
-| 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This new documentation evidence commit is not yet pushed or reviewed. |
+| 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), machine writes, Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
 
 ## Acceptance evidence: итерация 1
@@ -2795,9 +2796,10 @@ line is: `Codex Review: Didn't find any major issues. Breezy!`
 A thread-aware snapshot found **0** review threads and **0** unresolved, with
 no inline findings or reviews.
 
-This records the observed review only for that head. This new documentation
-evidence commit itself is not yet pushed or reviewed, and no future review
-result is claimed.
+This durable document records the observed clean review only for that head.
+Subsequent documentation-only commits intentionally do not self-assert their
+own review result; exact-current-head review state remains PR
+metadata/controller evidence.
 
 **Known differences/out of scope:** target uses ASP.NET Core auth/Problem
 Details, UUID/FK owners, SHA-256 reveal-once credentials, bounded opaque pages,
