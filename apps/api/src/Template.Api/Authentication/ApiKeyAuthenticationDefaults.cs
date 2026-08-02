@@ -11,6 +11,9 @@ internal static class ApiKeyAuthenticationDefaults
     internal const string UserConfigId = "user-keys";
     internal const string OrganizationConfigId = "org-keys";
 
+    internal static bool IsSelected(HttpContext context) =>
+        context.Request.Headers.ContainsKey(HeaderName);
+
     internal static string ConfigId(ApiKeyOwnerKind ownerKind) => ownerKind switch
     {
         ApiKeyOwnerKind.User => UserConfigId,

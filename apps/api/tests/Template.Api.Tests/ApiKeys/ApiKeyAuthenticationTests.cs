@@ -1,7 +1,11 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Api.Tests.Infrastructure;
 using Template.Api.Tests.Organizations;
 using Template.Application.ApiKeys.Ports;
@@ -20,6 +24,125 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
         await factory.ResetAuthDataAsync(TestContext.Current.CancellationToken);
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AgedBrowserCookieDoesNotRenewWhenHeaderSelectsApiKey(
+        bool validKey)
+    {
+        var time = new MutableTimeProvider(
+            DateTimeOffset.FromUnixTimeSeconds(
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
+        await using var controlled = WithTimeProvider(time);
+        using var client = CreateClient(controlled);
+        var key = await CreatePersonalKeyAsync(client);
+        var presented = validKey
+            ? key.Credential
+            : controlled.Services.GetRequiredService<IApiKeyCredentialService>()
+                .Generate(ApiKeyOwnerKind.User).Credential;
+        time.Advance(TimeSpan.FromDays(4));
+
+        using var response = await SendWithApiKeyAsync(client, MePath, presented);
+
+        if (validKey)
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            await AssertMeUsesKeyAsync(response, key.Id);
+        }
+        else
+        {
+            await AssertProblemAsync(
+                response,
+                HttpStatusCode.Unauthorized,
+                "api_key_invalid");
+        }
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+    }
+
+    [Theory]
+    [InlineData("valid")]
+    [InlineData("invalid")]
+    [InlineData("blank")]
+    public async Task StaleBrowserCookieDoesNotDeleteCookieWhenHeaderSelectsApiKey(
+        string presentation)
+    {
+        await using var isolated = factory.WithWebHostBuilder(_ => { });
+        using var client = CreateClient(isolated);
+        var key = await CreatePersonalKeyAsync(client);
+        await using (var scope = isolated.Services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<TemplateDbContext>()
+                .Sessions.ExecuteDeleteAsync(
+                    TestContext.Current.CancellationToken);
+        }
+        var presented = presentation switch
+        {
+            "valid" => key.Credential,
+            "invalid" => isolated.Services
+                .GetRequiredService<IApiKeyCredentialService>()
+                .Generate(ApiKeyOwnerKind.User).Credential,
+            "blank" => "   ",
+            _ => throw new ArgumentOutOfRangeException(nameof(presentation))
+        };
+
+        using var response = await SendWithApiKeyAsync(client, MePath, presented);
+
+        if (presentation == "valid")
+        {
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            await AssertMeUsesKeyAsync(response, key.Id);
+        }
+        else
+        {
+            await AssertProblemAsync(
+                response,
+                HttpStatusCode.Unauthorized,
+                presentation == "blank" ? "api_key_missing" : "api_key_invalid");
+        }
+        Assert.False(response.Headers.TryGetValues("Set-Cookie", out _));
+    }
+
+    [Fact]
+    public async Task CanonicalInjectedMachinePrincipalAuthorizesAndIsReadable()
+    {
+        using var client = factory.CreateApiClient();
+
+        using var response = await client.GetAsync(
+            "/api/testing/api-key-principal/valid",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        Assert.True(document.RootElement.GetProperty("authorized").GetBoolean());
+        Assert.True(document.RootElement.GetProperty("readable").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData("duplicate-identity")]
+    [InlineData("additional-identity")]
+    [InlineData("unknown-claim")]
+    [InlineData("duplicate-claim")]
+    [InlineData("mixed-owner")]
+    [InlineData("invalid-scope")]
+    public async Task MalformedInjectedMachinePrincipalDeniesWithoutThrowing(
+        string scenario)
+    {
+        using var client = factory.CreateApiClient();
+
+        using var response = await client.GetAsync(
+            $"/api/testing/api-key-principal/{scenario}",
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        Assert.False(document.RootElement.GetProperty("authorized").GetBoolean());
+        Assert.False(document.RootElement.GetProperty("readable").GetBoolean());
+    }
 
     [Fact]
     public async Task MachineRouteMapsMissingBlankAndBearerOnlyCredentialsToMissingWithoutStoreUse()
@@ -509,6 +632,26 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
         return await client.SendAsync(request, TestContext.Current.CancellationToken);
     }
 
+    private WebApplicationFactory<Program> WithTimeProvider(
+        MutableTimeProvider time) =>
+        factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<TimeProvider>(time);
+                services.PostConfigureAll<CookieAuthenticationOptions>(options =>
+                    options.TimeProvider = time);
+            }));
+
+    private static HttpClient CreateClient(
+        WebApplicationFactory<Program> application) =>
+        application.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost"),
+            HandleCookies = true
+        });
+
     private static async Task<string?> ReadAuthenticationTypeAsync(
         HttpResponseMessage response)
     {
@@ -516,6 +659,21 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
             await response.Content.ReadAsStringAsync(
                 TestContext.Current.CancellationToken));
         return document.RootElement.GetProperty("authenticationType").GetString();
+    }
+
+    private static async Task AssertMeUsesKeyAsync(
+        HttpResponseMessage response,
+        Guid keyId)
+    {
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync(
+                TestContext.Current.CancellationToken));
+        Assert.Equal(
+            keyId,
+            document.RootElement.GetProperty("data")
+                .GetProperty("key")
+                .GetProperty("id")
+                .GetGuid());
     }
 
     private static async Task AssertProblemAsync(
@@ -581,4 +739,14 @@ public sealed class ApiKeyAuthenticationTests(ApiWebApplicationFactory factory)
         Guid OrganizationId,
         string Start,
         string Credential);
+
+    private sealed class MutableTimeProvider(DateTimeOffset utcNow)
+        : TimeProvider
+    {
+        private DateTimeOffset _utcNow = utcNow;
+
+        public override DateTimeOffset GetUtcNow() => _utcNow;
+
+        internal void Advance(TimeSpan value) => _utcNow += value;
+    }
 }

@@ -18,17 +18,17 @@ internal sealed class ApiKeyScopeAuthorizationHandler
         AuthorizationHandlerContext context,
         ApiKeyScopeRequirement requirement)
     {
-        var apiKeyIdentity = context.User.Identities.SingleOrDefault(identity =>
-            identity.IsAuthenticated &&
-            string.Equals(
+        if (context.User.Identities.Any(identity => string.Equals(
                 identity.AuthenticationType,
                 ApiKeyAuthenticationDefaults.SchemeName,
-                StringComparison.Ordinal));
-        if (apiKeyIdentity is not null)
+                StringComparison.Ordinal)))
         {
-            if (requirement.Scopes.All(scope => apiKeyIdentity.HasClaim(
-                    ApiKeyClaimTypes.Scope,
-                    scope)))
+            if (ApiKeyPrincipalReader.TryRead(
+                    context.User,
+                    out var principal) &&
+                requirement.Scopes.All(scope => principal.Scopes.Contains(
+                    scope,
+                    StringComparer.Ordinal)))
             {
                 context.Succeed(requirement);
             }
@@ -74,6 +74,17 @@ internal static class ApiKeyAuthorizationExtensions
 
 internal static class ApiKeyPrincipalReader
 {
+    private static readonly HashSet<string> KnownClaimTypes = new(
+        [
+            ApiKeyClaimTypes.Id,
+            ApiKeyClaimTypes.Start,
+            ApiKeyClaimTypes.OwnerKind,
+            ApiKeyClaimTypes.UserId,
+            ApiKeyClaimTypes.OrganizationId,
+            ApiKeyClaimTypes.Scope
+        ],
+        StringComparer.Ordinal);
+
     private static readonly string[] CanonicalScopeOrder =
     [
         ApiKeyScopes.BasicRead,
@@ -88,23 +99,27 @@ internal static class ApiKeyPrincipalReader
         out ApiKeyPrincipal principal)
     {
         principal = null!;
-        var identities = claims.Identities.Where(identity =>
-                identity.IsAuthenticated &&
-                string.Equals(
-                    identity.AuthenticationType,
-                    ApiKeyAuthenticationDefaults.SchemeName,
-                    StringComparison.Ordinal))
-            .ToArray();
-        if (identities.Length != 1)
+        var identities = claims.Identities.ToArray();
+        if (identities.Length != 1 ||
+            !identities[0].IsAuthenticated ||
+            !string.Equals(
+                identities[0].AuthenticationType,
+                ApiKeyAuthenticationDefaults.SchemeName,
+                StringComparison.Ordinal))
         {
             return false;
         }
 
         var identity = identities[0];
+        var allClaims = identity.Claims.ToArray();
+        if (allClaims.Any(claim => !KnownClaimTypes.Contains(claim.Type)))
+        {
+            return false;
+        }
+
         if (!TrySingle(identity, ApiKeyClaimTypes.Id, out var idValue) ||
-            !ApiKeyId.TryParse(idValue, out var id) ||
+            !TryCanonicalGuid(idValue, out var idGuid) ||
             !TrySingle(identity, ApiKeyClaimTypes.Start, out var start) ||
-            string.IsNullOrWhiteSpace(start) ||
             !TrySingle(identity, ApiKeyClaimTypes.OwnerKind, out var ownerKind) ||
             !TryCanonicalScopes(
                 identity.FindAll(ApiKeyClaimTypes.Scope)
@@ -117,7 +132,8 @@ internal static class ApiKeyPrincipalReader
         ApiKeyOwner owner;
         if (string.Equals(ownerKind, "user", StringComparison.Ordinal) &&
             TrySingle(identity, ApiKeyClaimTypes.UserId, out var userIdValue) &&
-            Guid.TryParse(userIdValue, out var userId) &&
+            TryCanonicalGuid(userIdValue, out var userId) &&
+            IsSafeStart(start, "user_") &&
             !identity.HasClaim(claim =>
                 claim.Type == ApiKeyClaimTypes.OrganizationId))
         {
@@ -134,7 +150,8 @@ internal static class ApiKeyPrincipalReader
                      identity,
                      ApiKeyClaimTypes.OrganizationId,
                      out var organizationIdValue) &&
-                 Guid.TryParse(organizationIdValue, out var organizationId) &&
+                 TryCanonicalGuid(organizationIdValue, out var organizationId) &&
+                 IsSafeStart(start, "org_") &&
                  !identity.HasClaim(claim =>
                      claim.Type == ApiKeyClaimTypes.UserId))
         {
@@ -148,7 +165,7 @@ internal static class ApiKeyPrincipalReader
             return false;
         }
 
-        principal = new(id, start, owner, scopes);
+        principal = new(new ApiKeyId(idGuid), start, owner, scopes);
         return true;
     }
 
@@ -181,4 +198,14 @@ internal static class ApiKeyPrincipalReader
         value = claims.Length == 1 ? claims[0].Value : string.Empty;
         return claims.Length == 1;
     }
+
+    private static bool TryCanonicalGuid(string value, out Guid id) =>
+        Guid.TryParseExact(value, "D", out id) &&
+        string.Equals(value, id.ToString("D"), StringComparison.Ordinal);
+
+    private static bool IsSafeStart(string value, string prefix) =>
+        value.Length == 16 &&
+        value.StartsWith(prefix, StringComparison.Ordinal) &&
+        value.All(character =>
+            char.IsAsciiLetterOrDigit(character) || character is '-' or '_');
 }

@@ -44,8 +44,7 @@ internal static class AuthenticationServiceCollectionExtensions
                 ApiKeyAuthenticationDefaults.ConsumerSelectorSchemeName,
                 displayName: null,
                 options => options.ForwardDefaultSelector = context =>
-                    context.Request.Headers.ContainsKey(
-                        ApiKeyAuthenticationDefaults.HeaderName)
+                    ApiKeyAuthenticationDefaults.IsSelected(context)
                         ? ApiKeyAuthenticationDefaults.SchemeName
                         : ApiAuthenticationDefaults.SchemeName)
             .AddScheme<
