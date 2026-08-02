@@ -16,32 +16,21 @@ editedAt: "2026-07-06"
 
 # Email domains
 
-Allowed email domains let a workspace restrict new invitations and direct member additions to
-approved recipient domains.
+Allowed domains are organization settings enforced by ASP.NET Core when members are added or invitations created. The browser does not implement policy through a database shortcut.
 
 ## Configure allowed domains
 
-Open workspace settings and edit the allowed email domain list. Domains are normalized before they
-are stored, so product UI can treat `Example.com` and `example.com` as the same policy value.
-
-An empty list means domain restrictions are disabled.
+`PATCH /api/v1/organizations/{organizationId}` sends `allowedEmailDomains`. Values are trimmed, lowercased, and stripped of one leading `@`; duplicates collapse. An exact DNS-like domain has at least two labels, ASCII letters/digits/internal hyphens, and at most 253 characters. At most 100 distinct normalized domains are accepted. Empty list disables restriction; `example.com` does not imply `sub.example.com`.
 
 ## Invitation checks
 
-When restrictions are enabled, new invitations must target an allowed email domain. Invite acceptance
-also checks the user's verified primary email against the invitation and the active domain policy.
-
-If the domain is no longer allowed by the time the user accepts, the invitation cannot be accepted.
+`POST /api/v1/organizations/{organizationId}/invitations` rejects an address outside the list, with no acknowledgement override. Existing pending invitations are not rewritten, but acceptance rechecks current policy.
 
 ## Direct member add checks
 
-When an admin adds an existing user directly, the template checks the user's email domain before
-membership creation. Out-of-policy adds can require an explicit override flow.
+`POST /api/v1/organizations/{organizationId}/members` includes `userId`, `role`, and optional `acknowledgeDomainRestriction`. For an outside or unrecognized verified-email domain, a manager reviews the warning and retries with explicit acknowledgement set to `true`.
 
-## Existing members
-
-Changing the domain policy does not remove existing members. Instead, the users page flags members
-outside the current policy so admins can review them.
+Mutations require secure HttpOnly cookie and fresh CSRF. Existing members remain visible and are marked outside-policy; settings changes do not remove them.
 
 ## Related pages
 

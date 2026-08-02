@@ -16,29 +16,27 @@ editedAt: "2026-07-06"
 
 # Users without a workspace
 
-A signed-in user can temporarily have no accessible workspace: they may be new, removed from an
-organization, or waiting for an invitation. The template handles this state with a reusable
-onboarding guard.
+A signed-in user may have zero accessible organizations: a new user, removed member, or invitation recipient not yet accepted. This is a normal API state.
 
 ## What the guard does
 
-The guard prevents protected workspace content from rendering without a valid organization context.
-Instead, it directs the user toward actions that can restore access:
+The guard calls `GET /api/v1/organizations` through the generated client. An empty first page sends the user to `/welcome`, which keeps available:
 
-- create a workspace;
-- review pending invitations;
-- open account settings.
+- first workspace creation through `POST /api/v1/organizations`;
+- pending invitations through `GET /api/v1/account/invitations`;
+- global account settings.
+
+Creation atomically adds owner membership and active organization. Invitation acceptance atomically adds membership, optional team, and the same session preference.
 
 ## What remains available
 
-The zero-workspace state does not block global management pages. Users can still reach account
-settings, the workspace management page, and their personal invitation list.
+Global account and workspace-management pages remain available without organization context. Invitation detail still applies matching-primary-email non-disclosure.
 
 ## Dashboard behavior
 
-The global `/dashboard` route resolves the best available workspace. If the active workspace is not
-valid, the app falls back to a deterministic accessible workspace. If none exists, the user is sent
-to the welcome/onboarding surface.
+`/dashboard` resolves server-side session preference against accessible organizations. If absent/stale it uses a deterministic accessible organization; if none, `/welcome`. Deep links validate `GET /api/v1/organizations/by-key/{organizationKey}`.
+
+The browser must not fabricate organizations, insert memberships, cache access in local storage, or use direct database/SQL setup. A gated Development/Test email-confirmation REST helper exists only for deterministic automation, not production verification. Real invitation email is out of scope.
 
 ## Related pages
 

@@ -16,41 +16,27 @@ editedAt: "2026-07-06"
 
 # Create and switch workspaces
 
-Workspaces are the product-facing collaboration spaces in the template. Each workspace is backed by
-a Better Auth Organization and has a route under `/w/:organizationKey/...`.
+`/workspaces` is backed by generated organization REST calls. It does not keep a private browser access list.
 
 ## Create a workspace
 
-1. Open the workspace management page from the application shell or onboarding state.
-2. Choose **Create workspace**.
-3. Enter a workspace name.
-4. Save the form.
+1. Open `/workspaces` or `/welcome`.
+2. Enter a name of 1-50 supported Unicode letters/digits, spaces, hyphens, or underscores.
+3. Send `POST /api/v1/organizations` with fresh CSRF.
 
-The application creates the underlying organization and generates a deduplicated slug for the
-workspace URL. New workspaces do not create a default team; zero explicit teams is valid.
+ASP.NET Core generates a unique canonical slug and atomically creates the organization, owner membership, and current session preference. Follow the canonical key in the response.
 
 ## Open a workspace
 
-Workspace pages use `/w/:organizationKey/...`, where `organizationKey` can be the organization slug
-or id. Slugs are preferred in UI links, but id-based links remain valid for compatibility.
-
-Opening a workspace route validates access before rendering workspace content. Inaccessible routes
-show the appropriate protected state instead of leaking workspace data.
+`GET /api/v1/organizations?limit=50` returns accessible items and `nextCursor`; limits are `1..100` and cursors opaque. Routes use `/w/:organizationKey/...`. A UUID or old slug resolves through `GET /api/v1/organizations/by-key/{organizationKey}` and redirects to the current canonical slug when accessible.
 
 ## Switch workspace context
 
-Use the workspace switcher in the application shell to move between accessible workspaces. For base
-workspace routes, the switcher preserves the equivalent destination in the selected workspace. For
-unknown or complex paths, it falls back to the selected workspace dashboard.
-
-Deep links use the workspace from the URL. They do not silently rewrite the user's active workspace
-session context unless the user explicitly switches.
+Selection sends `PUT /api/v1/auth/session/active-organization` with UUID and fresh CSRF. The preference lives on the server-side session. Later `/dashboard` uses it if accessible; the browser does not write organization access to local storage.
 
 ## Delete a workspace
 
-Workspace deletion is available only to members with the required organization delete permission.
-The template prevents unsafe deletion paths that would leave the user without an accessible working
-area.
+Only an owner may send `DELETE /api/v1/organizations/{organizationId}` with the exact case-sensitive `confirmationName` and CSRF. Deletion clears referencing session preferences and does not silently choose another workspace.
 
 ## Related pages
 

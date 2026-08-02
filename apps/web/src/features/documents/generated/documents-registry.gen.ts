@@ -359,13 +359,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Access model",
-        "id": "access-model"
-      },
-      {
-        "level": 2,
-        "title": "When to use account settings",
-        "id": "when-to-use-account-settings"
+        "title": "Current implementation state",
+        "id": "current-implementation-state"
       },
       {
         "level": 2,
@@ -417,8 +412,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Provider configuration",
-        "id": "provider-configuration"
+        "title": "Verified email ownership",
+        "id": "verified-email-ownership"
       },
       {
         "level": 2,
@@ -465,18 +460,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Revoke one session",
-        "id": "revoke-one-session"
+        "title": "Revoke access",
+        "id": "revoke-access"
       },
       {
         "level": 2,
-        "title": "Revoke all other sessions",
-        "id": "revoke-all-other-sessions"
-      },
-      {
-        "level": 2,
-        "title": "Security expectations",
-        "id": "security-expectations"
+        "title": "Security boundary",
+        "id": "security-boundary"
       },
       {
         "level": 2,
@@ -528,8 +518,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Product extension note",
-        "id": "product-extension-note"
+        "title": "Out of scope",
+        "id": "out-of-scope"
       },
       {
         "level": 2,
@@ -575,13 +565,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Модель доступа",
-        "id": "модель-доступа"
-      },
-      {
-        "level": 2,
-        "title": "Когда использовать настройки аккаунта",
-        "id": "когда-использовать-настройки-аккаунта"
+        "title": "Текущее состояние реализации",
+        "id": "текущее-состояние-реализации"
       },
       {
         "level": 2,
@@ -633,8 +618,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Конфигурация провайдеров",
-        "id": "конфигурация-провайдеров"
+        "title": "Владение подтвержденным email",
+        "id": "владение-подтвержденным-email"
       },
       {
         "level": 2,
@@ -681,18 +666,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Отозвать одну сессию",
-        "id": "отозвать-одну-сессию"
+        "title": "Отозвать доступ",
+        "id": "отозвать-доступ"
       },
       {
         "level": 2,
-        "title": "Отозвать все остальные сессии",
-        "id": "отозвать-все-остальные-сессии"
-      },
-      {
-        "level": 2,
-        "title": "Ожидания безопасности",
-        "id": "ожидания-безопасности"
+        "title": "Граница безопасности",
+        "id": "граница-безопасности"
       },
       {
         "level": 2,
@@ -744,8 +724,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Заметка для расширения продукта",
-        "id": "заметка-для-расширения-продукта"
+        "title": "Вне scope",
+        "id": "вне-scope"
       },
       {
         "level": 2,
@@ -902,13 +882,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Permissions",
-        "id": "permissions"
+        "title": "Update and delete rules",
+        "id": "update-and-delete-rules"
       },
       {
         "level": 2,
-        "title": "Shared settings shell",
-        "id": "shared-settings-shell"
+        "title": "Security and scope",
+        "id": "security-and-scope"
       },
       {
         "level": 2,
@@ -960,13 +940,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Add an existing user",
-        "id": "add-an-existing-user"
-      },
-      {
-        "level": 2,
-        "title": "Update roles",
-        "id": "update-roles"
+        "title": "Add and update",
+        "id": "add-and-update"
       },
       {
         "level": 2,
@@ -1081,11 +1056,6 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "No active team control",
-        "id": "no-active-team-control"
-      },
-      {
-        "level": 2,
         "title": "Related pages",
         "id": "related-pages"
       }
@@ -1136,11 +1106,6 @@ export const documents = [
         "level": 2,
         "title": "Direct member add checks",
         "id": "direct-member-add-checks"
-      },
-      {
-        "level": 2,
-        "title": "Existing members",
-        "id": "existing-members"
       },
       {
         "level": 2,
@@ -1350,13 +1315,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Права",
-        "id": "права"
+        "title": "Правила обновления и удаления",
+        "id": "правила-обновления-и-удаления"
       },
       {
         "level": 2,
-        "title": "Общая оболочка настроек",
-        "id": "общая-оболочка-настроек"
+        "title": "Безопасность и scope",
+        "id": "безопасность-и-scope"
       },
       {
         "level": 2,
@@ -1408,13 +1373,8 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Добавить существующего пользователя",
-        "id": "добавить-существующего-пользователя"
-      },
-      {
-        "level": 2,
-        "title": "Изменить роли",
-        "id": "изменить-роли"
+        "title": "Добавление и изменение",
+        "id": "добавление-и-изменение"
       },
       {
         "level": 2,
@@ -1529,11 +1489,6 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Нет управления активной командой",
-        "id": "нет-управления-активной-командой"
-      },
-      {
-        "level": 2,
         "title": "Связанные страницы",
         "id": "связанные-страницы"
       }
@@ -1584,11 +1539,6 @@ export const documents = [
         "level": 2,
         "title": "Проверки прямого добавления участника",
         "id": "проверки-прямого-добавления-участника"
-      },
-      {
-        "level": 2,
-        "title": "Существующие участники",
-        "id": "существующие-участники"
       },
       {
         "level": 2,

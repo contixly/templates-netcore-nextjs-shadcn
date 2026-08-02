@@ -16,32 +16,24 @@ editedAt: "2026-07-06"
 
 # Delete account
 
-The danger page contains destructive account actions. In the template, the primary destructive
-account action is deleting the current user account.
+`/user/danger` drives the implemented irreversible hard-delete REST flow, not soft-delete or background cleanup.
 
 ## Before deletion
 
-Account deletion is irreversible from the UI. Review connected providers, API keys, workspaces, and
-pending invitations before continuing.
-
-The template also revokes personal API keys owned by the deleted user. Workspace data is governed by
-workspace and organization ownership rules.
+Review providers, sessions, organizations, teams, invitations, and API keys. In the deletion transaction, an organization where the user is the only member may be deleted; safe memberships may be removed; deletion is blocked when the user is sole owner of a multi-member organization. The UI gives transfer/share-owner guidance only for that exact blocker.
 
 ## Delete the account
 
 1. Open `/user/danger`.
-2. Read the destructive action description.
-3. Enter the account email exactly as requested.
-4. Confirm deletion.
+2. Enter the current primary email exactly.
+3. Send `DELETE /api/v1/account` with `{ "confirmationEmail": "..." }` and fresh CSRF.
+4. After success, leave protected pages; ASP.NET Core expires the session cookie.
 
-The action rejects mismatched confirmation input. This prevents accidental deletion from a casual
-button click.
+The API validates confirmation and authorization. The transaction removes the Identity user and dependent verified emails, external logins, sessions, safe organization memberships, and configured dependents through lifecycle stores and database cascades. The browser must not delete records directly.
 
-## Product extension note
+## Out of scope
 
-If your service stores product data owned by the user, extend this flow with clear retention,
-export, and transfer rules. Keep those rules visible on the danger page before the user confirms
-deletion.
+Export, retention windows, restore, and an ownership-transfer endpoint are not part of this flow. Products that need them must implement and document them before exposing deletion.
 
 ## Related pages
 

@@ -16,35 +16,30 @@ editedAt: "2026-07-06"
 
 # Workspace settings
 
-Workspace settings are split into dedicated section pages. This keeps each management task focused
-and lets the navigation show only sections the current member can use.
+Settings are REST-backed views. The shell resolves `GET /api/v1/organizations/by-key/{organizationKey}` and uses returned role/capabilities; client visibility is not authorization.
 
 ## Settings sections
 
-| Section | Route | What it contains |
-| ------- | ----- | ---------------- |
-| Workspace | `/w/:organizationKey/settings/workspace` | Workspace name, slug, and allowed email domains. |
-| Users | `/w/:organizationKey/settings/users` | Current user summary, member list, direct member add, and role controls. |
-| Invitations | `/w/:organizationKey/settings/invitations` | Invitation table, statuses, links, and create-invitation modal. |
-| Teams | `/w/:organizationKey/settings/teams` | Explicit workspace teams and team membership management. |
-| Roles | `/w/:organizationKey/settings/roles` | Placeholder for future role expansion. |
-| API keys | `/w/:organizationKey/settings/api-keys` | Workspace-owned API keys for `/api/v1`. |
+| Section     | Route                                      | Current behavior                                          |
+| ----------- | ------------------------------------------ | --------------------------------------------------------- |
+| Workspace   | `/w/:organizationKey/settings/workspace`   | `PATCH`/`DELETE /api/v1/organizations/{organizationId}`.  |
+| Users       | `/w/:organizationKey/settings/users`       | Page/add existing members and change allowed roles.       |
+| Invitations | `/w/:organizationKey/settings/invitations` | Page/filter activity and create 48-hour invitations.      |
+| Teams       | `/w/:organizationKey/settings/teams`       | Page teams and manage composition.                        |
+| Roles       | `/w/:organizationKey/settings/roles`       | Fixed role explanation; custom roles are not implemented. |
+| API keys    | `/w/:organizationKey/settings/api-keys`    | Separately documented organization key management.        |
 
-The settings root redirects to the first available section after access validation.
+The root redirects to the first available section after access validation.
 
-## Permissions
+## Update and delete rules
 
-Regular members can read safe settings context such as member lists and teams. Management controls
-appear only for members whose role permits the action.
+PATCH accepts dirty fields and rejects an empty/no-op body. Names trim to 1-50 supported characters. Slugs normalize to at most 64 lowercase ASCII letters/digits separated by single hyphens and cannot be UUID-shaped. UI sends only changes against latest authoritative detail.
 
-The invitations and API key sections are conditional: users without the required permissions do not
-see management actions and may not see the section link at all.
+Deletion is owner-only and requires exact case-sensitive current name in `confirmationName`. Inaccessible resources are non-disclosing.
 
-## Shared settings shell
+## Security and scope
 
-Account settings and workspace settings use the same visual shell: contextual intro first, then
-section islands for forms, lists, and empty states. This keeps dense operational pages readable in
-light and dark themes.
+Every mutation uses the generated client, secure HttpOnly cookie, and fresh CSRF. Iterations 5-6 implement organization/collaboration settings. Custom roles, member removal, active-team selection, and invitation cancel/resend remain out of scope.
 
 ## Related pages
 

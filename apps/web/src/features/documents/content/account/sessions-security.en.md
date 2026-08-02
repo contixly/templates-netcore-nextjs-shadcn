@@ -16,38 +16,27 @@ editedAt: "2026-07-06"
 
 # Sessions and security
 
-The security page helps users review active sessions and revoke access without exposing raw session
-tokens in the browser.
+ASP.NET Core persists browser sessions server-side and exposes only safe metadata. The secret key remains in the secure HttpOnly cookie; raw tickets and hashes never enter the REST projection.
 
 ## Review sessions
 
-Open `/user/security` to see session metadata such as device, location, and timestamps. The current
-session is clearly separated from other sessions.
+`/user/security` calls `GET /api/v1/account/sessions?limit=20`. Items contain opaque session id, authentication method, current marker, timestamps, and available IP/user-agent data. Results are newest-first. Pages use `nextCursor`; `limit` defaults to `20` and is bounded to `1..100`.
 
-The page is intentionally limited to safe identifiers. Secret session tokens are resolved and
-handled on the server.
+The cursor is an opaque versioned continuation with corruption detection. Pass it back unchanged, derive no identity from it, and restart at page one after `invalid_cursor`.
 
-## Revoke one session
+## Revoke access
 
-Use the row action for a session that is not the current one. The server resolves the token for the
-selected session and revokes it.
+- `DELETE /api/v1/account/sessions/{sessionId}` revokes one owned non-current session.
+- `DELETE /api/v1/account/sessions/others` removes all others while preserving the current session.
 
-The current session cannot be revoked through the single-session action. This prevents a confusing
-"revoke the page you are using" flow.
+Both require the cookie and fresh CSRF. After revoke-others, the UI reloads page one from authoritative API state.
 
-## Revoke all other sessions
+## Security boundary
 
-Use the bulk revoke action to sign out every other active session while preserving the current one.
-This is useful after password, provider, or device concerns.
-
-## Security expectations
-
-Protected account actions ignore forged client identity and always load the authenticated session on
-the server. Product features built on top of the template should follow the same protected-action
-pattern.
+Reads use `no-store`; authorization comes from the authenticated cookie, never a browser-supplied user id. Cursor checksum is not authorization: ownership is checked independently.
 
 ## Related pages
 
 - [Profile and connections](/docs/account/profile-connections)
 - [Runtime security](/docs/application/runtime-security)
-- [Server actions](/docs/developers/server-actions)
+- [API v1](/docs/api/api-v1)

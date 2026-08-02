@@ -16,37 +16,27 @@ editedAt: "2026-07-06"
 
 # Teams
 
-Teams are explicit subgroups inside a workspace. They are backed by Better Auth Teams but remain a
-workspace feature in the user interface.
+Teams are subgroups inside an organization. They do not replace organization membership/roles/routing, and sessions have no active-team value.
 
 ## Team model
 
-New workspaces do not create a default team. The workspace organization is the all-members context,
-and zero explicit teams is a valid state.
+Organizations may have zero teams. Names are unique case-insensitively per organization and contain 1-50 supported Unicode letters/digits, spaces, hyphens, or underscores. Team membership references an existing membership in the same organization.
 
-Team names are unique inside one workspace. Cross-workspace team membership is rejected.
+Every member may read teams; owner/admin manage them and composition. Member is read-only. Missing/foreign resources are non-disclosing.
 
 ## Manage teams
 
-Authorized members can:
+- `GET`/`POST /api/v1/organizations/{organizationId}/teams` list/create.
+- `PATCH`/`DELETE /api/v1/organizations/{organizationId}/teams/{teamId}` rename/delete.
+- `GET`/`POST .../teams/{teamId}/members` page/add organization members.
+- `DELETE .../teams/{teamId}/members/{userId}` removes team membership.
+- `GET .../teams/{teamId}/member-candidates?q=...` searches bounded candidates.
 
-- create a team;
-- rename a team;
-- delete a team, including the last explicit team;
-- add existing workspace members to a team;
-- remove team members.
-
-Regular members can view teams without seeing management controls.
+Lists use opaque cursors and `limit` `1..100` (default `50`); query is at most 100 characters. Unsafe calls require generated client, HttpOnly cookie, and fresh CSRF.
 
 ## Team-targeted invitations
 
-An invitation can optionally target a team. When the invitee accepts, the user joins the workspace
-and the selected team. Invitations without a target team remain workspace-only.
-
-## No active team control
-
-The template does not expose active team switching or active team mutation. Teams are managed as
-subgroups, not as a second routing context.
+Acceptance can atomically add organization and optional team membership. Deleting a team detaches historical invitation targets and deletes team membership, not organization membership. Active-team switching and team-specific roles are out of scope.
 
 ## Related pages
 

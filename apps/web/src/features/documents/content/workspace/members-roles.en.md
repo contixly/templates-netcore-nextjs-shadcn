@@ -16,41 +16,27 @@ editedAt: "2026-07-06"
 
 # Members and roles
 
-The users settings page lists workspace members and exposes role-aware management controls.
+Membership has one role from closed `owner | admin | member`. ASP.NET Core returns capabilities and repeats authorization for every REST operation.
 
 ## Built-in roles
 
-The template starts with three manageable roles:
+| Role     | Authorization                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------ |
+| `owner`  | Update/delete organization, add members, assign any role, manage teams/invitations/keys.               |
+| `admin`  | Update, add members, assign `member`/`admin`, manage teams/invitations; cannot delete or create owner. |
+| `member` | Read-only safe organization, member, and team context.                                                 |
 
-| Role | Typical responsibility |
-| ---- | ---------------------- |
-| Owner | Full workspace ownership, including destructive workspace actions. |
-| Admin | Workspace management such as users, teams, invitations, and settings. |
-| Member | Read access to safe workspace context and product surfaces. |
-
-Product teams can extend role behavior, but should keep the visible meaning of each role clear in
-workspace settings.
+Self/no-op changes, admin changes to owners, and loss of the last owner are blocked. Team membership grants no organization role. Custom roles are absent.
 
 ## Member directory
 
-All accessible members can review the user directory. The current user is identified separately, and
-other members are shown in a table.
+`GET /api/v1/organizations/{organizationId}/members?limit=50` returns `nextCursor`; limits are `1..100`, cursors opaque. Items include role, joined time, verified email/domain, and outside-policy marker. Missing/foreign organizations are non-disclosing.
 
-If the workspace has no returned members, the page keeps the empty state inside the users section
-instead of losing the settings context.
+## Add and update
 
-## Add an existing user
+Managers use `POST /api/v1/organizations/{organizationId}/members` with existing `userId`, allowed role, and required domain acknowledgement. Role change uses `PATCH /api/v1/organizations/{organizationId}/members/{memberId}` against current locked state. Both require HttpOnly session and fresh CSRF.
 
-Authorized members can add an existing user by id. Domain restrictions are checked before membership
-is created. If the user is outside the active policy, the UI can require an explicit override before
-continuing.
-
-## Update roles
-
-Authorized members can update assignable roles from the member table. The template rejects
-disallowed, redundant, or unauthorized role changes.
-
-Member removal is intentionally not exposed in the current starter surface.
+Organization-member removal is intentionally not implemented. Invitations onboard new users; direct add is only for existing accounts.
 
 ## Related pages
 

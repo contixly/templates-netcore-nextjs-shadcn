@@ -16,30 +16,25 @@ editedAt: "2026-07-06"
 
 # Profile and connections
 
-The profile page separates user identity from provider connections. This keeps basic account data
-easy to review while still allowing product teams to enable only the OAuth providers they need.
+These pages are projections of the ASP.NET Core REST API; the browser never reads Identity tables or provider tokens.
 
 ## Update the display name
 
-1. Open `/user/profile`.
+1. Open `/user/profile`; it loads `GET /api/v1/account`.
 2. Edit the display name.
-3. Save the form.
+3. Save with `PATCH /api/v1/account/profile` and fresh CSRF.
 
-The action validates the new value and rejects empty or unchanged submissions. The email address is
-shown as account identity and is not edited from this form.
+The API trims and validates the value and returns the refreshed account. Primary and secondary emails are read-only here. The projection marks the primary address and providers that currently vouch for every verified email.
 
 ## Manage connected providers
 
-Open `/user/connections` to review available OAuth providers. Only providers with complete
-environment configuration are shown.
+`/user/connections` loads `GET /api/v1/account/connections`. The fixed catalogue is Google, GitHub, GitLab, VK, and Yandex. A `connect` challenge requires a current session and complete runtime provider credentials; `signIn` is the anonymous flow.
 
-Users can link providers that are available and not connected. Unlinking is allowed only when it
-does not leave the account without a safe sign-in method.
+`DELETE /api/v1/account/connections/{provider}` is rejected for the current authentication provider and when no other connected, runtime-configured provider would survive. It removes the local Identity connection; no stored provider token exists to revoke remote consent.
 
-## Provider configuration
+## Verified email ownership
 
-The template supports Google, GitHub, GitLab, VK, and Yandex through Better Auth. A provider appears
-in login and connection UI only after the required environment variables are present.
+Provider-normalized emails are globally unique. An external subject has a stable owner. A new anonymous subject may link by email only while an existing provider still vouches for that exact verified address. Conflicts return safe Problem Details instead of merging accounts. Production password and manual email-management flows are out of scope.
 
 ## Related pages
 

@@ -16,38 +16,27 @@ editedAt: "2026-07-06"
 
 # Invitations
 
-Workspace invitations let admins invite a user by email and optionally place the user into a team
-after acceptance.
+ASP.NET Core invitation endpoints enforce verified-email ownership, roles, domain policy, expiry, and non-disclosure.
 
 ## Create an invitation
 
-1. Open workspace settings.
-2. Go to **Invitations**.
-3. Choose **Create invitation**.
-4. Enter the recipient email.
-5. Select the role and, when needed, a target team.
-6. Copy the invitation link.
+Owner/admin sends `POST /api/v1/organizations/{organizationId}/invitations` with email, assignable role, and optional same-organization team UUID. Admin may invite `member`/`admin`; owner may also invite `owner`. API enforces domain, duplicate, existing-member, pending-cap, authorization, rate limit, and CSRF rules.
 
-The template rejects duplicate, redundant, domain-restricted, and unauthorized invitation requests.
+`GET /api/v1/organizations/{organizationId}/invitations` accepts `status`, opaque `cursor`, and bounded `limit` (default `50`, `1..100`) for managers only.
 
 ## Invitation statuses
 
-Invitation status is derived consistently from stored state and expiration. The admin table shows
-pending, accepted, rejected, expired, or otherwise resolved invitations in one place.
+A new invitation expires exactly 48 hours after creation. Expiry is derived on read; there is no expiry worker. Display states are `pending`, `accepted`, `rejected`, `canceled`, or derived `expired`; cancel/resend is not exposed.
 
 ## Accept or reject an invitation
 
-Invitees open the invitation link after signing in. Anonymous visitors are returned to the
-invitation route after login.
+At `/invite/{invitationId}`, `GET /api/v1/invitations/{invitationId}` returns private detail only when current primary verified email matches. `POST .../accept` or `POST .../reject` requires fresh CSRF. Missing, foreign, or mismatched invitations disclose no recipient/organization data.
 
-The decision page shows inviter, workspace, role, expiration, and target team when one was selected.
-Acceptance requires the user's verified primary email to match the invitation and the active domain
-policy.
+Accept atomically creates organization membership, optional team membership, accepted state, and active-organization preference. Reject changes only state. Expired/decided invitations cannot be decided again.
 
 ## Personal invitation list
 
-Users can review their own pending invitations from `/user/invitations`. The welcome page reuses the
-same pending-invitations block for users who have no workspace yet.
+`GET /api/v1/account/invitations` provides a bounded pending list to `/user/invitations` and `/welcome`. Current delivery is a relative same-origin path/manual-share fallback. Real email, outbox/retry, and cancel/resend UI are out of scope.
 
 ## Related pages
 
