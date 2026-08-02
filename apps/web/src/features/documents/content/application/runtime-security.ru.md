@@ -16,33 +16,31 @@ editedAt: "2026-07-06"
 
 # Безопасность среды выполнения
 
-Шаблон включает базовые меры безопасности среды выполнения, которые должны оставаться видимыми при
-адаптации сервиса для боевого окружения.
+Безопасность runtime разделена между HTTP-границей ASP.NET Core и тонким UI Next.js. Same-origin схема не отдает учетные данные браузерному JavaScript, а API остается авторитетным.
 
-## Публичный URL приложения
+## Сессия и CSRF
 
-Боевые развертывания требуют настроенный публичный базовый URL. Держите `BETTER_AUTH_URL`,
-`NEXT_PUBLIC_APP_BASE_URL` и логику домена развертывания согласованными с реальным доменом, который
-пользователи открывают в браузере.
+`__Host-template.session` имеет `HttpOnly`, `Secure`, `SameSite=Lax`, path `/`, без `Domain` и постоянный семидневный sliding expiration. Она содержит защищенный Data Protection непрозрачный ключ ticket store. PostgreSQL хранит его SHA-256 hash и отдельно защищенный ticket.
 
-## Внешние изображения
+Каждая небезопасная браузерная операция вызывает `GET /api/v1/auth/csrf` и отправляет `X-CSRF-TOKEN` с парной strict antiforgery cookie. Challenge/forbid API возвращает JSON `401`/`403`, а не HTML redirects. JavaScript не читает cookies и не хранит bearer token.
 
-Оптимизация изображений использует строгую политику внешних хостов. Добавляйте только те хосты
-изображений, которые нужны продукту. Не разрешайте произвольные внешние домены изображений.
+## Protection и OAuth state
 
-## Браузерные заголовки
+Ключи Data Protection сохраняются в PostgreSQL с discriminator `Template`. В Production также нужен RSA PFX из `DataProtection__CertificatePath` и `DataProtection__CertificatePassword`; invalid material останавливает startup. State OpenIddict Client защищен и одноразовый; provider tokens существуют только в callback и не сохраняются.
 
-Приложение задает базовые браузерные заголовки безопасности глобально. Проверяйте их перед
-добавлением встраиваемых блоков, iframe или сторонних скриптов, чтобы продуктовые требования не ослабили
-защиту незаметно.
+## Origins и маршрутизация
 
-## Защита маршрутов
+Браузер вызывает относительные same-origin `/api/**`. SSR использует server-only `API_INTERNAL_BASE_URL` и передает только разрешенные cookie/correlation данные. `API_PROXY_TARGET` — rewrite для Development/E2E; будущая production topology отдает `/api/**` Kestrel. CORS не включен.
 
-Защищенные страницы требуют валидную сессию Better Auth. `/api/v1` намеренно находится вне границы
-браузерной сессии и авторизуется API-ключами.
+`APP_PUBLIC_ORIGIN` настраивает metadata URL Next.js. OAuth отдельно проверяет `ExternalAuthentication__PublicOrigin`, требуя HTTPS кроме loopback разработки.
+
+Ответы API/auth/health/account/collaboration/search/API keys с состоянием используют `Cache-Control: no-store`. Наружу выходит безопасный correlation `traceId`, но не stack traces, SQL, секреты, cookies или authorization headers.
+
+Production proxy YARP/Kestrel, container hardening, финальная оболочка и Redis/Aspire orchestration остаются будущими итерациями.
 
 ## Связанные страницы
 
 - [OAuth-провайдеры](/docs/application/oauth-providers)
+- [Кеширование](/docs/application/caching)
 - [API-доступ](/docs/api)
 - [Сессии и безопасность](/docs/account/sessions-security)

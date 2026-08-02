@@ -16,35 +16,24 @@ editedAt: "2026-07-06"
 
 # Caching
 
-The template uses Next.js Cache Components and repository-level cache tags. It can run with a local
-fallback cache or a distributed Redis/Valkey-backed cache.
+The current application favors correctness for session-dependent and mutable REST data. Cache Components are enabled for rendering, but authenticated API projections are not a shared application cache.
 
-## Local default
+## Current no-store rules
 
-By default, `REMOTE_CACHING_ENABLED=false`. This keeps local development simple and uses the local
-fallback supplied by the custom cache handlers.
+Server API clients use `cache: "no-store"`. Auth, session, account, organization, collaboration, document-search, health, and API-key boundaries use `Cache-Control: no-store` where their mutable/request-specific contracts require it. Mutations render confirmed API results rather than invalidating a Next.js database cache.
 
-## Distributed cache
+Cookie-bearing SSR reads suppress sliding-session renewal because a Server Component cannot forward API `Set-Cookie`. One unmarked same-origin browser session read owns renewal so the secure HttpOnly cookie reaches the browser jar.
 
-Enable distributed cache storage when multiple application instances need to share Cache Components
-and ISR entries:
+## Cache Components boundary
 
-| Variable | Purpose |
-| -------- | ------- |
-| `REMOTE_CACHING_ENABLED` | Enables remote cache mode when set to `true`. |
-| `REDIS_URL` or `VALKEY_URL` | Connection URL for the cache service. |
-| `REDIS_PASSWORD` | Optional password when it is not already included in the URL. |
-| `REMOTE_CACHING_PREFIX` | Prefix that isolates cache entries per app or environment. |
+Runtime SSR starts below `connection()` and `Suspense`, after request headers and runtime configuration exist. Builds therefore do not require a live API, and cookies or `API_INTERNAL_BASE_URL` are not frozen into cached output. Static presentation and documentation may use framework rendering caches without caching private REST responses.
 
-Use a unique prefix when sharing one Redis or Valkey service between environments.
+## Not implemented
 
-## Feature cache invalidation
-
-Repository reads use cache tags. Mutations refresh affected tags and paths so the UI can show fresh
-workspace, account, team, invitation, and API key data.
+There is no Redis/Valkey handler, remote cache configuration, repository cache-tag system, or cross-instance invalidation contract today. Redis/Aspire orchestration belongs to iteration 10. Add distributed caching only through a separate architecture decision with ownership, tenant-safe keys, invalidation behavior, and tests.
 
 ## Related pages
 
-- [Quick start](/docs/general/quick-start)
-- [Server actions](/docs/developers/server-actions)
+- [Application shell](/docs/application)
 - [Runtime security](/docs/application/runtime-security)
+- [Quick start](/docs/general/quick-start)

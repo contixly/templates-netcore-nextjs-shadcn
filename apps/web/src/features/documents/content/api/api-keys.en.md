@@ -16,40 +16,36 @@ editedAt: "2026-07-06"
 
 # Manage API keys
 
-API keys let machines call `/api/v1` without a browser session. The template separates personal keys
-from workspace keys so users can choose the principal intentionally.
+API keys authenticate machines to the supported read-only `/api/v1` surface. Management stays behind the browser's secure HttpOnly session and fresh CSRF protection.
 
-## Create a personal key
+## Owners and routes
 
-1. Open `/user/api-keys`.
-2. Choose **Create key**.
-3. Enter a name that helps identify the integration.
-4. Select permission presets, expiration, and rate limit settings.
-5. Copy the secret when it is shown.
+| Owner         | Browser page                             | REST collection                                   |
+| ------------- | ---------------------------------------- | ------------------------------------------------- |
+| Personal user | `/user/api-keys`                         | `/api/v1/account/api-keys`                        |
+| Organization  | `/w/{organizationKey}/settings/api-keys` | `/api/v1/organizations/{organizationId}/api-keys` |
 
-The secret is shown once. Store it in the integration's secret manager before closing the dialog.
+Every authenticated user can manage personal keys. Organization management requires trusted `canManageApiKeys`. An organization key stays bound to that organization, independent of the creator's later membership.
 
-## Create a workspace key
+## Create and store
 
-1. Open the workspace settings page.
-2. Go to **API keys**.
-3. Create the key from the workspace-owned surface.
+Creation requires a name, one or more closed presets, an expiry, and explicit fixed-window settings. UI suggestions are conveniences; the REST body is authoritative.
 
-Workspace keys act as one organization. They are visible only when the current member has permission
-to read or manage workspace API keys.
+Only successful create and rotate responses reveal the raw credential, exactly once. Copy it to an approved secrets manager before closing the view. Never put it in source control, URLs, browser storage, logs, analytics, screenshots, or traces.
 
-## Edit a key
+The service stores only a SHA-256 credential hash, safe metadata, and a non-secret 16-character `start` prefix. Lists, updates, revocation, `/api/v1/me`, and resource reads never return the raw key or hash.
 
-Editing a key can change its name, permissions, expiration, or rate limit settings. Expiration
-renewal is explicit so a stale key is not silently extended.
+## Update, rotate, and revoke
 
-## Delete a key
+Updates can change name, presets, expiry, enabled state, or rate-limit settings. Omitted fields remain; a no-op returns `409 api_key_update_unchanged`.
 
-Delete keys that are no longer used. Personal keys are revoked when the owner account is deleted.
-Workspace keys are revoked when the workspace organization is deleted.
+Rotation keeps the logical ID and configuration, atomically invalidates the old credential, resets the current window/count, preserves `lastRequestAt`, and reveals the replacement once. Revocation invalidates and removes the key from later lists; repetition returns `404 api_key_not_found`.
+
+Unsafe management calls first fetch `GET /api/v1/auth/csrf` and send `X-CSRF-TOKEN` with the session cookie. API keys cannot call management routes.
 
 ## Related pages
 
 - [API access](/docs/api)
+- [API v1 reference](/docs/api/api-v1)
 - [Permissions and rate limits](/docs/api/permissions-rate-limits)
 - [Workspace settings](/docs/workspace/settings)

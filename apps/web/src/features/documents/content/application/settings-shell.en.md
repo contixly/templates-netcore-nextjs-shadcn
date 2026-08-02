@@ -16,35 +16,29 @@ editedAt: "2026-07-06"
 
 # Settings shell
 
-The shared settings shell keeps account and workspace settings predictable. Readers should see the
-same layout grammar whether they are editing their profile or managing workspace users.
+The current settings pages are working REST surfaces for account, organization, collaboration, and API-key scenarios. They are not the final visual product shell planned for iteration 9.
 
-## Page structure
+## Current routes
 
-Every settings page starts with a contextual intro. Below it, content is grouped into section
-islands:
+Account settings under `/user/**` include profile, connections, security, danger, and personal API keys. Organization settings under `/w/{organizationKey}/settings/**` include workspace details, users, roles, teams, invitations, and organization API keys.
 
-- forms are grouped by decision area;
-- tables and lists are grouped as scannable islands;
-- empty states stay inside their owning section.
+The URL slug is presentation context. Server loaders resolve trusted organization detail and use its canonical UUID for API calls. Server permissions control navigation and mutation visibility; UI hiding is never the only authorization check.
 
-## Width modes
+## Loaders and mutations
 
-Dense tables, such as users or teams, can use wider layouts. Focused forms, such as profile or
-workspace details, stay in a readable width.
+Server-rendered loaders use isolated generated REST SDK clients, `API_INTERNAL_BASE_URL`, `cache: "no-store"`, and an allow-list of cookie/correlation headers. They never query PostgreSQL or the identity store.
 
-## Theme behavior
+Browser mutations use generated SDK operations with `credentials: "same-origin"`. Every unsafe call gets fresh CSRF state and sends `X-CSRF-TOKEN`; visible state changes after a confirmed API response. Problem Details becomes safe localized copy by stable `code` and optional `traceId`.
 
-Settings pages are designed to stay readable in light and dark themes. Destructive areas remain
-visually distinct without dominating the page.
+Do not add raw `fetch`, handwritten transport DTOs, Server Actions, Next.js Route Handlers, Prisma, Better Auth, direct database access, or browser bearer storage.
 
-## Extension guidance
+## Deferred shell
 
-New settings sections should use the same shell and avoid inventing local page chrome. Add a clear
-intro, group content by task, and expose controls only when the current user has permission to act.
+Today's layouts provide protected routing, loading/error states, forms, lists, opaque pagination, permission gates, and secret reveal for iterations 3–7. Iteration 9 owns the final responsive sidebar, dashboard, settings visual grammar, theme polish, and route-by-route parity review.
 
 ## Related pages
 
+- [Application shell](/docs/application)
 - [Account settings](/docs/account)
 - [Workspace settings](/docs/workspace/settings)
-- [Feature slice architecture](/docs/developers/feature-slice)
+- [Runtime security](/docs/application/runtime-security)

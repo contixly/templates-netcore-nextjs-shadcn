@@ -16,35 +16,32 @@ editedAt: "2026-07-06"
 
 # OAuth providers
 
-The template uses Better Auth for authentication and supports several OAuth providers. Providers are
-registered only when their required environment variables are present.
+External sign-in is owned by ASP.NET Core through OpenIddict Client. The closed provider set is Google, GitHub, GitLab, VK, and Yandex. OpenIddict is a client/state-replay boundary, not an authorization server or token vault.
 
-## Supported providers
+## Configure providers
 
-| Provider | Environment variables |
-| -------- | --------------------- |
-| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
-| GitLab | `GITLAB_CLIENT_ID`, `GITLAB_CLIENT_SECRET` |
-| VK | `VK_CLIENT_ID` |
-| Yandex | `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET` |
+Set HTTPS `ExternalAuthentication__PublicOrigin`; HTTP is allowed only for loopback development. Configure both `ClientId` and `ClientSecret` under `ExternalAuthentication__Providers__Google`, `GitHub`, `GitLab`, `Vk`, or `Yandex`.
 
-Configure only the providers your service will use. Missing provider values keep that provider out
-of login, navigation, and account connection UI.
+A provider is advertised only with a complete canonical pair. Zero providers is valid; partial or unknown configuration fails validation without logging secrets.
 
-## Redirect URLs
+## Callback paths
 
-Provider dashboards must use redirect URLs that match the Better Auth callback for your application
-origin. Keep `BETTER_AUTH_URL` and `NEXT_PUBLIC_APP_BASE_URL` aligned with how users open the app.
+| Provider | Callback                           |
+| -------- | ---------------------------------- |
+| Google   | `/api/auth/callback/google`        |
+| GitHub   | `/api/auth/callback/github`        |
+| GitLab   | `/api/auth/callback/gitlab`        |
+| VK       | `/api/auth/callback/vk`            |
+| Yandex   | `/api/auth/oauth2/callback/yandex` |
 
-## Account connections
+These unversioned protocol callbacks are excluded from OpenAPI and the generated REST SDK. Next.js starts sign-in/connect only through `POST /api/v1/auth/external/{provider}/challenge`, with fresh CSRF and a safe same-origin return path, then navigates top-level to the server-issued HTTPS URL.
 
-Users manage provider connections from `/user/connections`. The UI lists configured providers,
-supports linking missing connections, and prevents unsafe unlinking when it would leave the account
-without a reliable sign-in method.
+## Token boundary
+
+Success produces the secure HttpOnly session; JavaScript stores no bearer token. Provider access/refresh tokens exist only during callback normalization and are not persisted in Identity, OpenIddict rows, the database, logs, responses, or browser storage. Local disconnect therefore does not revoke remote consent, and provider-token refresh is unsupported.
 
 ## Related pages
 
 - [Profile and connections](/docs/account/profile-connections)
-- [Quick start](/docs/general/quick-start)
+- [Application shell](/docs/application)
 - [Runtime security](/docs/application/runtime-security)

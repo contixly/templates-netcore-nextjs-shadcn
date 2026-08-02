@@ -16,61 +16,42 @@ editedAt: "2026-07-06"
 
 # API v1 reference
 
-The starter `/api/v1` routes are public from the browser-session perspective but require a valid API
-key. Send the key in the `x-api-key` header.
+The machine surface is read-only. Send exactly one nonblank key in `x-api-key`; never place it in a URL, browser storage, source control, logs, or captured artifacts.
 
 ```bash
-curl -H "x-api-key: $API_KEY" http://localhost:3000/api/v1/me
+curl -H "x-api-key: $API_KEY" "$API_ORIGIN/api/v1/me"
 ```
 
-## Response envelope
+## Supported reads
 
-Successful responses use a `data` envelope:
+| Method and path                                                     | Required scopes                                       | Credential modes  |
+| ------------------------------------------------------------------- | ----------------------------------------------------- | ----------------- |
+| `GET /api/v1/me`                                                    | `basic:read`                                          | API key only      |
+| `GET /api/v1/organizations`                                         | `organization:read`                                   | Cookie or API key |
+| `GET /api/v1/organizations/{organizationId}`                        | `organization:read`                                   | API key only      |
+| `GET /api/v1/organizations/{organizationId}/members`                | `organization:read` + `member:read`                   | Cookie or API key |
+| `GET /api/v1/organizations/{organizationId}/teams`                  | `organization:read` + `team:read`                     | Cookie or API key |
+| `GET /api/v1/organizations/{organizationId}/teams/{teamId}/members` | `organization:read` + `team:read` + `teamMember:read` | Cookie or API key |
 
-```json
-{
-  "data": {}
-}
-```
+On mixed routes, presence of `x-api-key` selects API-key authentication exclusively; a cookie cannot rescue an invalid key.
 
-Handled errors use an `error` envelope:
+## Envelopes and cursors
 
-```json
-{
-  "error": {
-    "code": "unauthorized",
-    "message": "API key is required."
-  }
-}
-```
+Success uses `{ "data": ... }`. Collections use `{ "data": { "items": [], "nextCursor": null } }`; `limit` defaults to `50` and accepts `1..100`. Return `nextCursor` unchanged as `cursor`. Cursors are opaque, versioned, and collection-specific: never decode, edit, synthesize, or reuse them.
 
-## Endpoints
+A personal key acts as its user and current membership is rechecked per request. An organization key can access only its owning tenant.
 
-| Method and path | Purpose |
-| --------------- | ------- |
-| `GET /api/v1/me` | Returns the resolved API key principal. |
-| `GET /api/v1/organizations` | Lists organizations visible to the principal. |
-| `GET /api/v1/organizations/:organizationId` | Returns one visible organization. |
-| `GET /api/v1/organizations/:organizationId/members` | Lists members in one organization. |
-| `GET /api/v1/organizations/:organizationId/teams` | Lists teams in one organization. |
-| `GET /api/v1/organizations/:organizationId/teams/:teamId/members` | Lists members in one team. |
+## Problem Details
 
-## Principal rules
+Failures use `application/problem+json`, not an `error` envelope. Required fields include RFC Problem Details plus stable `code` and safe `traceId`; validation also adds `errors`. Branch on status and `code`.
 
-Personal keys resolve to a user principal. They can read organization data only while that user is a
-member of the organization.
-
-Workspace keys resolve to an organization principal. They can read only the organization that owns
-the key.
-
-## Common errors
-
-| Status | Meaning |
-| ------ | ------- |
-| `401` | The key is missing or invalid. |
-| `403` | The key is valid but lacks permission for the route or organization. |
-| `404` | The requested organization or team is not visible to the key. |
-| `429` | The key exceeded its rate limit. |
+| Status | Typical code                                              | Action                                  |
+| ------ | --------------------------------------------------------- | --------------------------------------- |
+| `400`  | `invalid_cursor`                                          | Correct the input.                      |
+| `401`  | `api_key_missing`, `api_key_invalid`                      | Supply or replace the key.              |
+| `403`  | `api_key_permission_denied`, `organization_access_denied` | Correct scopes or tenant access.        |
+| `404`  | Resource not-found code                                   | The authorized target is absent.        |
+| `429`  | `api_key_rate_limited`                                    | Wait the integer `Retry-After` seconds. |
 
 ## Related pages
 

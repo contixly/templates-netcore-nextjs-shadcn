@@ -16,35 +16,26 @@ editedAt: "2026-07-06"
 
 # API access
 
-The template includes machine access through Better Auth API keys and a starter `/api/v1` surface.
-API clients authenticate with the `x-api-key` header. Browser session cookies are not accepted for
-external API routes.
+ASP.NET Core is the only HTTP host for `/api/**`. The Next.js UI calls it through the generated REST SDK and never owns API routes, sessions, business logic, or database access.
 
-## Key families
+## Credential boundaries
 
-| Key type | Managed from | Principal | Typical use |
-| -------- | ------------ | --------- | ----------- |
-| Personal API key | `/user/api-keys` | The owning user | Scripts and integrations that should follow user workspace membership. |
-| Workspace API key | `/w/:organizationKey/settings/api-keys` | One workspace organization | Server integrations owned by a workspace. |
+| Caller         | Credential                                 | Surface                                                      |
+| -------------- | ------------------------------------------ | ------------------------------------------------------------ |
+| Browser UI     | Secure HttpOnly same-origin session cookie | Account, organization, collaboration, and API-key management |
+| Machine client | Exactly one `x-api-key` header             | Supported read-only `/api/v1` operations                     |
 
-Both key families use the same external header and the same response envelope conventions.
+Browser JavaScript never reads the cookie or stores a bearer token. API-key management is a browser-session operation; create, update, rotate, and revoke also fetch a fresh token from `GET /api/v1/auth/csrf` and send `X-CSRF-TOKEN`. An API key cannot manage keys.
 
-## Starter API routes
+Some organization reads accept either credential. If `x-api-key` is present, API-key authentication is selected exclusively; a valid cookie cannot rescue an invalid key.
 
-The initial `/api/v1` routes expose read-only organization data:
+## Current machine surface
 
-- `GET /api/v1/me`
-- `GET /api/v1/organizations`
-- `GET /api/v1/organizations/:organizationId`
-- `GET /api/v1/organizations/:organizationId/members`
-- `GET /api/v1/organizations/:organizationId/teams`
-- `GET /api/v1/organizations/:organizationId/teams/:teamId/members`
+Iteration 7 supports `GET /api/v1/me`, organization list/detail, organization members, teams, and team members. Successful JSON uses `{ "data": ... }`. Failures use RFC Problem Details as `application/problem+json`; branch on HTTP status and stable `code`.
 
-## Safety model
+## Client rule
 
-API key permissions, organization scope rules, expiration, and rate limits are checked before route
-handlers return data. Product endpoints should extend those checks instead of reading raw Better Auth
-payloads in route code.
+Application adapters call generated SDK operations and import generated DTOs. Do not add raw `fetch`, handwritten transport types, Server Actions, API Route Handlers, or direct database access. `contracts/openapi/v1.json` is the committed contract and generated output is checked deterministically.
 
 ## Related pages
 

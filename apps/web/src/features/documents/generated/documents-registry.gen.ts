@@ -1632,18 +1632,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Key families",
-        "id": "key-families"
+        "title": "Credential boundaries",
+        "id": "credential-boundaries"
       },
       {
         "level": 2,
-        "title": "Starter API routes",
-        "id": "starter-api-routes"
+        "title": "Current machine surface",
+        "id": "current-machine-surface"
       },
       {
         "level": 2,
-        "title": "Safety model",
-        "id": "safety-model"
+        "title": "Client rule",
+        "id": "client-rule"
       },
       {
         "level": 2,
@@ -1685,23 +1685,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Create a personal key",
-        "id": "create-a-personal-key"
+        "title": "Owners and routes",
+        "id": "owners-and-routes"
       },
       {
         "level": 2,
-        "title": "Create a workspace key",
-        "id": "create-a-workspace-key"
+        "title": "Create and store",
+        "id": "create-and-store"
       },
       {
         "level": 2,
-        "title": "Edit a key",
-        "id": "edit-a-key"
-      },
-      {
-        "level": 2,
-        "title": "Delete a key",
-        "id": "delete-a-key"
+        "title": "Update, rotate, and revoke",
+        "id": "update-rotate-and-revoke"
       },
       {
         "level": 2,
@@ -1743,23 +1738,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Response envelope",
-        "id": "response-envelope"
+        "title": "Supported reads",
+        "id": "supported-reads"
       },
       {
         "level": 2,
-        "title": "Endpoints",
-        "id": "endpoints"
+        "title": "Envelopes and cursors",
+        "id": "envelopes-and-cursors"
       },
       {
         "level": 2,
-        "title": "Principal rules",
-        "id": "principal-rules"
-      },
-      {
-        "level": 2,
-        "title": "Common errors",
-        "id": "common-errors"
+        "title": "Problem Details",
+        "id": "problem-details"
       },
       {
         "level": 2,
@@ -1801,23 +1791,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Permission presets",
-        "id": "permission-presets"
+        "title": "Closed presets",
+        "id": "closed-presets"
       },
       {
         "level": 2,
-        "title": "Scopes",
-        "id": "scopes"
+        "title": "Tenant isolation",
+        "id": "tenant-isolation"
       },
       {
         "level": 2,
-        "title": "Expiration",
-        "id": "expiration"
-      },
-      {
-        "level": 2,
-        "title": "Rate limits",
-        "id": "rate-limits"
+        "title": "Expiry and fixed windows",
+        "id": "expiry-and-fixed-windows"
       },
       {
         "level": 2,
@@ -1858,18 +1843,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Семейства ключей",
-        "id": "семейства-ключей"
+        "title": "Границы учетных данных",
+        "id": "границы-учетных-данных"
       },
       {
         "level": 2,
-        "title": "Стартовые API-маршруты",
-        "id": "стартовые-api-маршруты"
+        "title": "Текущая машинная поверхность",
+        "id": "текущая-машинная-поверхность"
       },
       {
         "level": 2,
-        "title": "Модель безопасности",
-        "id": "модель-безопасности"
+        "title": "Правило клиента",
+        "id": "правило-клиента"
       },
       {
         "level": 2,
@@ -1911,23 +1896,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Создать персональный ключ",
-        "id": "создать-персональный-ключ"
+        "title": "Владельцы и маршруты",
+        "id": "владельцы-и-маршруты"
       },
       {
         "level": 2,
-        "title": "Создать ключ рабочего пространства",
-        "id": "создать-ключ-рабочего-пространства"
+        "title": "Создание и хранение",
+        "id": "создание-и-хранение"
       },
       {
         "level": 2,
-        "title": "Изменить ключ",
-        "id": "изменить-ключ"
-      },
-      {
-        "level": 2,
-        "title": "Удалить ключ",
-        "id": "удалить-ключ"
+        "title": "Изменение, ротация и отзыв",
+        "id": "изменение-ротация-и-отзыв"
       },
       {
         "level": 2,
@@ -1969,23 +1949,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Формат ответа",
-        "id": "формат-ответа"
+        "title": "Поддерживаемое чтение",
+        "id": "поддерживаемое-чтение"
       },
       {
         "level": 2,
-        "title": "Маршруты",
-        "id": "маршруты"
+        "title": "Envelopes и cursors",
+        "id": "envelopes-и-cursors"
       },
       {
         "level": 2,
-        "title": "Правила субъекта доступа",
-        "id": "правила-субъекта-доступа"
-      },
-      {
-        "level": 2,
-        "title": "Частые ошибки",
-        "id": "частые-ошибки"
+        "title": "Problem Details",
+        "id": "problem-details"
       },
       {
         "level": 2,
@@ -2027,23 +2002,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Наборы прав",
-        "id": "наборы-прав"
+        "title": "Закрытые presets",
+        "id": "закрытые-presets"
       },
       {
         "level": 2,
-        "title": "Области доступа",
-        "id": "области-доступа"
+        "title": "Изоляция tenant",
+        "id": "изоляция-tenant"
       },
       {
         "level": 2,
-        "title": "Срок действия",
-        "id": "срок-действия"
-      },
-      {
-        "level": 2,
-        "title": "Ограничения частоты",
-        "id": "ограничения-частоты"
+        "title": "Срок и фиксированные окна",
+        "id": "срок-и-фиксированные-окна"
       },
       {
         "level": 2,
@@ -2084,23 +2054,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Public routes",
-        "id": "public-routes"
+        "title": "Data flow",
+        "id": "data-flow"
       },
       {
         "level": 2,
-        "title": "Protected routes",
-        "id": "protected-routes"
+        "title": "Backend layers",
+        "id": "backend-layers"
       },
       {
         "level": 2,
-        "title": "Dashboard surface",
-        "id": "dashboard-surface"
-      },
-      {
-        "level": 2,
-        "title": "Extension points",
-        "id": "extension-points"
+        "title": "Current and future UI",
+        "id": "current-and-future-ui"
       },
       {
         "level": 2,
@@ -2142,18 +2107,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Local default",
-        "id": "local-default"
+        "title": "Current no-store rules",
+        "id": "current-no-store-rules"
       },
       {
         "level": 2,
-        "title": "Distributed cache",
-        "id": "distributed-cache"
+        "title": "Cache Components boundary",
+        "id": "cache-components-boundary"
       },
       {
         "level": 2,
-        "title": "Feature cache invalidation",
-        "id": "feature-cache-invalidation"
+        "title": "Not implemented",
+        "id": "not-implemented"
       },
       {
         "level": 2,
@@ -2195,23 +2160,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Public application URL",
-        "id": "public-application-url"
+        "title": "Session and CSRF",
+        "id": "session-and-csrf"
       },
       {
         "level": 2,
-        "title": "Remote images",
-        "id": "remote-images"
+        "title": "Protection and OAuth state",
+        "id": "protection-and-oauth-state"
       },
       {
         "level": 2,
-        "title": "Browser headers",
-        "id": "browser-headers"
-      },
-      {
-        "level": 2,
-        "title": "Route protection",
-        "id": "route-protection"
+        "title": "Origins and routing",
+        "id": "origins-and-routing"
       },
       {
         "level": 2,
@@ -2253,18 +2213,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Supported providers",
-        "id": "supported-providers"
+        "title": "Configure providers",
+        "id": "configure-providers"
       },
       {
         "level": 2,
-        "title": "Redirect URLs",
-        "id": "redirect-urls"
+        "title": "Callback paths",
+        "id": "callback-paths"
       },
       {
         "level": 2,
-        "title": "Account connections",
-        "id": "account-connections"
+        "title": "Token boundary",
+        "id": "token-boundary"
       },
       {
         "level": 2,
@@ -2306,28 +2266,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Supported locales",
-        "id": "supported-locales"
+        "title": "Fixed deployment locale",
+        "id": "fixed-deployment-locale"
       },
       {
         "level": 2,
-        "title": "UI messages",
-        "id": "ui-messages"
+        "title": "UI and REST separation",
+        "id": "ui-and-rest-separation"
       },
       {
         "level": 2,
-        "title": "Page metadata",
-        "id": "page-metadata"
-      },
-      {
-        "level": 2,
-        "title": "Documentation content",
-        "id": "documentation-content"
-      },
-      {
-        "level": 2,
-        "title": "Cache Components note",
-        "id": "cache-components-note"
+        "title": "Documentation routes",
+        "id": "documentation-routes"
       },
       {
         "level": 2,
@@ -2369,23 +2319,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Page structure",
-        "id": "page-structure"
+        "title": "Current routes",
+        "id": "current-routes"
       },
       {
         "level": 2,
-        "title": "Width modes",
-        "id": "width-modes"
+        "title": "Loaders and mutations",
+        "id": "loaders-and-mutations"
       },
       {
         "level": 2,
-        "title": "Theme behavior",
-        "id": "theme-behavior"
-      },
-      {
-        "level": 2,
-        "title": "Extension guidance",
-        "id": "extension-guidance"
+        "title": "Deferred shell",
+        "id": "deferred-shell"
       },
       {
         "level": 2,
@@ -2426,23 +2371,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Публичные маршруты",
-        "id": "публичные-маршруты"
+        "title": "Поток данных",
+        "id": "поток-данных"
       },
       {
         "level": 2,
-        "title": "Защищенные маршруты",
-        "id": "защищенные-маршруты"
+        "title": "Слои backend",
+        "id": "слои-backend"
       },
       {
         "level": 2,
-        "title": "Стартовая панель",
-        "id": "стартовая-панель"
-      },
-      {
-        "level": 2,
-        "title": "Точки расширения",
-        "id": "точки-расширения"
+        "title": "Текущий и будущий UI",
+        "id": "текущий-и-будущий-ui"
       },
       {
         "level": 2,
@@ -2484,18 +2424,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Локальное значение по умолчанию",
-        "id": "локальное-значение-по-умолчанию"
+        "title": "Текущие правила no-store",
+        "id": "текущие-правила-no-store"
       },
       {
         "level": 2,
-        "title": "Распределенный кеш",
-        "id": "распределенный-кеш"
+        "title": "Граница Cache Components",
+        "id": "граница-cache-components"
       },
       {
         "level": 2,
-        "title": "Инвалидация кеша функций",
-        "id": "инвалидация-кеша-функций"
+        "title": "Не реализовано",
+        "id": "не-реализовано"
       },
       {
         "level": 2,
@@ -2537,23 +2477,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Публичный URL приложения",
-        "id": "публичный-url-приложения"
+        "title": "Сессия и CSRF",
+        "id": "сессия-и-csrf"
       },
       {
         "level": 2,
-        "title": "Внешние изображения",
-        "id": "внешние-изображения"
+        "title": "Protection и OAuth state",
+        "id": "protection-и-oauth-state"
       },
       {
         "level": 2,
-        "title": "Браузерные заголовки",
-        "id": "браузерные-заголовки"
-      },
-      {
-        "level": 2,
-        "title": "Защита маршрутов",
-        "id": "защита-маршрутов"
+        "title": "Origins и маршрутизация",
+        "id": "origins-и-маршрутизация"
       },
       {
         "level": 2,
@@ -2595,18 +2530,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Поддерживаемые провайдеры",
-        "id": "поддерживаемые-провайдеры"
+        "title": "Настройка провайдеров",
+        "id": "настройка-провайдеров"
       },
       {
         "level": 2,
-        "title": "URL перенаправления",
-        "id": "url-перенаправления"
+        "title": "Callback paths",
+        "id": "callback-paths"
       },
       {
         "level": 2,
-        "title": "Подключения аккаунта",
-        "id": "подключения-аккаунта"
+        "title": "Граница токенов",
+        "id": "граница-токенов"
       },
       {
         "level": 2,
@@ -2648,28 +2583,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Поддерживаемые локали",
-        "id": "поддерживаемые-локали"
+        "title": "Фиксированная локаль развертывания",
+        "id": "фиксированная-локаль-развертывания"
       },
       {
         "level": 2,
-        "title": "UI-сообщения",
-        "id": "ui-сообщения"
+        "title": "Разделение UI и REST",
+        "id": "разделение-ui-и-rest"
       },
       {
         "level": 2,
-        "title": "Метаданные страниц",
-        "id": "метаданные-страниц"
-      },
-      {
-        "level": 2,
-        "title": "Контент документации",
-        "id": "контент-документации"
-      },
-      {
-        "level": 2,
-        "title": "Заметка про Cache Components",
-        "id": "заметка-про-cache-components"
+        "title": "Маршруты документации",
+        "id": "маршруты-документации"
       },
       {
         "level": 2,
@@ -2711,23 +2636,18 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Структура страницы",
-        "id": "структура-страницы"
+        "title": "Текущие маршруты",
+        "id": "текущие-маршруты"
       },
       {
         "level": 2,
-        "title": "Режимы ширины",
-        "id": "режимы-ширины"
+        "title": "Loaders и мутации",
+        "id": "loaders-и-мутации"
       },
       {
         "level": 2,
-        "title": "Поведение тем",
-        "id": "поведение-тем"
-      },
-      {
-        "level": 2,
-        "title": "Правила расширения",
-        "id": "правила-расширения"
+        "title": "Отложенная оболочка",
+        "id": "отложенная-оболочка"
       },
       {
         "level": 2,

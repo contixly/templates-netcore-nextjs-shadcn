@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 
 const contentRoot = resolve(process.cwd(), "src/features/documents/content");
 
-function readSection(section: "account" | "workspace", locale: "en" | "ru") {
+function readSection(
+  section: "account" | "workspace" | "api" | "application",
+  locale: "en" | "ru",
+) {
   return readdirSync(resolve(contentRoot, section))
     .filter((fileName) => fileName.endsWith(`.${locale}.md`))
     .sort()
@@ -91,5 +94,26 @@ describe("account and workspace documentation content policy", () => {
     );
     expect(membersEn).toContain("Admins and owners can manage API keys");
     expect(membersRu).toContain("Admin и owner могут управлять API-ключами");
+  });
+});
+
+describe("API and application documentation content policy", () => {
+  const apiV1En = readFileSync(
+    resolve(contentRoot, "api/api-v1.en.md"),
+    "utf8",
+  );
+  const apiV1Ru = readFileSync(
+    resolve(contentRoot, "api/api-v1.ru.md"),
+    "utf8",
+  );
+  const applicationEn = readSection("application", "en");
+  const applicationRu = readSection("application", "ru");
+
+  it("documents the current API and application boundaries in both locales", () => {
+    expect(apiV1En).toContain("x-api-key");
+    expect(apiV1En).toContain("application/problem+json");
+    expect(apiV1Ru).toContain("x-api-key");
+    expect(applicationEn).toContain("generated REST SDK");
+    expect(applicationRu).toContain("ASP.NET Core");
   });
 });

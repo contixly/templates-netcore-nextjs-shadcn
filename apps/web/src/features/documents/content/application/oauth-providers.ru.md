@@ -16,37 +16,32 @@ editedAt: "2026-07-06"
 
 # OAuth-провайдеры
 
-Шаблон использует Better Auth для авторизации и поддерживает несколько OAuth-провайдеров.
-Провайдеры регистрируются только тогда, когда заданы их обязательные переменные окружения.
+Внешним входом владеет ASP.NET Core через OpenIddict Client. Закрытый набор: Google, GitHub, GitLab, VK и Yandex. OpenIddict — client и граница state/replay, а не authorization server или token vault.
 
-## Поддерживаемые провайдеры
+## Настройка провайдеров
 
-| Провайдер | Переменные окружения |
-| --------- | --------------------- |
-| Google | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
-| GitHub | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` |
-| GitLab | `GITLAB_CLIENT_ID`, `GITLAB_CLIENT_SECRET` |
-| VK | `VK_CLIENT_ID` |
-| Yandex | `YANDEX_CLIENT_ID`, `YANDEX_CLIENT_SECRET` |
+Задайте HTTPS `ExternalAuthentication__PublicOrigin`; HTTP разрешен только для loopback разработки. Настройте одновременно `ClientId` и `ClientSecret` в `ExternalAuthentication__Providers__Google`, `GitHub`, `GitLab`, `Vk` или `Yandex`.
 
-Настраивайте только провайдеров, которые нужны сервису. Отсутствующие значения провайдера скрывают
-его из UI входа, навигации и подключений аккаунта.
+Провайдер объявляется только с полной канонической парой. Ноль провайдеров допустим; частичная или неизвестная конфигурация не проходит validation без записи секретов в лог.
 
-## URL перенаправления
+## Callback paths
 
-Панели провайдеров должны использовать URL перенаправления, совпадающие с URL обратного вызова
-Better Auth для базового адреса приложения. Держите `BETTER_AUTH_URL` и
-`NEXT_PUBLIC_APP_BASE_URL` согласованными с тем, как
-пользователи открывают приложение.
+| Провайдер | Callback                           |
+| --------- | ---------------------------------- |
+| Google    | `/api/auth/callback/google`        |
+| GitHub    | `/api/auth/callback/github`        |
+| GitLab    | `/api/auth/callback/gitlab`        |
+| VK        | `/api/auth/callback/vk`            |
+| Yandex    | `/api/auth/oauth2/callback/yandex` |
 
-## Подключения аккаунта
+Эти неверсионированные protocol callbacks исключены из OpenAPI и generated REST SDK. Next.js начинает sign-in/connect только через `POST /api/v1/auth/external/{provider}/challenge` со свежим CSRF и безопасным same-origin return path, затем выполняет top-level переход на выданный сервером HTTPS URL.
 
-Пользователи управляют подключениями провайдеров на `/user/connections`. UI показывает настроенных
-провайдеров, позволяет добавлять отсутствующие подключения и предотвращает небезопасное отключение,
-если аккаунт останется без надежного способа входа.
+## Граница токенов
+
+Успех создает защищенную сессию с `HttpOnly`; JavaScript не хранит bearer token. Provider access/refresh tokens существуют только при callback normalization и не сохраняются в Identity, строках OpenIddict, базе, логах, ответах или браузерном storage. Поэтому локальное отключение не отзывает remote consent, а refresh provider token не поддерживается.
 
 ## Связанные страницы
 
 - [Профиль и подключения](/docs/account/profile-connections)
-- [Быстрый старт](/docs/general/quick-start)
+- [Оболочка приложения](/docs/application)
 - [Безопасность среды выполнения](/docs/application/runtime-security)

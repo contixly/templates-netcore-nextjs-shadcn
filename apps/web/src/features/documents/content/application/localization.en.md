@@ -16,39 +16,26 @@ editedAt: "2026-07-06"
 
 # Localization
 
-The template includes English and Russian message catalogs and a default locale selected by
-`PUBLIC_DEFAULT_LOCALE`. The same setting drives application messages and documentation content.
+Localization belongs to the Next.js presentation layer. ASP.NET Core REST routes and JSON field names stay locale-neutral, so language never changes the API contract or URL.
 
-## Supported locales
+## Fixed deployment locale
 
-The supported locales are `en` and `ru`. If `PUBLIC_DEFAULT_LOCALE` is empty or unsupported, the
-template falls back to `en`.
+Supported locales are `en` and `ru`. `PUBLIC_DEFAULT_LOCALE` selects one locale for the whole app instance; missing or unsupported values fall back to `en`. Build and runtime use the same value, and changing language requires rebuild/restart.
 
-## UI messages
+Routes have no locale prefix. Cookies, `Accept-Language`, user settings, and a language switcher do not select locale in the current Cache Components strategy. Time zone is fixed to `UTC` on server and client.
 
-User-facing interface text lives in `src/messages`. New feature UI should add messages in both
-supported locales and use the existing namespace structure.
+## UI and REST separation
 
-## Page metadata
+Messages live in paired `src/messages/*.en.json` and `*.ru.json` catalogues. Metadata and safe API-failure copy come from these catalogues. The UI localizes by stable Problem Details `code`; it does not display or parse invariant-English API `title` or `detail`.
 
-Pages use route metadata helpers so titles, descriptions, Open Graph data, and other metadata can be
-resolved from localized messages.
+ASP.NET Core validation, authorization, `/api/v1/organizations/{organizationId}`, and generated DTO names are identical for both locales.
 
-## Documentation content
+## Documentation routes
 
-Documentation files use locale suffixes such as `.en.md` and `.ru.md`. The URL stays canonical:
-`/docs/workspace/settings` is the same route for both languages.
-
-If a document exists only in one locale, the documentation system can use it as fallback content and
-show a language marker in the UI.
-
-## Cache Components note
-
-The template runs with Next.js Cache Components enabled. The supported deployment model is one
-configured default locale per app instance or domain.
+Documents use `.en.md`/`.ru.md` variants, while canonical routes remain neutral: `/docs/workspace/settings` is the same URL in both languages. Paired content is preferred; the registry can mark fallback content when one locale is missing.
 
 ## Related pages
 
 - [Localized documentation content](/docs/general/authoring/localized-content)
-- [Quick start](/docs/general/quick-start)
+- [Application shell](/docs/application)
 - [Runtime security](/docs/application/runtime-security)
