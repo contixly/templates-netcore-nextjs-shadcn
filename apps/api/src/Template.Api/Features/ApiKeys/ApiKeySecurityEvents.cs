@@ -15,4 +15,17 @@ internal static partial class ApiKeySecurityEvents
         string ownerKind,
         Guid ownerId,
         Guid? apiKeyId);
+
+    [LoggerMessage(
+        EventId = 3161,
+        Level = LogLevel.Information,
+        Message =
+            "Machine API operation {MachineApiOperation} finished with {MachineApiOutcome}; OwnerKind={OwnerKind}; OwnerId={OwnerId}; ApiKeyId={ApiKeyId}")]
+    internal static partial void WriteMachine(
+        ILogger logger,
+        string machineApiOperation,
+        string machineApiOutcome,
+        string? ownerKind,
+        Guid? ownerId,
+        Guid? apiKeyId);
 }

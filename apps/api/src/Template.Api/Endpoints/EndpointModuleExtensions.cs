@@ -33,7 +33,9 @@ internal static class EndpointModuleExtensions
         var context = new EndpointRouteContext(
             endpoints,
             endpoints.MapGroup("/api/v1")
-                .RequireAuthorization(ApiPolicies.BrowserSession));
+                .RequireAuthorization(ApiPolicies.BrowserSession),
+            endpoints.MapGroup("/api/v1")
+                .RequireAuthorization(ApiPolicies.MachineKey));
 
         foreach (var module in endpoints.ServiceProvider
                      .GetRequiredService<IEnumerable<IEndpointModule>>())

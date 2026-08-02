@@ -4,10 +4,12 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Identity;
+using System.Security.Claims;
 using Template.Api.Authentication;
 using Template.Api.Endpoints;
 using Template.Application.Authentication;
 using Template.Application.Authentication.Ports;
+using Template.Domain.ApiKeys;
 using Template.Domain.Authentication;
 using Template.Infrastructure.Identity;
 
@@ -119,7 +121,28 @@ internal sealed class TestEndpointModule : IEndpointModule
             .AllowAnonymous()
             .ExcludeFromDescription();
 
-        context.VersionedApi.MapGet("/testing/consumer", () => Results.Ok())
+        context.Root.MapGet(
+                "/api/v1/testing/consumer",
+                (ClaimsPrincipal principal) => Results.Ok(new
+                {
+                    authenticationType = principal.Identity?.AuthenticationType,
+                    claims = principal.Claims
+                        .OrderBy(claim => claim.Type, StringComparer.Ordinal)
+                        .ThenBy(claim => claim.Value, StringComparer.Ordinal)
+                        .Select(claim => new { claim.Type, claim.Value })
+                }))
+            .RequireAuthorization(ApiPolicies.BrowserOrMachine)
+            .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
+            .ExcludeFromDescription();
+
+        context.Root.MapGet(
+                "/api/v1/testing/consumer/organization-read",
+                (ClaimsPrincipal principal) => Results.Ok(new
+                {
+                    authenticationType = principal.Identity?.AuthenticationType
+                }))
+            .RequireAuthorization(ApiPolicies.BrowserOrMachine)
+            .RequireApiKeyScopes(ApiKeyScopes.OrganizationRead)
             .ExcludeFromDescription();
     }
 

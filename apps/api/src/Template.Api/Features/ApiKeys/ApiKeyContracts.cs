@@ -91,3 +91,18 @@ internal sealed record ApiKeyPageResponse(
     string? NextCursor);
 
 internal sealed record ApiKeyRevocationResponse(Guid Id, DateTimeOffset RevokedAt);
+
+internal sealed record ApiKeyMeResponse(
+    ApiKeyMePrincipalResponse Principal,
+    ApiKeyMeKeyResponse Key,
+    IReadOnlyList<string> Scopes);
+
+internal sealed record ApiKeyMePrincipalResponse(
+    string OwnerKind,
+    Guid? UserId,
+    Guid? OrganizationId);
+
+internal sealed record ApiKeyMeKeyResponse(
+    Guid Id,
+    string Start,
+    string ConfigId);

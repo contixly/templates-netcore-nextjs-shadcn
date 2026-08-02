@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Template.Api.Features.Health;
@@ -39,6 +40,19 @@ internal static class AuthenticationServiceCollectionExtensions
                         ? ApiAuthenticationDefaults.ProcessOnlySchemeName
                         : ApiAuthenticationDefaults.SchemeName;
                 })
+            .AddPolicyScheme(
+                ApiKeyAuthenticationDefaults.ConsumerSelectorSchemeName,
+                displayName: null,
+                options => options.ForwardDefaultSelector = context =>
+                    context.Request.Headers.ContainsKey(
+                        ApiKeyAuthenticationDefaults.HeaderName)
+                        ? ApiKeyAuthenticationDefaults.SchemeName
+                        : ApiAuthenticationDefaults.SchemeName)
+            .AddScheme<
+                AuthenticationSchemeOptions,
+                ApiKeyAuthenticationHandler>(
+                ApiKeyAuthenticationDefaults.SchemeName,
+                _ => { })
             .AddScheme<
                 AuthenticationSchemeOptions,
                 ProcessOnlyAuthenticationHandler>(
@@ -79,7 +93,21 @@ internal static class AuthenticationServiceCollectionExtensions
                 policy => policy
                     .AddAuthenticationSchemes(ApiAuthenticationDefaults.SchemeName)
                     .RequireAuthenticatedUser());
+            options.AddPolicy(
+                ApiPolicies.MachineKey,
+                policy => policy
+                    .AddAuthenticationSchemes(
+                        ApiKeyAuthenticationDefaults.SchemeName)
+                    .RequireAuthenticatedUser());
+            options.AddPolicy(
+                ApiPolicies.BrowserOrMachine,
+                policy => policy
+                    .AddAuthenticationSchemes(
+                        ApiKeyAuthenticationDefaults.ConsumerSelectorSchemeName)
+                    .RequireAuthenticatedUser());
         });
+        services.AddSingleton<IAuthorizationHandler,
+            ApiKeyScopeAuthorizationHandler>();
 
         return services;
     }

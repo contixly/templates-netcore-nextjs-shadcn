@@ -20,6 +20,44 @@ internal sealed class ApiKeyEndpointModule : IEndpointModule
     {
         MapOwnerRoutes(context.VersionedApi.MapGroup("/account/api-keys"), organization: false);
         MapOwnerRoutes(context.VersionedApi.MapGroup("/organizations/{organizationId}/api-keys"), organization: true);
+        context.VersionedMachineApi.MapGet("/me", Me)
+            .WithName("GetApiKeyPrincipal")
+            .RequireApiKeyScopes(ApiKeyScopes.BasicRead)
+            .Produces<ApiResponse<ApiKeyMeResponse>>()
+            .ProducesProtectedApiProblems();
+    }
+
+    private static IResult Me(
+        HttpContext http,
+        ILogger<ApiKeyEndpointModule> logger)
+    {
+        if (!ApiKeyPrincipalReader.TryRead(http.User, out var principal))
+        {
+            throw new InvalidOperationException(
+                "An authenticated API key principal is required.");
+        }
+
+        var ownerKind = principal.Owner.Kind == ApiKeyOwnerKind.User
+            ? "user"
+            : "organization";
+        ApiKeySecurityEvents.WriteMachine(
+            logger,
+            "me",
+            "succeeded",
+            ownerKind,
+            principal.Owner.UserId?.Value ??
+            principal.Owner.OrganizationId?.Value,
+            principal.Id.Value);
+        return Results.Ok(new ApiResponse<ApiKeyMeResponse>(new(
+            new(
+                ownerKind,
+                principal.Owner.UserId?.Value,
+                principal.Owner.OrganizationId?.Value),
+            new(
+                principal.Id.Value,
+                principal.Start,
+                ApiKeyAuthenticationDefaults.ConfigId(principal.Owner.Kind)),
+            principal.Scopes)));
     }
 
     private static void MapOwnerRoutes(RouteGroupBuilder group, bool organization)
