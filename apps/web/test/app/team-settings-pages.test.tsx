@@ -52,6 +52,7 @@ const organization: OrganizationDetailResponse = {
   canonicalKey: "acme",
   createdAt: "2026-08-01T00:00:00Z",
   updatedAt: "2026-08-01T00:00:00Z",
+  accessPrincipal: "user",
   currentRole: "owner",
   capabilities: {
     canUpdateOrganization: true,
@@ -60,6 +61,7 @@ const organization: OrganizationDetailResponse = {
     canUpdateMemberRoles: true,
     canManageTeams: true,
     canManageInvitations: true,
+    canManageApiKeys: true,
   },
   allowedEmailDomains: [],
 };
@@ -69,6 +71,7 @@ const team: TeamResponse = {
   organizationId: organization.id,
   name: "Platform",
   memberCount: 0,
+  membersIncluded: true,
   members: { items: [], nextCursor: null },
   createdAt: "2026-08-01T00:00:00Z",
   updatedAt: "2026-08-01T00:00:00Z",

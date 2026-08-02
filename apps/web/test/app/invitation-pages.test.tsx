@@ -98,6 +98,7 @@ const organization: OrganizationDetailResponse = {
   canonicalKey: "acme",
   createdAt: "2026-08-01T00:00:00Z",
   updatedAt: "2026-08-01T00:00:00Z",
+  accessPrincipal: "user",
   currentRole: "owner",
   capabilities: {
     canUpdateOrganization: true,
@@ -106,6 +107,7 @@ const organization: OrganizationDetailResponse = {
     canUpdateMemberRoles: true,
     canManageTeams: true,
     canManageInvitations: true,
+    canManageApiKeys: true,
   },
   allowedEmailDomains: [],
 };
@@ -139,6 +141,7 @@ const firstTeam: TeamResponse = {
   organizationId: organization.id,
   name: "First-page team",
   memberCount: 0,
+  membersIncluded: true,
   members: { items: [], nextCursor: null },
   createdAt: "2026-08-01T00:00:00Z",
   updatedAt: "2026-08-01T00:00:00Z",
@@ -246,6 +249,7 @@ it("forbids an ordinary member without loading or disclosing invitation activity
       capabilities: {
         ...organization.capabilities,
         canManageInvitations: false,
+        canManageApiKeys: false,
       },
     },
   });

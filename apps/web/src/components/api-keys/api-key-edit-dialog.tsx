@@ -1,0 +1,376 @@
+"use client";
+
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+
+import {
+  INTERACTION_READY_ATTRIBUTE,
+  useInteractionReady,
+} from "@/src/components/application/interaction-readiness";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
+import { Checkbox } from "@/src/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/src/components/ui/field";
+import { Input } from "@/src/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
+import { Switch } from "@/src/components/ui/switch";
+import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
+import {
+  API_KEY_EXPIRY_OPTIONS,
+  API_KEY_PRESET_OPTIONS,
+  API_KEY_RATE_LIMIT_WINDOW_OPTIONS,
+  apiKeyPresetIdsForScopes,
+  apiKeyScopesForPresetIds,
+  type ApiKeyExpiry,
+  type ApiKeyPresetId,
+  type ApiKeyRateLimitWindow,
+} from "@/src/features/api-keys/api-key-options";
+import { updateBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
+import { createBrowserApiClient } from "@/src/lib/api/browser/client";
+import type {
+  ApiKeyResponse,
+  UpdateApiKeyRequest,
+} from "@/src/lib/api/generated/types.gen";
+import type { ApiFailure } from "@/src/lib/api/result";
+
+function sameValues(left: readonly string[], right: readonly string[]) {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+export function ApiKeyEditDialog({
+  apiKey,
+  onConfirmed,
+  owner,
+}: Readonly<{
+  apiKey: ApiKeyResponse;
+  onConfirmed: (apiKey: ApiKeyResponse) => void;
+  owner: ApiKeyOwner;
+}>) {
+  const t = useTranslations("apiKeys");
+  const interactionReady = useInteractionReady();
+  const initialPresets = apiKeyPresetIdsForScopes(apiKey.scopes);
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState(apiKey.name);
+  const [presetIds, setPresetIds] = useState<ApiKeyPresetId[]>(initialPresets);
+  const [expiresIn, setExpiresIn] = useState<"unchanged" | ApiKeyExpiry>(
+    "unchanged",
+  );
+  const [enabled, setEnabled] = useState(apiKey.enabled);
+  const [rateLimitEnabled, setRateLimitEnabled] = useState(
+    apiKey.rateLimitEnabled,
+  );
+  const [rateLimitMax, setRateLimitMax] = useState(apiKey.rateLimitMax);
+  const [rateLimitWindow, setRateLimitWindow] = useState<ApiKeyRateLimitWindow>(
+    apiKey.rateLimitWindow,
+  );
+  const [validation, setValidation] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ApiFailure | null>(null);
+  const [pending, setPending] = useState(false);
+
+  function resetForm() {
+    setName(apiKey.name);
+    setPresetIds(apiKeyPresetIdsForScopes(apiKey.scopes));
+    setExpiresIn("unchanged");
+    setEnabled(apiKey.enabled);
+    setRateLimitEnabled(apiKey.rateLimitEnabled);
+    setRateLimitMax(apiKey.rateLimitMax);
+    setRateLimitWindow(apiKey.rateLimitWindow);
+    setValidation(null);
+    setFailure(null);
+  }
+
+  function changeOpen(nextOpen: boolean) {
+    if (pending) return;
+    if (nextOpen) resetForm();
+    setOpen(nextOpen);
+  }
+
+  function togglePreset(id: ApiKeyPresetId, checked: boolean) {
+    setPresetIds((current) =>
+      checked
+        ? current.includes(id)
+          ? current
+          : [...current, id]
+        : current.filter((value) => value !== id),
+    );
+  }
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalizedName = name.trim();
+    if (!normalizedName) return setValidation("nameRequired");
+    if ([...normalizedName].length > 32) return setValidation("nameTooLong");
+    if (/[\p{Cc}]/u.test(normalizedName)) return setValidation("nameControl");
+    if (presetIds.length === 0) return setValidation("presetRequired");
+    if (
+      rateLimitEnabled &&
+      (!Number.isInteger(rateLimitMax) ||
+        rateLimitMax < 1 ||
+        rateLimitMax > 1_000_000)
+    )
+      return setValidation("rateLimitRange");
+
+    const body: UpdateApiKeyRequest = {};
+    if (normalizedName !== apiKey.name) body.name = normalizedName;
+    if (!sameValues(apiKeyScopesForPresetIds(presetIds), apiKey.scopes)) {
+      body.presetIds = presetIds;
+    }
+    if (expiresIn !== "unchanged") body.expiresIn = expiresIn;
+    if (enabled !== apiKey.enabled) body.enabled = enabled;
+    if (rateLimitEnabled !== apiKey.rateLimitEnabled) {
+      body.rateLimitEnabled = rateLimitEnabled;
+    }
+    if (rateLimitMax !== apiKey.rateLimitMax) body.rateLimitMax = rateLimitMax;
+    if (rateLimitWindow !== apiKey.rateLimitWindow) {
+      body.rateLimitWindow = rateLimitWindow;
+    }
+    if (Object.keys(body).length === 0) return setValidation("noChanges");
+
+    setValidation(null);
+    setFailure(null);
+    setPending(true);
+    const result = await updateBrowserApiKey(
+      createBrowserApiClient(),
+      owner,
+      apiKey.id,
+      body,
+    );
+    setPending(false);
+    if (!result.ok) return setFailure(result.failure);
+    onConfirmed(result.data);
+    setOpen(false);
+  }
+
+  const failureCode =
+    failure?.kind === "problem" &&
+    [
+      "antiforgery_failed",
+      "api_key_not_found",
+      "api_key_permission_denied",
+      "api_key_update_unchanged",
+      "validation_failed",
+    ].includes(failure.code)
+      ? (failure.code as
+          | "antiforgery_failed"
+          | "api_key_not_found"
+          | "api_key_permission_denied"
+          | "api_key_update_unchanged"
+          | "validation_failed")
+      : "generic";
+
+  return (
+    <Dialog open={open} onOpenChange={changeOpen}>
+      <DialogTrigger asChild>
+        <Button
+          {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+          disabled={!interactionReady}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          {t("actions.edit")}
+        </Button>
+      </DialogTrigger>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>{t("edit.title", { name: apiKey.name })}</DialogTitle>
+          <DialogDescription>{t("edit.description")}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-5"
+          onSubmit={(event) => void submit(event)}
+        >
+          <FieldGroup>
+            <Field data-invalid={validation?.startsWith("name")}>
+              <FieldLabel htmlFor={`api-key-edit-name-${apiKey.id}`}>
+                {t("fields.name")}
+              </FieldLabel>
+              <Input
+                aria-invalid={validation?.startsWith("name")}
+                id={`api-key-edit-name-${apiKey.id}`}
+                onChange={(event) => setName(event.target.value)}
+                value={name}
+              />
+              <FieldDescription>{t("fields.nameHint")}</FieldDescription>
+            </Field>
+            <fieldset className="flex flex-col gap-3">
+              <legend className="text-xs font-medium">
+                {t("presets.label")}
+              </legend>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {API_KEY_PRESET_OPTIONS.map((option) => {
+                  const id = `api-key-edit-${apiKey.id}-${option.id}`;
+                  return (
+                    <Field key={option.id} orientation="horizontal">
+                      <Checkbox
+                        checked={presetIds.includes(option.id)}
+                        id={id}
+                        onCheckedChange={(checked) =>
+                          togglePreset(option.id, checked === true)
+                        }
+                      />
+                      <FieldLabel htmlFor={id}>
+                        {t(`presets.${option.id}`)}
+                      </FieldLabel>
+                    </Field>
+                  );
+                })}
+              </div>
+            </fieldset>
+            <Field>
+              <FieldLabel htmlFor={`api-key-edit-expiry-${apiKey.id}`}>
+                {t("expiry.label")}
+              </FieldLabel>
+              <Select
+                value={expiresIn}
+                onValueChange={(value) =>
+                  setExpiresIn(value as "unchanged" | ApiKeyExpiry)
+                }
+              >
+                <SelectTrigger
+                  aria-label={t("expiry.label")}
+                  id={`api-key-edit-expiry-${apiKey.id}`}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="unchanged">
+                      {t("expiry.unchanged")}
+                    </SelectItem>
+                    {API_KEY_EXPIRY_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {t(`expiry.${option}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field orientation="horizontal">
+              <FieldLabel htmlFor={`api-key-edit-enabled-${apiKey.id}`}>
+                {t("fields.enabled")}
+              </FieldLabel>
+              <Switch
+                id={`api-key-edit-enabled-${apiKey.id}`}
+                checked={enabled}
+                onCheckedChange={setEnabled}
+              />
+            </Field>
+            <Field orientation="horizontal">
+              <FieldLabel htmlFor={`api-key-edit-rate-enabled-${apiKey.id}`}>
+                {t("fields.rateLimitEnabled")}
+              </FieldLabel>
+              <Switch
+                id={`api-key-edit-rate-enabled-${apiKey.id}`}
+                checked={rateLimitEnabled}
+                onCheckedChange={setRateLimitEnabled}
+              />
+            </Field>
+            <Field data-disabled={!rateLimitEnabled}>
+              <FieldLabel htmlFor={`api-key-edit-rate-max-${apiKey.id}`}>
+                {t("fields.rateLimitMax")}
+              </FieldLabel>
+              <Input
+                disabled={!rateLimitEnabled}
+                id={`api-key-edit-rate-max-${apiKey.id}`}
+                max={1_000_000}
+                min={1}
+                onChange={(event) =>
+                  setRateLimitMax(event.target.valueAsNumber)
+                }
+                type="number"
+                value={Number.isNaN(rateLimitMax) ? "" : rateLimitMax}
+              />
+            </Field>
+            <Field data-disabled={!rateLimitEnabled}>
+              <FieldLabel htmlFor={`api-key-edit-rate-window-${apiKey.id}`}>
+                {t("rateWindow.label")}
+              </FieldLabel>
+              <Select
+                disabled={!rateLimitEnabled}
+                value={rateLimitWindow}
+                onValueChange={(value) =>
+                  setRateLimitWindow(value as ApiKeyRateLimitWindow)
+                }
+              >
+                <SelectTrigger
+                  aria-label={t("rateWindow.label")}
+                  id={`api-key-edit-rate-window-${apiKey.id}`}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {API_KEY_RATE_LIMIT_WINDOW_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {t(`rateWindow.${option}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
+
+          {validation ? (
+            <FieldError>
+              {validation === "noChanges"
+                ? t("edit.noChanges")
+                : t(`validation.${validation as "nameRequired"}`)}
+            </FieldError>
+          ) : null}
+          {failure ? (
+            <Alert variant="destructive">
+              <AlertTitle>{t("failures.update")}</AlertTitle>
+              <AlertDescription>
+                <p>{t(`failures.codes.${failureCode}`)}</p>
+                {failure.kind === "problem" && failure.traceId ? (
+                  <p className="font-mono">{failure.traceId}</p>
+                ) : null}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <DialogFooter>
+            <Button
+              disabled={pending}
+              onClick={() => setOpen(false)}
+              type="button"
+              variant="outline"
+            >
+              {t("actions.cancel")}
+            </Button>
+            <Button disabled={pending} type="submit">
+              {pending ? t("edit.submitting") : t("actions.save")}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

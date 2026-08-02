@@ -45,6 +45,7 @@ const capabilities = {
   canUpdateMemberRoles: true,
   canManageTeams: true,
   canManageInvitations: true,
+  canManageApiKeys: true,
 };
 
 function summary(
@@ -52,7 +53,7 @@ function summary(
   name: string,
   canonicalKey: string,
   canManageInvitations = false,
-): OrganizationSummaryResponse {
+): Extract<OrganizationSummaryResponse, { accessPrincipal: "user" }> {
   return {
     id,
     name,
@@ -60,6 +61,7 @@ function summary(
     canonicalKey,
     createdAt: "2026-07-30T10:00:00Z",
     updatedAt: "2026-07-30T10:00:00Z",
+    accessPrincipal: "user" as const,
     currentRole: "owner",
     capabilities: { ...capabilities, canManageInvitations },
   };

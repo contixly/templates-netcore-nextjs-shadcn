@@ -39,6 +39,7 @@ const createdOrganization = {
   canonicalKey: "acme-team",
   createdAt: "2026-07-30T10:00:00Z",
   updatedAt: "2026-07-30T10:00:00Z",
+  accessPrincipal: "user" as const,
   currentRole: "owner" as const,
   capabilities: {
     canUpdateOrganization: true,
@@ -47,6 +48,7 @@ const createdOrganization = {
     canUpdateMemberRoles: true,
     canManageTeams: true,
     canManageInvitations: true,
+    canManageApiKeys: true,
   },
   allowedEmailDomains: [],
 };

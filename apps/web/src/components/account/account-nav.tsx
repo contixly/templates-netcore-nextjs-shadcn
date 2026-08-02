@@ -20,6 +20,7 @@ const accountNavigation = [
     label: "invitations",
     destructive: false,
   },
+  { href: accountRoutes.apiKeys, label: "apiKeys", destructive: false },
   { href: accountRoutes.danger, label: "danger", destructive: true },
 ] as const;
 
