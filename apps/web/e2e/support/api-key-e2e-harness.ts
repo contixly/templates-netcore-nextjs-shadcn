@@ -1,5 +1,6 @@
 import {
   expect,
+  type ElementHandle,
   type Locator,
   type Page,
   type TestInfo,
@@ -367,38 +368,50 @@ export async function collectGeneratedPagesToExhaustion<
 ): Promise<readonly T[]> {
   const collected: T[] = [];
   const seenCursors = new Set<string>();
-  const maximumPages = options.expectedIds.length + 2;
+  const expectedPageCount = options.expectedIds.length;
   let cursor: string | undefined;
+  let fetchedPageCount = 0;
   let reachedTerminalPage = false;
 
-  for (let pageIndex = 0; pageIndex < maximumPages; pageIndex += 1) {
+  for (let pageIndex = 0; pageIndex < expectedPageCount; pageIndex += 1) {
     const page = assertGeneratedSuccess(await options.fetchPage(cursor), 200);
+    fetchedPageCount += 1;
     expect(Object.keys(page).sort()).toEqual(["items", "nextCursor"]);
     options.validatePage?.(page);
+    if (page.items.length !== 1) {
+      throw new Error(
+        "Generated limit=1 page did not contain exactly one item.",
+      );
+    }
     for (const item of page.items) {
       options.validateItem(item);
       collected.push(item);
     }
 
-    if (page.nextCursor === null) {
-      reachedTerminalPage = true;
-      break;
+    const isExpectedTerminalPage = pageIndex === expectedPageCount - 1;
+    if (page.nextCursor !== null) {
+      const nextCursor = assertOpaquePageContinuation(page);
+      if (seenCursors.has(nextCursor)) {
+        throw new Error(
+          "Generated pagination repeated an opaque continuation.",
+        );
+      }
+      seenCursors.add(nextCursor);
+      cursor = nextCursor;
     }
-    if (page.items.length === 0) {
+
+    if ((page.nextCursor === null) !== isExpectedTerminalPage) {
       throw new Error(
-        "Generated pagination returned an empty continuation page.",
+        "Generated pagination did not terminate after the exact expected page count.",
       );
     }
-    const nextCursor = assertOpaquePageContinuation(page);
-    if (seenCursors.has(nextCursor)) {
-      throw new Error("Generated pagination repeated an opaque continuation.");
-    }
-    seenCursors.add(nextCursor);
-    cursor = nextCursor;
+    reachedTerminalPage = page.nextCursor === null;
   }
 
-  if (!reachedTerminalPage) {
-    throw new Error("Generated pagination did not reach its terminal page.");
+  if (!reachedTerminalPage || fetchedPageCount !== expectedPageCount) {
+    throw new Error(
+      "Generated pagination did not terminate after the exact expected page count.",
+    );
   }
 
   const collectedIds = collected.map((item) => item.id);
@@ -406,6 +419,14 @@ export async function collectGeneratedPagesToExhaustion<
   expect(new Set(collectedIds)).toEqual(new Set(options.expectedIds));
   expect(collectedIds).toEqual(options.expectedIds);
   return collected;
+}
+
+export async function credentialCodeNodeIsRemovedOrCleared<TNode extends Node>(
+  credentialNode: ElementHandle<TNode>,
+): Promise<boolean> {
+  return credentialNode.evaluate(
+    (node) => !node.isConnected || (node.textContent ?? "").trim().length === 0,
+  );
 }
 
 function apiKeyRow(page: Page, name: string): Locator {
@@ -437,6 +458,10 @@ async function captureRevealOnceCredential(
   if ((await credentialView.count()) !== 1) {
     throw new Error("Reveal-once API credential view was unavailable.");
   }
+  const credentialNode = await credentialView.elementHandle();
+  if (!credentialNode) {
+    throw new Error("Reveal-once API credential node was unavailable.");
+  }
   let credential = (await credentialView.textContent())?.trim() ?? "";
   try {
     const prefix = ownerKind === "organization" ? "org" : "user";
@@ -447,6 +472,11 @@ async function captureRevealOnceCredential(
     const close = dialog.getByRole("button", { name: "I saved it" });
     await close.click();
     await dialog.waitFor({ state: "hidden" });
+    await expect
+      .poll(() => credentialCodeNodeIsRemovedOrCleared(credentialNode), {
+        message: "Reveal-once API credential node was not removed or cleared.",
+      })
+      .toBe(true);
     if (!valid) {
       throw new Error("Reveal-once API credential had an invalid safe format.");
     }
