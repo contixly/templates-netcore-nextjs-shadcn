@@ -5,3 +5,4 @@ package-lock.json
 playwright-report
 test-results
 src/lib/api/generated
+src/features/documents/generated/documents-registry.gen.ts

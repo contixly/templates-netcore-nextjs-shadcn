@@ -231,10 +231,23 @@ callbacks проверены fake-provider integration tests; live успешн�
 
 **Цель:** перенести documentation surface и поиск, не смешивая его с account/workspace доменом.
 
-**Состав:** MD/MDX content pipeline в `apps/web`, locale-aware rendering, documentation navigation, search API/indexing boundary, OG metadata route, publication state and link validation.
+**Состав:** deterministic MD/MDX compiler в `apps/web`, 108 target-owned
+`en`/`ru` variants для 54 canonical routes, strict content/link/asset/MDX
+validation (including syntax-aware GFM/MDX expression and image-source
+boundaries), generated Next.js registry/import map, neutral generated search
+artifact, Application ranking, embedded Infrastructure adapter, anonymous
+ASP.NET Core search REST/OpenAPI/generated SDK, public navigation/article/search,
+metadata, sitemap и presentation-only OG route.
 
-**Вход:** итерация 2; решение, где хранятся и индексируются documents.
-**Выход:** `/docs/**` и public search воспроизводят нужные published страницы и локали; content validation включена в CI.
+**Вход:** итерация 2; authoring source остаётся в `apps/web`, а API получает
+только детерминированный нейтральный `contracts/documents/search-index.json`.
+**Выход:** `/docs/**` и anonymous
+`GET /api/v1/documents-system/search` воспроизводят published страницы, локали,
+navigation/search/OG journey; content, OpenAPI, SDK и browser validation входят
+в обязательные gates. Ready PR
+[#9](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/9)
+создан; exact-current-head clean-review status остаётся внешним evidence PR и
+controller и не self-asserted этим документом.
 **Reference:** `template/src/features/documents-system`, `template/src/app/(public)/(documents-system)/docs/**`.
 
 ### Итерация 9 — Application shell, dashboard и frontend parity
@@ -298,7 +311,8 @@ callbacks проверены fake-provider integration tests; live успешн�
 | 5 — organizations, membership и onboarding         | Завершена | Final observed implementation/review closure для `0ffdd7dc810e7d6b1b003c4e2b930abf0861c984`: automatic review `5148491672` не нашёл major issues; 38/38 review threads resolved, 0 unresolved; Task 14 Steps 5–6 complete для этого observed state. Post-documentation controller push всё ещё требует fresh automatic review. |
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
-| 8–12                                                 | Не начаты | Public documents search (8), product dashboard (9), machine writes, Aspire (10), Redis/Bearer/deploy work and production proxy/container (10–11), plus parity/archive work (12), remain out of this iteration. |
+| 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
+| 9–12                                                | Не начаты | Product shell/dashboard parity (9), Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) remain out of iteration 8. |
 
 ## Acceptance evidence: итерация 1
 
@@ -2810,6 +2824,233 @@ product dashboard work, machine writes, Redis/Valkey, Bearer issuer/consumer
 contracts, Aspire, deployment/proxy/container topology, production quota
 tiering/load tests, or member removal merely to create an E2E fixture.
 
+
+
+## Acceptance evidence: итерация 8
+
+**Начальный implementation head до durable-docs commit:** `2f6d8b2`
+(`test: cover public documentation journeys`). Evidence ниже получен заново
+2026-08-03 и дополнен после automatic-review fix waves в ready PR
+[#9](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/9). Точный
+clean-review result для финального pushed head остаётся внешним PR/controller
+evidence и здесь не утверждается.
+
+### Scope и доставленные границы
+
+- target-owned source: 108 файлов, 100 Markdown и 8 MDX, образующих 54
+  canonical routes с production-visible `en`/`ru` variants;
+- deterministic compiler: strict frontmatter, locale pair, status, link,
+  fragment, image, fenced-code and closed-MDX validation;
+- generated web registry/exact module map плюс нейтральный
+  `contracts/documents/search-index.json` (`schemaVersion: 1`);
+- Domain без изменений; Application владеет normalization/ranking/bounds,
+  Infrastructure один раз строго загружает embedded immutable index;
+- anonymous/no-store ASP.NET Core
+  `GET /api/v1/documents-system/search?q=&locale=` с `{ data }`, strict
+  validation и safe RFC Problem Details;
+- generated OpenAPI/TypeScript SDK — единственный browser search transport;
+- dedicated public Next.js docs route group, localized navigation/article/TOC,
+  search, metadata, sitemap and presentation-only OG handler;
+- current pages describe ASP.NET Core + REST; historical pages visibly mark the
+  former full-stack Next.js implementation as legacy.
+
+No database/Identity dependency, Domain document entity, EF model/migration,
+schema change, seed, transaction, data/session migration, Redis/Valkey, CMS,
+background indexer, persistent cache, audit table, authenticated docs, API key,
+CSRF requirement or per-search rate limiter was added.
+
+### Reference → API → UI → test
+
+| Reference | Новый API | Новый UI | Fresh evidence |
+| --- | --- | --- | --- |
+| `template/src/features/documents-system/**` registry/compiler/search tools | Application search + embedded neutral index | generated registry/import map, 108 target-owned sources | content Node **109/109**; focused documents Jest **12 suites / 80 tests** |
+| `template/src/app/api/v1/documents-system/search/route.ts` | anonymous `GET /api/v1/documents-system/search`, `{ data }`, no-store, Problem Details | generated `searchDocumentsSystem` adapter, debounced/cancellable search dialog | Application search **25/25**; API endpoint focus **32/32**; API/OpenAPI focus **89/89**; full API **773/773**; boundary **8/8** |
+| `template/src/app/(public)/(documents-system)/docs/**` | none for rendering | `/docs`, `/docs/{**slug}`, public shell/article/sidebar/prev-next/TOC | page/component/metadata Jest focus; Playwright documents scenarios within final **28 passed** |
+| reference OG routes and metadata files | none | sole Next Route Handler `/docs/og/{**slug}` plus metadata file conventions | production build and Playwright PNG/unknown-image cases |
+| `template/src/app/sitemap.ts` | none | published canonical docs projection | focused sitemap Jest plus clean build |
+| 54 route × 2 locale corpus | safe page/heading search projection only | fixed-locale, locale-neutral URLs | complete corpus compile, content policy, full Jest and E2E |
+
+### REST, auth, validation, errors, pages, and state
+
+Search is anonymous. A cookie or `x-api-key` supplied incidentally does not
+change the result, and the operation has an explicit empty OpenAPI security
+requirement. The boundary accepts only one `q` and `locale`: query is trimmed
+and limited to 120 UTF-16 code units; explicit locale is the exact enum `en|ru`;
+missing locale uses safe validated API configuration. Duplicate, unsupported,
+unknown or overlong inputs return `400 validation_failed`. OpenAPI describes the
+bounded fields but cannot express the implementation's stricter rejection of
+unknown query-string keys.
+
+Empty query returns at most 32 pages and no headings. A typed query returns at
+most 8 pages and 8 headings, with deterministic exact/prefix/contains/metadata/
+fuzzy ranking and generated order for ties. There is no caller limit, cursor,
+page number, independent filter, or pagination response. Success is required
+non-null `{ data: { pages, headings } }` and `Cache-Control: no-store`; errors
+are safe typed `400`, `406`, or `500` Problem Details. Incompatible success
+media ranges return `406 not_acceptable`; JSON/wildcard ranges are accepted,
+and the Problem Details writer remains independent of `Accept`. Logs/artifacts do not
+expose content bodies, query-derived exception text, filesystem paths or
+credentials.
+
+The immutable generated artifact is loaded once per process. There are no
+schema, transaction, persistence, invalidation, data-migration or session-
+migration semantics to accept for this slice.
+
+### Fresh local gates — 2026-08-03
+
+| Gate / command | Observed result |
+| --- | --- |
+| focused `dotnet test ...Template.Application.Tests... --filter FullyQualifiedName~DocumentSearch` | PASS after third review wave; **25/25**, 0 failed/skipped |
+| focused `dotnet test ...Template.Api.Tests... --filter FullyQualifiedName~DocumentSearchEndpointTests`; Task 17 API/OpenAPI filter | PASS after third review wave; endpoint **32/32**, combined **89/89**, 0 failed/skipped |
+| `npm run content:check`; `npm run content:test` | PASS; drift clean; Node **109/109**, 0 failed/skipped |
+| focused documents Jest command from Task 17 | PASS; **12/12 suites, 80/80 tests**, 0 snapshots |
+| `dotnet restore Template.sln` | PASS; all projects current; `real 0.98s` |
+| `dotnet build Template.sln --no-restore` | PASS; **0 warnings, 0 errors**; `real 2.23s` |
+| `dotnet test Template.sln --no-restore` | PASS after third review wave; Application **343/343**, API **773/773**, aggregate **1116/1116**, 0 failed/skipped |
+| `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; `real 13.71s` |
+| `dotnet list Template.sln package --vulnerable --include-transitive` | PASS; no vulnerable NuGet packages in all 7 projects; `real 13.14s` |
+| `npm run content:generate`; second `npm run content:check` | PASS; generated registry/index current; `real 0.26s` and `0.18s` |
+| forced fresh double OpenAPI export + `cmp` | PASS; both commands ran `GenerateOpenApiDocuments`, outputs byte-identical; **44 paths / 58 operations**, SHA-256 `851800b2576ce9445b101029514fcee25bac367cd2b863bdb789a07f7e848a68` |
+| `npm run api:check` | PASS; generated REST client current and deterministic; `real 0.93s` |
+| `npm ci` | PASS; 1,118 packages added / 1,119 audited; deprecation and 5 unapproved-install-script notices retained; **1 high** full-tree vulnerability reported; `real 14.28s` |
+| final `npm run content:check`; `npm run boundaries:check` | PASS; content drift clean; boundary Node **8/8** and source scan clean; `real 0.24s` and `2.59s` |
+| `npm run format:check` | PASS; Prettier clean; `real 3.98s` |
+| `npm run lint` | PASS exit 0; **0 errors, 17 warning-only** unused compile-time aliases in `test/contracts/generated-sdk.test.ts`; `real 8.03s` |
+| `npm run typecheck` | PASS; Next typegen and TypeScript clean; `real 4.90s` |
+| full `npm test -- --runInBand` | PASS after third review wave; **82/82 suites, 659/659 tests**, 0 snapshots |
+| clean `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build`; standalone check | PASS; Next.js 16.2.11, Cache Components enabled, **137/137** static-page generation, standalone server present; `real 12.47s` |
+| `npm run audit:prod` | PASS; **0 production vulnerabilities**; `real 1.17s` |
+| `npm audit --json` | observed full development tree: **1 high**, 0 critical/moderate/low; transitive `brace-expansion` DoS advisory, fix available |
+| `npm run e2e` | PASS; **28 passed, 5 skipped**, 0 failed; skipped cases are opt-in live external-provider screens; `real 69.78s`; non-failing `NO_COLOR`/`FORCE_COLOR` warnings observed |
+| repository guards | PASS on the final source tree before the review-loop commit: `git diff --check`; branch-range `template/` diff empty; no active non-archive `openspec/changes`; status inspected |
+
+### Automatic-review fix-wave evidence — 2026-08-03
+
+The initial Task 17 table was extended by automatic-review regressions. Fresh
+current evidence is: content generate/check and Node **109/109**; focused
+documents Jest **12 suites / 80 tests**; full Jest **82 suites / 659 tests**;
+full .NET **1116/1116**; full Playwright **28 passed / 5 opt-in skipped**;
+boundaries **8/8**; and clean build **137/137**. Typecheck, format, API client
+drift, lint with the same 17 warning-only aliases, production audit,
+template/OpenSpec and whitespace guards also passed. One combined verification
+shell received process exit 139 when entering Jest after the preceding gates;
+an immediately isolated full Jest command passed at that checkpoint, the latest
+full suite passes **659/659**, and no source change was made for that
+environment/process failure.
+
+The compiler now rejects locale-less sources and distinguishes broken targets
+from unpublished matching-locale targets. `/docs/index` is a permanent alias of
+`/docs`; docs loading/error messages are paired for `en`/`ru`; and production
+guidance now requires `APP_PUBLIC_ORIGIN`.
+
+The third automatic-review wave further closes the authoring/runtime boundary:
+canonical route segments are validated before URL generation against the
+lowercase ASCII letter/digit alphabet with single `-`/`.` separators, and
+repeated terminal source `/index` aliases are rejected before collision/link
+validation; only the exact `/docs/index` compatibility link maps to the root,
+while nested/repeated terminal aliases and percent-encoded document paths are
+broken; closed quoted-string MDX attribute contracts require every mandatory
+custom-component field and reject duplicate attribute names before JSX
+last-value-wins behavior;
+`h2`/`h3` at any nesting depth inside `Tabs`/`Tab` are rejected, with direct
+`Tabs` → `Tab` ownership, non-empty tabs, unique values, and exact optional
+default selection enforced; compiler and runtime
+reserve `document-title`/`main-content`/`footnote-label` and allocate globally
+unused anchors outside GFM's dynamic footnote-ID namespaces; unsafe or
+whitespace-obfuscated link protocols fail compilation and are suppressed at
+runtime; and rendered document links remove all trailing slashes exactly like
+compiler validation. Search input is composed to
+NFC in both generated JavaScript index text and .NET query normalization.
+Incompatible search `Accept` values now produce safe no-store
+`406 not_acceptable application/problem+json`, while JSON and wildcard ranges
+remain accepted, representation-compatible `charset=utf-8` is honored, and
+media-type specificity cannot be outranked by repeated parameters. Error
+Problem Details do not depend on `Accept`. Strict complete-list parsing rejects
+malformed tokens/parameters, invalid quality, and mixed valid/invalid values
+instead of treating a malformed present header as absent; qvalues also enforce
+the RFC three-fractional-digit grammar.
+
+The syntax-aware compiler uses the same GFM parser as rendering, rejects MDX
+module/flow/text expressions, JSX expression/spread attributes, and executable
+intrinsic elements, decodes heading character references before stable
+slugging, and admits images only
+from verified `/img/**` paths or explicit HTTP(S). Generated footnote heading
+accessibility attributes survive the custom `h2` renderer. Wrong-layout search
+maps the English backtick key to Russian `ё`, then applies the established
+`ё`/`е` normalization equivalence.
+
+Compiler and renderer now also share first-definition-wins Markdown references,
+recursive source-order heading discovery, footnote/image heading-text rules,
+case-insensitive HTTP(S) image schemes, and a closed single-`src` image policy
+that rejects `srcSet`.
+
+Headings inside GFM footnote definitions are rejected before indexing because
+the renderer relocates or omits those definitions; ordinary footnote content
+remains supported. Author-written MDX also cannot supply the GFM-reserved
+`data-footnote-ref` marker that the runtime excludes from heading slug text.
+
+The harness rejected the literal destructive `rm -rf .next` spelling before it
+started that combined command. A safe `python3` `shutil.rmtree(...,
+ignore_errors=True)` removed `.next` instead, immediately before the recorded
+production build; the standalone check then passed. For the double OpenAPI
+gate, touching only `Program.cs` mtime before each otherwise exact build forced
+MSBuild to execute `GenerateOpenApiDocuments` twice; file content and git status
+were unchanged, and `cmp` passed.
+
+### Next.js 16 compatibility and known differences
+
+`cacheComponents: true` remains enabled. Next.js 16.2.11 removes
+`dynamicParams` while Cache Components are enabled, so the approved
+`dynamicParams = false` mechanism was superseded. The implemented route keeps
+`generateStaticParams()`, performs exact generated-registry lookup in metadata
+and page code, and calls `notFound()` for unknown/unpublished content.
+
+The Cache Components streaming shell is committed before that dynamic segment
+resolves. The observed unknown document therefore returns transport HTTP `200`
+plus the Next.js **Page not found** UI and `robots: noindex`, rather than the
+reference transport 404. This partial-prerendering difference is retained and
+covered by E2E. Unknown/unpublished OG lookup still returns a true empty-body
+`404` because the presentation-only Route Handler resolves before responding.
+
+Other intentional target differences are `{ data }` rather than raw search
+payload, RFC Problem Details rather than an empty custom failure payload,
+strict invalid locale/overlong/unknown-query rejection rather than silent
+fallback/truncation, strict build failure rather than skipped invalid content,
+required bilingual production visibility, a neutral embedded artifact rather
+than runtime frontend filesystem reads, and rewritten current guidance for
+ASP.NET Core + REST.
+
+Non-blocking observed test/maintenance limitations are retained honestly: the
+full lint has the 17 warning-only generated-SDK type assertions above;
+Application projection tests do not assert every field value; unit tests do not
+explicitly isolate selection-triggered abort although production closes and
+aborts; disabled-search unavailability is exposed by title while one
+placeholder message remains unused; history-policy checks verify whole-file
+legacy/migration markers rather than their exact position; and the unknown-OG
+E2E also asserts an empty body beyond the required 404 contract. None changes
+the accepted public behavior, but later edits should not cite those tests more
+strongly than they prove.
+
+### Out of scope and next gates
+
+Iteration 8 does not add the iteration 9 global application shell, dashboard,
+protected documentation shortcut, remaining product-route visual parity, or a
+user-selected/URL-prefixed locale. It does not start iteration 10 Aspire,
+ServiceDefaults, distributed local orchestration, OpenTelemetry dashboard,
+Redis resource or developer seed topology. It does not start iteration 11
+single production container, YARP reverse proxy, process supervision, signal
+handling, deployment probes or production asset/websocket validation. It does
+not perform iteration 12 full route/API/security/performance/accessibility/SEO/
+backup/license parity audit or make any archive/delete decision for `template/`.
+Machine writes, Bearer issuer/consumer contracts, external search, CMS,
+personalized docs, persistent indexing and active OpenSpec artifacts also remain
+out of scope.
+
+Ready PR [#9](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/9)
+exists and automatic-review findings have been processed test-first.
+Exact-current-head fresh clean review and zero unresolved actionable threads
+remain external PR/controller evidence; this tracked document does not
+self-assert that state.
 
 ## 9. Правило обновления этого документа
 

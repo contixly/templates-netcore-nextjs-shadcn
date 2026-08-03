@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="../../../../contracts/documents/search-index.json"
+                      LogicalName="Template.Documents.SearchIndex.v1.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />

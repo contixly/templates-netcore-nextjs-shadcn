@@ -38,12 +38,40 @@ describe("fixed deployment locale", () => {
     expect(Object.keys(russian.collaboration)).toEqual(
       Object.keys(english.collaboration),
     );
+    expect(Object.keys(russian.documents)).toEqual(
+      Object.keys(english.documents),
+    );
     expect(Object.keys(russian.organizations)).toEqual(
       Object.keys(english.organizations),
     );
     expect(Object.keys(russian.system)).toEqual(Object.keys(english.system));
     expect(russian.auth.login.title).not.toBe(english.auth.login.title);
     expect(russian.system.page.title).not.toBe(english.system.page.title);
+  });
+
+  it("keeps every English and Russian documentation message at the same path", async () => {
+    const [english, russian] = await Promise.all([
+      loadMessages("en"),
+      loadMessages("ru"),
+    ]);
+    const messagePaths = (value: unknown, prefix = ""): string[] =>
+      Object.entries(value as Record<string, unknown>).flatMap(
+        ([key, child]) => {
+          const path = prefix ? `${prefix}.${key}` : key;
+          return typeof child === "object" && child !== null
+            ? messagePaths(child, path)
+            : [path];
+        },
+      );
+
+    expect(messagePaths(russian.documents).sort()).toEqual(
+      messagePaths(english.documents).sort(),
+    );
+    expect(english.documents.navigation.label).toBe("Documentation");
+    expect(russian.documents.navigation.label).not.toBe(
+      english.documents.navigation.label,
+    );
+    expect(english.documents.search.unavailable).toContain("unavailable");
   });
 
   it("registers matching English and Russian API-key messages", async () => {

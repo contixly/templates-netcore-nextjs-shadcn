@@ -312,6 +312,10 @@ internal static class ApiProblemDetailsDefaults
                 requestedCode,
                 "Organization access denied",
                 "The API key cannot access the requested organization."),
+            ApiProblemCodes.NotAcceptable => new ProblemDefinition(
+                requestedCode,
+                "Response representation not acceptable",
+                "The requested response media type is not available."),
             _ => null
         };
         if (custom is not null)

@@ -1,0 +1,63 @@
+{
+  "navigation": {
+    "label": "Documentation",
+    "home": "Home"
+  },
+  "sidebar": {
+    "title": "Documentation",
+    "open": "Open navigation",
+    "close": "Close navigation"
+  },
+  "page": {
+    "previous": "Previous document",
+    "next": "Next document",
+    "onThisPage": "On this page",
+    "navigation": "Document navigation"
+  },
+  "boundary": {
+    "loading": "Loading documentation",
+    "errorTitle": "Documentation is unavailable",
+    "errorDescription": "The requested document could not be rendered safely.",
+    "retry": "Try again"
+  },
+  "meta": {
+    "group": "Group",
+    "parent": "Section",
+    "purpose": "Purpose",
+    "editedAt": "Last edited",
+    "author": "Author",
+    "version": "Version",
+    "reading": "Reading time",
+    "status": {
+      "draft": "Draft",
+      "review": "Review",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "visibility": {
+      "visible": "Visible",
+      "hidden": "Hidden"
+    },
+    "language": {
+      "en": "English",
+      "ru": "Russian"
+    },
+    "fallback": {
+      "en": "Showing English fallback",
+      "ru": "Showing Russian fallback"
+    }
+  },
+  "search": {
+    "open": "Search docs",
+    "placeholder": "Search docs...",
+    "title": "Search docs",
+    "description": "Search documentation pages and sections",
+    "loading": "Loading search results",
+    "emptyQuery": "No documents found",
+    "emptyResults": "No results found",
+    "unavailable": "Search is temporarily unavailable",
+    "results": "Search results",
+    "pages": "Pages",
+    "headings": "Page sections"
+  }
+}

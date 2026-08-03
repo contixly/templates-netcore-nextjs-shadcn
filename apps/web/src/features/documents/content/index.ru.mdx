@@ -1,0 +1,192 @@
+---
+title: "Документация шаблона"
+description: "Публичная документация .NET 10 API и отдельного UI Next.js: запуск, аккаунты, рабочие пространства, API-доступ, среда выполнения приложения и руководство для разработчиков."
+group: "Общее"
+groupOrder: 2000
+parentItem: "Введение"
+parentItemOrder: 1000
+order: 1000
+toc: true
+purpose: "Публичная документация шаблона"
+status: "published"
+author: "Команда шаблона"
+version: "1.2.0"
+editedAt: "2026-08-03"
+---
+
+# Документация шаблона
+
+Шаблон состоит из двух приложений. ASP.NET Core 10 — единственный HTTP-хост для `/api/**`; он
+владеет аутентификацией, авторизацией, бизнес-сценариями, хранением данных и OpenAPI. Отдельное
+приложение Next.js отвечает за отображение и взаимодействие в браузере и получает продуктовые
+данные только через сгенерированный REST SDK.
+
+Браузерная сессия остается в защищенной same-origin cookie с `HttpOnly`. UI не хранит bearer-токены,
+не вызывает Server Actions для продуктового поведения, не размещает продуктовые API Route Handlers,
+не использует Better Auth или Prisma и не обращается к базе напрямую.
+
+## С чего начать
+
+<DocumentLinkGrid>
+  <DocumentLinkGroup
+    title="Общее"
+    description="Настройте текущие приложения .NET и Next.js и изучите общие термины."
+  >
+    <DocumentLinkCard href="/docs/general/quick-start" title="Быстрый старт">
+      Подготовьте PostgreSQL, запустите ASP.NET Core API и UI Next.js и проверьте локальную REST-границу.
+    </DocumentLinkCard>
+    <DocumentLinkCard href="/docs/general/glossary" title="Глоссарий">
+      Посмотрите термины из разделов аккаунта, рабочего пространства, API, приложения и разработки.
+    </DocumentLinkCard>
+  </DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Аккаунт"
+  description="Профиль, внешние провайдеры, постоянные сессии, приглашения и удаление."
+>
+  <DocumentLinkCard href="/docs/account" title="Настройки аккаунта">
+    Разберитесь с глобальной областью аккаунта и ее REST endpoints ASP.NET Core.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/account/profile-connections"
+    title="Профиль и подключения"
+  >
+    Обновляйте отображаемое имя и управляйте настроенными внешними
+    OAuth-подключениями.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/account/sessions-security"
+    title="Сессии и безопасность"
+  >
+    Проверяйте постоянные сессии, отзывайте доступ и учитывайте границу HttpOnly
+    cookie.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Рабочее пространство"
+  description="Совместная работа на базе организаций, участники, команды, приглашения и настройки."
+>
+  <DocumentLinkCard href="/docs/workspace" title="Рабочее пространство">
+    Узнайте, как организации ASP.NET Core представлены рабочими пространствами
+    под `/w/:organizationKey/**`.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/workspace/create-switch"
+    title="Создание и переключение рабочего пространства"
+  >
+    Создавайте организацию, выбирайте активную организацию и используйте
+    канонические ссылки.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/workspace/settings"
+    title="Настройки рабочего пространства"
+  >
+    Проверьте настройки и capabilities для деталей организации, участников,
+    команд, приглашений, доменов и API-ключей.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/workspace/invitations" title="Приглашения">
+    Создавайте, проверяйте, принимайте или отклоняйте 48-часовые приглашения
+    через текущий REST-контракт.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="API и интеграции"
+  description="Управление через сессию и машинный доступ по областям через ASP.NET Core."
+>
+  <DocumentLinkCard href="/docs/api" title="API-доступ">
+    Разберитесь с границами cookie и `x-api-key` для `/api/v1`.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/api/api-keys" title="Управление API-ключами">
+    Создавайте, ротируйте, изменяйте и отзывайте персональные API-ключи и ключи
+    организаций.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/api/api-v1" title="Справочник API v1">
+    Проверьте поддерживаемые read-only машинные маршруты, обертки ответов,
+    Problem Details и правила доступа.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Приложение"
+  description="Владение средой выполнения, локализация, безопасность, кеширование и UI-маршруты."
+>
+  <DocumentLinkCard href="/docs/application" title="Архитектура приложения">
+    Проверьте границу ASP.NET Core/Next.js, текущие маршруты и поток данных
+    через сгенерированный REST-клиент.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/application/localization" title="Локализация">
+    Посмотрите, как `PUBLIC_DEFAULT_LOCALE` управляет сообщениями UI,
+    метаданными и вариантами документации.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/application/runtime-security"
+    title="Безопасность среды выполнения"
+  >
+    Проверьте same-origin API-доступ, валидацию публичного origin, разрешенный
+    SSR forwarding и заголовки безопасности.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Документация и разработка"
+  description="Развивайте слоистый API и REST-only UI, сохраняя согласованность тестов, контрактов и документации."
+>
+  <DocumentLinkCard
+    href="/docs/general/authoring/how-to-write-docs"
+    title="Как писать документацию"
+  >
+    Пишите парные публичные страницы со стабильными метаданными, каноническими
+    ссылками и пользовательским фокусом.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/developers" title="Для разработчиков">
+    Работайте в границах Domain, Application, Infrastructure, API и отдельного
+    web-приложения.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/developers/openspec-e2e-docs"
+    title="Требования, E2E и документация"
+  >
+    Синхронизируйте видимое поведение, тесты, генерируемые контракты и публичное
+    руководство.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+  <DocumentLinkGroup
+    title="История изменений"
+    description="Фактические релизы и еженедельные сводки прежней эталонной реализации."
+  >
+    <DocumentLinkCard href="/docs/history/releases" title="Релизы">
+      Читайте архив версий с явным контекстом миграции и ссылками на актуальное руководство.
+    </DocumentLinkCard>
+    <DocumentLinkCard href="/docs/history/change-logs" title="Еженедельные изменения">
+      Читайте датированные сводки видимых изменений прежнего full-stack шаблона Next.js.
+    </DocumentLinkCard>
+  </DocumentLinkGroup>
+</DocumentLinkGrid>
+
+## Что входит в текущий шаблон
+
+- **Слоистый backend на .NET 10**: `Template.Domain`, `Template.Application`,
+  `Template.Infrastructure` и единственный HTTP-хост `Template.Api`.
+- **REST-only граница web**: отдельный UI Next.js использует зафиксированный OpenAPI-контракт через
+  сгенерированные операции и DTO.
+- **Аккаунты и сессии**: аккаунты на ASP.NET Core Identity, постоянные сессии, опциональные внешние
+  OAuth-подключения, CSRF-защита и защищенные same-origin cookie.
+- **Организации и совместная работа**: канонические маршруты рабочих пространств, фиксированные роли,
+  участники, команды, приглашения, политика email-доменов и онбординг без рабочего пространства.
+- **API-доступ**: персональные API-ключи и ключи организаций, одноразовый показ секрета, ротация,
+  права, срок действия, ограничения частоты и поддерживаемые read-only маршруты `/api/v1`.
+- **Публичная документация**: канонические маршруты `/docs/**`, варианты на русском и английском,
+  поиск, история релизов и еженедельные записи.
+- **Процесс качества**: unit-тесты .NET и тесты через `WebApplicationFactory`, Jest, Playwright,
+  детерминированные артефакты OpenAPI и документации и проверки границ.
+
+<Callout title="Актуальное руководство и история" variant="info">
+  Разделы аккаунта, рабочего пространства, API, приложения и разработки
+  описывают мигрированную архитектуру. История сохраняет фактические события
+  прежнего full-stack эталона Next.js и явно помечает его Prisma, Better Auth,
+  Server Actions, API-маршруты и кеширование как legacy, а не как текущие
+  инструкции.
+</Callout>

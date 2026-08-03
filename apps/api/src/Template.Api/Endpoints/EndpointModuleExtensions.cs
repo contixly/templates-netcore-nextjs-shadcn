@@ -3,6 +3,7 @@ using Template.Api.Features.Account;
 using Template.Api.Features.Auth;
 using Template.Api.Features.ApiKeys;
 using Template.Api.Features.Collaboration;
+using Template.Api.Features.Documents;
 using Template.Api.Features.Health;
 using Template.Api.Features.Organizations;
 using Template.Api.Features.System;
@@ -22,6 +23,7 @@ internal static class EndpointModuleExtensions
         services.AddSingleton<IEndpointModule, OrganizationEndpointModule>();
         services.AddSingleton<IEndpointModule, TeamEndpointModule>();
         services.AddSingleton<IEndpointModule, InvitationEndpointModule>();
+        services.AddSingleton<IEndpointModule, DocumentSearchEndpointModule>();
         services.AddSingleton<IEndpointModule, HealthEndpointModule>();
         services.AddSingleton<IEndpointModule, SystemEndpointModule>();
         return services;

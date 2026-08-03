@@ -264,6 +264,10 @@ export type ApiResponseOfAuthSessionResponse = {
     data: AuthSessionResponse;
 };
 
+export type ApiResponseOfDocumentSearchResponse = {
+    data: DocumentSearchResponse;
+};
+
 export type ApiResponseOfExternalAuthChallengeResponse = {
     data: ExternalAuthChallengeResponse;
 };
@@ -449,6 +453,29 @@ export type DeleteOrganizationRequest = {
      * Case-sensitive organization name confirmation.
      */
     confirmationName: string;
+};
+
+export type DocumentSearchHeadingResponse = {
+    type: 'heading';
+    title: string;
+    href: string;
+    pageTitle: string;
+    group: string;
+    parentItem: string;
+};
+
+export type DocumentSearchPageResponse = {
+    type: 'page';
+    title: string;
+    description: string;
+    href: string;
+    group: string;
+    parentItem: string;
+};
+
+export type DocumentSearchResponse = {
+    pages: Array<DocumentSearchPageResponse>;
+    headings: Array<DocumentSearchHeadingResponse>;
 };
 
 export type ExternalAuthChallengeRequest = {
@@ -3333,6 +3360,42 @@ export type RotateOrganizationApiKeyResponses = {
 };
 
 export type RotateOrganizationApiKeyResponse = RotateOrganizationApiKeyResponses[keyof RotateOrganizationApiKeyResponses];
+
+export type SearchDocumentsSystemData = {
+    body?: never;
+    path?: never;
+    query?: {
+        q?: string;
+        locale?: 'en' | 'ru';
+    };
+    url: '/api/v1/documents-system/search';
+};
+
+export type SearchDocumentsSystemErrors = {
+    /**
+     * Bad Request
+     */
+    400: HttpValidationProblemDetails;
+    /**
+     * Not Acceptable
+     */
+    406: ProblemDetails;
+    /**
+     * Internal Server Error
+     */
+    500: ProblemDetails;
+};
+
+export type SearchDocumentsSystemError = SearchDocumentsSystemErrors[keyof SearchDocumentsSystemErrors];
+
+export type SearchDocumentsSystemResponses = {
+    /**
+     * OK
+     */
+    200: ApiResponseOfDocumentSearchResponse;
+};
+
+export type SearchDocumentsSystemResponse = SearchDocumentsSystemResponses[keyof SearchDocumentsSystemResponses];
 
 export type GetSystemStatusData = {
     body?: never;

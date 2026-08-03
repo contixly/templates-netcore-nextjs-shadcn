@@ -1,0 +1,187 @@
+---
+title: "Template documentation"
+description: "Public documentation for the .NET 10 API and separate Next.js UI: setup, accounts, workspaces, API access, application runtime, and developer guidance."
+group: "General"
+groupOrder: 2000
+parentItem: "Introduction"
+parentItemOrder: 1000
+order: 1000
+toc: true
+purpose: "Public template documentation"
+status: "published"
+author: "Template Maintainers"
+version: "1.2.0"
+editedAt: "2026-08-03"
+---
+
+# Template documentation
+
+This template is a two-application system. ASP.NET Core 10 is the only HTTP host for `/api/**` and
+owns authentication, authorization, business use cases, persistence, and OpenAPI. The separate
+Next.js application owns rendering and browser interaction and accesses product data only through
+the generated REST SDK.
+
+Browser sessions stay in a secure same-origin HttpOnly cookie. The UI does not store bearer tokens,
+call Server Actions for product behavior, host product API Route Handlers, use Better Auth or
+Prisma, or access the database directly.
+
+## Start here
+
+<DocumentLinkGrid>
+  <DocumentLinkGroup
+    title="General"
+    description="Configure the current .NET and Next.js applications and learn shared terms."
+  >
+    <DocumentLinkCard href="/docs/general/quick-start" title="Quick start">
+      Prepare PostgreSQL, start the ASP.NET Core API and Next.js UI, and verify the local REST
+      boundary.
+    </DocumentLinkCard>
+    <DocumentLinkCard href="/docs/general/glossary" title="Glossary">
+      Review terms used across account, workspace, API, application, and development pages.
+    </DocumentLinkCard>
+  </DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Account"
+  description="Profile details, external providers, persistent sessions, invitations, and deletion."
+>
+  <DocumentLinkCard href="/docs/account" title="Account settings">
+    Understand the global account area and its ASP.NET Core REST endpoints.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/account/profile-connections"
+    title="Profile and connections"
+  >
+    Update the display name and manage configured external OAuth connections.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/account/sessions-security"
+    title="Sessions and security"
+  >
+    Review persistent sessions, revoke access, and understand the HttpOnly
+    cookie boundary.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Workspace"
+  description="Organization-backed collaboration, members, teams, invitations, and settings."
+>
+  <DocumentLinkCard href="/docs/workspace" title="Workspace">
+    Learn how ASP.NET Core organizations appear as workspaces under
+    `/w/:organizationKey/**`.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/workspace/create-switch"
+    title="Create and switch workspaces"
+  >
+    Create an organization, select the active organization, and use canonical
+    workspace links.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/workspace/settings" title="Workspace settings">
+    Review settings and capabilities for organization details, members, teams,
+    invitations, domains, and API keys.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/workspace/invitations" title="Invitations">
+    Create, inspect, accept, or reject 48-hour invitations through the current
+    REST contract.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="API and integrations"
+  description="Session-authenticated management and scoped machine access through ASP.NET Core."
+>
+  <DocumentLinkCard href="/docs/api" title="API access">
+    Understand the cookie and `x-api-key` credential boundaries for `/api/v1`.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/api/api-keys" title="Manage API keys">
+    Create, rotate, update, and revoke personal or organization API keys.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/api/api-v1" title="API v1 reference">
+    Review supported read-only machine routes, response envelopes, Problem
+    Details, and access rules.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Application"
+  description="Runtime ownership, localization, security, caching policy, and UI routes."
+>
+  <DocumentLinkCard href="/docs/application" title="Application architecture">
+    Review the ASP.NET Core/Next.js ownership boundary, current routes, and
+    generated REST data flow.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/application/localization" title="Localization">
+    See how `PUBLIC_DEFAULT_LOCALE` controls UI messages, metadata, and
+    documentation variants.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/application/runtime-security"
+    title="Runtime security"
+  >
+    Review same-origin API access, public-origin validation, approved SSR
+    forwarding, and security headers.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+<DocumentLinkGroup
+  title="Documentation and development"
+  description="Extend the layered API and REST-only UI while keeping tests, contracts, and docs aligned."
+>
+  <DocumentLinkCard
+    href="/docs/general/authoring/how-to-write-docs"
+    title="How to write documentation"
+  >
+    Write paired public pages with stable metadata, canonical links, and
+    user-facing scope.
+  </DocumentLinkCard>
+  <DocumentLinkCard href="/docs/developers" title="For developers">
+    Work in the Domain, Application, Infrastructure, API, and separate web
+    boundaries.
+  </DocumentLinkCard>
+  <DocumentLinkCard
+    href="/docs/developers/openspec-e2e-docs"
+    title="Requirements, E2E, and docs"
+  >
+    Keep visible behavior, tests, generated contracts, and public guidance
+    synchronized.
+  </DocumentLinkCard>
+</DocumentLinkGroup>
+
+  <DocumentLinkGroup
+    title="History"
+    description="Factual releases and weekly summaries from the legacy reference implementation."
+  >
+    <DocumentLinkCard href="/docs/history/releases" title="Releases">
+      Read the archived versions with explicit migration-era context and links to current guidance.
+    </DocumentLinkCard>
+    <DocumentLinkCard href="/docs/history/change-logs" title="Weekly changes">
+      Read dated summaries of user-visible work in the former full-stack Next.js template.
+    </DocumentLinkCard>
+  </DocumentLinkGroup>
+</DocumentLinkGrid>
+
+## What the current template includes
+
+- **Layered .NET 10 backend**: `Template.Domain`, `Template.Application`,
+  `Template.Infrastructure`, and the sole HTTP host, `Template.Api`.
+- **REST-only web boundary**: a separate Next.js UI consumes the committed OpenAPI contract through
+  generated operations and DTOs.
+- **Accounts and sessions**: ASP.NET Core Identity-backed accounts, persistent sessions, optional
+  external OAuth connections, CSRF protection, and secure same-origin cookies.
+- **Organizations and collaboration**: canonical workspace routes, fixed roles, members, teams,
+  invitations, email-domain policy, and no-workspace onboarding.
+- **API access**: personal and organization API keys, one-time secret reveal, rotation, permissions,
+  expiration, rate limits, and supported read-only `/api/v1` routes.
+- **Public documentation**: canonical `/docs/**` routes, English and Russian variants, search,
+  release history, and weekly change records.
+- **Quality workflow**: .NET unit and `WebApplicationFactory` tests, Jest, Playwright, deterministic
+  OpenAPI and documentation artifacts, and boundary checks.
+
+<Callout title="Current guidance versus history" variant="info">
+  Account, workspace, API, application, and developer pages describe the
+  migrated architecture. History pages preserve factual events from the former
+  full-stack Next.js reference and label its Prisma, Better Auth, Server Action,
+  API-route, and caching behavior as legacy rather than current instructions.
+</Callout>

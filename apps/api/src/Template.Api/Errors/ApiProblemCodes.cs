@@ -8,6 +8,7 @@ internal static class ApiProblemCodes
     internal const string Forbidden = "forbidden";
     internal const string NotFound = "not_found";
     internal const string MethodNotAllowed = "method_not_allowed";
+    internal const string NotAcceptable = "not_acceptable";
     internal const string InternalError = "internal_error";
     internal const string AntiforgeryFailed = "antiforgery_failed";
     internal const string LocalAuthInvalidCredentials = "local_auth_invalid_credentials";

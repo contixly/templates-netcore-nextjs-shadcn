@@ -18,8 +18,10 @@ internal static class OpenApiServiceCollectionExtensions
             options.AddSchemaTransformer<OrganizationContractSchemaTransformer>();
             options.AddSchemaTransformer<CollaborationContractSchemaTransformer>();
             options.AddSchemaTransformer<ApiKeyContractSchemaTransformer>();
+            options.AddSchemaTransformer<DocumentSearchContractSchemaTransformer>();
             options.AddOperationTransformer<OrganizationContractOperationTransformer>();
             options.AddOperationTransformer<CollaborationContractOperationTransformer>();
+            options.AddOperationTransformer<DocumentSearchContractOperationTransformer>();
             options.AddDocumentTransformer((document, _, _) =>
             {
                 document.Info.Title = "Template API";
