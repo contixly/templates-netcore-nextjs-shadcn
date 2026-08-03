@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 
-import HomePage from "@/src/app/(site)/page";
+import HomePage from "@/src/app/(public)/(home)/page";
 
 jest.mock("next-intl/server", () => ({
   getTranslations: async (namespace: string) => {

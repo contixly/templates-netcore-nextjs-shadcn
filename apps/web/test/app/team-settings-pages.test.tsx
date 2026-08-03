@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 
-import TeamsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/teams/page";
-import TeamsPage from "@/src/app/(site)/w/[organizationKey]/settings/teams/page";
+import TeamsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/teams/page";
+import TeamsPage from "@/src/app/(protected)/w/[organizationKey]/settings/teams/page";
 import { TeamDirectory } from "@/src/components/collaboration/team-directory";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import type {
@@ -36,15 +36,6 @@ jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
 jest.mock("@/src/lib/api/collaboration/server/load-teams", () => ({
   loadTeams: jest.fn(),
 }));
-jest.mock(
-  "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/workspace-organization-switcher",
-  () => ({
-    WorkspaceOrganizationSwitcherSlot: jest.fn(() => (
-      <span>workspace switcher</span>
-    )),
-  }),
-);
-
 const organization: OrganizationDetailResponse = {
   id: "org-1",
   name: "Acme",
@@ -157,9 +148,12 @@ it("loads the first REST page for SSR and keys the directory by immutable organi
   ).toBeVisible();
 });
 
-it("uses the matching organization switcher parallel slot", () => {
-  render(
-    <TeamsSwitcherSlot params={Promise.resolve({ organizationKey: "acme" })} />,
-  );
-  expect(screen.getByText("workspace switcher")).toBeVisible();
+it("uses the matching application-navigation return path", async () => {
+  const slot = await TeamsSwitcherSlot({
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+  expect(slot.props).toEqual({
+    redirectPath: "/w/acme/settings/teams",
+    organizationKey: "acme",
+  });
 });

@@ -1,12 +1,14 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import { getAccount } from "@/src/lib/api/generated";
 import type { AccountResult } from "@/src/lib/api/result";
 import { createServerApiClient } from "@/src/lib/api/server/client";
 import { readForwardedApiHeaders } from "@/src/lib/api/server/request-headers";
 
-export async function loadAccount(): Promise<AccountResult> {
+async function loadAccountUncached(): Promise<AccountResult> {
   const client = createServerApiClient(await readForwardedApiHeaders());
   if (!client.ok) {
     return { ok: false, failure: client.failure };
@@ -30,3 +32,5 @@ export async function loadAccount(): Promise<AccountResult> {
     return { ok: false, failure: normalizeApiFailure(error) };
   }
 }
+
+export const loadAccount = cache(loadAccountUncached);

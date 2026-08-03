@@ -4,7 +4,7 @@ import { screen } from "@testing-library/react";
 import {
   AuthenticatedAccountShell,
   default as UserLayout,
-} from "@/src/app/(site)/user/layout";
+} from "@/src/app/(protected)/user/layout";
 import { AccountNav } from "@/src/components/account/account-nav";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import accountRu from "@/src/messages/account.ru.json";

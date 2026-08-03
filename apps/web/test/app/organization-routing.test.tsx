@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import GlobalDashboardPage from "@/src/app/(site)/dashboard/page";
-import OrganizationDashboardError from "@/src/app/(site)/w/[organizationKey]/dashboard/error";
-import OrganizationDashboardLoading from "@/src/app/(site)/w/[organizationKey]/dashboard/loading";
-import OrganizationDashboardPage from "@/src/app/(site)/w/[organizationKey]/dashboard/page";
-import WorkspaceRootPage from "@/src/app/(site)/w/[organizationKey]/page";
-import WelcomePage from "@/src/app/(site)/welcome/page";
-import WorkspacesError from "@/src/app/(site)/workspaces/error";
-import WorkspacesLoading from "@/src/app/(site)/workspaces/loading";
-import WorkspacesPage from "@/src/app/(site)/workspaces/page";
+import GlobalDashboardPage from "@/src/app/(protected)/dashboard/page";
+import OrganizationDashboardError from "@/src/app/(protected)/w/[organizationKey]/dashboard/error";
+import OrganizationDashboardLoading from "@/src/app/(protected)/w/[organizationKey]/dashboard/loading";
+import OrganizationDashboardPage from "@/src/app/(protected)/w/[organizationKey]/dashboard/page";
+import WorkspaceRootPage from "@/src/app/(protected)/w/[organizationKey]/page";
+import WelcomePage from "@/src/app/(protected)/welcome/page";
+import WorkspacesError from "@/src/app/(protected)/workspaces/error";
+import WorkspacesLoading from "@/src/app/(protected)/workspaces/loading";
+import WorkspacesPage from "@/src/app/(protected)/workspaces/page";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
 import type {

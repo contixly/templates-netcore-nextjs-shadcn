@@ -1,13 +1,13 @@
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { screen } from "@testing-library/react";
 
-import OrganizationApiKeySwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/api-keys/page";
-import ApiKeyPage from "@/src/app/(site)/user/api-keys/page";
-import ApiKeyLoading from "@/src/app/(site)/user/api-keys/loading";
-import OrganizationSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/user/api-keys/page";
-import OrganizationApiKeysError from "@/src/app/(site)/w/[organizationKey]/settings/api-keys/error";
-import OrganizationApiKeysLoading from "@/src/app/(site)/w/[organizationKey]/settings/api-keys/loading";
-import OrganizationApiKeysPage from "@/src/app/(site)/w/[organizationKey]/settings/api-keys/page";
+import OrganizationApiKeySwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/api-keys/page";
+import ApiKeyPage from "@/src/app/(protected)/user/api-keys/page";
+import ApiKeyLoading from "@/src/app/(protected)/user/api-keys/loading";
+import OrganizationSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/user/api-keys/page";
+import OrganizationApiKeysError from "@/src/app/(protected)/w/[organizationKey]/settings/api-keys/error";
+import OrganizationApiKeysLoading from "@/src/app/(protected)/w/[organizationKey]/settings/api-keys/loading";
+import OrganizationApiKeysPage from "@/src/app/(protected)/w/[organizationKey]/settings/api-keys/page";
 import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";
@@ -47,14 +47,6 @@ jest.mock("@/src/features/authentication/load-protected-session", () => ({
 jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
   loadOrganization: jest.fn(),
 }));
-jest.mock(
-  "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/workspace-organization-switcher",
-  () => ({
-    WorkspaceOrganizationSwitcherSlot: jest.fn(({ params }) => (
-      <i data-params={String(params)}>workspace switcher</i>
-    )),
-  }),
-);
 jest.mock("@/src/components/api-keys/api-key-management", () => ({
   ApiKeyManagement: ({
     initialPage,
@@ -179,10 +171,12 @@ it("renders a localized safe failure without exposing backend detail", async () 
   expect(screen.getByRole("alert")).toHaveTextContent("trace-safe");
 });
 
-it("provides localized loading and a complete organization-switcher parallel slot", async () => {
+it("provides localized loading and the exact personal navigation return path", async () => {
   renderWithMessages(await ApiKeyLoading());
   expect(screen.getByRole("status")).toHaveTextContent("Loading API keys");
-  expect(OrganizationSwitcherSlot()).toBeNull();
+  expect(OrganizationSwitcherSlot().props).toEqual({
+    redirectPath: "/user/api-keys",
+  });
 });
 
 it("canonicalizes UUID organization routes before listing any API keys", async () => {
@@ -345,6 +339,8 @@ it("provides localized organization loading/error boundaries and its switcher sl
   ).toBeVisible();
 
   const params = Promise.resolve({ organizationKey: "acme" });
-  renderWithMessages(await OrganizationApiKeySwitcherSlot({ params }));
-  expect(screen.getByText("workspace switcher")).toBeVisible();
+  expect((await OrganizationApiKeySwitcherSlot({ params })).props).toEqual({
+    redirectPath: "/w/acme/settings/api-keys",
+    organizationKey: "acme",
+  });
 });

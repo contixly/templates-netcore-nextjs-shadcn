@@ -16,17 +16,17 @@ import {
 } from "react";
 import { createRoot } from "react-dom/client";
 
-import SettingsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/page";
-import RolesSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/roles/page";
-import UsersSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/users/page";
-import WorkspaceSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/workspace/page";
+import SettingsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/page";
+import RolesSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/roles/page";
+import UsersSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/users/page";
+import WorkspaceSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/workspace/page";
 import SettingsLayout, {
   AuthenticatedOrganizationSettingsShell,
-} from "@/src/app/(site)/w/[organizationKey]/settings/layout";
-import SettingsPage from "@/src/app/(site)/w/[organizationKey]/settings/page";
-import RolesPage from "@/src/app/(site)/w/[organizationKey]/settings/roles/page";
-import UsersPage from "@/src/app/(site)/w/[organizationKey]/settings/users/page";
-import WorkspacePage from "@/src/app/(site)/w/[organizationKey]/settings/workspace/page";
+} from "@/src/app/(protected)/w/[organizationKey]/settings/layout";
+import SettingsPage from "@/src/app/(protected)/w/[organizationKey]/settings/page";
+import RolesPage from "@/src/app/(protected)/w/[organizationKey]/settings/roles/page";
+import UsersPage from "@/src/app/(protected)/w/[organizationKey]/settings/users/page";
+import WorkspacePage from "@/src/app/(protected)/w/[organizationKey]/settings/workspace/page";
 import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
 import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
 import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
@@ -114,15 +114,6 @@ jest.mock(
     loadOrganizationMembers: jest.fn(),
   }),
 );
-jest.mock(
-  "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/workspace-organization-switcher",
-  () => ({
-    WorkspaceOrganizationSwitcherSlot: jest.fn(({ params }) => (
-      <i data-params={String(params)}>workspace switcher</i>
-    )),
-  }),
-);
-
 const loadSession = jest.mocked(loadServerAuthSession);
 const loadDetail = jest.mocked(loadOrganization);
 const loadList = jest.mocked(loadOrganizations);
@@ -1641,18 +1632,20 @@ it("invalidates the old organization during the different-id commit before passi
   }
 });
 
-it("adds explicit workspace switcher slot pages for every settings destination", async () => {
-  const params = Promise.resolve({ organizationKey: "acme" });
-  for (const page of [
-    SettingsSwitcherSlot,
-    WorkspaceSwitcherSlot,
-    UsersSwitcherSlot,
-    RolesSwitcherSlot,
-  ]) {
-    render(await page({ params }));
-  }
+it("adds exact application-navigation return paths for every settings destination", async () => {
+  const cases = [
+    [SettingsSwitcherSlot, "/w/acme/settings"],
+    [WorkspaceSwitcherSlot, "/w/acme/settings/workspace"],
+    [UsersSwitcherSlot, "/w/acme/settings/users"],
+    [RolesSwitcherSlot, "/w/acme/settings/roles"],
+  ] as const;
 
-  expect(screen.getAllByText("workspace switcher")).toHaveLength(4);
+  for (const [page, redirectPath] of cases) {
+    const slot = await page({
+      params: Promise.resolve({ organizationKey: "acme" }),
+    });
+    expect(slot.props).toEqual({ redirectPath, organizationKey: "acme" });
+  }
 });
 
 it("keeps the settings layout as a server shell around its local suspense boundary", async () => {

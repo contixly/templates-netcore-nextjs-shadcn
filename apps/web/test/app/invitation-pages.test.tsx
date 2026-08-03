@@ -8,12 +8,12 @@ import {
 } from "@testing-library/react";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 
-import InviteSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/invite/[invitationId]/page";
-import AccountInvitationsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/user/invitations/page";
-import SettingsInvitationsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/invitations/page";
-import InvitePage from "@/src/app/(site)/invite/[invitationId]/page";
-import AccountInvitationsPage from "@/src/app/(site)/user/invitations/page";
-import SettingsInvitationsPage from "@/src/app/(site)/w/[organizationKey]/settings/invitations/page";
+import InviteSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/invite/[invitationId]/page";
+import AccountInvitationsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/user/invitations/page";
+import SettingsInvitationsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/invitations/page";
+import InvitePage from "@/src/app/(protected)/invite/[invitationId]/page";
+import AccountInvitationsPage from "@/src/app/(protected)/user/invitations/page";
+import SettingsInvitationsPage from "@/src/app/(protected)/w/[organizationKey]/settings/invitations/page";
 import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
 import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
 import { InvitationDecision } from "@/src/components/collaboration/invitation-decision";
@@ -84,13 +84,6 @@ jest.mock(
   "@/src/lib/api/collaboration/server/load-invitation-decision",
   () => ({ loadInvitationDecision: jest.fn() }),
 );
-jest.mock(
-  "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/workspace-organization-switcher",
-  () => ({
-    WorkspaceOrganizationSwitcherSlot: () => <span>workspace switcher</span>,
-  }),
-);
-
 const organization: OrganizationDetailResponse = {
   id: "org-1",
   name: "Acme",
@@ -621,15 +614,21 @@ it("redirects an anonymous invitation visitor back to the exact encoded route", 
   expect(loadInvitationDecision).not.toHaveBeenCalled();
 });
 
-it("provides empty switcher slots for both account and decision routes and a workspace slot for settings", () => {
+it("provides exact application-navigation return paths for invitation routes", async () => {
   const accountSlot = AccountInvitationsSwitcherSlot();
-  const inviteSlot = InviteSwitcherSlot();
-  expect(accountSlot).toBeNull();
-  expect(inviteSlot).toBeNull();
-  render(
-    <SettingsInvitationsSwitcherSlot
-      params={Promise.resolve({ organizationKey: "acme" })}
-    />,
-  );
-  expect(screen.getByText("workspace switcher")).toBeVisible();
+  const inviteSlot = await InviteSwitcherSlot({
+    params: Promise.resolve({ invitationId: "invite/id" }),
+  });
+  const settingsSlot = await SettingsInvitationsSwitcherSlot({
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+
+  expect(accountSlot.props).toEqual({ redirectPath: "/user/invitations" });
+  expect(inviteSlot.props).toEqual({
+    redirectPath: "/invite/invite%2Fid",
+  });
+  expect(settingsSlot.props).toEqual({
+    redirectPath: "/w/acme/settings/invitations",
+    organizationKey: "acme",
+  });
 });
