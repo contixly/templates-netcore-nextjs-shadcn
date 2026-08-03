@@ -412,7 +412,14 @@ switcher.
 - `/docs` renders the canonical `index` document;
 - `/docs/{**slug}` renders a generated published document;
 - `generateStaticParams()` returns every production-visible canonical slug;
-- `dynamicParams = false` makes unknown/unpublished routes return 404;
+- `cacheComponents: true` remains enabled; Next.js 16.2.11 does not permit the
+  former `dynamicParams = false` route export in that mode;
+- metadata and page rendering perform an exact generated-registry lookup and
+  call `notFound()` for every unknown/unpublished slug;
+- because Cache Components can commit the streaming shell before that lookup
+  completes, an unknown page has the framework's not-found UI and `noindex`
+  marker but an observed initial HTTP `200`; this known partial-prerendering
+  transport difference is covered by E2E and is not described as a 404;
 - URLs never contain `.en`, `.ru` or a locale prefix;
 - the fixed deployment locale selects the matching generated variant;
 - page rendering, navigation and metadata require no live API.
@@ -549,7 +556,8 @@ Every production behavior begins with an observed failing focused test.
 - fixed-locale content with no locale URL suffix;
 - sidebar, previous/next and TOC navigation;
 - `Ctrl/⌘+K` search and page/heading result navigation;
-- unknown document 404;
+- unknown document not-found UI plus `noindex` on the observed streamed HTTP
+  `200` response;
 - valid document OG PNG and unknown OG 404;
 - no authentication requirement or protected-layout dependency.
 
@@ -609,6 +617,9 @@ edits from being accepted without reconciliation.
   source files at runtime;
 - exact generated artifacts and drift checks replace runtime git/mtime
   enrichment.
+- Next.js 16 Cache Components preserve exact unknown-page UI and `noindex`
+  semantics but stream the initial shell with HTTP `200`; the presentation-only
+  unknown OG response remains a true `404`.
 
 These differences follow the established target conventions while preserving
 the normal public routes, localized content, navigation, search ranking and

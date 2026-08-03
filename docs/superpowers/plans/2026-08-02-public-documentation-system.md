@@ -80,7 +80,7 @@ export async function writeDocumentsArtifacts(options);
 export async function checkDocumentsArtifacts(options);
 ```
 
-- [ ] **Step 1: Install exact dependencies and scripts**
+- [x] **Step 1: Install exact dependencies and scripts**
 
 ```bash
 cd apps/web
@@ -91,7 +91,7 @@ npm install --save-exact @next/mdx@16.2.11 @mdx-js/loader@3.1.1 \
 
 Add `content:test`, `content:generate`, and `content:check` scripts invoking the three files above.
 
-- [ ] **Step 2: Write failing discovery/metadata/order tests**
+- [x] **Step 2: Write failing discovery/metadata/order tests**
 
 ```js
 assert.equal(result.documents.length, 4);
@@ -102,7 +102,7 @@ await assert.rejects(runFixture("duplicate-locale"), /documents_duplicate_locale
 await assert.rejects(runFixture("bad-date"), /documents_metadata_invalid_edited_at/);
 ```
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```bash
 cd apps/web && npm run content:test
@@ -110,7 +110,7 @@ cd apps/web && npm run content:test
 
 Expected: module/corpus test missing.
 
-- [ ] **Step 4: Implement strict deterministic compilation**
+- [x] **Step 4: Implement strict deterministic compilation**
 
 Use native recursive `fs`, `gray-matter`, locale suffix removal, an exact frontmatter allow-list, ISO date validation, stable group/parent/document ordering, LF output and no clock/mtime input. Emit schema version 1:
 
@@ -118,7 +118,7 @@ Use native recursive `fs`, `gray-matter`, locale suffix removal, an exact frontm
 {"schemaVersion":1,"locales":{"en":{"pages":[],"headings":[]},"ru":{"pages":[],"headings":[]}}}
 ```
 
-- [ ] **Step 5: Implement write/check and run GREEN**
+- [x] **Step 5: Implement write/check and run GREEN**
 
 ```bash
 cd apps/web
@@ -128,7 +128,7 @@ npm run audit:prod
 
 The check path must compare complete expected strings and fail on a missing/stale file.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/package.json apps/web/package-lock.json \
@@ -155,7 +155,7 @@ git commit -m "feat: add deterministic documentation compiler"
 
 **Interfaces:** compiler additionally validates headings, internal links/fragments, local images, locale publication pairs and the closed MDX set.
 
-- [ ] **Step 1: Write failing validation/corpus tests**
+- [x] **Step 1: Write failing validation/corpus tests**
 
 ```js
 assert.deepEqual(extractHeadings("## Same\n## Same"), [
@@ -170,13 +170,13 @@ await assert.rejects(runFixture("published-missing-ru"), /documents_missing_publ
 
 Real corpus expectations are 108 variants, 54 canonical URLs, locales `en` and `ru`, zero diagnostics.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```bash
 cd apps/web && npm run content:test
 ```
 
-- [ ] **Step 3: Implement validation**
+- [x] **Step 3: Implement validation**
 
 Track backtick/tilde fences; validate Markdown inline/reference and MDX `href` links; normalize `/docs/index`, query/hash/trailing slash; validate fragments and `/img/**`; reject content `import`/`export`; permit only:
 
@@ -185,7 +185,7 @@ new Set(["Callout","Steps","Step","Files","Folder","File","Tabs","Tab",
   "DocumentLinkGrid","DocumentLinkGroup","DocumentLinkCard"])
 ```
 
-- [ ] **Step 4: Copy immutable source content/assets outside `template/`**
+- [x] **Step 4: Copy immutable source content/assets outside `template/`**
 
 ```bash
 mkdir -p apps/web/src/features/documents/content apps/web/public/img/branding
@@ -194,7 +194,7 @@ cp template/public/img/branding/template_logo_nb_s.png apps/web/public/img/brand
 cp template/public/img/branding/web-app-manifest-512x512.png apps/web/public/img/branding/
 ```
 
-- [ ] **Step 5: Configure MDX and generate artifacts**
+- [x] **Step 5: Configure MDX and generate artifacts**
 
 Compose existing next-intl with `createMDX({ extension: /\.(md|mdx)$/, options: { remarkPlugins: [remarkFrontmatter, remarkGfm] } })`, add Markdown page extensions, and create required empty `useMDXComponents()`.
 
@@ -205,7 +205,7 @@ npm run content:check
 npm run content:test
 ```
 
-- [ ] **Step 6: Guard and commit**
+- [x] **Step 6: Guard and commit**
 
 ```bash
 git diff --exit-code origin/main...HEAD -- template/
@@ -261,7 +261,7 @@ public sealed class DocumentSearchService(IDocumentSearchIndexProvider provider)
 }
 ```
 
-- [ ] **Step 1: Write normalization/layout/distance tests RED**
+- [x] **Step 1: Write normalization/layout/distance tests RED**
 
 ```csharp
 Assert.Equal("еж api", DocumentSearchText.Normalize("  Ёж, API!  "));
@@ -274,11 +274,11 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
   --no-restore --filter FullyQualifiedName~DocumentSearchTextTests
 ```
 
-- [ ] **Step 2: Implement text semantics and run GREEN**
+- [x] **Step 2: Implement text semantics and run GREEN**
 
 Use Unicode letter/number categories, `ё→е`, exact keyboard strings, mixed-layout rejection and adjacent-transposition Damerau–Levenshtein. Query length remains .NET `string.Length` (UTF-16).
 
-- [ ] **Step 3: Write ranking/bounds tests RED**
+- [x] **Step 3: Write ranking/bounds tests RED**
 
 ```csharp
 Assert.Equal("Exact", service.Search(new("exact", DocumentLocale.En)).Pages[0].Title);
@@ -289,7 +289,7 @@ Assert.True(service.Search(new("guide", DocumentLocale.En)).Pages.Count <= 8);
 
 Test score order 100/90/80/60/40 and equal-score stable `Order`.
 
-- [ ] **Step 4: Implement bounded projection and run GREEN**
+- [x] **Step 4: Implement bounded projection and run GREEN**
 
 ```bash
 dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests.csproj \
@@ -298,7 +298,7 @@ dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests
 
 Do not expose internal order/normalized text in result records.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/api/src/Template.Application/Documents apps/api/tests/Template.Application.Tests/Documents
@@ -317,7 +317,7 @@ git commit -m "feat: add documentation search application service"
 
 **Interfaces:** singleton implementation of Task 3 `IDocumentSearchIndexProvider` and `AddDocumentSearchInfrastructure()`.
 
-- [ ] **Step 1: Write provider tests RED**
+- [x] **Step 1: Write provider tests RED**
 
 ```csharp
 Assert.Equal(54, provider.Get(DocumentLocale.En).Pages.Count);
@@ -327,7 +327,7 @@ Assert.Throws<InvalidDataException>(() => Parse("{\"schemaVersion\":2}"));
 
 Also test duplicate JSON properties, missing fields and immutable collections.
 
-- [ ] **Step 2: Embed and implement strict one-time parsing**
+- [x] **Step 2: Embed and implement strict one-time parsing**
 
 ```xml
 <EmbeddedResource Include="../../../../contracts/documents/search-index.json"
@@ -336,14 +336,14 @@ Also test duplicate JSON properties, missing fields and immutable collections.
 
 Use `AllowDuplicateProperties=false`, require schema 1 and exact `en`/`ru`, reject nulls, freeze arrays, and never access a repository path at runtime.
 
-- [ ] **Step 3: Run GREEN**
+- [x] **Step 3: Run GREEN**
 
 ```bash
 dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
   --no-restore --filter FullyQualifiedName~EmbeddedDocumentSearchIndexProviderTests
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/api/src/Template.Infrastructure/Documents \
@@ -380,7 +380,7 @@ internal sealed record DocumentSearchResponse(
 
 Route: `GET /api/v1/documents-system/search?q=&locale=`, operation `SearchDocumentsSystem`, explicit `AllowAnonymous()`.
 
-- [ ] **Step 1: Write endpoint tests RED**
+- [x] **Step 1: Write endpoint tests RED**
 
 ```csharp
 Assert.Equal(HttpStatusCode.OK, anonymous.StatusCode);
@@ -401,7 +401,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
 
 Expected: 404.
 
-- [ ] **Step 2: Register services/options and implement boundary**
+- [x] **Step 2: Register services/options and implement boundary**
 
 ```csharp
 builder.Services.Configure<DocumentSearchOptions>(
@@ -412,7 +412,7 @@ builder.Services.AddSingleton<DocumentSearchService>();
 
 Use `Documents:DefaultLocale=en`; absent/invalid configured default resolves to `en`. Missing query locale uses that default, explicit blank/unknown locale is `validation_failed`. Trim `q` before `string.Length > 120`. Set no-store on all search responses.
 
-- [ ] **Step 3: Map endpoint and run GREEN**
+- [x] **Step 3: Map endpoint and run GREEN**
 
 Map on `context.VersionedApi.MapGroup("/documents-system")`, override inherited auth with `AllowAnonymous`, return `ApiResponse<DocumentSearchResponse>`, and declare typed validation/public problems.
 
@@ -421,7 +421,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
   --no-restore --filter FullyQualifiedName~DocumentSearchEndpointTests
 ```
 
-- [ ] **Step 4: Write safe failure test RED, then implement mapping**
+- [x] **Step 4: Write safe failure test RED, then implement mapping**
 
 Inject a provider that throws `InvalidOperationException("sensitive fixture text")`. Assert `500 application/problem+json`, stable target fields and no fixture/query/source/body disclosure in payload or logs.
 
@@ -430,7 +430,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
   --no-restore --filter FullyQualifiedName~DocumentSearchFailureTests
 ```
 
-- [ ] **Step 5: Add exact OpenAPI tests and minimal transformers**
+- [x] **Step 5: Add exact OpenAPI tests and minimal transformers**
 
 Assert empty security; optional `q` maxLength 120; optional locale enum `en,ru`; required `data/pages/headings` and result fields; 200/400/406/500. Keep both documents transformers narrowly scoped to this operation and never loosen global schemas.
 
@@ -439,7 +439,7 @@ dotnet test apps/api/tests/Template.Api.Tests/Template.Api.Tests.csproj \
   --no-restore --filter FullyQualifiedName~OpenApiContractTests
 ```
 
-- [ ] **Step 6: Export twice and commit**
+- [x] **Step 6: Export twice and commit**
 
 ```bash
 dotnet build apps/api/src/Template.Api/Template.Api.csproj --no-restore -p:OpenApiGenerateDocuments=true
@@ -474,7 +474,7 @@ export async function searchDocuments(
 ): Promise<ApiResult<DocumentSearchResponse>>;
 ```
 
-- [ ] **Step 1: Regenerate and inspect SDK**
+- [x] **Step 1: Regenerate and inspect SDK**
 
 ```bash
 cd apps/web
@@ -482,7 +482,7 @@ npm run api:generate
 rg -n "searchDocumentsSystem" src/lib/api/generated
 ```
 
-- [ ] **Step 2: Write adapter/boundary tests RED**
+- [x] **Step 2: Write adapter/boundary tests RED**
 
 ```ts
 expect(searchDocumentsSystem).toHaveBeenCalledWith({
@@ -492,11 +492,11 @@ expect(searchDocumentsSystem).toHaveBeenCalledWith({
 
 Assert abort propagation, safe failure normalization, no raw fetch/handwritten DTO/Next `/api` handler.
 
-- [ ] **Step 3: Implement generated-only adapter and guards**
+- [x] **Step 3: Implement generated-only adapter and guards**
 
 Use `createBrowserApiClient`, generated `searchDocumentsSystem`, and existing `normalizeApiFailure`. Add operation presence and document DTO names to the boundary checker.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -529,7 +529,7 @@ export function buildDocumentStaticParams(): Array<{ slug: string[] }>;
 export async function importDocument(document: DocumentInfo): Promise<{ default: ComponentType<MDXProps> }>;
 ```
 
-- [ ] **Step 1: Write registry/navigation tests RED**
+- [x] **Step 1: Write registry/navigation tests RED**
 
 ```ts
 expect(getDocumentsRegistry("en").visibleDocuments).toHaveLength(54);
@@ -538,15 +538,20 @@ expect(buildDocumentStaticParams()).not.toContainEqual({ slug: ["index"] });
 expect(buildDocumentStaticParams().some(({slug}) => slug.join("/").endsWith(".ru"))).toBe(false);
 ```
 
-- [ ] **Step 2: Implement facade and stable navigation**
+- [x] **Step 2: Implement facade and stable navigation**
 
 Read only the generated registry, resolve the fixed locale, filter production-visible variants, group/order sidebar and previous/next, and keep generated types behind UI-only records.
 
-- [ ] **Step 3: Write page tests RED and implement routes**
+- [x] **Step 3: Write page tests RED and implement routes**
 
-Assert root loads `index`, catch-all joins slug, `dynamicParams=false`, static params contain `api/api-v1`, and missing/unpublished calls `notFound`. Render a semantic temporary article until Task 9.
+Assert root loads `index`, catch-all joins slug, `cacheComponents=true` remains
+compatible without a `dynamicParams` export, static params contain
+`api/api-v1`, and exact missing/unpublished registry lookup calls `notFound`.
+Render a semantic temporary article until Task 9. Final E2E records the known
+Next.js 16 streamed unknown-page behavior: initial HTTP `200`, not-found UI, and
+`noindex`.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -570,7 +575,7 @@ git commit -m "feat: add public documentation routes"
 
 **Interfaces:** public docs-only shell with one `main#main-content`, desktop/mobile sidebar, active parent, breadcrumb, home/theme/search slots and previous/next links.
 
-- [ ] **Step 1: Add paired messages and failing shape tests**
+- [x] **Step 1: Add paired messages and failing shape tests**
 
 ```json
 {"navigation":{"label":"Documentation","home":"Home"},
@@ -581,7 +586,7 @@ git commit -m "feat: add public documentation routes"
 
 Add equivalent Russian keys and recursive shape equality.
 
-- [ ] **Step 2: Write shell/sidebar tests RED**
+- [x] **Step 2: Write shell/sidebar tests RED**
 
 ```ts
 expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
@@ -590,11 +595,11 @@ expect(screen.getByRole("link", { name: "API v1 reference" })).toHaveAttribute("
 
 Test active parent after pathname change and mobile close after selection.
 
-- [ ] **Step 3: Implement docs-specific shell**
+- [x] **Step 3: Implement docs-specific shell**
 
 Use existing Button/Dialog/ThemeSwitcher, component-memory drawer state, and generated navigation. Do not import `(site)`, session/workspace loaders or browser storage.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -636,7 +641,7 @@ export function createUniqueDocumentHeadingId(text: string, seen: Map<string, nu
 export function createDocumentMdxComponents(document: DocumentInfo): MDXComponents;
 ```
 
-- [ ] **Step 1: Write heading/TOC/meta tests RED**
+- [x] **Step 1: Write heading/TOC/meta tests RED**
 
 ```ts
 expect(createUniqueDocumentHeadingId("Раздел", seen)).toBe("раздел");
@@ -646,15 +651,15 @@ expect(screen.getByText("2026-07-23")).toBeInTheDocument();
 
 Test malformed hash safety, scroll container, `toc=false`, date-only and fallback marker.
 
-- [ ] **Step 2: Implement article/TOC/scroll behavior**
+- [x] **Step 2: Implement article/TOC/scroll behavior**
 
 Render group/parent/purpose/date/author/version/reading/status/visibility/language, generated initial headings, duplicate ID normalization and docs-scroll-container tracking.
 
-- [ ] **Step 3: Write MDX tests RED and implement closed map**
+- [x] **Step 3: Write MDX tests RED and implement closed map**
 
 Cover `Callout`, `Steps/Step`, `Files/Folder/File`, `Tabs/Tab`, `DocumentLinkGrid/Group/Card`, headings, safe links, images, tables and copy controls. Production broken/unpublished links must not be active; external links use safe attributes.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -680,7 +685,7 @@ git commit -m "feat: render documentation articles and MDX components"
 
 **Interfaces:** consumes Task 6 `searchDocuments`; produces accessible `Ctrl/⌘+K` dialog with 250 ms debounce, cancellation, stale protection and canonical navigation.
 
-- [ ] **Step 1: Write keyboard/debounce/result tests RED**
+- [x] **Step 1: Write keyboard/debounce/result tests RED**
 
 ```ts
 fireEvent.keyDown(document, { key: "k", ctrlKey: true });
@@ -694,15 +699,15 @@ expect(searchDocuments).toHaveBeenCalledWith(expect.objectContaining({ query: "a
 
 Also test page/heading groups, maxLength 120, escape/reset, empty/error copy, abort and stale older success.
 
-- [ ] **Step 2: Implement safe async state**
+- [x] **Step 2: Implement safe async state**
 
 Use existing Dialog/Button/Input and semantic listbox/options. Create an `AbortController` and generation number per request; check both before every state write. Abort is silent; other failures use localized unavailable copy and never render raw Problem Details.
 
-- [ ] **Step 3: Implement navigation and header integration**
+- [x] **Step 3: Implement navigation and header integration**
 
 On selection close/reset then `router.push(result.href as Route)`. Disable old results during replacement search. Do not log raw query/payload.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -740,7 +745,7 @@ export function resolvePublicOrigin(value = process.env.APP_PUBLIC_ORIGIN): URL;
 
 Allow absolute HTTP(S) without credentials/query/fragment; default to `http://localhost:3000` when unset.
 
-- [ ] **Step 1: Write origin/metadata/sitemap tests RED**
+- [x] **Step 1: Write origin/metadata/sitemap tests RED**
 
 ```ts
 expect(urls).toContain("http://localhost:3000/docs");
@@ -750,11 +755,11 @@ expect(urls.some((url) => /\.(en|ru)(?:\/|$)/u.test(url))).toBe(false);
 
 Assert localized title/description/OG URL, 54 canonical entries once, editedAt, weekly, root 0.8/article 0.6.
 
-- [ ] **Step 2: Implement standard metadata images**
+- [x] **Step 2: Implement standard metadata images**
 
 Use generated registry and `ImageResponse` at 1200×630 PNG, set root `metadataBase`, and perform no external fetch.
 
-- [ ] **Step 3: Write exact OG route/boundary tests RED**
+- [x] **Step 3: Write exact OG route/boundary tests RED**
 
 Known slug/locales return PNG; unknown returns 404; invalid locale 400. Allow exactly:
 
@@ -764,11 +769,11 @@ new Set(["src/app/(documents)/docs/og/[...slug]/route.ts"])
 
 Prove a second route handler and all `src/app/api/**` handlers still fail.
 
-- [ ] **Step 4: Implement exact OG route and sitemap**
+- [x] **Step 4: Implement exact OG route and sitemap**
 
 Use generated production-visible registry, static params and safe locale parsing. Sitemap emits absolute canonical entries only.
 
-- [ ] **Step 5: Run GREEN/build and commit**
+- [x] **Step 5: Run GREEN/build and commit**
 
 ```bash
 cd apps/web
@@ -795,7 +800,7 @@ git commit -m "feat: add documentation metadata and sitemap"
 
 **Interfaces:** paired current guidance for iterations 3–6; no prescriptive Prisma/Better Auth/Server Actions.
 
-- [ ] **Step 1: Write content-policy test RED**
+- [x] **Step 1: Write content-policy test RED**
 
 ```ts
 expect(accountEn).toContain("ASP.NET Core");
@@ -806,7 +811,7 @@ expect(workspaceRu).toContain("/api/v1/organizations");
 expect(allCurrentText).not.toMatch(/use Prisma directly|call a Server Action|Better Auth owns/iu);
 ```
 
-- [ ] **Step 2: Rewrite four account locale pairs**
+- [x] **Step 2: Rewrite four account locale pairs**
 
 ```text
 index: REST settings and secure cookie
@@ -815,7 +820,7 @@ sessions-security: opaque cursors, revoke one/all others, CSRF
 delete-account: survivor/ownership checks and hard-delete REST flow
 ```
 
-- [ ] **Step 3: Rewrite eight workspace locale pairs**
+- [x] **Step 3: Rewrite eight workspace locale pairs**
 
 ```text
 index/create-switch: organization model and generated REST create/list/set-active
@@ -825,7 +830,7 @@ invitations/teams: 48-hour decisions, non-disclosure, team/member/candidate REST
 no-workspace: API-backed onboarding without browser/database shortcuts
 ```
 
-- [ ] **Step 4: Regenerate, run GREEN and commit**
+- [x] **Step 4: Regenerate, run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -851,7 +856,7 @@ git commit -m "docs: update account and workspace documentation"
 
 **Interfaces:** current guidance for iterations 1–4 and 7.
 
-- [ ] **Step 1: Extend policy test RED**
+- [x] **Step 1: Extend policy test RED**
 
 ```ts
 expect(apiV1En).toContain("x-api-key");
@@ -861,7 +866,7 @@ expect(applicationEn).toContain("generated REST SDK");
 expect(applicationRu).toContain("ASP.NET Core");
 ```
 
-- [ ] **Step 2: Rewrite four API locale pairs**
+- [x] **Step 2: Rewrite four API locale pairs**
 
 ```text
 index: cookie management versus machine x-api-key
@@ -870,7 +875,7 @@ api-v1: supported reads, {data}, Problem Details, opaque cursors
 permissions-rate-limits: closed scopes, tenant isolation, fixed windows
 ```
 
-- [ ] **Step 3: Rewrite six application locale pairs**
+- [x] **Step 3: Rewrite six application locale pairs**
 
 ```text
 index/localization: separate REST UI and fixed locale-neutral routing
@@ -879,7 +884,7 @@ settings-shell: current REST loaders/mutations, final shell deferred to iteratio
 caching: current no-store/session rules, Redis explicitly out of scope
 ```
 
-- [ ] **Step 4: Regenerate, run GREEN and commit**
+- [x] **Step 4: Regenerate, run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -902,7 +907,7 @@ git commit -m "docs: update API and application documentation"
 
 **Interfaces:** accurate target architecture/development/authoring/glossary content.
 
-- [ ] **Step 1: Extend policy tests RED**
+- [x] **Step 1: Extend policy tests RED**
 
 ```ts
 expect(featureSliceEn).toContain("Domain");
@@ -914,15 +919,15 @@ expect(authoringEn).toContain("npm run content:check");
 expect(authoringRu).toContain("npm run content:check");
 ```
 
-- [ ] **Step 2: Rewrite seven developer locale pairs**
+- [x] **Step 2: Rewrite seven developer locale pairs**
 
 Cover target layout; inward dependencies; test-first Minimal API/OpenAPI/SDK; why the UI uses REST rather than Server Actions; ASP.NET local automation; initialized-only OpenSpec; release/documentation workflow. Preserve canonical `/docs/developers/server-actions` as an explicit legacy-to-target explanation.
 
-- [ ] **Step 3: Rewrite five general locale pairs**
+- [x] **Step 3: Rewrite five general locale pairs**
 
 Document strict frontmatter, paired locales, closed MDX components, links/images, generate/check commands and target glossary/quick-start. Preserve every custom component in sample MDX as a live rendering fixture.
 
-- [ ] **Step 4: Regenerate, compile, run GREEN and commit**
+- [x] **Step 4: Regenerate, compile, run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -947,7 +952,7 @@ git commit -m "docs: update developer and authoring documentation"
 
 **Interfaces:** current landing page and factual history that visibly labels the former full-stack Next.js runtime as legacy.
 
-- [ ] **Step 1: Add landing/history policy tests RED**
+- [x] **Step 1: Add landing/history policy tests RED**
 
 ```ts
 expect(rootEn).toContain("ASP.NET Core");
@@ -959,15 +964,15 @@ expect(historyEn).toContain("migration");
 expect(historyRu).toContain("миграц");
 ```
 
-- [ ] **Step 2: Rewrite root MDX pair**
+- [x] **Step 2: Rewrite root MDX pair**
 
 Retain all six link groups and closed components; present ASP.NET Core 10 API plus separate REST-only Next UI and link current account/workspace/API/application/developer/history guidance.
 
-- [ ] **Step 3: Update release and weekly history pairs**
+- [x] **Step 3: Update release and weekly history pairs**
 
 Preserve version/date/event facts and links. Add an early visible statement that each entry records the former full-stack implementation and point current readers to `/docs/application` and `/docs/developers`.
 
-- [ ] **Step 4: Regenerate/build/run GREEN and commit**
+- [x] **Step 4: Regenerate/build/run GREEN and commit**
 
 ```bash
 cd apps/web
@@ -993,7 +998,7 @@ git commit -m "docs: update documentation landing and history"
 
 **Interfaces:** anonymous black-box acceptance against the existing API/web E2E hosts.
 
-- [ ] **Step 1: Configure both hosts consistently**
+- [x] **Step 1: Configure both hosts consistently**
 
 ```ts
 // API env
@@ -1003,7 +1008,7 @@ PUBLIC_DEFAULT_LOCALE: "en"
 APP_PUBLIC_ORIGIN: webOrigin
 ```
 
-- [ ] **Step 2: Write public route/navigation scenario RED**
+- [x] **Step 2: Write public route/navigation scenario RED**
 
 ```ts
 await page.goto("/docs/api/api-v1");
@@ -1011,14 +1016,16 @@ await expect(page).toHaveURL(/\/docs\/api\/api-v1$/);
 await expect(page.getByRole("heading", { level: 1 })).toContainText("API");
 ```
 
-Cover anonymous `/docs`, deep route, no locale suffix/login redirect, sidebar/current link/previous-next/TOC and unknown 404.
+Cover anonymous `/docs`, deep route, no locale suffix/login redirect,
+sidebar/current link/previous-next/TOC, and the observed Cache Components
+unknown-page contract (streamed HTTP `200`, not-found UI, `noindex`).
 
 ```bash
 cd apps/web
 npx playwright test e2e/documents.spec.ts --project=chromium --grep "public routes"
 ```
 
-- [ ] **Step 3: Write search/OG scenarios and make focused E2E GREEN**
+- [x] **Step 3: Write search/OG scenarios and make focused E2E GREEN**
 
 Cover Ctrl/Meta+K, `api` page result, heading hash navigation, empty search, PNG content type and unknown OG 404. For each integration defect, add the smallest focused regression test before changing production code.
 
@@ -1027,7 +1034,7 @@ cd apps/web
 npx playwright test e2e/documents.spec.ts --project=chromium
 ```
 
-- [ ] **Step 4: Run full Chromium and commit**
+- [x] **Step 4: Run full Chromium and commit**
 
 ```bash
 cd apps/web
@@ -1049,7 +1056,7 @@ git commit -m "test: cover public documentation journeys"
 
 **Interfaces:** exact observed architecture, authoring rules, mapping, command results, differences and next gates.
 
-- [ ] **Step 1: Run focused final suites and capture counts**
+- [x] **Step 1: Run focused final suites and capture counts**
 
 ```bash
 dotnet test apps/api/tests/Template.Application.Tests/Template.Application.Tests.csproj \
@@ -1064,7 +1071,7 @@ npm test -- --runInBand test/features/documents test/components/documents \
   test/app/sitemap.test.ts test/lib/api/documents test/contracts/documents-boundaries.test.ts
 ```
 
-- [ ] **Step 2: Run mandatory .NET gates**
+- [x] **Step 2: Run mandatory .NET gates**
 
 ```bash
 cd ../..
@@ -1075,7 +1082,7 @@ dotnet format Template.sln --no-restore --verify-no-changes
 dotnet list Template.sln package --vulnerable --include-transitive
 ```
 
-- [ ] **Step 3: Run deterministic content/OpenAPI/SDK gates**
+- [x] **Step 3: Run deterministic content/OpenAPI/SDK gates**
 
 ```bash
 cd apps/web
@@ -1090,7 +1097,7 @@ cd apps/web
 npm run api:check
 ```
 
-- [ ] **Step 4: Run complete web/build/security/browser gates**
+- [x] **Step 4: Run complete web/build/security/browser gates**
 
 ```bash
 npm ci
@@ -1108,7 +1115,7 @@ npm audit --json > /tmp/iteration8-final-npm-audit.json || true
 npm run e2e
 ```
 
-- [ ] **Step 5: Run repository guards**
+- [x] **Step 5: Run repository guards**
 
 ```bash
 cd ../..
@@ -1119,11 +1126,24 @@ test ! -d openspec/changes || \
 git status --short --branch
 ```
 
-- [ ] **Step 6: Write durable decisions and evidence**
+- [x] **Step 6: Write durable decisions and evidence**
 
 Record anonymous search, neutral artifact, MDX/OG boundary exception and SDK-only browser calls in API/web conventions. Authoring docs must state exact frontmatter, locale/status, components, links/images and generate/check rules. Migration plan must contain scope, reference mapping, actual test counts/commands, known differences, immutable-reference evidence and iteration 9–12 out-of-scope items. Do not claim an unobserved review result.
 
-- [ ] **Step 7: Commit durable docs**
+**Observed Task 17 evidence (2026-08-03):** focused Application **20/20**;
+focused API/OpenAPI **71/71**; content Node **19/19**; focused web
+**12 suites / 66 tests**; full .NET **1093/1093**; full Jest
+**82 suites / 644 tests**; Playwright **28 passed / 5 opt-in live-provider
+skipped**; clean standalone build generated **137/137** pages; NuGet and
+production npm audits found 0 vulnerabilities; full development npm audit
+retained 1 high transitive `brace-expansion` advisory; ESLint exited 0 with the
+17 known warning-only generated-SDK assertion aliases. Double forced-fresh
+OpenAPI exports were byte-identical (**44 paths / 58 operations**). The literal
+`rm -rf .next` spelling was rejected by the command harness, so the same clean
+precondition was established with safe Python `shutil.rmtree` before the
+passing build. Push/PR/automatic review remain unobserved Task 18 work.
+
+- [x] **Step 7: Commit durable docs**
 
 ```bash
 git add docs/api-conventions.md docs/web-conventions.md docs/documentation-authoring.md \

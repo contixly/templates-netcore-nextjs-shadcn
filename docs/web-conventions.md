@@ -705,3 +705,55 @@ capture. Task 11 acceptance separately performed a one-off scan of captured
 stdout and artifacts without printing a matching secret. The standard
 `npm run e2e` script does not automate that scan and must not be cited as though
 it does.
+
+## Public documentation UI (iteration 8)
+
+The public documentation source is target-owned Markdown/MDX under
+`apps/web/src/features/documents/content`. The deterministic compiler emits two
+committed artifacts: the exact static Next.js registry/import map under
+`src/features/documents/generated` and the runtime-neutral API index at
+`contracts/documents/search-index.json`. Rendering reads only the generated web
+registry. The API embeds the neutral index and never reads frontend source at
+runtime. Generated files are changed only through `npm run content:generate`;
+`npm run content:check` byte-compares a fresh in-memory result.
+
+`/docs` and `/docs/{**slug}` use the dedicated public `(documents)` route group.
+They do not load the protected application shell, session, account navigation,
+organization state, Prisma, Better Auth, or Server Actions. Public URLs have no
+locale suffix or locale prefix. The validated fixed deployment locale selects
+the `en` or `ru` registry variant; production-visible canonical pages require
+both. Static rendering, navigation, metadata, sitemap, and article content need
+no live API call.
+
+Next.js 16.2.11 Cache Components remain enabled. In that mode
+`dynamicParams` is unavailable, so documentation routes do not export
+`dynamicParams = false`. `generateStaticParams()` still enumerates every
+production-visible canonical slug, while both `generateMetadata` and the page
+perform an exact generated-registry lookup and call `notFound()` for an unknown
+or unpublished slug. Because Cache Components can commit the streaming shell
+before that lookup finishes, the observed unknown-page transport is HTTP `200`
+with the framework's not-found UI and a `noindex` robots marker, not a transport
+404. This is a known framework-compatible presentation difference. The
+presentation-only OG handler performs its lookup before returning and preserves
+a real empty-body `404` for an unknown image.
+
+The article layer supplies localized breadcrumb/sidebar, previous/next links,
+`h2` table of contents and scroll spy, safe fragments, copy controls, status and
+fallback markers, GFM, and the closed MDX component map. Exact authoring rules
+and commands are in [`documentation-authoring.md`](documentation-authoring.md).
+
+Browser search is the only documentation UI path that calls the API. It resolves
+the deployment locale explicitly, limits the input to the REST contract,
+debounces by 250 ms, aborts superseded requests, and prevents stale completion
+from replacing newer state. The adapter uses the generated
+`searchDocumentsSystem` operation with the shared same-origin browser client.
+It does not use raw `fetch`, redefine transport types, expose arbitrary Problem
+Details text, retain credentials, or use browser storage.
+
+Next Route Handlers remain forbidden below `/api/**`. The sole explicit
+boundary-checker exception is
+`src/app/(documents)/docs/og/[...slug]/route.ts`, which produces the established
+presentation-only `/docs/og/{**slug}` PNG surface. It is not an API/BFF and does
+not establish permission for other Route Handlers. Standard docs Open Graph and
+Twitter images use Next metadata file conventions; the sitemap contains only
+deduplicated production-visible canonical routes.

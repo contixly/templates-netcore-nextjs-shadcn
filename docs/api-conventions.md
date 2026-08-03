@@ -867,3 +867,60 @@ denial audit can attribute key ID and owner kind/ID; the failed authentication
 and Problem Details remain non-disclosing. Audits exclude raw
 headers/credentials/hashes/key starts, names, scopes, cookies, body values,
 emails, cursor/query values and exception text. No metrics backend is added.
+
+## Public documentation search (iteration 8)
+
+ASP.NET Core owns the public documentation search operation:
+
+```http
+GET /api/v1/documents-system/search?q={query}&locale={en|ru}
+```
+
+The operation is explicitly anonymous. It requires no session cookie, API key,
+CSRF token, or machine scope, and incidental credentials do not change its
+result. Success is the standard `{ "data": ... }` envelope and always uses
+`Cache-Control: no-store`. Successful public searches do not emit security
+audit events and have no endpoint-specific rate limiter.
+
+The HTTP boundary accepts only one `q` and one `locale` value and rejects
+unknown query fields. `q` is optional, trimmed, and limited to 120 UTF-16 code
+units after trimming. `locale` is optional and, when supplied, must be exactly
+`en` or `ru`. A missing locale uses the validated `Documents:DefaultLocale`;
+`ru` selects Russian and every absent or invalid configured value fails safely
+to `en`. An unsupported explicit locale, duplicate field, overlong query, or
+unknown query field returns `400 validation_failed`. The stricter unknown-field
+rule is enforced by the implementation even though OpenAPI cannot express
+closed query-string property sets. Content-negotiation failures remain typed
+`406` Problem Details. An unexpected index/search failure is safe
+`500 application/problem+json`; no query text, content body, generated artifact,
+filesystem path, or exception detail is exposed.
+
+An empty query returns the first 32 pages in generated navigation order and no
+headings. A non-empty query returns at most 8 pages and 8 headings. There is no
+cursor, page number, caller-selected limit, filter, or pagination metadata. The
+fixed bounded result makes pagination unnecessary for this reference lookup.
+
+Application owns normalization, keyboard-layout correction, fuzzy matching,
+ranking, stable tie order, and response projection. Infrastructure implements
+`IDocumentSearchIndexProvider` by strictly parsing the embedded
+`Template.Documents.SearchIndex.v1.json` once. Its source is the neutral,
+deterministically generated `contracts/documents/search-index.json`; the API
+does not read `apps/web`, Markdown, or MDX at runtime. The artifact is public
+search projection data only: page and `h2`/`h3` headings, canonical links,
+navigation order, and normalized title/metadata search text. It contains no
+body paragraphs, fenced code, credential, private content, or infrastructure
+configuration.
+
+This slice adds no Domain entity, EF model or migration, database row, Identity
+record, schema ownership, transaction, seed, cache invalidation event,
+background indexer, Redis/Valkey dependency, CMS, or data migration. The index
+is immutable for the process lifetime and changes only with a new build. A
+missing or malformed embedded resource fails closed and is mapped at HTTP to the
+safe internal error contract.
+
+The committed OpenAPI 3.1 operation has an explicit empty security requirement,
+closed `en|ru` locale schema, bounded query, required non-null response fields,
+and typed `400`, `406`, and `500` failures. The browser consumes only the
+generated `searchDocumentsSystem` operation and generated response types; it
+must not add a handwritten transport DTO, raw search `fetch`, or Next.js
+`/api/**` handler.
