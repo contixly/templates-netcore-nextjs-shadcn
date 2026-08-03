@@ -1,13 +1,39 @@
 {
   "landing": {
-    "eyebrow": "Application template",
-    "title": "Build your next product with confidence",
-    "description": "A secure, organization-aware foundation for your product.",
+    "brand": "Application Template",
+    "brandHomeLabel": "Application Template home",
+    "navigationLabel": "Public navigation",
+    "loginAction": "Sign in",
+    "eyebrow": "ASP.NET Core 10 + Next.js",
+    "title": "Build the product, not the plumbing",
+    "description": "Start with a secure application foundation that keeps the API and web UI cleanly separated.",
     "primaryAction": "Get started",
     "secondaryAction": "Read the documentation",
-    "featuresTitle": "Everything starts with a solid shell",
-    "featuresDescription": "Use the application shell, workspace navigation, and account settings as stable product foundations.",
-    "footer": "© 2026 Application Template"
+    "featuresTitle": "A clear boundary from browser to business logic",
+    "featuresDescription": "ASP.NET Core owns the API while Next.js stays focused on the product experience.",
+    "features": {
+      "api": {
+        "title": "ASP.NET Core API",
+        "description": "ASP.NET Core 10 owns REST endpoints, authorization, and business rules."
+      },
+      "web": {
+        "title": "REST-only web UI",
+        "description": "Next.js calls the generated REST client without direct database access."
+      },
+      "sessions": {
+        "title": "Secure browser sessions",
+        "description": "Same-origin HttpOnly cookies keep browser authentication out of client storage."
+      },
+      "workspaces": {
+        "title": "Product-ready collaboration",
+        "description": "Workspace, account, invitation, and API-key flows provide a stable starting point."
+      }
+    },
+    "valueEyebrow": "Reusable by design",
+    "valueTitle": "Keep the foundation. Make the product yours.",
+    "valueDescription": "Use the shared shell and documented boundaries, then add only the domain behavior your product needs.",
+    "footer": "© 2026 Application Template",
+    "footerDescription": "A target-architecture starter for ASP.NET Core and Next.js."
   },
   "shell": {
     "navigation": {
