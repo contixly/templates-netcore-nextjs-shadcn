@@ -57,8 +57,15 @@ const copyLabels = {
 function textFromNode(node: ReactNode): string {
   if (typeof node === "string" || typeof node === "number") return String(node);
   if (Array.isArray(node)) return node.map(textFromNode).join("");
-  if (isValidElement<{ children?: ReactNode }>(node))
+  if (
+    isValidElement<{
+      children?: ReactNode;
+      "data-footnote-ref"?: unknown;
+    }>(node)
+  ) {
+    if ("data-footnote-ref" in node.props) return "";
     return textFromNode(node.props.children);
+  }
   return "";
 }
 
@@ -200,7 +207,7 @@ function isSafeDocumentHref(document: DocumentInfo, href: string): boolean {
 
 function safeImageSource(source: string | undefined): boolean {
   return Boolean(
-    source && (source.startsWith("/") || /^https?:\/\//u.test(source)),
+    source && (source.startsWith("/") || /^https?:\/\//iu.test(source)),
   );
 }
 
@@ -215,6 +222,10 @@ export function createDocumentMdxComponents(
       children,
       ...props
     }: ComponentProps<"h2">) {
+      const isGeneratedFootnoteLabel =
+        level === 2 && props.id === "footnote-label";
+      if (isGeneratedFootnoteLabel) return <h2 {...props}>{children}</h2>;
+
       const text = textFromNode(children);
       const id = createUniqueDocumentHeadingId(text, seenHeadings);
       const Heading = `h${level}` as const;

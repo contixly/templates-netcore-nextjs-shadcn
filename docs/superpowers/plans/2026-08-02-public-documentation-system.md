@@ -1141,16 +1141,19 @@ retained 1 high transitive `brace-expansion` advisory; ESLint exited 0 with the
 OpenAPI exports were byte-identical (**44 paths / 58 operations**). The literal
 `rm -rf .next` spelling was rejected by the command harness, so the same clean
 precondition was established with safe Python `shutil.rmtree` before the
-passing build. Push/PR/automatic review remain unobserved Task 18 work.
+passing build. This paragraph records the historical Task 17 checkpoint; ready
+PR and review-loop progress are recorded below.
 
-**Final-review fix evidence (2026-08-03):** the earlier Task 17 numbers remain
-the evidence for `dff6e3d`. After adding final-review regressions, fresh content
-Node is **23/23**, the unchanged Task 17 focused Jest command is **12 suites /
-69 tests**, and full Jest is **82 suites / 648 tests**. Focused route/config
-tests are **9/9** and **2/2**; focused documents Playwright is **3/3**; full
-Playwright remains **28 passed / 5 opt-in skipped**. Content generate/check,
-boundaries **8/8**, API client drift, format, typecheck, lint (the same 17
-warning-only aliases), clean build **137/137**, and repository guards passed.
+**Automatic-review fix evidence (2026-08-03):** ready PR
+[#9](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/9)
+exists. After test-first review fixes, fresh content Node is **60/60**, focused
+documents Jest is **12 suites / 74 tests**, full Jest is **82 suites / 653
+tests**, and full .NET is **1094/1094**. Full Playwright remains **28 passed / 5
+opt-in skipped**. Content generate/check, boundaries **8/8**, API client drift,
+format, typecheck, lint (the same 17 warning-only aliases), production audit,
+clean build **137/137**, and repository guards passed. Exact-current-head clean
+automatic review remains external PR/controller evidence and is not asserted by
+this tracked plan.
 
 - [x] **Step 7: Commit durable docs**
 
@@ -1169,7 +1172,7 @@ git commit -m "docs: record public documentation acceptance"
 
 **Interfaces:** pushed ready PR whose exact latest head has a fresh clean review, zero unresolved actionable threads and mergeable checks.
 
-- [ ] **Step 1: Final branch review**
+- [x] **Step 1: Final branch review**
 
 ```bash
 git status --short --branch
@@ -1179,7 +1182,7 @@ git diff --exit-code origin/main...HEAD -- template/
 git diff --check
 ```
 
-- [ ] **Step 2: Push and create ready PR**
+- [x] **Step 2: Push and create ready PR**
 
 Create `/tmp/iteration8-pr-body.md` containing mapping, compiler/REST/auth/validation/errors/pagination/transactions, exact evidence, differences and out-of-scope list.
 
@@ -1193,7 +1196,7 @@ gh pr view --json number,url,isDraft,state,mergeable,mergeStateStatus,headRefOid
 
 Do not pass `--draft`; require `isDraft=false`.
 
-- [ ] **Step 3: Wait for and inspect automatic review**
+- [x] **Step 3: Wait for and inspect automatic review**
 
 Read checks, comments, reviews, threads and reviewed SHA through GitHub/`gh`; never fabricate a self-review.
 
@@ -1202,7 +1205,7 @@ gh pr checks --watch
 gh pr view --json number,url,headRefOid,reviews,comments,statusCheckRollup
 ```
 
-- [ ] **Step 4: Fix every actionable finding test-first**
+- [x] **Step 4: Fix every actionable finding test-first**
 
 Invoke `superpowers:receiving-code-review`. Add a failing regression test for behavior defects, run affected Task 17 gates, update both locales for semantic content fixes, regenerate artifacts, and reject only design-conflicting suggestions with evidence.
 

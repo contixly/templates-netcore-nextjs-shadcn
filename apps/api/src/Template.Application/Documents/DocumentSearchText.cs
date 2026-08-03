@@ -5,8 +5,8 @@ namespace Template.Application.Documents;
 
 public static class DocumentSearchText
 {
-    private const string EnglishKeyboardLayout = "qwertyuiop[]asdfghjkl;'zxcvbnm,.";
-    private const string RussianKeyboardLayout = "йцукенгшщзхъфывапролджэячсмитьбю";
+    private const string EnglishKeyboardLayout = "`qwertyuiop[]asdfghjkl;'zxcvbnm,.";
+    private const string RussianKeyboardLayout = "ёйцукенгшщзхъфывапролджэячсмитьбю";
 
     private static readonly IReadOnlyDictionary<char, char> EnglishToRussianKeyboard =
         CreateKeyboardLayoutMap(EnglishKeyboardLayout, RussianKeyboardLayout);

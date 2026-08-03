@@ -2,6 +2,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { createProcessor } from "@mdx-js/mdx";
 import matter from "gray-matter";
+import remarkGfm from "remark-gfm";
 
 export const DOCUMENT_LOCALES = ["en", "ru"];
 
@@ -22,18 +23,40 @@ const ALLOWED_MDX_COMPONENTS = new Set([
   "DocumentLinkGroup",
   "DocumentLinkCard",
 ]);
-const MARKDOWN_FENCE_PATTERN = /^\s*(`{3,}|~{3,})/u;
-const MARKDOWN_LINK_PATTERN =
-  /(?<!!)\[[^\]]+\]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/gu;
-const MARKDOWN_IMAGE_PATTERN =
-  /!\[[^\]]*\]\((?:<([^>\s]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\)/gu;
-const MARKDOWN_REFERENCE_DEFINITION_PATTERN =
-  /^\s*\[[^\]]+\]:\s*(?:<([^>\s]+)>|([^<\s]+))(?:\s+["'(][^"')]*["')])?\s*$/u;
-const MDX_HREF_PATTERN =
-  /\bhref=(?:"([^"]+)"|'([^']+)'|\{`([^`]+)`\}|\{"([^"]+)"\}|\{'([^']+)'\})/gu;
-const MDX_SRC_PATTERN =
-  /\bsrc=(?:"([^"]+)"|'([^']+)'|\{`([^`]+)`\}|\{"([^"]+)"\}|\{'([^']+)'\})/gu;
-const MDX_COMPONENT_PATTERN = /<\/?([A-Z][^\s/>]*)/gu;
+const ALLOWED_MDX_INTRINSIC_ELEMENTS = new Set([
+  "a",
+  "blockquote",
+  "br",
+  "code",
+  "del",
+  "div",
+  "em",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "img",
+  "kbd",
+  "li",
+  "ol",
+  "p",
+  "pre",
+  "span",
+  "strong",
+  "sub",
+  "sup",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
+  "ul",
+]);
 const METADATA_FIELDS = new Set([
   "title",
   "description",
@@ -66,46 +89,25 @@ function fail(code, message) {
   throw new Error(`${code}: ${message}`);
 }
 
-function getUnfencedLines(content) {
-  const lines = content.split(/\r?\n/u);
-  const visible = [];
-  let activeFence;
+const parseMdx = (content) =>
+  createProcessor({ remarkPlugins: [remarkGfm] }).parse(content);
 
-  for (const [index, line] of lines.entries()) {
-    const fence = MARKDOWN_FENCE_PATTERN.exec(line)?.[1];
-    if (fence) {
-      const candidate = { marker: fence[0], length: fence.length };
-      if (
-        !activeFence ||
-        (candidate.marker === activeFence.marker &&
-          candidate.length >= activeFence.length)
-      ) {
-        activeFence = activeFence ? undefined : candidate;
-        continue;
-      }
-    }
-
-    if (!activeFence) {
-      visible.push({ line, number: index + 1 });
-    }
+function visitMdxTree(node, visitor, ancestors = []) {
+  visitor(node, ancestors);
+  for (const child of node.children ?? []) {
+    visitMdxTree(child, visitor, [...ancestors, node]);
   }
-
-  return visible;
 }
 
-const stripInlineCode = (line) =>
-  line.replace(/(`+)(?:[^`]|`(?!\1))*?\1/gu, "");
-
-const stripHeadingMarkdown = (value) =>
-  value
-    .replace(/\s*\{#[^}]+\}\s*$/gu, "")
-    .replace(/!\[([^\]]*)\]\([^)]+\)/gu, "$1")
-    .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
-    .replace(/\[([^\]]+)\]\[[^\]]*\]/gu, "$1")
-    .replace(/[*_`~]/gu, "")
-    .replace(/<[^>]+>/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
+function headingText(node) {
+  if (node.type === "text" || node.type === "inlineCode") {
+    return node.value;
+  }
+  if (node.type === "image") {
+    return "";
+  }
+  return (node.children ?? []).map(headingText).join("");
+}
 
 const slugifyHeading = (title) =>
   title
@@ -117,92 +119,164 @@ const slugifyHeading = (title) =>
     .replace(/-+/gu, "-")
     .replace(/^-|-$/gu, "");
 
-export function extractHeadings(content) {
+export function extractHeadings(content, tree = parseMdx(content)) {
   const headings = [];
   const seenIds = new Map();
 
-  for (const { line } of getUnfencedLines(content)) {
-    const match = /^(#{2,3})[ \t]+(.+?)[ \t]*#*[ \t]*$/u.exec(line);
-    if (!match) continue;
-
-    const title = stripHeadingMarkdown(match[2]);
-    if (!title) continue;
+  visitMdxTree(tree, (node) => {
+    if (node.type !== "heading" || (node.depth !== 2 && node.depth !== 3)) {
+      return;
+    }
+    const title = headingText(node).replace(/\s+/gu, " ").trim();
 
     const baseId = slugifyHeading(title) || "section";
     const count = seenIds.get(baseId) ?? 0;
     seenIds.set(baseId, count + 1);
     headings.push({
-      level: match[1].length,
+      level: node.depth,
       title,
       id: count === 0 ? baseId : `${baseId}-${count + 1}`,
     });
-  }
+  });
 
   return headings;
 }
 
 function validateMdxSyntax(content, sourcePath) {
-  const visibleLines = getUnfencedLines(content);
-  const moduleNode = createProcessor()
-    .parse(content)
-    .children.find((node) => node.type === "mdxjsEsm");
+  const tree = parseMdx(content);
 
-  if (moduleNode) {
-    fail(
-      "documents_mdx_module_syntax",
-      `${sourcePath}:${moduleNode.position?.start.line ?? 1} contains forbidden import/export syntax`,
-    );
-  }
-
-  for (const { line, number } of visibleLines) {
-    const visibleLine = stripInlineCode(line);
-    MDX_COMPONENT_PATTERN.lastIndex = 0;
-    let match;
-    while ((match = MDX_COMPONENT_PATTERN.exec(visibleLine)) !== null) {
-      if (!ALLOWED_MDX_COMPONENTS.has(match[1])) {
+  visitMdxTree(tree, (node, ancestors) => {
+    const line = node.position?.start.line ?? 1;
+    if (
+      node.type === "heading" &&
+      (node.depth === 2 || node.depth === 3) &&
+      ancestors.some((ancestor) => ancestor.type === "footnoteDefinition")
+    ) {
+      fail(
+        "documents_footnote_heading_unsupported",
+        `${sourcePath}:${line} contains h2/h3 inside a GFM footnote definition`,
+      );
+    }
+    if (node.type === "mdxjsEsm") {
+      fail(
+        "documents_mdx_module_syntax",
+        `${sourcePath}:${line} contains forbidden import/export syntax`,
+      );
+    }
+    if (
+      node.type === "mdxFlowExpression" ||
+      node.type === "mdxTextExpression"
+    ) {
+      fail(
+        "documents_mdx_expression_syntax",
+        `${sourcePath}:${line} contains forbidden executable expression syntax`,
+      );
+    }
+    if (
+      node.type === "mdxJsxFlowElement" ||
+      node.type === "mdxJsxTextElement"
+    ) {
+      if (
+        node.name &&
+        !ALLOWED_MDX_INTRINSIC_ELEMENTS.has(node.name) &&
+        !ALLOWED_MDX_COMPONENTS.has(node.name)
+      ) {
         fail(
           "documents_unknown_mdx_component",
-          `${sourcePath}:${number} uses ${match[1]}`,
+          `${sourcePath}:${line} uses ${node.name}`,
+        );
+      }
+      const reservedFootnoteAttribute = node.attributes.find(
+        (attribute) =>
+          attribute.type === "mdxJsxAttribute" &&
+          attribute.name === "data-footnote-ref",
+      );
+      if (reservedFootnoteAttribute) {
+        fail(
+          "documents_reserved_footnote_attribute",
+          `${sourcePath}:${reservedFootnoteAttribute.position?.start.line ?? line} contains reserved data-footnote-ref syntax`,
+        );
+      }
+      const srcSetAttribute = node.attributes.find(
+        (attribute) =>
+          attribute.type === "mdxJsxAttribute" &&
+          attribute.name.toLowerCase() === "srcset",
+      );
+      if (srcSetAttribute) {
+        fail(
+          "documents_mdx_srcset_unsupported",
+          `${sourcePath}:${srcSetAttribute.position?.start.line ?? line} contains unsupported srcSet syntax`,
+        );
+      }
+      const expressionAttribute = node.attributes.find(
+        (attribute) =>
+          attribute.type === "mdxJsxExpressionAttribute" ||
+          (attribute.type === "mdxJsxAttribute" &&
+            attribute.value?.type === "mdxJsxAttributeValueExpression"),
+      );
+      if (expressionAttribute) {
+        fail(
+          "documents_mdx_expression_attribute",
+          `${sourcePath}:${expressionAttribute.position?.start.line ?? line} contains forbidden expression-valued JSX attribute syntax`,
         );
       }
     }
-  }
+  });
+
+  return tree;
 }
 
-function matchHref(match) {
-  return match.slice(1).find((value) => value !== undefined);
-}
-
-function extractContentTargets(content) {
+function extractContentTargets(tree) {
   const targets = [];
+  const definitions = new Map();
 
-  for (const { line, number } of getUnfencedLines(content)) {
-    const visibleLine = stripInlineCode(line);
+  visitMdxTree(tree, (node) => {
+    if (node.type === "definition" && !definitions.has(node.identifier)) {
+      definitions.set(node.identifier, node.url);
+    }
+  });
 
-    for (const [kind, pattern] of [
-      ["image", MARKDOWN_IMAGE_PATTERN],
-      ["image", MDX_SRC_PATTERN],
-      ["link", MARKDOWN_LINK_PATTERN],
-      ["link", MDX_HREF_PATTERN],
-    ]) {
-      pattern.lastIndex = 0;
-      let match;
-      while ((match = pattern.exec(visibleLine)) !== null) {
-        const href = matchHref(match);
-        if (href) targets.push({ kind, href, line: number });
+  visitMdxTree(tree, (node) => {
+    const line = node.position?.start.line ?? 1;
+    if (node.type === "link" || node.type === "image") {
+      targets.push({
+        kind: node.type === "image" ? "image" : "link",
+        href: node.url,
+        line,
+      });
+      return;
+    }
+    if (node.type === "linkReference" || node.type === "imageReference") {
+      const href = definitions.get(node.identifier);
+      if (href !== undefined) {
+        targets.push({
+          kind: node.type === "imageReference" ? "image" : "link",
+          href,
+          line,
+        });
+      }
+      return;
+    }
+    if (
+      node.type !== "mdxJsxFlowElement" &&
+      node.type !== "mdxJsxTextElement"
+    ) {
+      return;
+    }
+    for (const attribute of node.attributes) {
+      if (
+        attribute.type === "mdxJsxAttribute" &&
+        typeof attribute.value === "string" &&
+        (attribute.name === "href" || attribute.name === "src")
+      ) {
+        targets.push({
+          kind: attribute.name === "src" ? "image" : "link",
+          href: attribute.value,
+          line: attribute.position?.start.line ?? line,
+        });
       }
     }
-
-    const reference = MARKDOWN_REFERENCE_DEFINITION_PATTERN.exec(visibleLine);
-    const href = reference && matchHref(reference);
-    if (href) {
-      targets.push({
-        kind: href.trim().startsWith("/img/") ? "image" : "link",
-        href,
-        line: number,
-      });
-    }
-  }
+  });
 
   return targets;
 }
@@ -255,9 +329,10 @@ function normalizeDocumentHref(href, currentUrl) {
 
 function normalizeImageHref(href) {
   const trimmed = href.trim();
+  if (/^https?:\/\//iu.test(trimmed)) return { external: true };
   if (!trimmed.startsWith("/img/")) return undefined;
   const pathname = trimmed.split("#", 1)[0].split("?", 1)[0];
-  return safeDecode(pathname, decodeURI);
+  return { external: false, pathname: safeDecode(pathname, decodeURI) };
 }
 
 const isProductionVisible = (document) =>
@@ -308,7 +383,7 @@ async function validateContentTargets(documents, sourceByPath, publicRoot) {
 
   for (const document of documents) {
     for (const target of extractContentTargets(
-      sourceByPath.get(document.sourcePath) ?? "",
+      sourceByPath.get(document.sourcePath).tree,
     )) {
       if (target.kind === "link") {
         const normalized = normalizeDocumentHref(
@@ -356,17 +431,27 @@ async function validateContentTargets(documents, sourceByPath, publicRoot) {
       }
 
       const imageHref = normalizeImageHref(target.href);
-      if (!imageHref) continue;
+      if (!imageHref) {
+        fail(
+          "documents_invalid_image_source",
+          `${document.sourcePath}:${target.line} -> ${target.href}`,
+        );
+      }
+      if (imageHref.external) continue;
       const absolutePublicRoot = resolve(publicRoot);
-      const imagePath = resolve(absolutePublicRoot, imageHref.slice(1));
-      const imageRelativePath = relative(absolutePublicRoot, imagePath);
+      const absoluteImageRoot = resolve(absolutePublicRoot, "img");
+      const imagePath = resolve(
+        absolutePublicRoot,
+        imageHref.pathname.slice(1),
+      );
+      const imageRelativePath = relative(absoluteImageRoot, imagePath);
       let imageStat;
       if (
         imageRelativePath.startsWith(`..${sep}`) ||
         imageRelativePath === ".."
       ) {
         fail(
-          "documents_missing_image",
+          "documents_invalid_image_source",
           `${document.sourcePath}:${target.line} -> ${target.href}`,
         );
       }
@@ -711,8 +796,8 @@ export async function compileDocumentsContent({ contentRoot, publicRoot }) {
 
     const parsedFile = matter(await readFile(path, "utf8"));
     const meta = validateMetadata(parsedFile.data, parsedPath.sourcePath);
-    validateMdxSyntax(parsedFile.content, parsedPath.sourcePath);
-    sourceByPath.set(parsedPath.sourcePath, parsedFile.content);
+    const tree = validateMdxSyntax(parsedFile.content, parsedPath.sourcePath);
+    sourceByPath.set(parsedPath.sourcePath, { tree });
     const document = {
       ...parsedPath,
       slug:
@@ -723,7 +808,7 @@ export async function compileDocumentsContent({ contentRoot, publicRoot }) {
         parsedPath.canonicalUrl === "index"
           ? "/docs"
           : `/docs/${parsedPath.canonicalUrl}`,
-      headings: extractHeadings(parsedFile.content),
+      headings: extractHeadings(parsedFile.content, tree),
       meta,
     };
     variants.set(key, document);

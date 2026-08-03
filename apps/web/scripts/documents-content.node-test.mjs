@@ -124,6 +124,17 @@ async function runFixture(name) {
       "[Missing](/docs/missing)\n",
     );
   }
+  if (name === "duplicate-link-definition") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "[Start][destination]",
+        "",
+        "[destination]: /docs/missing",
+        "[destination]: /docs/guides/start",
+      ].join("\n"),
+    );
+  }
   if (name === "broken-fragment") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
@@ -146,6 +157,114 @@ async function runFixture(name) {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
       '![Missing](/img/missing.png "Missing")\n',
+    );
+  }
+  if (name === "unsupported-absolute-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "![Wrong namespace](/images/logo.png)\n",
+    );
+  }
+  if (name === "relative-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "![Relative](../logo.png)\n",
+    );
+  }
+  if (name === "protocol-relative-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "![Protocol relative](//cdn.example.com/logo.png)\n",
+    );
+  }
+  if (name === "data-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "![Embedded](data:image/png;base64,AAAA)\n",
+    );
+  }
+  if (name === "javascript-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "![Executable](javascript:alert(1))\n",
+    );
+  }
+  if (name === "traversal-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "![Outside image namespace](/img/../secret.png)\n",
+    );
+  }
+  if (name === "footnote-invalid-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "A note[^asset].\n\n[^asset]: ![Relative](../logo.png)\n",
+    );
+  }
+  if (name === "referenced-footnote-heading") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "Use it[^note].",
+        "",
+        "[^note]:",
+        "    ## Duplicate",
+        "",
+        "## Duplicate",
+      ].join("\n"),
+    );
+  }
+  if (name === "unreferenced-footnote-heading") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "[^unused]:\n    ### Hidden\n",
+    );
+  }
+  if (name === "ordinary-footnote") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "Use it[^note].\n\n[^note]: Ordinary text.\n",
+    );
+  }
+  if (name === "duplicate-image-definition-in-footnote") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "A note[^asset].",
+        "",
+        "[^asset]: ![Logo][asset]",
+        "",
+        "[asset]: ../missing.png",
+        "[asset]: https://cdn.example.com/logo.png",
+      ].join("\n"),
+    );
+  }
+  if (name === "duplicate-empty-image-definition-in-footnote") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "A note[^asset].",
+        "",
+        "[^asset]: ![Logo][asset]",
+        "",
+        "[asset]: <>",
+        "[asset]: https://cdn.example.com/logo.png",
+      ].join("\n"),
+    );
+  }
+  if (name === "srcset-image") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '<img alt="Responsive" src="https://cdn.example.com/base.png" srcSet="javascript:alert(1) 2x" />\n',
+    );
+  }
+  if (name === "external-http-images") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "![HTTPS](HTTPS://cdn.example.com/logo.png)",
+        '<img alt="HTTP" src="HTTP://cdn.example.com/logo.png" />',
+      ].join("\n"),
     );
   }
   if (name === "published-missing-ru") {
@@ -202,10 +321,76 @@ async function runFixture(name) {
       "<Steps:Unknown />\n",
     );
   }
+  if (name === "lowercase-member-component") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "<foo.bar />\n",
+    );
+  }
+  if (name === "lowercase-namespaced-component") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "<svg:path />\n",
+    );
+  }
+  if (name === "unicode-uppercase-component") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "<Компонент />\n",
+    );
+  }
+  if (name === "unsafe-script-element") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '<script src="https://evil.example/script.js" />\n',
+    );
+  }
+  if (name === "unsafe-iframe-element") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '<iframe src="https://evil.example/embed" />\n',
+    );
+  }
   if (name === "content-export") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
       "export const unsafe = true\n",
+    );
+  }
+  if (name === "mdx-flow-expression") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "{process.env.SECRET}\n",
+    );
+  }
+  if (name === "mdx-text-expression") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "Secret: {process.env.SECRET}\n",
+    );
+  }
+  if (name === "mdx-expression-attribute") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '<Callout title={process.env.SECRET} variant="info">Unsafe</Callout>\n',
+    );
+  }
+  if (name === "mdx-spread-attribute") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "<Callout {...process.env}>Unsafe</Callout>\n",
+    );
+  }
+  if (name === "mdx-literal-attributes") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '<Callout title="Safe" variant="info">Literal content</Callout>\n',
+    );
+  }
+  if (name === "reserved-footnote-attribute") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '## <span data-footnote-ref="">Heading</span>\n',
     );
   }
   if (name === "multiline-export-prose") {
@@ -275,6 +460,9 @@ async function runFixture(name) {
       await writeFile(path, source, "utf8");
     }),
   );
+  if (name === "traversal-image") {
+    await writeFile(resolve(publicRoot, "secret.png"), "not an image", "utf8");
+  }
 
   return {
     result: await compileDocumentsContent({ contentRoot, publicRoot }),
@@ -360,10 +548,47 @@ test("extracts stable duplicate heading identifiers outside code fences", () => 
   );
 });
 
+test("decodes Markdown character references before generating heading IDs", () => {
+  assert.deepEqual(contentCompiler.extractHeadings?.("## API &amp; UI"), [
+    { level: 2, title: "API & UI", id: "api-ui" },
+  ]);
+});
+
+test("extracts nested MDX headings recursively in source order", () => {
+  assert.deepEqual(
+    contentCompiler.extractHeadings?.(
+      "<Callout>\n\n## API &amp; UI\n\n</Callout>\n\n### Tail",
+    ),
+    [
+      { level: 2, title: "API & UI", id: "api-ui" },
+      { level: 3, title: "Tail", id: "tail" },
+    ],
+  );
+});
+
+test("keeps compiler heading IDs aligned for footnote references and images", () => {
+  assert.deepEqual(
+    contentCompiler.extractHeadings?.(
+      "## Heading[^note]\n\n[^note]: Note\n\n## ![Logo](/img/logo.png)",
+    ),
+    [
+      { level: 2, title: "Heading", id: "heading" },
+      { level: 2, title: "", id: "section" },
+    ],
+  );
+});
+
 test("rejects broken internal document links", async () => {
   await assert.rejects(
     async () => (await runFixture("broken-link")).result,
     /documents_broken_link/,
+  );
+});
+
+test("uses the first duplicate Markdown link definition like the renderer", async () => {
+  await assert.rejects(
+    async () => (await runFixture("duplicate-link-definition")).result,
+    /documents_broken_link: index\.en\.mdx:\d+ -> \/docs\/missing/,
   );
 });
 
@@ -415,6 +640,85 @@ test("rejects missing repository-local images", async () => {
   );
 });
 
+for (const name of [
+  "unsupported-absolute-image",
+  "relative-image",
+  "protocol-relative-image",
+  "data-image",
+  "javascript-image",
+  "traversal-image",
+]) {
+  test(`rejects unsupported image source ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_invalid_image_source/,
+    );
+  });
+}
+
+for (const name of ["unsafe-script-element", "unsafe-iframe-element"]) {
+  test(`rejects executable intrinsic MDX element ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_unknown_mdx_component/,
+    );
+  });
+}
+
+test("allows case-insensitive external HTTP and HTTPS image schemes", async () => {
+  const { result } = await runFixture("external-http-images");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("validates images nested in GFM footnote definitions", async () => {
+  await assert.rejects(
+    async () => (await runFixture("footnote-invalid-image")).result,
+    /documents_invalid_image_source/,
+  );
+});
+
+for (const name of [
+  "referenced-footnote-heading",
+  "unreferenced-footnote-heading",
+]) {
+  test(`rejects h2/h3 inside a GFM footnote definition: ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_footnote_heading_unsupported: index\.en\.mdx:\d+ contains h2\/h3 inside a GFM footnote definition/,
+    );
+  });
+}
+
+test("continues to support ordinary GFM footnote content", async () => {
+  const { result } = await runFixture("ordinary-footnote");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("uses the first duplicate image definition inside a GFM footnote", async () => {
+  await assert.rejects(
+    async () =>
+      (await runFixture("duplicate-image-definition-in-footnote")).result,
+    /documents_invalid_image_source: index\.en\.mdx:\d+ -> \.\.\/missing\.png/,
+  );
+});
+
+test("does not discard a first empty image definition in a GFM footnote", async () => {
+  await assert.rejects(
+    async () =>
+      (await runFixture("duplicate-empty-image-definition-in-footnote")).result,
+    /documents_invalid_image_source/,
+  );
+});
+
+test("rejects literal srcSet instead of bypassing image-source validation", async () => {
+  await assert.rejects(
+    async () => (await runFixture("srcset-image")).result,
+    /documents_mdx_srcset_unsupported/,
+  );
+});
+
 test("requires both locales for production-visible documents", async () => {
   await assert.rejects(
     async () => (await runFixture("published-missing-ru")).result,
@@ -443,10 +747,54 @@ test("rejects JSX namespaced expressions that start with an allowed MDX componen
   );
 });
 
+for (const name of [
+  "lowercase-member-component",
+  "lowercase-namespaced-component",
+  "unicode-uppercase-component",
+]) {
+  test(`rejects closed-set bypass ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_unknown_mdx_component/,
+    );
+  });
+}
+
 test("rejects executable MDX imports and exports", async () => {
   await assert.rejects(
     async () => (await runFixture("content-export")).result,
     /documents_mdx_module_syntax/,
+  );
+});
+
+for (const name of ["mdx-flow-expression", "mdx-text-expression"]) {
+  test(`rejects executable ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_mdx_expression_syntax: index\.en\.mdx:\d+ contains forbidden executable expression syntax/,
+    );
+  });
+}
+
+for (const name of ["mdx-expression-attribute", "mdx-spread-attribute"]) {
+  test(`rejects executable ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_mdx_expression_attribute: index\.en\.mdx:\d+ contains forbidden expression-valued JSX attribute syntax/,
+    );
+  });
+}
+
+test("accepts string-valued attributes on allowed MDX components", async () => {
+  const { result } = await runFixture("mdx-literal-attributes");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("rejects author-supplied data-footnote-ref attributes", async () => {
+  await assert.rejects(
+    async () => (await runFixture("reserved-footnote-attribute")).result,
+    /documents_reserved_footnote_attribute: index\.en\.mdx:\d+ contains reserved data-footnote-ref syntax/,
   );
 });
 

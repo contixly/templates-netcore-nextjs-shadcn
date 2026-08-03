@@ -115,6 +115,7 @@ it("uses stable duplicate heading IDs and copies heading and code values", async
     <>
       <H2>Repeated</H2>
       <H2>Repeated</H2>
+      <H2>API &amp; UI</H2>
       <Pre>
         <code>{"npm test\n"}</code>
       </Pre>
@@ -124,6 +125,10 @@ it("uses stable duplicate heading IDs and copies heading and code values", async
   const headings = screen.getAllByRole("heading", { name: "Repeated" });
   expect(headings[0]).toHaveAttribute("id", "repeated");
   expect(headings[1]).toHaveAttribute("id", "repeated-2");
+  expect(screen.getByRole("heading", { name: "API & UI" })).toHaveAttribute(
+    "id",
+    "api-ui",
+  );
 
   await act(async () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Copy link" })[0]!);
@@ -135,6 +140,59 @@ it("uses stable duplicate heading IDs and copies heading and code values", async
     fireEvent.click(screen.getByRole("button", { name: "Copy code" }));
   });
   expect(navigator.clipboard.writeText).toHaveBeenCalledWith("npm test\n");
+});
+
+it("omits generated GFM footnote references from heading IDs", () => {
+  const H2 = components.h2 as ComponentType<{ children?: ReactNode }>;
+  const Anchor = components.a as ComponentType<{
+    children?: ReactNode;
+    "data-footnote-ref"?: string;
+    href?: string;
+  }>;
+
+  render(
+    <>
+      <H2>
+        Heading
+        <sup>
+          <Anchor data-footnote-ref="" href="#user-content-fn-note">
+            1
+          </Anchor>
+        </sup>
+      </H2>
+      <H2>
+        Heading <sup>detail</sup>
+      </H2>
+    </>,
+  );
+
+  expect(screen.getByRole("heading", { name: "Heading 1" })).toHaveAttribute(
+    "id",
+    "heading",
+  );
+  expect(
+    screen.getByRole("heading", { name: "Heading detail" }),
+  ).toHaveAttribute("id", "heading-detail");
+});
+
+it("preserves the generated accessible GFM footnote heading", () => {
+  const H2 = components.h2 as ComponentType<{
+    children?: ReactNode;
+    className?: string;
+    id?: string;
+  }>;
+
+  render(
+    <H2 className="sr-only" id="footnote-label">
+      Footnotes
+    </H2>,
+  );
+
+  const heading = screen.getByRole("heading", { name: "Footnotes" });
+  expect(heading).toHaveAttribute("id", "footnote-label");
+  expect(heading).toHaveClass("sr-only");
+  expect(heading.querySelector("span")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Copy link" })).toBeNull();
 });
 
 it("renders safe links, unavailable documentation targets, images, and GFM tables", () => {
@@ -201,3 +259,19 @@ it("renders safe links, unavailable documentation targets, images, and GFM table
     within(screen.getByRole("table")).getByText("title"),
   ).toBeInTheDocument();
 });
+
+it.each(["HTTP://example.com/diagram.png", "HTTPS://example.com/diagram.png"])(
+  "renders a remote image with a case-insensitive HTTP scheme: %s",
+  (src) => {
+    const Image = components.img as ComponentType<{
+      alt?: string;
+      src?: string;
+    }>;
+
+    render(<Image alt="Remote architecture" src={src} />);
+
+    expect(
+      screen.getByRole("img", { name: "Remote architecture" }),
+    ).toHaveAttribute("src", src);
+  },
+);

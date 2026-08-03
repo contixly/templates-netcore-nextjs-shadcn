@@ -33,6 +33,12 @@ public sealed class DocumentSearchTextTests
     }
 
     [Fact]
+    public void CreateQueryVariants_MapsEnglishBacktickToNormalizedRussianYo()
+    {
+        Assert.Equal(["krf", "елка"], DocumentSearchText.CreateQueryVariants("`krf"));
+    }
+
+    [Fact]
     public void CreateQueryVariants_DoesNotGuessMixedOrUnsupportedLetterLayouts()
     {
         Assert.Equal(["api ф"], DocumentSearchText.CreateQueryVariants("api ф"));

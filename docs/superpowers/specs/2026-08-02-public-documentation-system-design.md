@@ -255,9 +255,20 @@ The compiler:
 - requires a production-visible source to link only to a production-visible
   matching-locale target;
 - validates internal fragments against generated heading identifiers;
-- creates stable duplicate anchors with `-2`, `-3`, and so on;
-- validates repository-local images and their public paths;
-- permits only the closed MDX component set implemented by this slice;
+- extracts top-level and allowed-container headings in source order, excludes
+  generated footnote-reference numbers and images from heading text, and
+  creates stable duplicate anchors with `-2`, `-3`, and so on;
+- rejects `h2`/`h3` inside GFM footnote definitions because rendering relocates
+  referenced definitions and omits unreferenced definitions;
+- resolves duplicate Markdown reference labels with renderer-equivalent
+  first-definition-wins semantics;
+- permits only explicit HTTP(S) images or repository-local `/img/**` paths that
+  remain below `apps/web/public/img`, and rejects `srcSet` candidates;
+- permits only the closed MDX component set implemented by this slice and
+  an explicit safe intrinsic-element set; rejects executable elements, module
+  syntax, flow/text expressions, JSX spread attributes and expression-valued
+  JSX attributes, and reserves author-supplied `data-footnote-ref` for the GFM
+  renderer;
 - fails production builds for broken links, missing fragments, missing images,
   unsafe/unknown MDX components or generated drift.
 

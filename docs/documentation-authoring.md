@@ -95,9 +95,18 @@ same generated order.
 Write one user goal or reference subject per page. The rendered article owns its
 visible `h1`; a source `#` heading is suppressed, so keep it useful for source
 readability but do not rely on it for navigation. `##` and `###` headings become
-searchable headings and stable anchors. Duplicate anchor text receives `-2`,
-`-3`, and so on. Backtick and tilde fenced code does not create headings, links,
-images, or MDX validations.
+searchable headings and stable anchors, including headings nested inside an
+allowed MDX container. Generated footnote-reference numbers and images do not
+contribute to the anchor text; therefore every heading should contain readable
+text and should not consist only of an image. Duplicate anchor text receives
+`-2`, `-3`, and so on. Backtick and tilde fenced code does not create headings,
+links, images, or MDX validations.
+
+Do not place `##` or `###` inside a GFM footnote definition. The renderer moves
+referenced footnotes and omits unreferenced definitions, so those headings are
+rejected rather than assigned unstable anchors. Ordinary footnote paragraphs,
+lists, links, code, and images remain supported under the normal validation
+rules.
 
 GFM tables, task lists, footnotes, blockquotes, inline code, and fenced code are
 supported. Give images meaningful alt text and keep examples free of secrets,
@@ -105,8 +114,15 @@ credentials, access tokens, real user data, or private URLs.
 
 ## Closed MDX components
 
-Executable MDX `import`/`export`, member expressions, namespaced expressions,
-and every unknown capitalized component are rejected. The complete custom set is:
+Executable MDX `import`/`export`, flow/text expressions, JSX spread attributes,
+expression-valued JSX attributes, member expressions, namespaced expressions,
+and every name outside the explicit safe intrinsic/custom sets are rejected;
+executable elements such as `script` and `iframe` are never accepted. Supported
+component attributes must be boolean literals or quoted strings. The complete
+custom set is:
+
+`data-footnote-ref` is reserved for GFM-generated reference anchors and cannot
+be supplied in author-written MDX JSX.
 
 - `Callout` — optional `title`; `variant` is `default`, `info`, `success`,
   `warning`, or `danger`;
@@ -133,6 +149,10 @@ first source variant only for a non-production source when that locale variant
 is absent. Markdown inline links, reference definitions, and supported MDX
 `href` literals are checked.
 
+Markdown reference labels should be unique. If a label is defined more than
+once, the first definition wins for both compiler validation and MDX rendering;
+a later definition cannot repair an invalid first target.
+
 The compiler gives a broken-link diagnostic when no canonical target exists. A
 production-visible source also requires a production-visible target in the same
 locale; a matching-locale draft, review, hidden, or absent variant gives a
@@ -146,11 +166,14 @@ as disabled text.
 ## Images
 
 A repository-local image uses an absolute `/img/...` source and must resolve to
-a real file beneath `apps/web/public`; escaping that directory or referencing a
-missing/non-file path fails compilation. Query and fragment text does not affect
-the file lookup. Remote rendered images may use `http://` or `https://`. The
-article renderer emits responsive, lazy native images because MDX supplies
-author-controlled dimensions. Always provide useful `alt` text.
+a real file beneath `apps/web/public/img`; escaping that namespace or referencing
+a missing/non-file path fails compilation. Relative paths, protocol-relative
+sources, other absolute local namespaces, and non-HTTP(S) protocols are rejected.
+Query and fragment text does not affect the file lookup. Remote rendered images
+may use explicit `http://` or `https://` sources. The article renderer emits
+responsive, lazy native images because MDX supplies author-controlled dimensions.
+Always provide useful `alt` text. Literal or expression-valued `srcSet` is not
+supported; use one validated `src`.
 
 Do not modify `template/` to add an asset. Copy only the necessary reference
 asset into the target-owned `apps/web/public` tree and verify the branch-range
