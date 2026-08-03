@@ -2,13 +2,13 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 9 — application shell, dashboard и frontend parity —
-локальная acceptance завершена для implementation head
-`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`. Это UI-only изменение переиспользует
-существующий REST/OpenAPI contract. Task-local implementation/review rounds
-и финальные whole-branch review/fix rounds зафиксированы локально, но не
-являются GitHub review evidence.
-PR ещё не создан; push, ready PR и fresh GitHub Codex review относятся к
-итерации 9 Task 10 и не заявляются этим документом.
+fresh local acceptance завершена для implementation head
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`. Это UI-only изменение переиспользует
+существующий REST/OpenAPI contract. Observed PR #10 evidence относится только к
+этому source head: он был ready/non-draft, `MERGEABLE`, с пустым observed
+`statusCheckRollup`, clean connector review и 5/5 resolved threads. Текущий
+local unpushed documentation-only head не покрыт тем review и до окончательного
+завершения требует собственного fresh exact-head review.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -327,7 +327,7 @@ claims or performs persistence. Chart value descriptions live outside the
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
-| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена | Implementation head `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply.bind` pre-bound-argument guards and real dashboard interaction parity приняты локальными gates. Task-local и final whole-branch reviews отделены от GitHub review; PR/push/current-head automatic review остаются Task 10. |
+| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена; source PR head observed | Implementation head `ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply.bind` guards and dashboard interaction parity passed fresh local gates. Observed PR #10 evidence for that source head was ready/non-draft, `MERGEABLE`, empty `statusCheckRollup`, clean connector review and 5/5 resolved threads; current local unpushed documentation-only head still requires its own fresh exact-head review. |
 | 10–12                                               | Не начаты | Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) не входят в итерацию 9. |
 
 ## Acceptance evidence: итерация 1
@@ -3072,16 +3072,35 @@ self-assert that state.
 
 ### Scope и implementation state
 
-Локальная acceptance выполнена 2026-08-03 для implementation head
-`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`. Ветка содержит восемь Task 1–8
-feature/test commits и два финальных whole-branch review/fix commits. Первый
-test-first round закрыл nested-main/skip-target, browser-storage `.apply`,
-filtered-selection, vertical drag-and-drop и browser-interaction gaps. Final
-security re-review дополнительно закрыл потерю частично или полностью заранее
-связанных аргументов `setItem.apply.bind`. Эти локальные reviews проверяли
-implementation diff, но не являются GitHub review, PR check или подтверждением
-mergeability. Ready PR, automatic review текущего pushed head и closure review
-threads остаются Task 10.
+Fresh local acceptance выполнена 2026-08-04 для implementation head
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`. Она supersedes прежнее
+`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`-only evidence: после него были
+две GitHub automatic-review/fix waves. Первый review
+`PRR_kwDOThDXX88AAAABIOv-CQ` (2026-08-03T18:16:09Z) проверил
+`61e99b8414110169b31c767dd5a9037892174b76` и сообщил два P2 boundary findings;
+их test-first fixes вошли в `74d5fe09e5cc50db8dbfb6ac41b92b38f1d87035`.
+Второй review `PRR_kwDOThDXX88AAAABIPwoag` (2026-08-03T20:39:59Z) проверил
+`74d5fe09e5cc50db8dbfb6ac41b92b38f1d87035` и сообщил три P2 findings:
+filtered reorder сохраняет позиции скрытых строк, global protected routes
+показывают organization selector с neutral null/stale/off-page state, а
+collapsed brand link имеет accessible name. Их test-first fixes вошли в
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`.
+
+На момент наблюдения PR [#10](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/10)
+открыт, ready/non-draft, его `headRefOid` равен `ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`,
+`mergeable` — `MERGEABLE`, а `statusCheckRollup` пуст (`[]`; checks не были
+возвращены при этом наблюдении). Запрос `@codex review` имеет comment ID
+`IC_kwDOThDXX88AAAABNEIXhQ` и время 2026-08-03T21:06:27Z. Последующий connector
+comment `IC_kwDOThDXX88AAAABNEKwzA` от 2026-08-03T21:10:43Z говорит “Didn't find
+any major issues” и указывает reviewed commit `ffd7bf0b50`; GraphQL показал
+5/5 resolved review threads и ноль unresolved actionable threads. Это
+наблюдаемое current-head evidence, а не self-assertion.
+
+Этот documentation-only commit является текущим local unpushed docs head и
+изменил HEAD после review `ffd7bf0`; его нельзя считать покрытым тем review. До
+окончательного завершения он должен быть pushed и получить отдельный свежий
+review exact нового pushed head. В текущей задаче commit не pushится и review не
+запрашивается.
 
 Итерация разделяет `(public)/(home)`, простые authentication routes,
 `(documents)` и `(protected)` без изменения URL. Route-aware
@@ -3153,32 +3172,39 @@ function не обёрнут и не должен описываться как 
   collaboration, invitation and API-key transaction/schema behavior is
   unchanged.
 
-### Fresh local acceptance — 2026-08-03
+### Fresh local acceptance — 2026-08-04
 
-All final commands below ran from implementation head
-`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2` after a fresh `npm ci`.
+All commands below ran from implementation head
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`; no install command ran in this
+acceptance, and nothing ran in immutable `template/`.
 
 | Command | Exact observed result |
 | --- | --- |
-| `time dotnet restore Template.sln` | PASS; all projects up to date; `1.01s` total |
-| `time dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; MSBuild `7.58s`, shell `7.74s` total |
-| `time dotnet test Template.sln --no-restore` | PASS; Application 343/343 in `110ms`, API 773/773 in `2m15s`, total 1116/1116, 0 failed, 0 skipped; `2:22.27` total |
-| `npm ci` | PASS; 1163 packages installed, 1164 audited in `21s`; warning-only dependency/install-script output recorded below; shell `21.57s` total |
-| `npm ls postcss --all` | PASS; Tailwind, Next.js and shadcn consumers resolve overridden/deduplicated `postcss@8.5.25` |
-| `npm run content:generate` | PASS; deterministic artifacts regenerated |
-| `npm run content:check` | PASS; generated content current |
-| `npm run content:test` | PASS; 109/109, 0 failed/skipped; Node duration `795.569ms` |
-| `npm run api:check` | PASS; four generated files in `198ms`, deterministic/current |
-| `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan in `11.852s`, including partially/fully pre-bound direct/aliased/destructured `.apply.bind` coverage |
-| `npm run format:check` | PASS; all matched web files formatted |
-| `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes |
-| `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit` |
-| `npm run audit:prod` | PASS; 0 production vulnerabilities |
-| `npm test -- --runInBand` | PASS; 102/102 suites, 822/822 tests, 0 snapshots; Jest `35.466s`, shell `36.78s` total |
-| Python `.next` cleanup snippet | PASS; `.next` removed before the production build |
-| `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build` | PASS; Next.js 16.2.11, Cache Components enabled and `authInterrupts` experiment banner printed; compile `5.2s`, TypeScript `5.5s`, 144/144 static pages in `1.307s`; `13.74s` total |
+| `time dotnet restore Template.sln` | PASS; 2 test projects restored and 5/7 projects already current; `2.385s` total |
+| `time dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; MSBuild `8.50s`, shell `8.672s` total |
+| `time dotnet test Template.sln --no-restore` | PASS; Application 343/343 in `106ms`, API 773/773 in `2m 41s`, total 1116/1116, 0 failed, 0 skipped; `2:47.81` total |
+| `npm run content:generate` | PASS; deterministic artifacts regenerated; `0.652s` total |
+| `npm run content:check` | PASS; generated content current; `0.471s` total |
+| `npm run content:test` | PASS; 109/109, 0 failed/skipped; Node duration `691.996ms`, shell `0.830s` total |
+| `npm run api:check` | PASS; four generated files in `168ms`, deterministic/current; `0.864s` total |
+| `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan; Node duration `10.881s`, shell `11.528s` total |
+| `npm run format:check` | PASS; all matched web files formatted; `3.700s` total |
+| `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes; `6.984s` total |
+| `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit`; `2.336s` total |
+| `npm run audit:prod` | PASS; 0 production vulnerabilities; `1.240s` total |
+| `npm test -- --runInBand` | PASS; 102/102 suites, 841/841 tests, 0 snapshots; Jest `28.606s`, shell `29.162s` total |
+| Python `.next` cleanup | PASS; `.next` removed before production build; `0.849s` total |
+| `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build` | PASS; Next.js 16.2.11, Cache Components enabled and `authInterrupts` experiment banner printed; compile `5.1s`, TypeScript `5.4s`, 144/144 static pages in `896ms`; `13.345s` total |
 | `test -f .next/standalone/server.js` | PASS; standalone server exists |
-| `npm run e2e` | PASS; 35 total: 30 passed, 5 opt-in live-provider screens skipped, 0 failed; Playwright `2.0m`, shell `1:59.42` total |
+| `npm run e2e` | PASS; 35 total: 30 passed, 5 opt-in live-provider screens skipped, 0 failed; Playwright `1.6m`, shell `1:37.47` total |
+| `git diff --check` | PASS; no whitespace errors |
+| template/OpenSpec/API guards | PASS; working-tree and untracked `template/` clean; no active `openspec/changes/*`; `git diff 74d5fe0..ffd7bf0 -- apps/api contracts/openapi` empty |
+
+#### Historical pre-2026-08-04 install/development-audit context
+
+The following is solely historical context from the 2026-08-03 predecessor
+acceptance at `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`; it is not output from
+the fresh `ffd7bf0` acceptance table above.
 
 `npm ci` reported deprecations for `inflight@1.0.6`,
 `whatwg-encoding@3.1.1`, `glob@7.2.3`, and `glob@10.5.0`; 394 packages looking
@@ -3234,10 +3260,9 @@ The first fresh acceptance attempt after that code change also observed a new
 production-audit RED: the registry advisory database classified the pinned
 `postcss@8.5.22` as three moderate production vulnerabilities. The existing
 override was advanced to `8.5.25`, `npm audit --omit=dev` returned zero, and the
-implementation commit was amended before every final command above was rerun
-from `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`. The complete development tree
-still reports one high-severity dev-only vulnerability; it is not hidden by the
-separate zero-vulnerability production audit.
+implementation commit was amended before later review/fix work. The complete
+development tree still reports one high-severity dev-only vulnerability; it is
+not hidden by the separate zero-vulnerability production audit.
 
 The subsequent GitHub review exposed that extending that scope-aware analyzer
 had turned the guard into an incomplete JavaScript interpreter: the original
@@ -3248,8 +3273,9 @@ capability tokens and raw literal/template `/api/v1` paths wherever they occur
 in handwritten source, so alias, bind/call/apply, higher-order, spread, branch,
 recursive, destructured, computed-const, and shadowed-name forms do not require
 runtime emulation. Approved wrappers contain no reserved token. This closes the
-two reported examples by policy; exact-current-head automatic-review and thread
-evidence remains Task 10 controller work and is not finalized here.
+two reported examples by policy. The current exact-head PR/review/thread
+observation is recorded above; the current local unpushed documentation-only
+head deliberately requires its own fresh review before final completion.
 
 ### Intentional differences and later exclusions
 
