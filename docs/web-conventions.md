@@ -793,14 +793,18 @@ request-cached. Those constituent caches deduplicate equivalent upstream
 projections shared with page composition, so caching the composite function is
 neither implemented nor required for request-level deduplication.
 
-The responsive shell owns one `main#main-content`, its sidebar/header scroll
-frame, breadcrumbs, documentation shortcut, organization controls, and account
-controls. Navigation visibility is derived from trusted API capabilities, but
-hidden links never replace API authorization or non-disclosure. The non-sensitive
-sidebar preference uses the dedicated `template.sidebar=open|closed` cookie with
-`Path=/`, `SameSite=Lax`, and a 30-day maximum age. It is separate from the
-secure HttpOnly authentication cookie and contains no credential or identity
-state.
+The responsive shell owns exactly one `main#main-content`, its sidebar/header
+scroll frame, breadcrumbs, documentation shortcut, organization controls, and
+account controls. Protected loading, error, not-found, unauthorized and
+forbidden descendants render semantic sections inside that landmark rather
+than introducing nested mains; standalone root status surfaces retain their
+own main landmark. Source-inventory and rendered-integration tests guard the
+single skip target and single-main invariant. Navigation visibility is derived
+from trusted API capabilities, but hidden links never replace API authorization
+or non-disclosure. The non-sensitive sidebar preference uses the dedicated
+`template.sidebar=open|closed` cookie with `Path=/`, `SameSite=Lax`, and a
+30-day maximum age. It is separate from the secure HttpOnly authentication
+cookie and contains no credential or identity state.
 
 Account and workspace settings reuse shared semantic page/rail/section
 composition without changing generated-SDK operations, CSRF behavior,
@@ -812,7 +816,12 @@ drawer edits. Navigation or reload resets that state. The static fixture and
 local interactions introduce no additional dashboard data request or new
 endpoint; the existing authentication, access, and organization projections
 still run. All user-facing feedback explicitly says that demo changes are not
-saved.
+saved. Table selection totals are derived from filtered table row models, so a
+selected row hidden by the current search/filter does not remain in the visible
+selection count. Row reordering uses dnd-kit's vertical-axis modifier and is
+covered by deterministic keyboard drag-and-drop; browser parity also exercises
+search/filtering, hidden selection, pagination, column visibility, drawer
+save/toast feedback, and reload reset without coordinate-dependent gestures.
 
 Locale remains deployment-fixed `en | ru` with the existing safe English
 fallback, fixed UTC time zone, no locale URL prefix, and no language switcher.
@@ -837,3 +846,11 @@ operations retain the antiforgery cookie plus `X-CSRF-TOKEN` flow. Existing
 Problem Details, opaque-cursor, feature-filter, transaction, and schema behavior
 is unchanged, and `npm run api:check` guards the generated client against the
 unchanged OpenAPI contract.
+
+The browser-storage source boundary rejects direct, aliased, destructured,
+bound, `.call`, and `.apply` forms of `localStorage.setItem` and
+`sessionStorage.setItem`, including bound-apply combinations. It remains
+scope-aware so shadowed `Map`-like objects do not become false positives. The
+dedicated safe-preferences module is the only narrow persistence exception and
+continues to store only approved presentation preferences, never identity,
+credentials, bearer tokens, protected data, or dashboard edits.

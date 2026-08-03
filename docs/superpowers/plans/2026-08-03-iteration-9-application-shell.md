@@ -10,7 +10,7 @@
 
 **Tech Stack:** .NET 10 verification only; Next.js 16.2.11 App Router with Cache Components; React 19.2.8; TypeScript 6.0.3; next-intl 4.13.4; Tailwind CSS 4.3.3; shadcn/radix-ui; Jest 30; Playwright 1.61.1; generated Hey API client; Recharts 3.9.1; TanStack Table 8.21.3; dnd-kit; Sonner; Vaul; Zod 4.4.3.
 
-**Execution status (2026-08-03):** Tasks 1–8 are implemented and locally reviewed at implementation head `180f29b40099633bcbf55baadb6b873bd88965c3`. Task 9 is complete with fresh local acceptance evidence and its documentation commit. Task 10 (push, ready PR, and current-head GitHub review) has not started and is not claimed.
+**Execution status (2026-08-03):** Tasks 1–9 are implemented and locally accepted at implementation head `57ebe23746dc83d5444e1667cb6065335da5c10d`, including the final whole-branch review/fix round described below. Task 10 (push, ready PR, and current-head GitHub review) has not started and is not claimed.
 
 ## Global Constraints
 
@@ -1029,6 +1029,42 @@ iteration-10/11/12 exclusions. Do not claim clean PR review yet.
 git add docs/web-conventions.md docs/aspnetcore-migration-plan.md docs/superpowers/plans/2026-08-03-iteration-9-application-shell.md
 git commit -m "docs: record iteration 9 acceptance"
 ```
+
+#### Final whole-branch review/fix addendum — 2026-08-03
+
+- [x] Added RED/GREEN source-inventory and rendered-integration coverage for the
+      shell-owned `main#main-content`; protected loading/error/not-found/
+      unauthorized/forbidden descendants now use nested sections, while root
+      standalone surfaces preserve a main landmark.
+- [x] Added RED/GREEN browser-storage boundary fixtures for direct, aliased,
+      destructured, bound and bound-apply `.apply` invocation paths, with safe
+      preference and shadowed-object allow cases.
+- [x] Added RED/GREEN filtered-selection coverage and derived dashboard counts
+      from TanStack Table's filtered row models.
+- [x] Added RED/GREEN source coverage for dnd-kit's vertical-axis modifier and
+      deterministic keyboard drag-and-drop browser coverage.
+- [x] Extended the real dashboard browser journey across search/filtering,
+      hidden selection, pagination, column visibility, drawer save/toast and
+      reload reset; retained the existing desktop/mobile/organization/
+      collaboration landmark checks.
+- [x] Focused GREEN: 22 Jest regressions; 8/8 boundary fixtures plus source
+      scan; typecheck, lint and format; application-shell 2/2, organization
+      zero-state 1/1 and collaboration 1/1 browser scenarios.
+- [x] Fresh complete acceptance at implementation head
+      `57ebe23746dc83d5444e1667cb6065335da5c10d`: .NET 1116/1116; content
+      109/109; boundaries 8/8; Jest 102/102 suites and 822/822 tests; production
+      build 144/144 pages with standalone output; Playwright 30 passed, 5
+      documented opt-in provider smokes skipped and 0 failed; production audit
+      0 vulnerabilities; immutable `template/` and inactive OpenSpec guards
+      clean.
+
+The first complete Playwright rerun in this addendum timed out at the final
+pre-existing collaboration `Status` assertion under five-worker load after the
+earlier assertions passed. The same scenario passed focused in 22 seconds. Its
+describe timeout was raised from 60 to 90 seconds without weakening an
+assertion or adding a skip; the focused rerun and fresh full 30/5/0 run passed.
+Task 10 remains deliberately unchecked below: this addendum claims no push,
+ready PR, current-head automatic review, mergeability, or review-thread state.
 
 ### Task 10: Publish a ready PR and close automatic-review findings
 

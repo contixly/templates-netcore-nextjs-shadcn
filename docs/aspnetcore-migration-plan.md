@@ -3,9 +3,10 @@
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 9 — application shell, dashboard и frontend parity —
 локальная acceptance завершена для implementation head
-`180f29b40099633bcbf55baadb6b873bd88965c3`. Это UI-only изменение переиспользует
+`57ebe23746dc83d5444e1667cb6065335da5c10d`. Это UI-only изменение переиспользует
 существующий REST/OpenAPI contract. Task-local implementation/review rounds
-зафиксированы в локальном SDD ledger, но не являются GitHub review evidence.
+и финальный whole-branch review/fix round зафиксированы локально, но не являются
+GitHub review evidence.
 PR ещё не создан; push, ready PR и fresh GitHub Codex review относятся к
 итерации 9 Task 10 и не заявляются этим документом.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
@@ -326,7 +327,7 @@ claims or performs persistence. Chart value descriptions live outside the
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
-| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена | Implementation head `180f29b40099633bcbf55baadb6b873bd88965c3`: public landing, responsive protected shell, shared settings, static local dashboard, safe metadata/boundaries and route/browser parity приняты локальными gates. Task-local reviews завершены и отделены от GitHub review; PR/push/current-head automatic review остаются Task 10. |
+| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена | Implementation head `57ebe23746dc83d5444e1667cb6065335da5c10d`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply` guards and real dashboard interaction parity приняты локальными gates. Task-local и final whole-branch reviews отделены от GitHub review; PR/push/current-head automatic review остаются Task 10. |
 | 10–12                                               | Не начаты | Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) не входят в итерацию 9. |
 
 ## Acceptance evidence: итерация 1
@@ -3072,11 +3073,13 @@ self-assert that state.
 ### Scope и implementation state
 
 Локальная acceptance выполнена 2026-08-03 для implementation head
-`180f29b40099633bcbf55baadb6b873bd88965c3`. Ветка содержит восемь Task 1–8
-feature/test commits, сохранённых как один commit на задачу после локальных
-review/fix rounds. Эти task-local reviews проверяли implementation diff, но не
-являются GitHub review, PR check или подтверждением mergeability. Ready PR,
-automatic review текущего pushed head и closure review threads остаются Task 10.
+`57ebe23746dc83d5444e1667cb6065335da5c10d`. Ветка содержит восемь Task 1–8
+feature/test commits и финальный whole-branch review/fix commit. Последний
+test-first round закрыл nested-main/skip-target, browser-storage `.apply`,
+filtered-selection, vertical drag-and-drop и browser-interaction gaps. Эти
+локальные reviews проверяли implementation diff, но не являются GitHub review,
+PR check или подтверждением mergeability. Ready PR, automatic review текущего
+pushed head и closure review threads остаются Task 10.
 
 Итерация разделяет `(public)/(home)`, простые authentication routes,
 `(documents)` и `(protected)` без изменения URL. Route-aware
@@ -3107,7 +3110,7 @@ function не обёрнут и не должен описываться как 
 | `(public)/(home)` and `features/application/**` | none required | target-architecture landing with safe login/docs actions | home/landing Jest; landing, authentication and system-status Playwright |
 | `messages/common.*` plus application/dashboard messages | none | paired fixed-locale `en`/`ru` application/dashboard catalogs | i18n deep-shape and component-localization Jest |
 | metadata helpers, per-route metadata, manifest, robots, sitemap and social images | none | closed-catalog localized metadata, protected/auth noindex, public-only sitemap | product-metadata/manifest/robots/sitemap Jest; clean 144-page production build; documents/system-status Playwright |
-| root error/status surfaces and Suspense fallbacks | existing safe Problem Details | shell-aware loading/errors plus provider-independent global error | boundary Jest, exact route inventory/source guards and browser non-disclosure assertions |
+| root error/status surfaces and Suspense fallbacks | existing safe Problem Details | shell-aware loading/errors plus provider-independent global error; protected descendants preserve the shell's sole `main#main-content` and skip target | rendered-landmark Jest, exact route inventory/source guards and browser non-disclosure/landmark assertions |
 
 ### Unchanged contracts and state boundaries
 
@@ -3130,6 +3133,15 @@ function не обёрнут и не должен описываться как 
   Dashboard range, filtering, sorting, selection, visibility, pagination,
   reorder and edit behavior is local presentation state and is never a REST
   filter or persistence contract.
+- Protected descendants never add another `<main>` inside the application
+  shell. Their loading, error, not-found, unauthorized and forbidden surfaces
+  render sections under the shell-owned `main#main-content`; the standalone
+  root surfaces retain their own main landmark. Source-inventory and rendered
+  integration tests enforce that distinction.
+- The browser-storage boundary scanner rejects `localStorage`/`sessionStorage`
+  writes through direct, aliased, destructured, bound, `.call` and `.apply`
+  `setItem` forms while preserving safe preferences and shadowed non-browser
+  objects. This is static enforcement in addition to runtime E2E checks.
 - No EF model/migration, table, index, seed, transaction, cache invalidation,
   audit event or background job was added. Existing account, organization,
   collaboration, invitation and API-key transaction/schema behavior is
@@ -3138,33 +3150,33 @@ function не обёрнут и не должен описываться как 
 ### Fresh local acceptance — 2026-08-03
 
 All final commands below ran from implementation head
-`180f29b40099633bcbf55baadb6b873bd88965c3` after a fresh `npm ci`.
+`57ebe23746dc83d5444e1667cb6065335da5c10d` after a fresh `npm ci`.
 
 | Command | Exact observed result |
 | --- | --- |
-| `time dotnet restore Template.sln` | PASS; all projects up to date; `0.75s` user, `0.41s` system, `0.933s` total |
-| `time dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; MSBuild `1.31s`, shell `1.487s` total |
-| `time dotnet test Template.sln --no-restore` | PASS; Application 343/343 in `109ms`, API 773/773 in `1m42s`, total 1116/1116, 0 failed, 0 skipped; `511.58s` user, `28.56s` system, `1:49.14` total |
-| `npm ci` | PASS; 1163 packages added, 1164 audited in `19s`; warning-only dependency/install-script output recorded below |
-| `npm run content:generate` | PASS; deterministic artifacts regenerated; observed wall `0.683s` |
-| `npm run content:check` | PASS; generated content current; observed wall `0.398s` |
-| `npm run content:test` | PASS; 109/109, 0 failed/skipped; Node duration `802.414ms` |
-| `npm run api:check` | PASS; 4 generated files, generator `172ms`; deterministic/current; observed wall `1.046s` |
-| `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan; Node duration `11.764s` |
-| `npm run format:check` | PASS; all matched web files formatted; observed wall `3.813s` |
-| `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes; observed wall `7.194s` |
-| `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit`; observed wall `5.163s` |
-| `npm run audit:prod` | PASS; 0 production vulnerabilities; observed wall `1.127s` |
-| `npm test -- --runInBand` | PASS; 101/101 suites, 815/815 tests, 0 snapshots; Jest `27.979s` |
-| Python `.next` cleanup snippet | PASS; `shutil.rmtree(Path('.next'), ignore_errors=True)` completed in observed wall `0.870s` |
-| `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build` | PASS; Cache Components enabled and `authInterrupts` experiment banner printed; compile `5.8s`, TypeScript `5.2s`, 144/144 static pages in `1.252s` |
+| `time dotnet restore Template.sln` | PASS; all projects up to date; `0.869s` total |
+| `time dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; MSBuild `3.51s`, shell `3.786s` total |
+| `time dotnet test Template.sln --no-restore` | PASS; Application 343/343, API 773/773 in `2m16s`, total 1116/1116, 0 failed, 0 skipped; `2:22.78` total |
+| `npm ci` | PASS; 1163 packages installed, 1164 audited; warning-only dependency/install-script output recorded below |
+| `npm run content:generate` | PASS; deterministic artifacts regenerated |
+| `npm run content:check` | PASS; generated content current |
+| `npm run content:test` | PASS; 109/109, 0 failed/skipped |
+| `npm run api:check` | PASS; generated client deterministic/current |
+| `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan, including direct/aliased/destructured/bound `.apply` coverage |
+| `npm run format:check` | PASS; all matched web files formatted |
+| `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes |
+| `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit` |
+| `npm run audit:prod` | PASS; 0 production vulnerabilities |
+| `npm test -- --runInBand` | PASS; 102/102 suites, 822/822 tests, 0 snapshots; Jest `33.083s`, shell `34.534s` total |
+| Python `.next` cleanup snippet | PASS; `.next` removed before the production build |
+| `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build` | PASS; Next.js 16.2.11, Cache Components enabled and `authInterrupts` experiment banner printed; compile `8.8s`, TypeScript `5.6s`, 144/144 static pages; `17.512s` total |
 | `test -f .next/standalone/server.js` | PASS; standalone server exists |
-| `npm run e2e` | PASS; 35 total: 30 passed, 5 opt-in live-provider screens skipped, 0 failed; `1.7m` |
+| `npm run e2e` | PASS; 35 total: 30 passed, 5 opt-in live-provider screens skipped, 0 failed; Playwright `1.8m`, shell `1:50.10` total |
 
 `npm ci` reported deprecations for `inflight@1.0.6`,
 `whatwg-encoding@3.1.1`, `glob@7.2.3`, and `glob@10.5.0`; 394 packages looking
-for funding; and one high-severity vulnerability in the complete development
-tree. Its install-script warning named `@parcel/watcher@2.6.0`,
+for funding; and four vulnerabilities (three moderate, one high) in the complete
+development tree. Its install-script warning named `@parcel/watcher@2.6.0`,
 `fsevents@2.3.3`, `@swc/core@1.15.46`, `fsevents@2.3.2`, and
 `unrs-resolver@1.12.2`. The required production audit separately reported zero
 vulnerabilities. ESLint's 17 warnings are the existing unused compile-time type
@@ -3187,8 +3199,23 @@ and 2 failed: the desktop docs navigation and local-auth welcome redirect hit
 the default 5-second URL wait only under five-worker load. Both scenarios passed
 focused (3/3) with two workers. The amendment added route-specific readiness and
 scoped wait budgets, was independently re-reviewed, and produced the fresh
-clean 30/5/0 final run above at `180f29b`; the failed runs are diagnostic
-history, not acceptance evidence.
+clean 30/5/0 precursor run at `180f29b`; the failed runs are diagnostic history,
+not acceptance evidence.
+
+The final whole-branch review then added focused regressions before each fix:
+protected source/render tests first observed nested `main` landmarks and absent
+protected status surfaces; the filtered-selection test observed `1 of 1`
+instead of `0 of 1`; boundary fixtures observed an allowed direct
+`setItem.apply`; the dashboard contract observed the missing vertical modifier;
+and the real browser flow observed the hidden-row selection mismatch. Focused
+GREEN covered 22 Jest regressions, 8 boundary fixtures and the desktop,
+organization zero-state and collaboration journeys. The first complete E2E run
+under five-worker load then timed out at the final pre-existing collaboration
+`Status` assertion after earlier assertions had passed; the scenario passed
+focused in 22 seconds. Its describe budget was raised from 60 to 90 seconds
+without changing an assertion or skip, the focused rerun passed, and the fresh
+full run at `57ebe23746dc83d5444e1667cb6065335da5c10d` produced the accepted
+30/5/0 result above.
 
 ### Intentional differences and later exclusions
 
