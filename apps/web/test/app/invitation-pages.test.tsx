@@ -45,11 +45,18 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: jest.fn(), replace: jest.fn() }),
 }));
 jest.mock("next-intl/server", () => ({
-  getTranslations: async () => (key: string) =>
-    ({
-      title: "Invitations",
-      description: "Invitation description",
-    })[key] ?? key,
+  getTranslations: async (namespace: string) => (key: string) => {
+    const messages: Record<string, string> = {
+      "collaboration.invitations.account.title": "Invitations",
+      "collaboration.invitations.account.description": "Invitation description",
+      "collaboration.invitations.account.sectionTitle": "Pending invitations",
+      "collaboration.invitations.settings.title": "Workspace invitations",
+      "collaboration.invitations.settings.description":
+        "Invitation description",
+      "collaboration.invitations.settings.sectionTitle": "Invitation activity",
+    };
+    return messages[`${namespace}.${key}`] ?? key;
+  },
 }));
 jest.mock("@/src/lib/api/auth/server/load-server-auth-state", () => ({
   loadServerAuthState: jest.fn(),
@@ -285,6 +292,13 @@ it("loads authorized activity and team choices through the REST loaders", async 
     id: organization.id,
     currentRole: "owner",
   });
+
+  const view = render(withMessages(page));
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Workspace invitations", "Invitation activity"]);
 });
 
 it("loads every team page and makes a later-page team selectable without duplicates", async () => {
@@ -392,6 +406,16 @@ it("uses only the account invitation loader and exposes the paged account list",
     items: [invitation],
     nextCursor: null,
   });
+});
+
+it("uses distinct page and section headings for account invitations", async () => {
+  const view = render(withMessages(await AccountInvitationsPage()));
+
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Invitations", "Pending invitations"]);
 });
 
 it("renders the account empty state returned by the account-only endpoint", async () => {

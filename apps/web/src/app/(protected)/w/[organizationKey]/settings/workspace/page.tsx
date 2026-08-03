@@ -2,16 +2,16 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
+import { Card, CardContent } from "@/src/components/ui/card";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
@@ -67,61 +67,54 @@ export default async function OrganizationWorkspaceSettingsPage({
     hasAnotherAccessibleOrganization;
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t("pages.workspace.title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("pages.workspace.description")}
-        </p>
-      </header>
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h2>{t("workspace.identityTitle")}</h2>
-          </CardTitle>
-          <CardDescription>
-            {t("workspace.identityDescription")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <OrganizationSettingsForm
-            key={organization.data.id}
-            initialOrganization={{
-              id: organization.data.id,
-              name: organization.data.name,
-              slug: organization.data.slug,
-              canonicalKey: organization.data.canonicalKey,
-              allowedEmailDomains: organization.data.allowedEmailDomains,
-              capabilities: {
-                canUpdateOrganization:
-                  organization.data.capabilities.canUpdateOrganization,
-              },
-            }}
-          />
-        </CardContent>
-      </Card>
-      {canDelete ? (
-        <Card className="ring-destructive/40">
-          <CardHeader>
-            <CardTitle>
-              <h2 className="text-destructive">{t("workspace.dangerTitle")}</h2>
-            </CardTitle>
-            <CardDescription className="text-destructive/80">
-              {t("workspace.dangerDescription")}
-            </CardDescription>
-          </CardHeader>
+    <SettingsPageSection mode="readable">
+      <SettingsPageIntro
+        description={t("pages.workspace.description")}
+        title={t("pages.workspace.title")}
+      />
+      <SettingsSection
+        description={t("workspace.identityDescription")}
+        title={t("workspace.identityTitle")}
+      >
+        <Card>
           <CardContent>
-            <OrganizationDeleteDialog
+            <OrganizationSettingsForm
               key={organization.data.id}
-              canDelete
-              organization={{
+              initialOrganization={{
                 id: organization.data.id,
                 name: organization.data.name,
+                slug: organization.data.slug,
+                canonicalKey: organization.data.canonicalKey,
+                allowedEmailDomains: organization.data.allowedEmailDomains,
+                capabilities: {
+                  canUpdateOrganization:
+                    organization.data.capabilities.canUpdateOrganization,
+                },
               }}
             />
           </CardContent>
         </Card>
+      </SettingsSection>
+      {canDelete ? (
+        <SettingsSection
+          description={t("workspace.dangerDescription")}
+          title={t("workspace.dangerTitle")}
+          variant="destructive"
+        >
+          <Card className="ring-destructive/40">
+            <CardContent>
+              <OrganizationDeleteDialog
+                key={organization.data.id}
+                canDelete
+                organization={{
+                  id: organization.data.id,
+                  name: organization.data.name,
+                }}
+              />
+            </CardContent>
+          </Card>
+        </SettingsSection>
       ) : null}
-    </article>
+    </SettingsPageSection>
   );
 }

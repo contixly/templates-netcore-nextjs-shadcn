@@ -861,9 +861,11 @@ function TeamMemberCandidateDialog({
 export function TeamDirectory({
   initialPage,
   organization,
+  showListHeading = true,
 }: Readonly<{
   initialPage: TeamDirectoryPage;
   organization: OrganizationView;
+  showListHeading?: boolean;
 }>) {
   const t = useTranslations("collaboration.teams");
   const router = useRouter();
@@ -1125,7 +1127,9 @@ export function TeamDirectory({
       role="region"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-medium">{t("list.label")}</h2>
+        {showListHeading ? (
+          <h2 className="text-lg font-medium">{t("list.label")}</h2>
+        ) : null}
         {organization.canManageTeams ? (
           <TeamCreateDialog
             onConfirmed={created}

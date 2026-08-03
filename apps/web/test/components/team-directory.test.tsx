@@ -54,6 +54,21 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+it("can defer its visible list heading to an enclosing settings section", () => {
+  renderWithMessages(
+    <TeamDirectory
+      initialPage={{ items: [platform], nextCursor: null }}
+      organization={{ id: "org-1", canManageTeams: false }}
+      showListHeading={false}
+    />,
+  );
+
+  expect(screen.getByRole("region", { name: "Workspace teams" })).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "Workspace teams" }),
+  ).not.toBeInTheDocument();
+});
+
 it("renders every member's team view as read-only and never exposes active-team controls", () => {
   renderWithMessages(
     <TeamDirectory

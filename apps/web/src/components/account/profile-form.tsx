@@ -43,8 +43,9 @@ function failureTrace(failure: ApiFailure): string | undefined {
 }
 
 export function ProfileForm({
+  headingLevel = 2,
   initialAccount,
-}: Readonly<{ initialAccount: AccountResponse }>) {
+}: Readonly<{ headingLevel?: 2 | 3; initialAccount: AccountResponse }>) {
   const t = useTranslations("account.profile");
   const locale = useLocale();
   const interactionReady = useInteractionReady();
@@ -56,6 +57,7 @@ export function ProfileForm({
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [updated, setUpdated] = useState(false);
   const [pending, setPending] = useState(false);
+  const SectionHeading = headingLevel === 3 ? "h3" : "h2";
   const primaryEmailProjection = account.verifiedEmails.find(
     (email) => email.isPrimary,
   );
@@ -108,9 +110,12 @@ export function ProfileForm({
         aria-labelledby="profile-avatar-heading"
       >
         <div className="flex flex-col gap-1">
-          <h2 className="text-sm font-semibold" id="profile-avatar-heading">
+          <SectionHeading
+            className="text-sm font-semibold"
+            id="profile-avatar-heading"
+          >
             {t("avatar")}
-          </h2>
+          </SectionHeading>
           <p className="text-xs text-muted-foreground">
             {t("avatarDescription")}
           </p>
@@ -144,9 +149,12 @@ export function ProfileForm({
         aria-labelledby="profile-name-heading"
       >
         <div className="flex flex-col gap-1">
-          <h2 className="text-sm font-semibold" id="profile-name-heading">
+          <SectionHeading
+            className="text-sm font-semibold"
+            id="profile-name-heading"
+          >
             {t("displayName")}
-          </h2>
+          </SectionHeading>
           <p className="text-xs text-muted-foreground">
             {t("displayNameHint")}
           </p>
@@ -217,9 +225,12 @@ export function ProfileForm({
         className="flex flex-col gap-3"
         aria-labelledby="profile-emails-heading"
       >
-        <h2 className="text-sm font-semibold" id="profile-emails-heading">
+        <SectionHeading
+          className="text-sm font-semibold"
+          id="profile-emails-heading"
+        >
           {t("emails")}
-        </h2>
+        </SectionHeading>
         <dl className="divide-y border">
           {verifiedEmails.map((verifiedEmail) => (
             <div

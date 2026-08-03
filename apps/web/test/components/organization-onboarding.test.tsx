@@ -85,7 +85,11 @@ it("keeps the create trigger unavailable in server HTML until its client handler
 });
 
 it("offers first-workspace creation, account settings, and invitation review", () => {
-  renderWithMessages(<OrganizationOnboarding />);
+  renderWithMessages(
+    <main id="main-content">
+      <OrganizationOnboarding />
+    </main>,
+  );
 
   expect(
     screen.getByRole("heading", { name: "Create your first workspace" }),
@@ -96,6 +100,7 @@ it("offers first-workspace creation, account settings, and invitation review", (
   expect(
     screen.getByRole("link", { name: "Review Invitations" }),
   ).toHaveAttribute("href", "/user/invitations");
+  expect(screen.getAllByRole("main")).toHaveLength(1);
 });
 
 it("validates the trimmed UTF-16 name and supported characters before mutation", async () => {

@@ -38,6 +38,19 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+it("subordinates its internal sections beneath a settings section heading", () => {
+  renderWithMessages(<ProfileForm headingLevel={3} initialAccount={account} />);
+
+  for (const name of [
+    "Profile avatar",
+    "Display name",
+    "Verified email addresses",
+  ]) {
+    expect(screen.getByRole("heading", { level: 3, name })).toBeVisible();
+  }
+  expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+});
+
 it("shows immutable account identifiers, verified emails, and creation date", () => {
   renderWithMessages(<ProfileForm initialAccount={account} />);
 

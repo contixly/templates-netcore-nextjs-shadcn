@@ -4,6 +4,10 @@ import { getTranslations } from "next-intl/server";
 import { Suspense, type ReactNode } from "react";
 
 import { AccountNav } from "@/src/components/account/account-nav";
+import {
+  SettingsContentRail,
+  SettingsPageShell,
+} from "@/src/components/application/settings/settings-shell";
 import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
 import { LogoutButton } from "@/src/components/authentication/logout-button";
 import { accountRoutes } from "@/src/features/account/account-routes";
@@ -18,9 +22,9 @@ export async function AuthenticatedAccountShell({
 
   if (!result.ok) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <AuthApiFailure failure={result.failure} />
-      </main>
+      </div>
     );
   }
   if (result.data.authenticated === false) {
@@ -32,24 +36,24 @@ export async function AuthenticatedAccountShell({
     !result.data.session
   ) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <AuthApiFailure
           failure={{ kind: "network", code: "api_unavailable" }}
         />
-      </main>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col md:flex-row">
+    <SettingsPageShell>
       <div className="w-full shrink-0 md:w-56">
         <AccountNav />
         <div className="border-b p-2 md:border-r">
           <LogoutButton />
         </div>
       </div>
-      <main className="min-w-0 flex-1 px-4 py-8 md:px-6">{children}</main>
-    </div>
+      <SettingsContentRail>{children}</SettingsContentRail>
+    </SettingsPageShell>
   );
 }
 

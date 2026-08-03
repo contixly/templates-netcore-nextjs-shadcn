@@ -2,6 +2,12 @@ import { forbidden, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
@@ -59,23 +65,22 @@ export default async function InvitationSettingsPage({
   if (!teams.ok) return <OrganizationFailure failure={teams.failure} />;
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("description")}</p>
-      </header>
-      <InvitationActivity
-        key={organization.data.id}
-        initialPage={invitations.data}
-        organization={{
-          id: organization.data.id,
-          currentRole: organization.data.currentRole,
-        }}
-        teams={teams.data.map((team) => ({
-          id: team.id,
-          name: team.name,
-        }))}
-      />
-    </article>
+    <SettingsPageSection mode="wide">
+      <SettingsPageIntro description={t("description")} title={t("title")} />
+      <SettingsSection title={t("sectionTitle")}>
+        <InvitationActivity
+          key={organization.data.id}
+          initialPage={invitations.data}
+          organization={{
+            id: organization.data.id,
+            currentRole: organization.data.currentRole,
+          }}
+          teams={teams.data.map((team) => ({
+            id: team.id,
+            name: team.name,
+          }))}
+        />
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

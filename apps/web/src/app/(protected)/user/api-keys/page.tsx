@@ -1,5 +1,11 @@
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";
 import type { ApiFailure } from "@/src/lib/api/result";
@@ -38,15 +44,16 @@ export default async function PersonalApiKeysPage() {
     );
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("description")}</p>
-      </header>
-      <ApiKeyManagement
-        initialPage={result.data}
-        owner={{ kind: "personal" }}
-      />
-    </article>
+    <SettingsPageSection mode="wide">
+      <SettingsPageIntro description={t("description")} title={t("title")} />
+      <SettingsSection title={t("personalSectionTitle")}>
+        <ApiKeyManagement
+          headingLevel={3}
+          initialPage={result.data}
+          owner={{ kind: "personal" }}
+          showListHeading={false}
+        />
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

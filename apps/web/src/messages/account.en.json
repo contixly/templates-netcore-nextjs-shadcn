@@ -13,16 +13,19 @@
     "profile": {
       "title": "Profile settings",
       "description": "Manage your public display name and review your account identity.",
+      "sectionTitle": "Profile details",
       "loading": "Loading profile"
     },
     "connections": {
       "title": "Connections",
       "description": "Manage the external providers you can use to sign in.",
+      "sectionTitle": "Sign-in connections",
       "loading": "Loading connections"
     },
     "security": {
       "title": "Security",
       "description": "Review active sessions and revoke access from other devices.",
+      "sectionTitle": "Active sessions",
       "loading": "Loading security"
     },
     "danger": {

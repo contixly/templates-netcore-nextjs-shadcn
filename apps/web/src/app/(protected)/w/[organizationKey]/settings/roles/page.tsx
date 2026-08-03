@@ -2,6 +2,12 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import {
   Card,
@@ -52,31 +58,33 @@ export default async function OrganizationRolesSettingsPage({
 
   const fixedRoles = ["owner", "admin", "member"] as const;
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t("pages.roles.title")}</h1>
+    <SettingsPageSection mode="readable">
+      <SettingsPageIntro
+        description={t("pages.roles.description")}
+        title={t("pages.roles.title")}
+      />
+      <SettingsSection title={t("pages.roles.sectionTitle")}>
+        <div className="grid gap-4">
+          {fixedRoles.map((role) => (
+            <Card key={role}>
+              <CardHeader>
+                <CardTitle>
+                  <h3>{t(`roles.${role}.title`)}</h3>
+                </CardTitle>
+                <CardDescription>{t(`roles.${role}.summary`)}</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  {t(`roles.${role}.description`)}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
         <p className="text-sm text-muted-foreground">
-          {t("pages.roles.description")}
+          {t("roles.fixedNotice")}
         </p>
-      </header>
-      <div className="grid gap-4">
-        {fixedRoles.map((role) => (
-          <Card key={role}>
-            <CardHeader>
-              <CardTitle>
-                <h2>{t(`roles.${role}.title`)}</h2>
-              </CardTitle>
-              <CardDescription>{t(`roles.${role}.summary`)}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                {t(`roles.${role}.description`)}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-      <p className="text-sm text-muted-foreground">{t("roles.fixedNotice")}</p>
-    </article>
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

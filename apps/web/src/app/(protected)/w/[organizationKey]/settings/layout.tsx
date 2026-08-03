@@ -3,6 +3,10 @@ import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { Suspense, type ReactNode } from "react";
 
+import {
+  SettingsContentRail,
+  SettingsPageShell,
+} from "@/src/components/application/settings/settings-shell";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
 import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";
@@ -28,9 +32,9 @@ export async function AuthenticatedOrganizationSettingsShell({
 
   if (!session.ok) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure failure={session.failure} />
-      </main>
+      </div>
     );
   }
   if (session.data.authenticated === false) {
@@ -38,11 +42,11 @@ export async function AuthenticatedOrganizationSettingsShell({
   }
   if (!session.data.session || !session.data.user) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure
           failure={{ kind: "network", code: "api_unavailable" }}
         />
-      </main>
+      </div>
     );
   }
 
@@ -55,9 +59,9 @@ export async function AuthenticatedOrganizationSettingsShell({
       const organizations = await organizationsPromise;
       if (!organizations.ok) {
         return (
-          <main className="mx-auto w-full max-w-5xl px-4 py-12">
+          <div className="mx-auto w-full max-w-5xl px-4 py-12">
             <OrganizationFailure failure={organizations.failure} />
-          </main>
+          </div>
         );
       }
       if (organizations.data.items.length === 0) {
@@ -67,14 +71,14 @@ export async function AuthenticatedOrganizationSettingsShell({
     }
 
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure failure={organization.failure} />
-      </main>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col md:flex-row">
+    <SettingsPageShell>
       <OrganizationSettingsNav
         canManageApiKeys={organization.data.capabilities.canManageApiKeys}
         canManageInvitations={
@@ -82,8 +86,8 @@ export async function AuthenticatedOrganizationSettingsShell({
         }
         organizationKey={organization.data.canonicalKey}
       />
-      <main className="min-w-0 flex-1 px-4 py-8 md:px-6">{children}</main>
-    </div>
+      <SettingsContentRail>{children}</SettingsContentRail>
+    </SettingsPageShell>
   );
 }
 

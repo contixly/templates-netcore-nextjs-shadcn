@@ -146,15 +146,18 @@ it("renders a safe failure instead of redirecting on an auth API failure", async
   });
 
   renderWithMessages(
-    await AuthenticatedAccountShell({
-      children: <p>Protected account</p>,
-    }),
+    <main id="main-content">
+      {await AuthenticatedAccountShell({
+        children: <p>Protected account</p>,
+      })}
+    </main>,
   );
 
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Authentication is unavailable",
   );
   expect(redirect).not.toHaveBeenCalled();
+  expect(screen.getAllByRole("main")).toHaveLength(1);
 });
 
 it("renders protected children only after server-confirmed authentication", async () => {

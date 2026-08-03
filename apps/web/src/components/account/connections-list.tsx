@@ -109,8 +109,12 @@ function conservativeDisconnectProjection(
 }
 
 export function ConnectionsList({
+  headingLevel = 2,
   initialConnections,
-}: Readonly<{ initialConnections: AccountConnectionsResponse }>) {
+}: Readonly<{
+  headingLevel?: 2 | 3;
+  initialConnections: AccountConnectionsResponse;
+}>) {
   const t = useTranslations("account.connections");
   const locale = useLocale();
   const interactionReady = useInteractionReady();
@@ -122,6 +126,7 @@ export function ConnectionsList({
   const [refreshRecovery, setRefreshRecovery] =
     useState<RefreshRecovery | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const ConnectionHeading = headingLevel === 3 ? "h3" : "h2";
 
   async function connect(connection: AccountConnectionResponse) {
     if (
@@ -300,9 +305,9 @@ export function ConnectionsList({
             >
               <div className="flex min-w-0 flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-sm font-semibold">
+                  <ConnectionHeading className="text-sm font-semibold">
                     {connection.displayName}
-                  </h2>
+                  </ConnectionHeading>
                   <Badge
                     variant={connection.connected ? "secondary" : "outline"}
                   >

@@ -1,5 +1,11 @@
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
@@ -12,12 +18,11 @@ export default async function AccountInvitationsPage() {
   if (!result.ok) return <OrganizationFailure failure={result.failure} />;
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("description")}</p>
-      </header>
-      <AccountInvitationList initialPage={result.data} />
-    </article>
+    <SettingsPageSection mode="wide">
+      <SettingsPageIntro description={t("description")} title={t("title")} />
+      <SettingsSection title={t("sectionTitle")}>
+        <AccountInvitationList initialPage={result.data} />
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

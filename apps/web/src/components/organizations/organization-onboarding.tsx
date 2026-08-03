@@ -23,7 +23,7 @@ export function OrganizationOnboarding({
   const t = useTranslations("organizations.onboarding");
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 items-center justify-center px-4 py-12">
+    <div className="mx-auto flex w-full max-w-5xl flex-1 items-center justify-center px-4 py-12">
       <div className="flex w-full max-w-2xl flex-col gap-6">
         <Card className="w-full">
           <CardHeader className="text-center">
@@ -55,6 +55,6 @@ export function OrganizationOnboarding({
           />
         ) : null}
       </div>
-    </main>
+    </div>
   );
 }

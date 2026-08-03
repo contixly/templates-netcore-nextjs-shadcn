@@ -73,11 +73,13 @@
       },
       "users": {
         "title": "Workspace users",
-        "description": "Review members and update built-in roles when permitted."
+        "description": "Review members and update built-in roles when permitted.",
+        "sectionTitle": "Workspace membership"
       },
       "roles": {
         "title": "Workspace roles",
-        "description": "Review the fixed role model for this workspace."
+        "description": "Review the fixed role model for this workspace.",
+        "sectionTitle": "Built-in roles"
       }
     },
     "workspace": {

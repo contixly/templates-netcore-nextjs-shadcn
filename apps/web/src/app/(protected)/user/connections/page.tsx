@@ -1,5 +1,11 @@
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { ConnectionsList } from "@/src/components/account/connections-list";
 import { loadConnections } from "@/src/lib/api/account/server/load-connections";
 import type { ApiFailure } from "@/src/lib/api/result";
@@ -44,12 +50,14 @@ export default async function ConnectionsPage() {
   }
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{page("title")}</h1>
-        <p className="text-sm text-muted-foreground">{page("description")}</p>
-      </header>
-      <ConnectionsList initialConnections={result.data} />
-    </article>
+    <SettingsPageSection mode="wide">
+      <SettingsPageIntro
+        description={page("description")}
+        title={page("title")}
+      />
+      <SettingsSection title={page("sectionTitle")}>
+        <ConnectionsList headingLevel={3} initialConnections={result.data} />
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

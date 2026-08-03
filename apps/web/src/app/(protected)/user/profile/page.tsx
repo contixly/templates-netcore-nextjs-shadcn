@@ -1,5 +1,11 @@
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { ProfileForm } from "@/src/components/account/profile-form";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";
 import type { ApiFailure } from "@/src/lib/api/result";
@@ -44,12 +50,14 @@ export default async function ProfilePage() {
   }
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{page("title")}</h1>
-        <p className="text-sm text-muted-foreground">{page("description")}</p>
-      </header>
-      <ProfileForm initialAccount={result.data} />
-    </article>
+    <SettingsPageSection mode="readable">
+      <SettingsPageIntro
+        description={page("description")}
+        title={page("title")}
+      />
+      <SettingsSection title={page("sectionTitle")}>
+        <ProfileForm headingLevel={3} initialAccount={result.data} />
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

@@ -2,6 +2,12 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
@@ -113,18 +119,20 @@ export default async function OrganizationApiKeysPage({
   }
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">
-          {t("organizationDescription")}
-        </p>
-      </header>
-      <ApiKeyManagement
-        key={organization.data.id}
-        initialPage={result.data}
-        owner={owner}
+    <SettingsPageSection mode="wide">
+      <SettingsPageIntro
+        description={t("organizationDescription")}
+        title={t("title")}
       />
-    </article>
+      <SettingsSection title={t("organizationSectionTitle")}>
+        <ApiKeyManagement
+          key={organization.data.id}
+          headingLevel={3}
+          initialPage={result.data}
+          owner={owner}
+          showListHeading={false}
+        />
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

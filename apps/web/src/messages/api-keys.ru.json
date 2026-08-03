@@ -2,7 +2,9 @@
   "page": {
     "title": "API-ключи",
     "description": "Создавайте личные API-ключи для автоматизации с доступом только на чтение.",
+    "personalSectionTitle": "Личные API-ключи",
     "organizationDescription": "Создавайте API-ключи только для чтения, принадлежащие этой организации, и управляйте ими.",
+    "organizationSectionTitle": "API-ключи организации",
     "loading": "Загрузка API-ключей",
     "failureTitle": "API-ключи недоступны",
     "failureDescription": "Не удалось безопасно загрузить API-ключи. Попробуйте ещё раз."

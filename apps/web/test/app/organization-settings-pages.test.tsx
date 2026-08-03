@@ -77,9 +77,11 @@ jest.mock("next-intl/server", () => ({
       "organizations.settings.pages.users.title": "Workspace users",
       "organizations.settings.pages.users.description":
         "Review members and built-in roles.",
+      "organizations.settings.pages.users.sectionTitle": "Workspace membership",
       "organizations.settings.pages.roles.title": "Workspace roles",
       "organizations.settings.pages.roles.description":
         "Review the fixed role model.",
+      "organizations.settings.pages.roles.sectionTitle": "Built-in roles",
       "organizations.settings.roles.owner.title": "Owner",
       "organizations.settings.roles.admin.title": "Administrator",
       "organizations.settings.roles.member.title": "Member",
@@ -325,6 +327,18 @@ it("exposes Teams to every member and Invitations to invitation managers", () =>
     "href",
     "/w/acme/settings/api-keys",
   );
+  expect(
+    within(nav)
+      .getAllByRole("link")
+      .map((link) => link.textContent),
+  ).toEqual([
+    "Workspace",
+    "Users",
+    "Teams",
+    "Roles",
+    "Invitations",
+    "API keys",
+  ]);
 });
 
 it("keeps Teams visible but hides capability-gated settings links", () => {
@@ -414,6 +428,22 @@ it("uses a non-disclosing forbidden state for inaccessible settings when another
   ).rejects.toThrow("NEXT_FORBIDDEN");
 });
 
+it("keeps the protected shell as the only main landmark for settings failures", async () => {
+  loadSession.mockResolvedValue({
+    ok: false,
+    failure: { kind: "network", code: "api_unavailable" },
+  });
+
+  const shell = await AuthenticatedOrganizationSettingsShell({
+    children: <p>secret settings</p>,
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+  renderWithMessages(<main id="main-content">{shell}</main>);
+
+  expect(screen.getByRole("alert")).toBeVisible();
+  expect(screen.getAllByRole("main")).toHaveLength(1);
+});
+
 it("lets each child segment own its exact anonymous login return URL", async () => {
   loadSession.mockResolvedValue({
     ok: true,
@@ -448,43 +478,83 @@ it("renders role-aware workspace, users, and fixed-role explanation pages", asyn
   const workspace = await WorkspacePage({
     params: Promise.resolve({ organizationKey: "acme" }),
   });
-  renderWithMessages(workspace);
+  let view = renderWithMessages(workspace);
   expect(
-    screen.getByRole("heading", { name: "Workspace settings" }),
+    screen.getByRole("heading", { level: 1, name: "Workspace settings" }),
   ).toBeVisible();
+  expect(screen.getByText("Workspace Name").closest("article")).toHaveClass(
+    "max-w-3xl",
+  );
+  const workspaceHeadings = Array.from(
+    view.container.querySelectorAll("h1, h2"),
+    (heading) => heading.textContent?.trim(),
+  );
+  expect(new Set(workspaceHeadings).size).toBe(workspaceHeadings.length);
   expect(
     screen.queryByRole("button", { name: "Delete workspace" }),
   ).not.toBeInTheDocument();
+  view.unmount();
 
   const users = await UsersPage({
     params: Promise.resolve({ organizationKey: "acme" }),
   });
-  renderWithMessages(users);
+  view = renderWithMessages(users);
   expect(
-    screen.getByRole("heading", { name: "Workspace users" }),
+    screen.getByRole("heading", { level: 1, name: "Workspace users" }),
+  ).toBeVisible();
+  expect(screen.getByText("Current User").closest("article")).toHaveAttribute(
+    "data-mode",
+    "wide",
+  );
+  const userHeadings = Array.from(
+    view.container.querySelectorAll("h1, h2"),
+    (heading) => heading.textContent?.trim(),
+  );
+  expect(new Set(userHeadings).size).toBe(userHeadings.length);
+  expect(
+    screen.getByRole("region", { name: "Workspace membership" }),
   ).toBeVisible();
   expect(screen.getByText("Current User")).toBeVisible();
+  view.unmount();
 
   const roles = await RolesPage({
     params: Promise.resolve({ organizationKey: "acme" }),
   });
-  renderWithMessages(roles);
+  view = renderWithMessages(roles);
   expect(
-    screen.getByRole("heading", { name: "Workspace roles" }),
+    screen.getByRole("heading", { level: 1, name: "Workspace roles" }),
   ).toBeVisible();
-  expect(screen.getByRole("heading", { name: "Owner" })).toBeVisible();
-  expect(screen.getByRole("heading", { name: "Administrator" })).toBeVisible();
-  expect(screen.getByRole("heading", { name: "Member" })).toBeVisible();
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Owner" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Owner" }).closest("article"),
+  ).toHaveClass("max-w-3xl");
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Administrator" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Member" }),
+  ).toBeVisible();
   expect(
     screen.queryByRole("button", { name: /create role/i }),
   ).not.toBeInTheDocument();
+  const roleHeadings = Array.from(
+    view.container.querySelectorAll("h1, h2"),
+    (heading) => heading.textContent?.trim(),
+  );
+  expect(new Set(roleHeadings).size).toBe(roleHeadings.length);
+  expect(screen.getByRole("region", { name: "Built-in roles" })).toBeVisible();
 });
 
 it("serializes compact actor, organization, and member views into the users client boundary", async () => {
-  const users = (await UsersPage({
+  const users = await UsersPage({
     params: Promise.resolve({ organizationKey: "acme" }),
-  })) as ReactElement<{ children: ReactElement[] }>;
-  const directory = users.props.children[1] as ReactElement<{
+  });
+  const directory = findElementByType(
+    users,
+    OrganizationMemberDirectory,
+  ) as ReactElement<{
     currentActor: unknown;
     initialPage: unknown;
     organization: unknown;
@@ -555,10 +625,13 @@ it.each([
       },
     });
 
-    const users = (await UsersPage({
+    const users = await UsersPage({
       params: Promise.resolve({ organizationKey: "acme" }),
-    })) as ReactElement<{ children: ReactElement[] }>;
-    const directory = users.props.children[1] as ReactElement<{
+    });
+    const directory = findElementByType(
+      users,
+      OrganizationMemberDirectory,
+    ) as ReactElement<{
       currentActor: Record<string, unknown>;
     }>;
 

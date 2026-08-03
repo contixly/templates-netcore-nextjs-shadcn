@@ -2,6 +2,12 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/components/application/settings/settings-shell";
+
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
@@ -76,34 +82,34 @@ export default async function OrganizationUsersSettingsPage({
   );
 
   return (
-    <article className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t("title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("description")}</p>
-      </header>
-      <OrganizationMemberDirectory
-        key={organization.data.id}
-        currentActor={{
-          userId: session.data.user.id,
-          name: session.data.user.name,
-          email: session.data.user.email,
-          role: organization.data.currentRole,
-          isOutsideAllowedEmailDomains: !actorEligibility.isAllowed,
-        }}
-        initialPage={{
-          items: members.data.items.map(compactMember),
-          nextCursor: members.data.nextCursor,
-        }}
-        organization={{
-          id: organization.data.id,
-          currentRole: organization.data.currentRole,
-          capabilities: {
-            canAddMembers: organization.data.capabilities.canAddMembers,
-            canUpdateMemberRoles:
-              organization.data.capabilities.canUpdateMemberRoles,
-          },
-        }}
-      />
-    </article>
+    <SettingsPageSection mode="wide">
+      <SettingsPageIntro description={t("description")} title={t("title")} />
+      <SettingsSection title={t("sectionTitle")}>
+        <OrganizationMemberDirectory
+          key={organization.data.id}
+          currentActor={{
+            userId: session.data.user.id,
+            name: session.data.user.name,
+            email: session.data.user.email,
+            role: organization.data.currentRole,
+            isOutsideAllowedEmailDomains: !actorEligibility.isAllowed,
+          }}
+          initialPage={{
+            items: members.data.items.map(compactMember),
+            nextCursor: members.data.nextCursor,
+          }}
+          headingLevel={3}
+          organization={{
+            id: organization.data.id,
+            currentRole: organization.data.currentRole,
+            capabilities: {
+              canAddMembers: organization.data.capabilities.canAddMembers,
+              canUpdateMemberRoles:
+                organization.data.capabilities.canUpdateMemberRoles,
+            },
+          }}
+        />
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }
