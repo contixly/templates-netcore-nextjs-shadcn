@@ -9,6 +9,7 @@ import {
   useSensors,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   arrayMove,
   SortableContext,
@@ -568,6 +569,7 @@ export function ActivityTable({
             <DndContext
               collisionDetection={closestCenter}
               id="dashboard-sections"
+              modifiers={[restrictToVerticalAxis]}
               onDragEnd={handleDragEnd}
               sensors={sensors}
             >
@@ -624,8 +626,8 @@ export function ActivityTable({
             <div className="flex flex-col justify-between gap-3 text-xs sm:flex-row sm:items-center">
               <p>
                 {formatCopy(copy.rowsSelected, {
-                  selected: Object.keys(rowSelection).length,
-                  total: rows.length,
+                  selected: table.getFilteredSelectedRowModel().rows.length,
+                  total: table.getFilteredRowModel().rows.length,
                 })}
               </p>
               <div className="flex items-center gap-2">

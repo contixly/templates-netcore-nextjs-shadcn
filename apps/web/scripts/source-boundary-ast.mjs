@@ -15,6 +15,12 @@ const STORAGE_SET_ITEM_BIND_VALUE = Object.freeze({
 const STORAGE_SET_ITEM_CALL_VALUE = Object.freeze({
   kind: "storage-set-item-call",
 });
+const STORAGE_SET_ITEM_APPLY_VALUE = Object.freeze({
+  kind: "storage-set-item-apply",
+});
+const STORAGE_SET_ITEM_APPLY_BIND_VALUE = Object.freeze({
+  kind: "storage-set-item-apply-bind",
+});
 
 function unwrapExpression(node) {
   let current = node;
@@ -116,6 +122,12 @@ function propertyValue(owner, name) {
   if (owner.kind === "storage-set-item" && name === "call") {
     return STORAGE_SET_ITEM_CALL_VALUE;
   }
+  if (owner.kind === "storage-set-item" && name === "apply") {
+    return STORAGE_SET_ITEM_APPLY_VALUE;
+  }
+  if (owner.kind === "storage-set-item-apply" && name === "bind") {
+    return STORAGE_SET_ITEM_APPLY_BIND_VALUE;
+  }
   return UNKNOWN_VALUE;
 }
 
@@ -212,6 +224,23 @@ function containsSensitiveBrowserStorage(sourceFile) {
     );
   }
 
+  function containsSensitiveArrayArgument(node, value) {
+    if (value.kind !== "array") return isSensitive(node, value);
+    return value.elements.some((element) =>
+      isSensitive(element.node, element.value),
+    );
+  }
+
+  function inspectApplyArguments(node, values, arrayIndex) {
+    const argument = node.arguments[arrayIndex];
+    if (
+      argument &&
+      containsSensitiveArrayArgument(argument, values[arrayIndex])
+    ) {
+      found = true;
+    }
+  }
+
   function assignBinding(name, value, scope) {
     if (ts.isIdentifier(name)) {
       scope.assign(name.text, value);
@@ -265,6 +294,17 @@ function containsSensitiveBrowserStorage(sourceFile) {
     ) {
       return stringValue(current.text);
     }
+    if (ts.isArrayLiteralExpression(current)) {
+      return {
+        kind: "array",
+        elements: current.elements.map((element) => ({
+          node: element,
+          value: ts.isSpreadElement(element)
+            ? UNKNOWN_VALUE
+            : evaluate(element, scope),
+        })),
+      };
+    }
     if (
       ts.isPropertyAccessExpression(current) ||
       ts.isElementAccessExpression(current)
@@ -302,6 +342,13 @@ function containsSensitiveBrowserStorage(sourceFile) {
           found = true;
         }
         return UNKNOWN_VALUE;
+      }
+      if (callee.kind === "storage-set-item-apply") {
+        inspectApplyArguments(current, argumentValues, 1);
+        return UNKNOWN_VALUE;
+      }
+      if (callee.kind === "storage-set-item-apply-bind") {
+        return STORAGE_SET_ITEM_APPLY_VALUE;
       }
       return UNKNOWN_VALUE;
     }

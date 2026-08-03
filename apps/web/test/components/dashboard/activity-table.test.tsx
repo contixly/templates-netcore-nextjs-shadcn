@@ -61,6 +61,34 @@ it("owns deterministic selection, sorting, visibility, and reorder state", () =>
   );
 });
 
+it("reports selected and total rows from the filtered row models", () => {
+  renderWithMessages(
+    <ActivityTable initialRows={dashboardRows.slice(0, 12)} />,
+  );
+
+  const introductionRow = screen.getByText("Introduction").closest("tr");
+  expect(introductionRow).not.toBeNull();
+  fireEvent.click(
+    within(introductionRow!).getByRole("checkbox", {
+      name: "Select Introduction",
+    }),
+  );
+  expect(screen.getByText("1 of 12 row(s) selected.")).toBeVisible();
+
+  fireEvent.change(screen.getByRole("textbox", { name: "Search sections" }), {
+    target: { value: "Technical approach" },
+  });
+
+  expect(screen.queryByText("Introduction")).not.toBeInTheDocument();
+  expect(screen.getByText("Technical approach")).toBeVisible();
+  expect(screen.getByText("0 of 1 row(s) selected.")).toBeVisible();
+
+  fireEvent.change(screen.getByRole("textbox", { name: "Search sections" }), {
+    target: { value: "" },
+  });
+  expect(screen.getByText("1 of 12 row(s) selected.")).toBeVisible();
+});
+
 it("switches between localized desktop tabs and exposes the mobile view selector", () => {
   renderWithMessages(
     <ActivityTable initialRows={dashboardRows.slice(0, 12)} />,

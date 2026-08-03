@@ -151,6 +151,8 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Create your first workspace" }),
     ).toBeVisible();
+    await expect(page.getByRole("main")).toHaveCount(1);
+    await expect(page.getByRole("main")).toHaveAttribute("id", "main-content");
     await expectBrowserSessionReads(1);
     await page.goto("/workspaces");
     await expect(
@@ -159,6 +161,8 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "No workspaces yet" }),
     ).toBeVisible();
+    await expect(page.getByRole("main")).toHaveCount(1);
+    await expect(page.getByRole("main")).toHaveAttribute("id", "main-content");
     await expectBrowserSessionReads(2);
     await waitForOrganizationControlInteraction(
       page.getByRole("button", { name: "Create New Workspace" }),
@@ -217,6 +221,8 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Workspace settings" }),
     ).toBeVisible();
+    await expect(page.getByRole("main")).toHaveCount(1);
+    await expect(page.getByRole("main")).toHaveAttribute("id", "main-content");
     await expectBrowserSessionReads(2);
 
     await page.getByRole("link", { name: "Users", exact: true }).click();

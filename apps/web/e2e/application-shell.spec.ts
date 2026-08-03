@@ -55,6 +55,84 @@ async function expectDashboard(page: Page) {
   await expect(page.getByText("Demo changes are not saved.")).toBeVisible();
 }
 
+async function expectSingleApplicationMain(page: Page) {
+  const main = page.getByRole("main");
+  await expect(main).toHaveCount(1);
+  await expect(main).toHaveAttribute("id", "main-content");
+}
+
+async function exerciseDashboardInteractions(page: Page) {
+  const table = page.getByRole("table", { name: "Sections" });
+  const search = page.getByRole("textbox", { name: "Search sections" });
+
+  await table.getByRole("checkbox", { name: "Select Introduction" }).click();
+  await expect(page.getByText("1 of 68 row(s) selected.")).toBeVisible();
+
+  await search.fill("Technical approach");
+  await expect(
+    table.getByText("Technical approach", { exact: true }),
+  ).toBeVisible();
+  await expect(table.getByText("Introduction", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("0 of 1 row(s) selected.")).toBeVisible();
+  await search.fill("");
+  await expect(page.getByText("1 of 68 row(s) selected.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Go to next page" }).click();
+  await expect(page.getByText("Page 2 of 7")).toBeVisible();
+  await expect(
+    table.getByText("Adaptive Communication Protocols"),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Go to previous page" }).click();
+  await expect(page.getByText("Page 1 of 7")).toBeVisible();
+
+  await page.getByRole("button", { name: "Columns" }).click();
+  await page.getByRole("menuitemcheckbox", { name: "Type" }).click();
+  await expect(table.getByRole("columnheader", { name: "Type" })).toHaveCount(
+    0,
+  );
+
+  const dragIntroduction = page.getByRole("button", {
+    name: "Drag Introduction to reorder",
+  });
+  await dragIntroduction.focus();
+  await dragIntroduction.press("Space");
+  await dragIntroduction.press("ArrowDown");
+  await dragIntroduction.press("Space");
+  const reorderedRows = table.getByRole("row");
+  await expect(reorderedRows.nth(1)).toContainText("Table of contents");
+  await expect(reorderedRows.nth(2)).toContainText("Introduction");
+
+  await page.getByRole("button", { name: "Edit Introduction" }).click();
+  const editedHeader = "Browser-edited introduction";
+  await page.getByRole("textbox", { name: "Section title" }).fill(editedHeader);
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(table.getByText(editedHeader, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Local demo change applied. Changes are not saved.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("Demo changes are not saved.")).toBeVisible();
+
+  await page.reload();
+  await waitForApplicationShell(page);
+  await expectSingleApplicationMain(page);
+  const resetTable = page.getByRole("table", { name: "Sections" });
+  await expect(
+    resetTable.getByText("Introduction", { exact: true }),
+  ).toBeVisible();
+  await expect(resetTable.getByText(editedHeader, { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    resetTable.getByRole("columnheader", { name: "Type" }),
+  ).toBeVisible();
+  await expect(page.getByText("0 of 68 row(s) selected.")).toBeVisible();
+  await expect(resetTable.getByRole("row").nth(1)).toContainText(
+    "Introduction",
+  );
+}
+
 test("desktop landing and authenticated shell cover primary navigation", async ({
   organizationScenario,
   page,
@@ -130,8 +208,11 @@ test("desktop landing and authenticated shell cover primary navigation", async (
 
   await page.goto(`/w/${first.canonicalKey}/dashboard`);
   await waitForApplicationShell(page);
+  await expectSingleApplicationMain(page);
   await expectRenewals(1);
   await expectDashboard(page);
+  await exerciseDashboardInteractions(page);
+  await expectRenewals(2);
   const expandSidebar = page
     .getByRole("banner")
     .getByRole("button", { name: "Open sidebar" });
@@ -174,7 +255,8 @@ test("desktop landing and authenticated shell cover primary navigation", async (
     page.getByRole("main").getByText(/E2E Shell Beta/),
   );
   await waitForApplicationShell(page);
-  await expectRenewals(2);
+  await expectSingleApplicationMain(page);
+  await expectRenewals(3);
 
   await page
     .getByRole("navigation", { name: "Workspace", exact: true })
@@ -186,7 +268,8 @@ test("desktop landing and authenticated shell cover primary navigation", async (
     page.getByRole("article", { name: "E2E Shell Beta workspace" }),
   );
   await waitForApplicationShell(page);
-  await expectRenewals(3);
+  await expectSingleApplicationMain(page);
+  await expectRenewals(4);
   await expect(
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
@@ -204,7 +287,8 @@ test("desktop landing and authenticated shell cover primary navigation", async (
     page.getByRole("navigation", { name: "Workspace settings" }),
   );
   await waitForApplicationShell(page);
-  await expectRenewals(4);
+  await expectSingleApplicationMain(page);
+  await expectRenewals(5);
   await expect(
     page.getByRole("navigation", { name: "Workspace settings" }),
   ).toBeVisible();
@@ -225,7 +309,8 @@ test("desktop landing and authenticated shell cover primary navigation", async (
   );
   await page.goto(`/w/${second.canonicalKey}/settings/workspace`);
   await waitForApplicationShell(page);
-  await expectRenewals(5);
+  await expectSingleApplicationMain(page);
+  await expectRenewals(6);
 
   await page
     .getByRole("link", { name: new RegExp(desktopIdentity.name) })
@@ -236,7 +321,8 @@ test("desktop landing and authenticated shell cover primary navigation", async (
     page.getByRole("link", { name: "Profile", exact: true }),
   );
   await waitForApplicationShell(page);
-  await expectRenewals(6);
+  await expectSingleApplicationMain(page);
+  await expectRenewals(7);
   await expect(
     page.getByRole("link", { name: "Profile", exact: true }),
   ).toHaveAttribute("aria-current", "page");
@@ -284,6 +370,7 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
 
   await page.goto(`/w/${first.canonicalKey}/dashboard`);
   await waitForApplicationShell(page);
+  await expectSingleApplicationMain(page);
   await expectDashboard(page);
   await expect(
     page.getByRole("dialog", { name: "Application navigation" }),
@@ -310,6 +397,7 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
   );
   await expect(drawer).toHaveCount(0);
   await waitForApplicationShell(page);
+  await expectSingleApplicationMain(page);
 
   const theme = page.getByRole("button", { name: "Switch to dark theme" });
   await waitForInteraction(theme);
@@ -317,6 +405,7 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
   await expect(page.locator("html")).toHaveClass(/\bdark\b/);
   await page.reload();
   await waitForApplicationShell(page);
+  await expectSingleApplicationMain(page);
   await expect(page.locator("html")).toHaveClass(/\bdark\b/);
 
   await expect(
@@ -359,6 +448,7 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
   );
   await expect(drawer).toHaveCount(0);
   await waitForApplicationShell(page);
+  await expectSingleApplicationMain(page);
   await expectNoSensitiveShellText(page, mobileIdentity.password);
   await page
     .getByRole("article", { name: "E2E Mobile Beta workspace" })

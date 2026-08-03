@@ -155,6 +155,36 @@ it("rejects structural raw-fetch and sensitive browser-storage variants", () => 
       "browser credential storage",
     ],
     [
+      "direct setItem apply",
+      'localStorage.setItem.apply(localStorage, ["token", value]);\n',
+      "browser credential storage",
+    ],
+    [
+      "aliased setItem apply",
+      'const save = window.localStorage.setItem;\nsave.apply(window.localStorage, ["credential", value]);\n',
+      "browser credential storage",
+    ],
+    [
+      "destructured setItem apply",
+      'const { setItem: save } = sessionStorage;\nsave.apply(sessionStorage, ["secret", value]);\n',
+      "browser credential storage",
+    ],
+    [
+      "bound setItem apply",
+      'const save = localStorage.setItem.bind(localStorage);\nsave.apply(undefined, ["password", value]);\n',
+      "browser credential storage",
+    ],
+    [
+      "bound apply alias",
+      'const applySave = localStorage.setItem.apply.bind(localStorage.setItem);\napplySave(localStorage, ["session", value]);\n',
+      "browser credential storage",
+    ],
+    [
+      "destructured apply alias",
+      'const { apply: applySave } = sessionStorage.setItem;\napplySave(sessionStorage, ["bearer", value]);\n',
+      "browser credential storage",
+    ],
+    [
       "constant sensitive key alias",
       'const key = "password";\nlocalStorage.setItem(key, value);\n',
       "browser credential storage",
@@ -177,12 +207,30 @@ it("allows known-safe preference storage despite unrelated sensitive words", () 
     'localStorage.setItem("color-scheme", "system");\n',
     'const localStorage = new Map<string, string>();\nlocalStorage.set("session", "ui");\n',
     'const localStorage = new Map<string, string>();\nlocalStorage.setItem("session", "ui");\n',
+    'localStorage.setItem.apply(localStorage, ["theme", "dark"]);\n',
+    'const save = sessionStorage.setItem;\nconst args = ["sidebar-preference", "collapsed"];\nsave.apply(sessionStorage, args);\n',
+    'const localStorage = new Map<string, string>();\nlocalStorage.setItem.apply(localStorage, ["session", "ui"]);\n',
+    'const preferences = new Map<string, string>();\nconst { setItem } = preferences;\nsetItem?.apply(preferences, ["token", "visual-label"]);\n',
   ];
 
   for (const source of allowed) {
     const result = checkFixture(source);
     expect(result.status).toBe(0);
   }
+});
+
+it("pins the vertical-axis modifier to the dashboard DndContext", () => {
+  const source = readFileSync(
+    resolve(webRoot, "src/components/dashboard/activity-table.tsx"),
+    "utf8",
+  );
+
+  expect(source).toContain(
+    'import { restrictToVerticalAxis } from "@dnd-kit/modifiers";',
+  );
+  expect(source).toMatch(
+    /<DndContext[\s\S]*?modifiers=\{\[restrictToVerticalAxis\]\}[\s\S]*?>/u,
+  );
 });
 
 it("keeps the Route Handler exception closed", () => {

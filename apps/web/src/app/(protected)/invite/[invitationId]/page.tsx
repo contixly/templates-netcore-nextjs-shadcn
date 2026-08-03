@@ -42,19 +42,19 @@ export default async function InvitationDecisionPage({
     const mismatch = recipientMismatchDecision(decision.failure);
     if (!mismatch) return <OrganizationFailure failure={decision.failure} />;
     return (
-      <main className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
+      <div className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
         <InvitationDecision
           key={invitationId}
           decision={mismatch}
           emailVerified={auth.data.session.user.emailVerified}
           localEmailConfirmationAvailable={false}
         />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
+    <div className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
       <InvitationDecision
         key={invitationId}
         decision={decision.data}
@@ -63,6 +63,6 @@ export default async function InvitationDecisionPage({
           auth.data.capabilities.localAutomationEnabled
         }
       />
-    </main>
+    </div>
   );
 }

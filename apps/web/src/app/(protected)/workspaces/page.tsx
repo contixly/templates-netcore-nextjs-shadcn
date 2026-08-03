@@ -59,9 +59,9 @@ export default async function WorkspacesPage({
 
   if (!session.ok) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure failure={session.failure} />
-      </main>
+      </div>
     );
   }
   if (
@@ -70,16 +70,16 @@ export default async function WorkspacesPage({
     !session.data.user
   ) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure
           failure={{ kind: "network", code: "api_unavailable" }}
         />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-muted-foreground">{t("description")}</p>
@@ -98,6 +98,6 @@ export default async function WorkspacesPage({
           initialPage={compactOrganizationPage(firstPage.data)}
         />
       )}
-    </main>
+    </section>
   );
 }

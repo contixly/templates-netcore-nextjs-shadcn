@@ -23,9 +23,9 @@ export default async function WelcomePage() {
 
   if (!session.ok) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure failure={session.failure} />
-      </main>
+      </div>
     );
   }
   if (
@@ -34,18 +34,18 @@ export default async function WelcomePage() {
     !session.data.user
   ) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure
           failure={{ kind: "network", code: "api_unavailable" }}
         />
-      </main>
+      </div>
     );
   }
   if (!organizations.ok) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
+      <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <OrganizationFailure failure={organizations.failure} />
-      </main>
+      </div>
     );
   }
   if (organizations.data.items.length > 0) {

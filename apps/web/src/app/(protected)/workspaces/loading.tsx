@@ -6,7 +6,7 @@ export default async function WorkspacesLoading() {
   const t = await getTranslations("organizations.pages.workspaces");
 
   return (
-    <main
+    <div
       aria-busy="true"
       className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12"
       role="status"
@@ -20,6 +20,6 @@ export default async function WorkspacesLoading() {
         <Skeleton className="h-48 w-full" />
         <Skeleton className="h-48 w-full" />
       </div>
-    </main>
+    </div>
   );
 }
