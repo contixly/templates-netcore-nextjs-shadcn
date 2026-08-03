@@ -22,6 +22,10 @@ const STORAGE_SET_ITEM_APPLY_BIND_VALUE = Object.freeze({
   kind: "storage-set-item-apply-bind",
 });
 
+function storageSetItemBoundApplyValue(boundArguments) {
+  return { kind: "storage-set-item-bound-apply", boundArguments };
+}
+
 function unwrapExpression(node) {
   let current = node;
   while (
@@ -231,11 +235,11 @@ function containsSensitiveBrowserStorage(sourceFile) {
     );
   }
 
-  function inspectApplyArguments(node, values, arrayIndex) {
-    const argument = node.arguments[arrayIndex];
+  function inspectApplyArgumentEntries(entries, arrayIndex) {
+    const argument = entries[arrayIndex];
     if (
       argument &&
-      containsSensitiveArrayArgument(argument, values[arrayIndex])
+      containsSensitiveArrayArgument(argument.node, argument.value)
     ) {
       found = true;
     }
@@ -344,11 +348,35 @@ function containsSensitiveBrowserStorage(sourceFile) {
         return UNKNOWN_VALUE;
       }
       if (callee.kind === "storage-set-item-apply") {
-        inspectApplyArguments(current, argumentValues, 1);
+        inspectApplyArgumentEntries(
+          current.arguments.map((argument, index) => ({
+            node: argument,
+            value: argumentValues[index],
+          })),
+          1,
+        );
         return UNKNOWN_VALUE;
       }
       if (callee.kind === "storage-set-item-apply-bind") {
-        return STORAGE_SET_ITEM_APPLY_VALUE;
+        return storageSetItemBoundApplyValue(
+          current.arguments.slice(1).map((argument, index) => ({
+            node: argument,
+            value: argumentValues[index + 1],
+          })),
+        );
+      }
+      if (callee.kind === "storage-set-item-bound-apply") {
+        inspectApplyArgumentEntries(
+          [
+            ...callee.boundArguments,
+            ...current.arguments.map((argument, index) => ({
+              node: argument,
+              value: argumentValues[index],
+            })),
+          ],
+          1,
+        );
+        return UNKNOWN_VALUE;
       }
       return UNKNOWN_VALUE;
     }

@@ -180,6 +180,26 @@ it("rejects structural raw-fetch and sensitive browser-storage variants", () => 
       "browser credential storage",
     ],
     [
+      "partially bound apply arguments",
+      'const save = localStorage.setItem.apply.bind(localStorage.setItem, localStorage);\nsave(["token", value]);\n',
+      "browser credential storage",
+    ],
+    [
+      "fully bound apply arguments",
+      'const save = localStorage.setItem.apply.bind(localStorage.setItem, localStorage, ["credential", value]);\nsave();\n',
+      "browser credential storage",
+    ],
+    [
+      "aliased partially bound apply arguments",
+      'const applySave = window.localStorage.setItem.apply;\nconst save = applySave.bind(window.localStorage.setItem, window.localStorage);\nsave(["password", value]);\n',
+      "browser credential storage",
+    ],
+    [
+      "destructured fully bound apply arguments",
+      'const { apply: applySave } = sessionStorage.setItem;\nconst save = applySave.bind(sessionStorage.setItem, sessionStorage, ["secret", value]);\nsave();\n',
+      "browser credential storage",
+    ],
+    [
       "destructured apply alias",
       'const { apply: applySave } = sessionStorage.setItem;\napplySave(sessionStorage, ["bearer", value]);\n',
       "browser credential storage",
@@ -209,7 +229,10 @@ it("allows known-safe preference storage despite unrelated sensitive words", () 
     'const localStorage = new Map<string, string>();\nlocalStorage.setItem("session", "ui");\n',
     'localStorage.setItem.apply(localStorage, ["theme", "dark"]);\n',
     'const save = sessionStorage.setItem;\nconst args = ["sidebar-preference", "collapsed"];\nsave.apply(sessionStorage, args);\n',
+    'const save = localStorage.setItem.apply.bind(localStorage.setItem, localStorage);\nsave(["theme", "dark"]);\n',
+    'const applySave = sessionStorage.setItem.apply;\nconst save = applySave.bind(sessionStorage.setItem, sessionStorage, ["sidebar-preference", "collapsed"]);\nsave();\n',
     'const localStorage = new Map<string, string>();\nlocalStorage.setItem.apply(localStorage, ["session", "ui"]);\n',
+    'const localStorage = new Map<string, string>();\nconst applySave = localStorage.setItem.apply;\nconst save = applySave.bind(localStorage.setItem, localStorage);\nsave(["token", "visual-label"]);\n',
     'const preferences = new Map<string, string>();\nconst { setItem } = preferences;\nsetItem?.apply(preferences, ["token", "visual-label"]);\n',
   ];
 
