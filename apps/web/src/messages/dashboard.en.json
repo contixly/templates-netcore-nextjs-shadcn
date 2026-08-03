@@ -1,0 +1,58 @@
+{
+  "pages": {
+    "application": {
+      "title": "Dashboard",
+      "description": "Review activity and shortcuts for your application."
+    },
+    "organization": {
+      "title": "Workspace dashboard",
+      "description": "Review activity and shortcuts for this workspace."
+    }
+  },
+  "cards": {
+    "revenue": { "label": "Total revenue", "detail": "Trending up this month" },
+    "customers": {
+      "label": "New customers",
+      "detail": "Acquisition needs attention"
+    },
+    "accounts": {
+      "label": "Active accounts",
+      "detail": "Strong user retention"
+    },
+    "growth": {
+      "label": "Growth rate",
+      "detail": "Steady performance increase"
+    }
+  },
+  "ranges": {
+    "title": "Total visitors",
+    "last90Days": "Last 3 months",
+    "last30Days": "Last 30 days",
+    "last7Days": "Last 7 days",
+    "desktop": "Desktop",
+    "mobile": "Mobile"
+  },
+  "table": {
+    "title": "Sections",
+    "demoNotice": "Demo changes are not saved.",
+    "search": "Search sections",
+    "add": "Add section",
+    "empty": "No results.",
+    "columns": "Columns",
+    "status": "Status",
+    "reviewer": "Reviewer",
+    "actions": "Actions",
+    "rowsSelected": "{selected} of {total} row(s) selected.",
+    "rowsPerPage": "Rows per page",
+    "page": "Page {current} of {total}",
+    "previousPage": "Go to previous page",
+    "nextPage": "Go to next page"
+  },
+  "drawer": {
+    "title": "Section details",
+    "description": "Review the selected demo section.",
+    "close": "Close details",
+    "save": "Save changes",
+    "cancel": "Cancel"
+  }
+}

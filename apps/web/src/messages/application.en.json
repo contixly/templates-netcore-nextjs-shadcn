@@ -1,0 +1,129 @@
+{
+  "landing": {
+    "eyebrow": "Application template",
+    "title": "Build your next product with confidence",
+    "description": "A secure, organization-aware foundation for your product.",
+    "primaryAction": "Get started",
+    "secondaryAction": "Read the documentation",
+    "featuresTitle": "Everything starts with a solid shell",
+    "featuresDescription": "Use the application shell, workspace navigation, and account settings as stable product foundations.",
+    "footer": "© 2026 Application Template"
+  },
+  "shell": {
+    "navigation": {
+      "dashboard": "Dashboard",
+      "workspaces": "Workspaces",
+      "documentation": "Documentation",
+      "account": "Account",
+      "settings": "Settings"
+    },
+    "sidebar": {
+      "open": "Open sidebar",
+      "close": "Close sidebar",
+      "workspace": "Workspace",
+      "workspaceSettings": "Workspace settings",
+      "accountSettings": "Account settings"
+    },
+    "breadcrumbs": {
+      "home": "Home",
+      "dashboard": "Dashboard",
+      "workspaces": "Workspaces",
+      "account": "Account",
+      "settings": "Settings"
+    },
+    "safeBoundaries": {
+      "loadingTitle": "Loading application",
+      "errorTitle": "Something went wrong",
+      "errorDescription": "The application could not be loaded safely. Try again.",
+      "retry": "Try again",
+      "notFoundTitle": "Page not found",
+      "notFoundDescription": "The page you requested is unavailable or you do not have access to it."
+    }
+  },
+  "pages": {
+    "home": {
+      "title": "Home",
+      "description": "Start from a secure application foundation."
+    },
+    "login": {
+      "title": "Sign in",
+      "description": "Sign in to continue to your workspace."
+    },
+    "authError": {
+      "title": "Sign-in unavailable",
+      "description": "We could not complete your sign-in safely."
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "description": "Review your workspace activity and shortcuts."
+    },
+    "welcome": {
+      "title": "Welcome",
+      "description": "Create or join a workspace to get started."
+    },
+    "workspaces": {
+      "title": "Workspaces",
+      "description": "Choose the workspace you want to open."
+    },
+    "invitationDecision": {
+      "title": "Workspace invitation",
+      "description": "Review and respond to this workspace invitation."
+    },
+    "accountProfile": {
+      "title": "Profile settings",
+      "description": "Manage your public display name and account identity."
+    },
+    "accountConnections": {
+      "title": "Connections",
+      "description": "Manage the external providers you can use to sign in."
+    },
+    "accountSecurity": {
+      "title": "Security",
+      "description": "Review active sessions and protect your account."
+    },
+    "accountInvitations": {
+      "title": "Invitations",
+      "description": "Review invitations sent to your account."
+    },
+    "accountApiKeys": {
+      "title": "API keys",
+      "description": "Manage personal API credentials for automation."
+    },
+    "accountDanger": {
+      "title": "Danger zone",
+      "description": "Manage irreversible account actions."
+    },
+    "organization": {
+      "title": "Workspace",
+      "description": "Open this workspace."
+    },
+    "organizationDashboard": {
+      "title": "Workspace dashboard",
+      "description": "Review workspace activity and shortcuts."
+    },
+    "organizationWorkspace": {
+      "title": "Workspace settings",
+      "description": "Manage workspace details and policies."
+    },
+    "organizationUsers": {
+      "title": "Users",
+      "description": "Manage workspace members and their access."
+    },
+    "organizationRoles": {
+      "title": "Roles",
+      "description": "Review workspace roles and permissions."
+    },
+    "organizationApiKeys": {
+      "title": "Workspace API keys",
+      "description": "Manage API credentials owned by this workspace."
+    },
+    "organizationTeams": {
+      "title": "Teams",
+      "description": "Organize workspace members into teams."
+    },
+    "organizationInvitations": {
+      "title": "Workspace invitations",
+      "description": "Create and manage workspace invitations."
+    }
+  }
+}

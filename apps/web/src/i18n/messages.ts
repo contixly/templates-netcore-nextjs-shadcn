@@ -2,12 +2,16 @@ import accountEn from "@/src/messages/account.en.json";
 import accountRu from "@/src/messages/account.ru.json";
 import apiKeysEn from "@/src/messages/api-keys.en.json";
 import apiKeysRu from "@/src/messages/api-keys.ru.json";
+import applicationEn from "@/src/messages/application.en.json";
+import applicationRu from "@/src/messages/application.ru.json";
 import authEn from "@/src/messages/auth.en.json";
 import authRu from "@/src/messages/auth.ru.json";
 import commonEn from "@/src/messages/common.en.json";
 import commonRu from "@/src/messages/common.ru.json";
 import collaborationEn from "@/src/messages/collaboration.en.json";
 import collaborationRu from "@/src/messages/collaboration.ru.json";
+import dashboardEn from "@/src/messages/dashboard.en.json";
+import dashboardRu from "@/src/messages/dashboard.ru.json";
 import documentsEn from "@/src/messages/documents.en.json";
 import documentsRu from "@/src/messages/documents.ru.json";
 import organizationsEn from "@/src/messages/organizations.en.json";
@@ -21,11 +25,13 @@ import {
 } from "@/src/i18n/config";
 
 const englishMessages = {
+  application: applicationEn,
   account: accountEn,
   apiKeys: apiKeysEn,
   auth: authEn,
   common: commonEn,
   collaboration: collaborationEn,
+  dashboard: dashboardEn,
   documents: documentsEn,
   organizations: organizationsEn,
   system: systemEn,
@@ -36,11 +42,13 @@ export type I18nMessages = typeof englishMessages;
 const messagesByLocale = {
   en: englishMessages,
   ru: {
+    application: applicationRu,
     account: accountRu,
     apiKeys: apiKeysRu,
     auth: authRu,
     common: commonRu,
     collaboration: collaborationRu,
+    dashboard: dashboardRu,
     documents: documentsRu,
     organizations: organizationsRu,
     system: systemRu,

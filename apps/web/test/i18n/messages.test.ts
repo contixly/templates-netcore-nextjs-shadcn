@@ -265,6 +265,20 @@ describe("fixed deployment locale", () => {
     );
   });
 
+  it("registers localized application-shell and dashboard contracts", async () => {
+    const [english, russian] = await Promise.all([
+      loadMessages("en"),
+      loadMessages("ru"),
+    ]);
+
+    expect(english.application.shell.navigation.dashboard).toBe("Dashboard");
+    expect(russian.application.shell.navigation.dashboard).toBe(
+      "Панель управления",
+    );
+    expect(english.dashboard.table.demoNotice).toMatch(/not saved/i);
+    expect(russian.dashboard.table.demoNotice).toMatch(/не сохраня/iu);
+  });
+
   it("loads the Russian deployment bundle and fixed UTC time zone", async () => {
     const originalLocale = process.env.PUBLIC_DEFAULT_LOCALE;
 

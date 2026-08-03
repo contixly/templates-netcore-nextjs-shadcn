@@ -7,4 +7,5 @@ export const applicationRoutes = {
   dashboard: "/dashboard" as Route,
   welcome: "/welcome" as Route,
   workspaces: "/workspaces" as Route,
+  docs: "/docs" as Route,
 } as const;
