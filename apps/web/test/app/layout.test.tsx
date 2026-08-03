@@ -1,5 +1,8 @@
 import type { ReactElement, ReactNode } from "react";
 
+import { generateMetadata as generateHomeMetadata } from "@/src/app/(public)/(home)/layout";
+import { metadata as protectedMetadata } from "@/src/app/(protected)/layout";
+import { metadata as simpleMetadata } from "@/src/app/(simple)/layout";
 import RootLayout, { generateMetadata } from "@/src/app/layout";
 import type { I18nMessages } from "@/src/i18n/messages";
 
@@ -36,15 +39,42 @@ describe("RootLayout", () => {
     }
   });
 
-  it("generates Russian metadata from the fixed-locale bundle", async () => {
+  it("keeps root metadata neutral so landing metadata cannot leak into child routes", async () => {
     process.env.PUBLIC_DEFAULT_LOCALE = "ru";
     process.env.APP_PUBLIC_ORIGIN = "https://docs.example.com";
 
     await expect(generateMetadata()).resolves.toEqual({
       metadataBase: new URL("https://docs.example.com"),
-      title: "Состояние системы Template",
-      description: "Проверка REST-связи из браузера и с сервера",
+      applicationName: "Template",
     });
+  });
+
+  it("scopes localized indexable metadata to the public home layout", async () => {
+    process.env.PUBLIC_DEFAULT_LOCALE = "ru";
+    process.env.APP_PUBLIC_ORIGIN = "https://docs.example.com";
+
+    await expect(generateHomeMetadata()).resolves.toMatchObject({
+      metadataBase: new URL("https://docs.example.com"),
+      title: expect.stringContaining("Template"),
+      description: "Начните с безопасной основы приложения.",
+      alternates: { canonical: "https://docs.example.com/" },
+      robots: { index: true, follow: true },
+      openGraph: {
+        locale: "ru_RU",
+        url: "https://docs.example.com/",
+      },
+    });
+  });
+
+  it("makes protected and authentication groups explicitly non-indexable with no canonical or OG URL", () => {
+    const expected = {
+      robots: { index: false, follow: false },
+      alternates: { canonical: null },
+      openGraph: { url: null },
+    };
+
+    expect(protectedMetadata).toEqual(expected);
+    expect(simpleMetadata).toEqual(expected);
   });
 
   it("wires the Russian fixed-locale config into html and the provider", async () => {

@@ -10,13 +10,13 @@ export default function RouteError({
   error: Error & { digest?: string };
   reset: () => void;
 }>) {
-  const boundaries = useTranslations("system.boundaries");
+  const boundaries = useTranslations("application.shell.safeBoundaries");
   const actions = useTranslations("common.actions");
 
   return (
     <main className="mx-auto max-w-2xl space-y-4 px-4 py-16">
-      <h1 className="text-2xl font-semibold">{boundaries("routeTitle")}</h1>
-      <p className="text-muted-foreground">{boundaries("routeDescription")}</p>
+      <h1 className="text-2xl font-semibold">{boundaries("errorTitle")}</h1>
+      <p className="text-muted-foreground">{boundaries("errorDescription")}</p>
       <Button onClick={reset}>{actions("retry")}</Button>
     </main>
   );

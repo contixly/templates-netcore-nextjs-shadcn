@@ -2,6 +2,11 @@ import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 
 import { LoginRuntime } from "@/src/components/authentication/login-runtime";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("login");
+}
 
 export default async function LoginPage({
   searchParams,

@@ -16,6 +16,7 @@ import { organizationRoutes } from "@/src/features/organizations/organization-ro
 import type { OrganizationMemberResponse } from "@/src/lib/api/generated/types.gen";
 import { loadOrganizationMembers } from "@/src/lib/api/organizations/server/load-organization-members";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 type OrganizationUsersSettingsPageProps = Readonly<{
   params: Promise<{ organizationKey: string }>;
@@ -31,6 +32,10 @@ function compactMember(member: OrganizationMemberResponse) {
     joinedAt: member.joinedAt,
     isOutsideAllowedEmailDomains: member.isOutsideAllowedEmailDomains,
   };
+}
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("organizationUsers");
 }
 
 export default async function OrganizationUsersSettingsPage({

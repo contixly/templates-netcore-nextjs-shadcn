@@ -64,6 +64,11 @@
       "errorTitle": "Something went wrong",
       "errorDescription": "The application could not be loaded safely. Try again.",
       "retry": "Try again",
+      "unauthorizedTitle": "Sign in required",
+      "unauthorizedDescription": "Sign in to continue to this page.",
+      "unauthorizedAction": "Sign in",
+      "forbiddenTitle": "Access denied",
+      "forbiddenDescription": "You do not have permission to open this page.",
       "notFoundTitle": "Page not found",
       "notFoundDescription": "The page you requested is unavailable or you do not have access to it."
     }

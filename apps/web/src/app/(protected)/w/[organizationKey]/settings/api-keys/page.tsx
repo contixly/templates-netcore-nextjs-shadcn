@@ -14,6 +14,7 @@ import { organizationRoutes } from "@/src/features/organizations/organization-ro
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import type { ApiFailure } from "@/src/lib/api/result";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 type OrganizationApiKeysPageProps = Readonly<{
   params: Promise<{ organizationKey: string }>;
@@ -35,6 +36,10 @@ function Failure({
       ) : null}
     </section>
   );
+}
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("organizationApiKeys");
 }
 
 export default async function OrganizationApiKeysPage({

@@ -7,6 +7,11 @@ import { authenticationRoutes } from "@/src/features/authentication/authenticati
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("dashboard");
+}
 
 export default async function DashboardPage() {
   await connection();

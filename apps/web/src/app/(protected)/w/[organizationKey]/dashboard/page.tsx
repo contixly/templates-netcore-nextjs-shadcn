@@ -13,10 +13,15 @@ import { dashboardRoutes } from "@/src/features/dashboard/dashboard-routes";
 import { dashboardRows } from "@/src/features/dashboard/dashboard-data";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 type OrganizationDashboardPageProps = Readonly<{
   params: Promise<{ organizationKey: string }>;
 }>;
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("organizationDashboard");
+}
 
 export default async function OrganizationDashboardPage({
   params,

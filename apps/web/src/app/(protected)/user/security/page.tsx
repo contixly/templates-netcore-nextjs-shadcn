@@ -9,6 +9,7 @@ import {
 import { SessionList } from "@/src/components/account/session-list";
 import { loadSessions } from "@/src/lib/api/account/server/load-sessions";
 import type { ApiFailure } from "@/src/lib/api/result";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 function Failure({
   description,
@@ -30,6 +31,10 @@ function Failure({
       ) : null}
     </section>
   );
+}
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("accountSecurity");
 }
 
 export default async function SecurityPage() {

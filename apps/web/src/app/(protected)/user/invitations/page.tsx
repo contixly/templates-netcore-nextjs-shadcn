@@ -9,6 +9,11 @@ import {
 import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("accountInvitations");
+}
 
 export default async function AccountInvitationsPage() {
   const [result, t] = await Promise.all([

@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 
 import { ProtectedApplicationShell } from "@/src/components/application/protected-application-shell";
 import { parseSidebarPreference } from "@/src/components/application/sidebar-state";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+  alternates: { canonical: null },
+  openGraph: { url: null },
+};
 
 export default async function ProtectedLayout({
   children,

@@ -10,6 +10,7 @@ import { loadProtectedSession } from "@/src/features/authentication/load-protect
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
 import type { OrganizationPageResponse } from "@/src/lib/api/generated/types.gen";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 function compactOrganizationPage(page: OrganizationPageResponse) {
   return {
@@ -37,6 +38,10 @@ function compactOrganizationPage(page: OrganizationPageResponse) {
 type WorkspacesPageProps = Readonly<{
   searchParams: Promise<{ cursor?: string | string[] }>;
 }>;
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("workspaces");
+}
 
 export default async function WorkspacesPage({
   searchParams,

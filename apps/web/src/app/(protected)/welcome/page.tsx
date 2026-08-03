@@ -8,6 +8,11 @@ import { loadProtectedSession } from "@/src/features/authentication/load-protect
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("welcome");
+}
 
 export default async function WelcomePage() {
   await connection();

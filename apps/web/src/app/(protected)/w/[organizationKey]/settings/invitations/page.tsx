@@ -15,10 +15,15 @@ import { collaborationRoutes } from "@/src/features/collaboration/collaboration-
 import { loadAllTeams } from "@/src/lib/api/collaboration/server/load-all-teams";
 import { loadOrganizationInvitations } from "@/src/lib/api/collaboration/server/load-organization-invitations";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 type InvitationSettingsPageProps = Readonly<{
   params: Promise<{ organizationKey: string }>;
 }>;
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("organizationInvitations");
+}
 
 export default async function InvitationSettingsPage({
   params,

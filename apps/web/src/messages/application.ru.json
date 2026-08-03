@@ -64,6 +64,11 @@
       "errorTitle": "Что-то пошло не так",
       "errorDescription": "Приложение не удалось безопасно загрузить. Попробуйте еще раз.",
       "retry": "Попробовать еще раз",
+      "unauthorizedTitle": "Требуется вход",
+      "unauthorizedDescription": "Войдите, чтобы продолжить работу с этой страницей.",
+      "unauthorizedAction": "Войти",
+      "forbiddenTitle": "Доступ запрещен",
+      "forbiddenDescription": "У вас нет разрешения на просмотр этой страницы.",
       "notFoundTitle": "Страница не найдена",
       "notFoundDescription": "Запрошенная страница недоступна или у вас нет к ней доступа."
     }

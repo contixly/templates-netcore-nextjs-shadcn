@@ -8,10 +8,15 @@ import { collaborationRoutes } from "@/src/features/collaboration/collaboration-
 import { recipientMismatchDecision } from "@/src/features/collaboration/invitation-decision-failure";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
 import { loadInvitationDecision } from "@/src/lib/api/collaboration/server/load-invitation-decision";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 type InvitationDecisionPageProps = Readonly<{
   params: Promise<{ invitationId: string }>;
 }>;
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("invitationDecision");
+}
 
 export default async function InvitationDecisionPage({
   params,

@@ -9,6 +9,7 @@ import {
 import { ProfileForm } from "@/src/components/account/profile-form";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";
 import type { ApiFailure } from "@/src/lib/api/result";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 function Failure({
   description,
@@ -30,6 +31,10 @@ function Failure({
       ) : null}
     </section>
   );
+}
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("accountProfile");
 }
 
 export default async function ProfilePage() {

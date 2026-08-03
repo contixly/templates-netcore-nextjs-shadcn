@@ -7,6 +7,11 @@ import { loadProtectedSession } from "@/src/features/authentication/load-protect
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("organizationWorkspace");
+}
 
 type OrganizationSettingsRootPageProps = Readonly<{
   params: Promise<{ organizationKey: string }>;

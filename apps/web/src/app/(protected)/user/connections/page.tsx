@@ -9,6 +9,7 @@ import {
 import { ConnectionsList } from "@/src/components/account/connections-list";
 import { loadConnections } from "@/src/lib/api/account/server/load-connections";
 import type { ApiFailure } from "@/src/lib/api/result";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 function Failure({
   description,
@@ -30,6 +31,10 @@ function Failure({
       ) : null}
     </section>
   );
+}
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("accountConnections");
 }
 
 export default async function ConnectionsPage() {

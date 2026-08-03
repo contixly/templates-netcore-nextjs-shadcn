@@ -4,6 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { Button } from "@/src/components/ui/button";
 import { applicationRoutes } from "@/src/features/application/application-routes";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 const errorMessageKeys = {
   already_authenticated: "alreadyAuthenticated",
@@ -28,6 +29,10 @@ function errorMessageKey(
   }
 
   return errorMessageKeys[value as keyof typeof errorMessageKeys];
+}
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("authError");
 }
 
 export default async function AuthErrorPage({

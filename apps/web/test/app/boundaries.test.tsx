@@ -2,9 +2,11 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import RouteError from "@/src/app/error";
+import Forbidden from "@/src/app/forbidden";
 import GlobalError from "@/src/app/global-error";
 import Loading from "@/src/app/loading";
 import NotFound from "@/src/app/not-found";
+import Unauthorized from "@/src/app/unauthorized";
 import { renderWithMessages } from "@/test/support/render";
 
 jest.mock("next-intl/server", () => ({
@@ -14,6 +16,17 @@ jest.mock("next-intl/server", () => ({
       "system.boundaries.notFoundTitle": "Page not found",
       "system.boundaries.notFoundDescription":
         "The requested route does not exist.",
+      "application.shell.safeBoundaries.loadingTitle": "Loading application",
+      "application.shell.safeBoundaries.forbiddenTitle": "Access denied",
+      "application.shell.safeBoundaries.forbiddenDescription":
+        "You do not have permission to open this page.",
+      "application.shell.safeBoundaries.unauthorizedTitle": "Sign in required",
+      "application.shell.safeBoundaries.unauthorizedDescription":
+        "Sign in to continue to this page.",
+      "application.shell.safeBoundaries.unauthorizedAction": "Sign in",
+      "application.shell.safeBoundaries.notFoundTitle": "Page not found",
+      "application.shell.safeBoundaries.notFoundDescription":
+        "The page you requested is unavailable or you do not have access to it.",
       "system.status.loading": "Checking API status",
       "system.status.ssrTitle": "Server-rendered API status",
       "system.status.browserTitle": "Browser API status",
@@ -29,9 +42,10 @@ describe("Next boundaries", () => {
     render(await Loading());
 
     expect(
-      screen.getByRole("heading", { name: "Loading page" }),
+      screen.getByRole("heading", { name: "Loading application" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("status")).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByText(/API/iu)).not.toBeInTheDocument();
   });
 
   it("renders route error safely and calls reset", () => {
@@ -51,6 +65,36 @@ describe("Next boundaries", () => {
 
     expect(
       screen.getByRole("heading", { name: "Page not found" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Return home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
+  });
+
+  it("renders localized unauthorized copy with a safe sign-in link", async () => {
+    render(await Unauthorized());
+
+    expect(
+      screen.getByRole("heading", { name: "Sign in required" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Sign in to continue to this page."),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/auth/login",
+    );
+  });
+
+  it("renders localized forbidden copy without disclosing a protected resource", async () => {
+    render(await Forbidden());
+
+    expect(
+      screen.getByRole("heading", { name: "Access denied" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("You do not have permission to open this page."),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Return home" })).toHaveAttribute(
       "href",

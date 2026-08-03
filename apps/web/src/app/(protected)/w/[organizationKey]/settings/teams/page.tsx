@@ -14,10 +14,15 @@ import { loadProtectedSession } from "@/src/features/authentication/load-protect
 import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
 import { loadTeams } from "@/src/lib/api/collaboration/server/load-teams";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 type TeamSettingsPageProps = Readonly<{
   params: Promise<{ organizationKey: string }>;
 }>;
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("organizationTeams");
+}
 
 export default async function TeamSettingsPage({
   params,

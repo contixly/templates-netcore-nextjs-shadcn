@@ -19,10 +19,15 @@ import {
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 type OrganizationRolesSettingsPageProps = Readonly<{
   params: Promise<{ organizationKey: string }>;
 }>;
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("organizationRoles");
+}
 
 export default async function OrganizationRolesSettingsPage({
   params,

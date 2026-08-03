@@ -9,6 +9,7 @@ import {
 import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";
 import type { ApiFailure } from "@/src/lib/api/result";
+import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 function Failure({
   description,
@@ -26,6 +27,10 @@ function Failure({
       ) : null}
     </section>
   );
+}
+
+export function generateMetadata() {
+  return buildApplicationPageMetadata("accountApiKeys");
 }
 
 export default async function PersonalApiKeysPage() {
