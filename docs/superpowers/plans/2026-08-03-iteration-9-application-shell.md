@@ -10,7 +10,7 @@
 
 **Tech Stack:** .NET 10 verification only; Next.js 16.2.11 App Router with Cache Components; React 19.2.8; TypeScript 6.0.3; next-intl 4.13.4; Tailwind CSS 4.3.3; shadcn/radix-ui; Jest 30; Playwright 1.61.1; generated Hey API client; Recharts 3.9.1; TanStack Table 8.21.3; dnd-kit; Sonner; Vaul; Zod 4.4.3.
 
-**Execution status (2026-08-03):** Tasks 1–9 are implemented and locally accepted at implementation head `57ebe23746dc83d5444e1667cb6065335da5c10d`, including the final whole-branch review/fix round described below. Task 10 (push, ready PR, and current-head GitHub review) has not started and is not claimed.
+**Execution status (2026-08-03):** Tasks 1–9 are implemented and locally accepted at implementation head `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`, including both final whole-branch review/fix rounds described below. Task 10 (push, ready PR, and current-head GitHub review) has not started and is not claimed.
 
 ## Global Constraints
 
@@ -1030,7 +1030,7 @@ git add docs/web-conventions.md docs/aspnetcore-migration-plan.md docs/superpowe
 git commit -m "docs: record iteration 9 acceptance"
 ```
 
-#### Final whole-branch review/fix addendum — 2026-08-03
+#### First whole-branch review/fix addendum — 2026-08-03
 
 - [x] Added RED/GREEN source-inventory and rendered-integration coverage for the
       shell-owned `main#main-content`; protected loading/error/not-found/
@@ -1065,6 +1065,40 @@ describe timeout was raised from 60 to 90 seconds without weakening an
 assertion or adding a skip; the focused rerun and fresh full 30/5/0 run passed.
 Task 10 remains deliberately unchecked below: this addendum claims no push,
 ready PR, current-head automatic review, mergeability, or review-thread state.
+
+#### Final security-boundary re-review addendum — 2026-08-03
+
+- [x] Added four table-driven RED reject fixtures proving that direct, aliased
+      and destructured `setItem.apply.bind` capabilities lost sensitive arrays
+      partially or fully supplied after `.bind`'s receiver. The first exact
+      partial fixture observed scanner exit 0 instead of 1 before production
+      code changed.
+- [x] Added three allow fixtures for partially bound theme, fully bound sidebar
+      and scope-shadowed storage paths.
+- [x] Replaced the discarded-argument constant with a bound-apply capability
+      that retains pre-bound argument nodes/values and combines them with later
+      invocation arguments before inspecting the effective `apply` array.
+- [x] Focused GREEN: boundary-contract Jest 11/11; boundary node tests 8/8 plus
+      clean source scan; format and typecheck clean; lint 0 errors with the same
+      17 warning-only generated-SDK type probes.
+- [x] The first acceptance attempt observed a separate current registry-audit
+      RED: `postcss@8.5.22` produced three moderate production findings. The
+      existing override moved to `8.5.25`; `npm audit --omit=dev` returned zero;
+      and the implementation commit was amended before final acceptance.
+- [x] Fresh complete acceptance at implementation head
+      `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`: .NET 1116/1116; content
+      109/109; boundaries 8/8 plus source scan; Jest 102/102 suites and 822/822
+      tests; production build 144/144 pages with standalone output; Playwright
+      30 passed, 5 documented opt-in provider smokes skipped and 0 failed;
+      production audit 0 vulnerabilities; immutable `template/`, generated
+      output and inactive OpenSpec guards clean.
+
+The clean install reported one high-severity vulnerability in the complete
+development tree after the PostCSS override update; the separately required
+production audit reported zero. Playwright emitted only the repeated
+`NO_COLOR`/`FORCE_COLOR` and development cache-bypass diagnostics. Task 10
+remains deliberately unchecked below: this re-review claims no push, ready PR,
+current-head automatic review, mergeability, or review-thread state.
 
 ### Task 10: Publish a ready PR and close automatic-review findings
 

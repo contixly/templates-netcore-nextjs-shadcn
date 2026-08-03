@@ -17,8 +17,9 @@ Both direct and development dependencies stay exact-pinned, and
 
 Security overrides are exact, narrowly justified compatibility bridges:
 
-- `postcss` is held at `8.5.22` for every consumer because stable Next.js
-  `16.2.11` otherwise installs vulnerable `8.4.31`;
+- `postcss` is held at `8.5.25` for every consumer because stable Next.js
+  `16.2.11` otherwise installs a version now covered by the incomplete
+  source-map-fix advisory;
 - Next.js `sharp` is held at `0.35.3`;
 - the two JavaScript YAML 4 consumers are held at `js-yaml` `4.3.0`;
 - the shadcn MCP dependency is held at `@hono/node-server` `2.0.11`.
@@ -849,8 +850,19 @@ unchanged OpenAPI contract.
 
 The browser-storage source boundary rejects direct, aliased, destructured,
 bound, `.call`, and `.apply` forms of `localStorage.setItem` and
-`sessionStorage.setItem`, including bound-apply combinations. It remains
-scope-aware so shadowed `Map`-like objects do not become false positives. The
-dedicated safe-preferences module is the only narrow persistence exception and
-continues to store only approved presentation preferences, never identity,
-credentials, bearer tokens, protected data, or dashboard edits.
+`sessionStorage.setItem`, including bound-apply combinations. A
+`setItem.apply.bind` capability retains arguments supplied after `.bind`'s
+receiver and combines them with later invocation arguments, so both partially
+and fully pre-bound sensitive application arrays are rejected through direct,
+aliased and destructured paths. The analysis remains scope-aware so shadowed
+`Map`-like objects do not become false positives. The dedicated
+safe-preferences module is the only narrow persistence exception and continues
+to store only approved presentation preferences, never identity, credentials,
+bearer tokens, protected data, or dashboard edits.
+
+The exact `postcss` override is `8.5.25`. It replaced `8.5.22` after the
+production audit began reporting the incomplete source-map advisory fix in
+versions through `8.5.22`; the final `npm audit --omit=dev` reports zero
+production vulnerabilities. Future dependency updates must keep the locked
+override, clean install, production audit, build and complete test gates in
+agreement rather than weakening the audit threshold.

@@ -3,10 +3,10 @@
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 9 — application shell, dashboard и frontend parity —
 локальная acceptance завершена для implementation head
-`57ebe23746dc83d5444e1667cb6065335da5c10d`. Это UI-only изменение переиспользует
+`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`. Это UI-only изменение переиспользует
 существующий REST/OpenAPI contract. Task-local implementation/review rounds
-и финальный whole-branch review/fix round зафиксированы локально, но не являются
-GitHub review evidence.
+и финальные whole-branch review/fix rounds зафиксированы локально, но не
+являются GitHub review evidence.
 PR ещё не создан; push, ready PR и fresh GitHub Codex review относятся к
 итерации 9 Task 10 и не заявляются этим документом.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
@@ -327,7 +327,7 @@ claims or performs persistence. Chart value descriptions live outside the
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
-| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена | Implementation head `57ebe23746dc83d5444e1667cb6065335da5c10d`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply` guards and real dashboard interaction parity приняты локальными gates. Task-local и final whole-branch reviews отделены от GitHub review; PR/push/current-head automatic review остаются Task 10. |
+| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена | Implementation head `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply.bind` pre-bound-argument guards and real dashboard interaction parity приняты локальными gates. Task-local и final whole-branch reviews отделены от GitHub review; PR/push/current-head automatic review остаются Task 10. |
 | 10–12                                               | Не начаты | Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) не входят в итерацию 9. |
 
 ## Acceptance evidence: итерация 1
@@ -3073,13 +3073,15 @@ self-assert that state.
 ### Scope и implementation state
 
 Локальная acceptance выполнена 2026-08-03 для implementation head
-`57ebe23746dc83d5444e1667cb6065335da5c10d`. Ветка содержит восемь Task 1–8
-feature/test commits и финальный whole-branch review/fix commit. Последний
+`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`. Ветка содержит восемь Task 1–8
+feature/test commits и два финальных whole-branch review/fix commits. Первый
 test-first round закрыл nested-main/skip-target, browser-storage `.apply`,
-filtered-selection, vertical drag-and-drop и browser-interaction gaps. Эти
-локальные reviews проверяли implementation diff, но не являются GitHub review,
-PR check или подтверждением mergeability. Ready PR, automatic review текущего
-pushed head и closure review threads остаются Task 10.
+filtered-selection, vertical drag-and-drop и browser-interaction gaps. Final
+security re-review дополнительно закрыл потерю частично или полностью заранее
+связанных аргументов `setItem.apply.bind`. Эти локальные reviews проверяли
+implementation diff, но не являются GitHub review, PR check или подтверждением
+mergeability. Ready PR, automatic review текущего pushed head и closure review
+threads остаются Task 10.
 
 Итерация разделяет `(public)/(home)`, простые authentication routes,
 `(documents)` и `(protected)` без изменения URL. Route-aware
@@ -3140,8 +3142,11 @@ function не обёрнут и не должен описываться как 
   integration tests enforce that distinction.
 - The browser-storage boundary scanner rejects `localStorage`/`sessionStorage`
   writes through direct, aliased, destructured, bound, `.call` and `.apply`
-  `setItem` forms while preserving safe preferences and shadowed non-browser
-  objects. This is static enforcement in addition to runtime E2E checks.
+  `setItem` forms. For `setItem.apply.bind`, its capability carries partially or
+  fully pre-bound application arguments through the later invocation, so a
+  sensitive array cannot disappear at bind time. Safe preferences and shadowed
+  non-browser objects remain allowed. This is static enforcement in addition to
+  runtime E2E checks.
 - No EF model/migration, table, index, seed, transaction, cache invalidation,
   audit event or background job was added. Existing account, organization,
   collaboration, invitation and API-key transaction/schema behavior is
@@ -3150,44 +3155,42 @@ function не обёрнут и не должен описываться как 
 ### Fresh local acceptance — 2026-08-03
 
 All final commands below ran from implementation head
-`57ebe23746dc83d5444e1667cb6065335da5c10d` after a fresh `npm ci`.
+`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2` after a fresh `npm ci`.
 
 | Command | Exact observed result |
 | --- | --- |
-| `time dotnet restore Template.sln` | PASS; all projects up to date; `0.869s` total |
-| `time dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; MSBuild `3.51s`, shell `3.786s` total |
-| `time dotnet test Template.sln --no-restore` | PASS; Application 343/343, API 773/773 in `2m16s`, total 1116/1116, 0 failed, 0 skipped; `2:22.78` total |
-| `npm ci` | PASS; 1163 packages installed, 1164 audited; warning-only dependency/install-script output recorded below |
+| `time dotnet restore Template.sln` | PASS; all projects up to date; `1.01s` total |
+| `time dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; MSBuild `7.58s`, shell `7.74s` total |
+| `time dotnet test Template.sln --no-restore` | PASS; Application 343/343 in `110ms`, API 773/773 in `2m15s`, total 1116/1116, 0 failed, 0 skipped; `2:22.27` total |
+| `npm ci` | PASS; 1163 packages installed, 1164 audited in `21s`; warning-only dependency/install-script output recorded below; shell `21.57s` total |
+| `npm ls postcss --all` | PASS; Tailwind, Next.js and shadcn consumers resolve overridden/deduplicated `postcss@8.5.25` |
 | `npm run content:generate` | PASS; deterministic artifacts regenerated |
 | `npm run content:check` | PASS; generated content current |
-| `npm run content:test` | PASS; 109/109, 0 failed/skipped |
-| `npm run api:check` | PASS; generated client deterministic/current |
-| `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan, including direct/aliased/destructured/bound `.apply` coverage |
+| `npm run content:test` | PASS; 109/109, 0 failed/skipped; Node duration `795.569ms` |
+| `npm run api:check` | PASS; four generated files in `198ms`, deterministic/current |
+| `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan in `11.852s`, including partially/fully pre-bound direct/aliased/destructured `.apply.bind` coverage |
 | `npm run format:check` | PASS; all matched web files formatted |
 | `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes |
 | `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit` |
 | `npm run audit:prod` | PASS; 0 production vulnerabilities |
-| `npm test -- --runInBand` | PASS; 102/102 suites, 822/822 tests, 0 snapshots; Jest `33.083s`, shell `34.534s` total |
+| `npm test -- --runInBand` | PASS; 102/102 suites, 822/822 tests, 0 snapshots; Jest `35.466s`, shell `36.78s` total |
 | Python `.next` cleanup snippet | PASS; `.next` removed before the production build |
-| `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build` | PASS; Next.js 16.2.11, Cache Components enabled and `authInterrupts` experiment banner printed; compile `8.8s`, TypeScript `5.6s`, 144/144 static pages; `17.512s` total |
+| `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build` | PASS; Next.js 16.2.11, Cache Components enabled and `authInterrupts` experiment banner printed; compile `5.2s`, TypeScript `5.5s`, 144/144 static pages in `1.307s`; `13.74s` total |
 | `test -f .next/standalone/server.js` | PASS; standalone server exists |
-| `npm run e2e` | PASS; 35 total: 30 passed, 5 opt-in live-provider screens skipped, 0 failed; Playwright `1.8m`, shell `1:50.10` total |
+| `npm run e2e` | PASS; 35 total: 30 passed, 5 opt-in live-provider screens skipped, 0 failed; Playwright `2.0m`, shell `1:59.42` total |
 
 `npm ci` reported deprecations for `inflight@1.0.6`,
 `whatwg-encoding@3.1.1`, `glob@7.2.3`, and `glob@10.5.0`; 394 packages looking
-for funding; and four vulnerabilities (three moderate, one high) in the complete
-development tree. Its install-script warning named `@parcel/watcher@2.6.0`,
+for funding; and one high-severity vulnerability in the complete development
+tree. Its install-script warning named `@parcel/watcher@2.6.0`,
 `fsevents@2.3.3`, `@swc/core@1.15.46`, `fsevents@2.3.2`, and
 `unrs-resolver@1.12.2`. The required production audit separately reported zero
 vulnerabilities. ESLint's 17 warnings are the existing unused compile-time type
 probes in `test/contracts/generated-sdk.test.ts`; there were zero errors.
 Playwright repeatedly reported that `NO_COLOR` was ignored because `FORCE_COLOR`
-was set and emitted Next development cache-bypass diagnostics. One non-failing
-Web Streams cancellation diagnostic
-`controller[kState].transformAlgorithm is not a function` appeared during the
-passing workspace-pagination scenario. No assertion was weakened and no new
-skip was added; the five skips are exactly the opt-in Google, GitHub, GitLab, VK
-and Yandex authorization-screen smokes.
+was set and emitted Next development cache-bypass diagnostics. No assertion was
+weakened and no new skip was added; the five skips are exactly the opt-in Google,
+GitHub, GitLab, VK and Yandex authorization-screen smokes.
 
 The production build also printed the expected Next.js 16.2.11 banners that
 Cache Components are enabled and that `authInterrupts` is an experiment to use
@@ -3215,7 +3218,25 @@ under five-worker load then timed out at the final pre-existing collaboration
 focused in 22 seconds. Its describe budget was raised from 60 to 90 seconds
 without changing an assertion or skip, the focused rerun passed, and the fresh
 full run at `57ebe23746dc83d5444e1667cb6065335da5c10d` produced the accepted
-30/5/0 result above.
+30/5/0 precursor result.
+
+Final security re-review then found that `storage-set-item-apply-bind` discarded
+arguments supplied after `.bind`'s receiver. Four table-driven RED fixtures
+proved that sensitive arrays partially or fully bound before invocation, in
+direct, aliased and destructured forms, exited zero. The capability now retains
+those pre-bound argument nodes/values and combines them with invocation
+arguments before inspecting the effective `apply` array. Three allow fixtures
+preserve safe theme/sidebar keys and scope-shadowed storage. Focused GREEN was
+11/11 Jest tests plus 8/8 boundary tests and the clean source scan.
+
+The first fresh acceptance attempt after that code change also observed a new
+production-audit RED: the registry advisory database classified the pinned
+`postcss@8.5.22` as three moderate production vulnerabilities. The existing
+override was advanced to `8.5.25`, `npm audit --omit=dev` returned zero, and the
+implementation commit was amended before every final command above was rerun
+from `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`. The complete development tree
+still reports one high-severity dev-only vulnerability; it is not hidden by the
+separate zero-vulnerability production audit.
 
 ### Intentional differences and later exclusions
 
