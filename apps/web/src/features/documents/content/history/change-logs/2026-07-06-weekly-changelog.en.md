@@ -13,6 +13,8 @@ editedAt: "2026-07-06"
 
 # Weekly update - 29 June-6 July 2026
 
+**Legacy record.** This page preserves history from the former full-stack Next.js reference application. Names, routes, dependencies, and instructions below describe that era; they are not current guidance. Every mention of Prisma, Better Auth, Server Actions, Next.js-owned API routes, or Redis/Valkey handlers is reference-era behavior. The migration moved API ownership, identity, business logic, and persistence to ASP.NET Core and left Next.js as a separate REST-only UI. See the current [application architecture](/docs/application) and [developer guidance](/docs/developers).
+
 ## ✨ New features
 
 - **Personal and organization API keys**: Added API key management pages for `/user/api-keys` and `/w/:organizationKey/settings/api-keys` with create, edit, disable, delete, one-time secret display, expiration, rate-limit, and permission preset controls.

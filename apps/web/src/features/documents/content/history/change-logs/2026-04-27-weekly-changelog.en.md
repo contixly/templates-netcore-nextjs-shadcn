@@ -13,6 +13,8 @@ editedAt: "2026-04-27"
 
 # Weekly update - 20-27 April 2026
 
+**Legacy record.** This page preserves history from the former full-stack Next.js reference application. Names, routes, dependencies, and instructions below describe that era; they are not current guidance. Every mention of Prisma, Better Auth, Server Actions, Next.js-owned API routes, or Redis/Valkey handlers is reference-era behavior. The migration moved API ownership, identity, business logic, and persistence to ASP.NET Core and left Next.js as a separate REST-only UI. See the current [application architecture](/docs/application) and [developer guidance](/docs/developers).
+
 ## ✨ New features
 
 - **Organization-backed workspaces**: Workspaces now use Better Auth organizations while keeping "Workspace" as the user-facing term. The app gained organization-scoped routes under `/w/:organizationKey`.

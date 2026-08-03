@@ -13,14 +13,16 @@ editedAt: "2026-07-06"
 
 # v0.0.10
 
+**Legacy record.** This page preserves history from the former full-stack Next.js reference application. Names, routes, dependencies, and instructions below describe that era; they are not current guidance. Every mention of Prisma, Better Auth, Server Actions, Next.js-owned API routes, or Redis/Valkey handlers is reference-era behavior. The migration moved API ownership, identity, business logic, and persistence to ASP.NET Core and left Next.js as a separate REST-only UI. See the current [application architecture](/docs/application) and [developer guidance](/docs/developers).
+
 v0.0.10 is an E2E coverage and automation reliability release for the Next.js application
 template. It expands OpenSpec-backed Playwright coverage across account, workspace, invitation,
 API key, `/api/v1`, security, and local automation flows.
 
 <Callout title="Release focus" variant="info">
-  This release does not change the product model. It makes the existing template flows easier to
-  verify, safer to automate locally, and more predictable when tests run against an already running
-  development server.
+  This release does not change the product model. It makes the existing template
+  flows easier to verify, safer to automate locally, and more predictable when
+  tests run against an already running development server.
 </Callout>
 
 ## Highlights
@@ -52,11 +54,12 @@ API key, `/api/v1`, security, and local automation flows.
   <ul>
     <li>Local automation auth has clearer session-cache requirements.</li>
     <li>
-      Reused-server Playwright runs now fail early when the running app is missing required
-      automation settings.
+      Reused-server Playwright runs now fail early when the running app is
+      missing required automation settings.
     </li>
     <li>
-      Cleanup removes organization API keys when automation-created organizations become memberless.
+      Cleanup removes organization API keys when automation-created
+      organizations become memberless.
     </li>
   </ul>
 </Tab>

@@ -17,13 +17,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "What the template includes",
-        "id": "what-the-template-includes"
+        "title": "What the current template includes",
+        "id": "what-the-current-template-includes"
       }
     ],
     "meta": {
       "title": "Template documentation",
-      "description": "Public documentation for the Next.js template: setup, accounts, workspaces, API access, application runtime, and developer guidance.",
+      "description": "Public documentation for the .NET 10 API and separate Next.js UI: setup, accounts, workspaces, API access, application runtime, and developer guidance.",
       "group": "General",
       "groupOrder": 2000,
       "parentItem": "Introduction",
@@ -34,7 +34,7 @@ export const documents = [
       "status": "published",
       "author": "Template Maintainers",
       "version": "1.2.0",
-      "editedAt": "2026-07-06"
+      "editedAt": "2026-08-03"
     },
     "availableLocales": [
       "en",
@@ -187,13 +187,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Что входит в шаблон",
-        "id": "что-входит-в-шаблон"
+        "title": "Что входит в текущий шаблон",
+        "id": "что-входит-в-текущий-шаблон"
       }
     ],
     "meta": {
       "title": "Документация шаблона",
-      "description": "Публичная документация Next.js шаблона: запуск, аккаунты, рабочие пространства, API-доступ, среда выполнения приложения и руководство для разработчиков.",
+      "description": "Публичная документация .NET 10 API и отдельного UI Next.js: запуск, аккаунты, рабочие пространства, API-доступ, среда выполнения приложения и руководство для разработчиков.",
       "group": "Общее",
       "groupOrder": 2000,
       "parentItem": "Введение",
@@ -204,7 +204,7 @@ export const documents = [
       "status": "published",
       "author": "Команда шаблона",
       "version": "1.2.0",
-      "editedAt": "2026-07-06"
+      "editedAt": "2026-08-03"
     },
     "availableLocales": [
       "en",
@@ -4304,8 +4304,8 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Current release",
-        "id": "current-release"
+        "title": "Latest reference release",
+        "id": "latest-reference-release"
       },
       {
         "level": 2,
@@ -5310,8 +5310,8 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Актуальная версия",
-        "id": "актуальная-версия"
+        "title": "Последняя версия эталона",
+        "id": "последняя-версия-эталона"
       },
       {
         "level": 2,

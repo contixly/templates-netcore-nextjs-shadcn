@@ -13,6 +13,8 @@ editedAt: "2026-05-04"
 
 # Weekly update - 27 April-4 May 2026
 
+**Legacy record.** This page preserves history from the former full-stack Next.js reference application. Names, routes, dependencies, and instructions below describe that era; they are not current guidance. Every mention of Prisma, Better Auth, Server Actions, Next.js-owned API routes, or Redis/Valkey handlers is reference-era behavior. The migration moved API ownership, identity, business logic, and persistence to ASP.NET Core and left Next.js as a separate REST-only UI. See the current [application architecture](/docs/application) and [developer guidance](/docs/developers).
+
 ## ✨ New features
 
 - **Workspace teams**: Replaced the Teams settings placeholder with Better Auth Teams support, team creation, rename, deletion, member assignment, member removal, and read-only views for regular members.

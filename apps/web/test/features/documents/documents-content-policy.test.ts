@@ -16,6 +16,25 @@ function readSection(
     .join("\n");
 }
 
+function readHistory(locale: "en" | "ru") {
+  return ["change-logs", "releases"].flatMap((section) =>
+    readdirSync(resolve(contentRoot, "history", section))
+      .filter(
+        (fileName) =>
+          fileName.endsWith(`.${locale}.md`) ||
+          fileName.endsWith(`.${locale}.mdx`),
+      )
+      .sort()
+      .map((fileName) => ({
+        fileName: `${section}/${fileName}`,
+        content: readFileSync(
+          resolve(contentRoot, "history", section, fileName),
+          "utf8",
+        ),
+      })),
+  );
+}
+
 describe("account and workspace documentation content policy", () => {
   const accountEn = readSection("account", "en");
   const accountRu = readSection("account", "ru");
@@ -177,5 +196,40 @@ describe("developer and general documentation content policy", () => {
       "Создать локального пользователя автоматизации",
     );
     expect(quickStartRu).not.toContain("Create local automation user");
+  });
+});
+
+describe("documentation landing and history content policy", () => {
+  const rootEn = readFileSync(resolve(contentRoot, "index.en.mdx"), "utf8");
+  const rootRu = readFileSync(resolve(contentRoot, "index.ru.mdx"), "utf8");
+  const historyEn = readHistory("en");
+  const historyRu = readHistory("ru");
+
+  it("presents the current ASP.NET Core and REST architecture in both locales", () => {
+    for (const root of [rootEn, rootRu]) {
+      expect(root).toContain("ASP.NET Core");
+      expect(root).toContain("REST");
+      expect(root).toContain("/docs/application");
+      expect(root).toContain("/docs/developers");
+    }
+  });
+
+  it("labels every historical page as legacy and maps readers to current guidance", () => {
+    expect(historyEn).toHaveLength(19);
+    expect(historyRu).toHaveLength(19);
+
+    for (const { content } of historyEn) {
+      expect(content).toContain("**Legacy record.**");
+      expect(content).toContain("migration");
+      expect(content).toContain("/docs/application");
+      expect(content).toContain("/docs/developers");
+    }
+
+    for (const { content } of historyRu) {
+      expect(content).toContain("**Архив прежней реализации.**");
+      expect(content).toContain("миграц");
+      expect(content).toContain("/docs/application");
+      expect(content).toContain("/docs/developers");
+    }
   });
 });

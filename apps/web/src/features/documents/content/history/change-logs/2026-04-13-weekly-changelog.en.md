@@ -13,6 +13,8 @@ editedAt: "2026-04-13"
 
 # Weekly update - 6-13 April 2026
 
+**Legacy record.** This page preserves history from the former full-stack Next.js reference application. Names, routes, dependencies, and instructions below describe that era; they are not current guidance. Every mention of Prisma, Better Auth, Server Actions, Next.js-owned API routes, or Redis/Valkey handlers is reference-era behavior. The migration moved API ownership, identity, business logic, and persistence to ASP.NET Core and left Next.js as a separate REST-only UI. See the current [application architecture](/docs/application) and [developer guidance](/docs/developers).
+
 ## ✨ New features
 
 - **Initial application template**: Published the first reusable Next.js application baseline with App Router, React 19, TypeScript, Tailwind CSS v4, shadcn/ui, Prisma, and Better Auth.

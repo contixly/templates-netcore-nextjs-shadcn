@@ -13,6 +13,8 @@ editedAt: "2026-07-07"
 
 # Weekly update - 6-13 July 2026
 
+**Legacy record.** This page preserves history from the former full-stack Next.js reference application. Names, routes, dependencies, and instructions below describe that era; they are not current guidance. Every mention of Prisma, Better Auth, Server Actions, Next.js-owned API routes, or Redis/Valkey handlers is reference-era behavior. The migration moved API ownership, identity, business logic, and persistence to ASP.NET Core and left Next.js as a separate REST-only UI. See the current [application architecture](/docs/application) and [developer guidance](/docs/developers).
+
 ## ✨ New features
 
 - **Bilingual documentation library**: Added English and Russian pages for account management, API access, application settings, workspace flows, developer publishing guidance, and release history, so `/docs` now covers more everyday template tasks.
