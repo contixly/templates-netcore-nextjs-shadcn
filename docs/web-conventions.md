@@ -764,3 +764,76 @@ presentation-only `/docs/og/{**slug}` PNG surface. It is not an API/BFF and does
 not establish permission for other Route Handlers. Standard docs Open Graph and
 Twitter images use Next metadata file conventions; the sitemap contains only
 deduplicated production-visible canonical routes.
+
+## Application shell and product presentation (iteration 9)
+
+Iteration 9 is UI-only composition over the REST contracts delivered in
+iterations 4–8. Route groups separate the public landing page, simple
+authentication pages, public documents, and protected product routes without
+changing their URLs. `/docs/**` keeps its documents shell. Protected pages use
+the `(protected)` layout and a route-aware `@applicationNavigation` parallel
+slot; every protected leaf supplies its exact safe login return path and, for a
+workspace route, its organization key.
+
+The navigation slot calls one composite shell loader after authentication. That
+function composes request-cached constituent generated-SDK projections for the
+session, account, organization page, and optional current organization; the
+composite function itself is not described as React-cached. Equivalent page and
+shell reads reuse those cached constituent loaders. SSR reads remain `no-store`
+and suppress sliding renewal; exactly one `BrowserSessionRefresh` performs the
+visible renewal for a protected navigation. Feature pages still own their
+existing reads and mutations, so the shell is a presentation projection rather
+than a business service or replacement transport model.
+
+This implemented composition intentionally supersedes the proposed composite
+React-cached loader in design spec §6.2. The single route-aware navigation slot
+owns one composite invocation for a protected leaf, while the constituent
+session, account, organization-list, and current-organization loaders are
+request-cached. Those constituent caches deduplicate equivalent upstream
+projections shared with page composition, so caching the composite function is
+neither implemented nor required for request-level deduplication.
+
+The responsive shell owns one `main#main-content`, its sidebar/header scroll
+frame, breadcrumbs, documentation shortcut, organization controls, and account
+controls. Navigation visibility is derived from trusted API capabilities, but
+hidden links never replace API authorization or non-disclosure. The non-sensitive
+sidebar preference uses the dedicated `template.sidebar=open|closed` cookie with
+`Path=/`, `SameSite=Lax`, and a 30-day maximum age. It is separate from the
+secure HttpOnly authentication cookie and contains no credential or identity
+state.
+
+Account and workspace settings reuse shared semantic page/rail/section
+composition without changing generated-SDK operations, CSRF behavior,
+authorization, canonicalization, validation, filtering, pagination, or causal
+mutation reconciliation. The static interactive dashboard uses frozen,
+target-owned fixture data and component-local state for chart range, tabs,
+filtering, sorting, selection, column visibility, pagination, reordering, and
+drawer edits. Navigation or reload resets that state. The static fixture and
+local interactions introduce no additional dashboard data request or new
+endpoint; the existing authentication, access, and organization projections
+still run. All user-facing feedback explicitly says that demo changes are not
+saved.
+
+Locale remains deployment-fixed `en | ru` with the existing safe English
+fallback, fixed UTC time zone, no locale URL prefix, and no language switcher.
+Application and dashboard message catalogs have paired shapes. Product metadata
+uses the closed route catalog and `APP_PUBLIC_ORIGIN`; dynamic protected metadata
+is generic and never loads user or organization data. Authentication and
+protected routes emit `noindex,nofollow` with no canonical or Open Graph URL.
+The sitemap contains only the public landing page and the documentation corpus.
+
+Loading, not-found, unauthorized, forbidden, route-error, and global-error
+surfaces use fixed localized copy. They may expose only a safe trace identifier,
+never raw Problem Details detail, exception/provider text, route/query/body or
+cursor values, cookies, credentials, or protected names. The global error page
+does not depend on the application or i18n providers.
+
+There is no new iteration-9 API endpoint, OpenAPI operation, handwritten
+transport DTO, EF model or migration, table, index, seed, transaction, audit
+event, cache invalidation event, or background job. ASP.NET Core still owns
+`/api/**`, authorization, validation, persistence, and business rules. Browser
+authentication remains the secure same-origin HttpOnly session cookie; unsafe
+operations retain the antiforgery cookie plus `X-CSRF-TOKEN` flow. Existing
+Problem Details, opaque-cursor, feature-filter, transaction, and schema behavior
+is unchanged, and `npm run api:check` guards the generated client against the
+unchanged OpenAPI contract.

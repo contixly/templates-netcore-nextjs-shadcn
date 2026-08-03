@@ -1,12 +1,16 @@
 # Iteration 9 Application Shell Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`/`- [x]`) syntax for tracking.
 
 **Goal:** Deliver the public landing page, responsive protected application shell, static interactive dashboard, shared settings composition, localized metadata, and route-parity evidence for migration iteration 9 without changing the REST or persistence contract.
 
-**Architecture:** Keep ASP.NET Core as the owner of `/api/**`, authentication, authorization, business logic, and persistence. A route-aware Next.js parallel slot composes one React-cached shell projection from the existing generated SDK while feature pages retain their current REST loaders and mutations. The reference dashboard remains target-owned static presentation state rather than becoming a new backend domain.
+**Architecture:** Keep ASP.NET Core as the owner of `/api/**`, authentication, authorization, business logic, and persistence. A route-aware Next.js parallel slot composes a shell projection from request-cached constituent generated-SDK loaders for session, account, organizations, and current organization; the composite shell function itself is not React-cached. Feature pages retain their current REST loaders and mutations. The reference dashboard remains target-owned static presentation state rather than becoming a new backend domain.
+
+**Implemented caching decision:** This supersedes design spec §6.2's proposed composite React-cached loader. One route-aware navigation slot owns one composite invocation for each protected leaf. Request-cached constituent session, account, organization-list, and current-organization loaders deduplicate equivalent upstream projections shared with page composition, so the composite function is intentionally not cached.
 
 **Tech Stack:** .NET 10 verification only; Next.js 16.2.11 App Router with Cache Components; React 19.2.8; TypeScript 6.0.3; next-intl 4.13.4; Tailwind CSS 4.3.3; shadcn/radix-ui; Jest 30; Playwright 1.61.1; generated Hey API client; Recharts 3.9.1; TanStack Table 8.21.3; dnd-kit; Sonner; Vaul; Zod 4.4.3.
+
+**Execution status (2026-08-03):** Tasks 1–8 are implemented and locally reviewed at implementation head `180f29b40099633bcbf55baadb6b873bd88965c3`. Task 9 is complete with fresh local acceptance evidence and its documentation commit. Task 10 (push, ready PR, and current-head GitHub review) has not started and is not claimed.
 
 ## Global Constraints
 
@@ -39,7 +43,7 @@
 ### Protected shell
 
 - `apps/web/src/features/application/application-shell-model.ts`: narrow shell presentation types.
-- `apps/web/src/lib/api/application/server/load-application-shell.ts`: React-cached generated-SDK composition.
+- `apps/web/src/lib/api/application/server/load-application-shell.ts`: composite generated-SDK shell projection over request-cached constituent loaders.
 - `apps/web/src/components/application/application-navigation-slot.tsx`: safe loader-to-UI boundary and the single session-refresh mount.
 - `apps/web/src/app/(protected)/@applicationNavigation/**`: exact route-aware login return path and organization context.
 - `apps/web/src/components/application/{protected-application-shell,application-sidebar,application-header,application-breadcrumbs,primary-navigation,account-navigation,page-header}.tsx`: isolated shell components.
@@ -81,7 +85,7 @@
 - Consumes: typed builders from `applicationRoutes`, `accountRoutes`, `organizationRoutes`, `collaborationRoutes`, and `apiKeyRoutes`.
 - Produces: `ApplicationPageId`, `ApplicationPageDefinition`, `applicationPageCatalog`, `resolveApplicationPage(pathname)`, and paired `application`/`dashboard` namespaces.
 
-- [ ] **Step 1: Write failing catalog and message tests**
+- [x] **Step 1: Write failing catalog and message tests**
 
 ```ts
 import {
@@ -114,7 +118,7 @@ expect(english.dashboard.table.demoNotice).toMatch(/not saved/i);
 expect(russian.dashboard.table.demoNotice).toMatch(/не сохраня/iu);
 ```
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -123,7 +127,7 @@ npm test -- --runInBand test/features/application-page-catalog.test.ts test/i18n
 
 Expected: FAIL because the catalog and namespaces do not exist.
 
-- [ ] **Step 3: Implement the closed page catalog**
+- [x] **Step 3: Implement the closed page catalog**
 
 ```ts
 export type ApplicationPageDefinition = Readonly<{
@@ -148,14 +152,14 @@ invitation decision, all six account pages, organization root/dashboard, and
 all six workspace settings subsections. Static matches precede anchored dynamic
 matches. Add `docs: "/docs" as Route` to `applicationRoutes`.
 
-- [ ] **Step 4: Add complete paired message bundles**
+- [x] **Step 4: Add complete paired message bundles**
 
 Add English/Russian strings for landing sections, shell navigation, sidebar,
 breadcrumbs, all product page titles/descriptions, safe boundaries, dashboard
 cards/ranges/table/drawer, and the explicit non-persistence notice. Register
 both namespaces in `englishMessages` and `messagesByLocale`.
 
-- [ ] **Step 5: Run focused tests and type checking**
+- [x] **Step 5: Run focused tests and type checking**
 
 ```bash
 cd apps/web
@@ -165,7 +169,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/web/src/features/application apps/web/src/i18n/messages.ts apps/web/src/messages apps/web/test/features/application-page-catalog.test.ts apps/web/test/i18n/messages.test.ts
@@ -214,7 +218,7 @@ export function loadApplicationShell(
 ): Promise<ApplicationShellResult>;
 ```
 
-- [ ] **Step 1: Write failing loader/layout tests**
+- [x] **Step 1: Write failing loader/layout tests**
 
 ```ts
 it("does not load shell data after an anonymous redirect", async () => {
@@ -243,7 +247,7 @@ it("loads each authenticated projection once", async () => {
 The layout test asserts one navigation slot, one `main-content` target, and no
 public-home import through the protected layout.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -252,7 +256,7 @@ npm test -- --runInBand test/lib/api/application-shell.test.ts test/app/protecte
 
 Expected: FAIL because shell modules and the protected route group are absent.
 
-- [ ] **Step 3: Cache account loading and compose the shell model**
+- [x] **Step 3: Cache account loading and compose the shell model**
 
 Refactor `load-account.ts` without changing its generated call:
 
@@ -286,7 +290,7 @@ organization reads. A malformed success maps to the existing safe
 `api_unavailable` failure; any API/config/network failure remains distinct from
 anonymous and zero-organization states.
 
-- [ ] **Step 4: Rename route groups and preserve URLs**
+- [x] **Step 4: Rename route groups and preserve URLs**
 
 ```bash
 git mv 'apps/web/src/app/(site)' 'apps/web/src/app/(protected)'
@@ -300,14 +304,14 @@ exact redirect URL; organization leaves also pass `organizationKey`. Add an
 inventory assertion that every protected leaf has a matching navigation-slot
 leaf.
 
-- [ ] **Step 5: Implement the safe navigation-slot boundary**
+- [x] **Step 5: Implement the safe navigation-slot boundary**
 
 Call `connection()`, then `loadApplicationShell`. On failure render localized
 safe copy and only an optional `traceId`. On success render exactly one
 `BrowserSessionRefresh` and a temporary semantic
 `<nav data-slot="application-navigation">`; Task 3 replaces its presentation.
 
-- [ ] **Step 6: Run affected tests**
+- [x] **Step 6: Run affected tests**
 
 ```bash
 cd apps/web
@@ -317,7 +321,7 @@ npm run typecheck
 
 Expected: PASS with unchanged URLs and redirect targets.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/src apps/web/test
@@ -357,7 +361,7 @@ git commit -m "feat: establish protected application shell boundary"
 - Produces: `ProtectedApplicationShell`, `ApplicationSidebar`,
   `ApplicationHeader`, `PageHeader`, and sidebar-cookie helpers.
 
-- [ ] **Step 1: Write failing responsive/navigation tests**
+- [x] **Step 1: Write failing responsive/navigation tests**
 
 ```tsx
 render(<ApplicationSidebar data={shellData} pathname="/w/acme/dashboard" />);
@@ -382,7 +386,7 @@ expect(serializeSidebarPreference(true)).toContain("SameSite=Lax");
 Mock `useSidebar()` as mobile and assert a navigation click calls
 `setOpenMobile(false)` without toggling desktop state.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -391,7 +395,7 @@ npm test -- --runInBand test/components/application-sidebar.test.tsx test/compon
 
 Expected: FAIL because responsive shell components are absent.
 
-- [ ] **Step 3: Add missing primitives**
+- [x] **Step 3: Add missing primitives**
 
 ```bash
 cd apps/web
@@ -401,7 +405,7 @@ npx shadcn@4.14.1 add avatar breadcrumb collapsible sheet sidebar tooltip --yes
 Do not overwrite an existing component. Adapt new files to the repository's
 `radix-lyra` style and current button/input/separator/skeleton APIs.
 
-- [ ] **Step 4: Implement sidebar preference and isolated components**
+- [x] **Step 4: Implement sidebar preference and isolated components**
 
 Use cookie name `template.sidebar`, values `open|closed`, `Path=/`,
 `SameSite=Lax`, and 30-day `Max-Age`. Missing/invalid means closed. Never reuse
@@ -424,13 +428,13 @@ the current organization when present and `/dashboard` otherwise. Docs,
 workspaces/create, account, logout, theme, and organization controls remain
 keyboard-accessible. Mobile navigation closes explicitly.
 
-- [ ] **Step 5: Add providers and shell CSS tokens**
+- [x] **Step 5: Add providers and shell CSS tokens**
 
 Add `TooltipProvider`, sidebar/header CSS variables, and a deterministic shell
 readiness attribute. Keep theme storage key `template.theme` and the current
 hydration-safe disabled fallback.
 
-- [ ] **Step 6: Run focused and affected suites**
+- [x] **Step 6: Run focused and affected suites**
 
 ```bash
 cd apps/web
@@ -441,7 +445,7 @@ npm run boundaries:check
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/src apps/web/test apps/web/package.json apps/web/package-lock.json
@@ -470,7 +474,7 @@ git commit -m "feat: add responsive application navigation"
 - Produces: `SettingsPageShell`, `SettingsContentRail`,
   `SettingsPageSection`, `SettingsPageIntro`, and `SettingsSection`.
 
-- [ ] **Step 1: Write failing settings tests**
+- [x] **Step 1: Write failing settings tests**
 
 ```tsx
 render(
@@ -491,7 +495,7 @@ Add nav assertions for exact order
 `workspace, users, teams, roles, invitations, apiKeys`, active state, and
 capability-based omission of invitations/API keys.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -500,7 +504,7 @@ npm test -- --runInBand test/components/settings-shell.test.tsx test/components/
 
 Expected: FAIL on missing shared primitives and old composition.
 
-- [ ] **Step 3: Implement semantic settings primitives**
+- [x] **Step 3: Implement semantic settings primitives**
 
 ```ts
 export type SettingsPageSectionMode = "wide" | "readable";
@@ -511,21 +515,21 @@ export type SettingsSectionVariant = "default" | "destructive";
 stable `data-slot`, `data-mode`, and `data-variant` attributes. The readable
 rail is `max-w-3xl`; the wide rail uses the shared `max-w-6xl` shell.
 
-- [ ] **Step 4: Recompose account settings without changing behavior**
+- [x] **Step 4: Recompose account settings without changing behavior**
 
 Wrap `ProfileForm`, `ConnectionsList`, `SessionList`, invitation list, API-key
 management, and delete dialog. Keep generated SDK calls, causal overlays, CSRF,
 failure mapping, and pagination unchanged. Danger uses destructive; profile and
 security use readable; list-heavy pages use wide.
 
-- [ ] **Step 5: Recompose workspace settings without changing authorization**
+- [x] **Step 5: Recompose workspace settings without changing authorization**
 
 Pass only trusted `canManageInvitations` and `canManageApiKeys` capabilities to
 navigation. Preserve direct-route 403, onboarding replacement, canonical keys,
 loading skeleton, and every organization/member/team/invitation/API-key
 operation unchanged.
 
-- [ ] **Step 6: Run affected settings suites**
+- [x] **Step 6: Run affected settings suites**
 
 ```bash
 cd apps/web
@@ -535,7 +539,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/src/components/application/settings apps/web/src/components/account apps/web/src/components/organizations 'apps/web/src/app/(protected)/user' 'apps/web/src/app/(protected)/w/[organizationKey]/settings' apps/web/test
@@ -572,7 +576,7 @@ git commit -m "feat: unify settings surface composition"
 - Produces: `DashboardPage`, `DashboardSkeleton`, immutable `dashboardRows`,
   and local-only interactions.
 
-- [ ] **Step 1: Write failing dashboard tests**
+- [x] **Step 1: Write failing dashboard tests**
 
 ```tsx
 renderWithMessages(<SectionCards />);
@@ -594,7 +598,7 @@ expect(screen.getByRole("dialog", { name: /edit section/i })).toBeVisible();
 For chart tests, select 30 days and assert 30 points; mock mobile and assert
 seven-day initial range.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -603,7 +607,7 @@ npm test -- --runInBand test/components/dashboard test/app/organization-dashboar
 
 Expected: FAIL because dashboard modules are absent.
 
-- [ ] **Step 3: Add exact dashboard dependencies**
+- [x] **Step 3: Add exact dashboard dependencies**
 
 ```bash
 cd apps/web
@@ -619,7 +623,7 @@ npm install --save-exact \
   zod@4.4.3
 ```
 
-- [ ] **Step 4: Add dashboard primitives and validated static fixture**
+- [x] **Step 4: Add dashboard primitives and validated static fixture**
 
 ```bash
 cd apps/web
@@ -630,20 +634,21 @@ Do not overwrite current UI files. Copy reference fixture values into a new
 target-owned TypeScript constant, validate once with a closed Zod schema, and
 export an immutable typed array. Never import from `template/` at runtime.
 
-- [ ] **Step 5: Implement isolated dashboard components**
+- [x] **Step 5: Implement isolated dashboard components**
 
 The chart owns range/filter state. The table owns selection, visibility,
 sorting, client pagination, drag reorder, and drawer state. Toast/copy states
 say local demo changes were applied without claiming server persistence. The
 skeleton mirrors four cards, chart, and table and sets `aria-busy="true"`.
 
-- [ ] **Step 6: Replace only organization dashboard presentation**
+- [x] **Step 6: Replace only organization dashboard presentation**
 
 Preserve this order: session result, organization access lookup, safe
-404/onboarding/forbidden, canonical redirect, then `DashboardPage`. Add no API
-call for cards/chart/rows.
+404/onboarding/forbidden, canonical redirect, then `DashboardPage`. The static
+cards/chart/rows add no additional dashboard data request or new endpoint;
+existing authentication, access, and organization projections remain.
 
-- [ ] **Step 7: Run dashboard and routing tests**
+- [x] **Step 7: Run dashboard and routing tests**
 
 ```bash
 cd apps/web
@@ -654,7 +659,7 @@ npm run boundaries:check
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/web/package.json apps/web/package-lock.json apps/web/src/features/dashboard apps/web/src/components/dashboard apps/web/src/components/ui apps/web/src/components/application/app-providers.tsx 'apps/web/src/app/(protected)/w/[organizationKey]/dashboard' apps/web/test/components/dashboard apps/web/test/app/organization-dashboard.test.tsx
@@ -678,7 +683,7 @@ git commit -m "feat: port interactive dashboard presentation"
 - Consumes: Task 1 messages/routes, `ThemeSwitcher`, login URL sanitizer, docs route.
 - Produces: public `LandingPage` without protected API reads.
 
-- [ ] **Step 1: Replace old home test with failing product assertions**
+- [x] **Step 1: Replace old home test with failing product assertions**
 
 ```tsx
 render(await HomePage());
@@ -698,7 +703,7 @@ expect(screen.queryByText(/Better Auth|Prisma|Server Actions/)).not.toBeInTheDoc
 
 Mock current status components and assert neither renders on the product home.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -707,19 +712,19 @@ npm test -- --runInBand test/app/home-page.test.tsx test/components/landing-page
 
 Expected: FAIL because the page still renders technical status.
 
-- [ ] **Step 3: Implement public composition**
+- [x] **Step 3: Implement public composition**
 
 Add public header with brand/docs/login/theme, semantic hero, target-
 architecture feature grid, reusable-template value proposition, and footer.
 Copy is sourced from `application.*` and describes ASP.NET Core plus REST.
 Keep status components as diagnostic infrastructure but remove them from `/`.
 
-- [ ] **Step 4: Add deterministic landing skeleton**
+- [x] **Step 4: Add deterministic landing skeleton**
 
 Render header, hero, and feature-card skeletons without API reads and with one
 `main` landmark.
 
-- [ ] **Step 5: Run landing/auth/layout tests**
+- [x] **Step 5: Run landing/auth/layout tests**
 
 ```bash
 cd apps/web
@@ -729,7 +734,7 @@ npm run typecheck
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add 'apps/web/src/app/(public)/(home)' apps/web/src/components/application/landing apps/web/test/app/home-page.test.tsx apps/web/test/components/landing-page.test.tsx
@@ -765,7 +770,7 @@ git commit -m "feat: add target architecture landing page"
 - Produces: `buildApplicationPageMetadata(pageId)`,
   `resolveOpenGraphLocale(locale)`, public metadata files, safe boundaries.
 
-- [ ] **Step 1: Write failing metadata/indexing tests**
+- [x] **Step 1: Write failing metadata/indexing tests**
 
 ```ts
 await expect(buildApplicationPageMetadata("dashboard", "ru")).resolves.toMatchObject({
@@ -783,7 +788,7 @@ sitemap contains `/` plus 54 docs URLs exactly once, and no protected/auth URL.
 Expected sitemap length becomes 55. Add localized unauthorized/forbidden tests
 and retain provider-independent global-error/raw-error suppression.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -792,20 +797,20 @@ npm test -- --runInBand test/app/product-metadata.test.ts test/app/manifest-robo
 
 Expected: FAIL because metadata surfaces are absent.
 
-- [ ] **Step 3: Implement safe metadata builder**
+- [x] **Step 3: Implement safe metadata builder**
 
 Use fixed-locale messages, closed page catalog, and `APP_PUBLIC_ORIGIN`. Map
 Open Graph locales to `en_US|ru_RU`. Home is indexable; login/auth-error and
 every protected route are `noindex,nofollow`. Dynamic metadata is generic and
 never loads or includes organization/user data.
 
-- [ ] **Step 4: Add manifest, robots, sitemap, and social assets**
+- [x] **Step 4: Add manifest, robots, sitemap, and social assets**
 
 Use target-owned branding/current copy. Root social image is deterministic
 1200x630 with no request/session data. Add `/` ahead of current docs sitemap;
 leave documents metadata/OG unchanged.
 
-- [ ] **Step 5: Implement safe boundaries and route exports**
+- [x] **Step 5: Implement safe boundaries and route exports**
 
 Unauthorized, forbidden, not-found, and route errors use localized safe copy.
 Never render `error.message`. Keep global error hard-coded/provider-independent
@@ -813,7 +818,7 @@ with `<html>` and `<body>`. Root loading becomes a neutral application skeleton.
 Every product page exports catalog-backed metadata or is listed by a source
 inventory test as redirect-only.
 
-- [ ] **Step 6: Run metadata, full Jest, and production build**
+- [x] **Step 6: Run metadata, full Jest, and production build**
 
 ```bash
 cd apps/web
@@ -826,7 +831,7 @@ test -f .next/standalone/server.js
 
 Expected: PASS and standalone server exists.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/src/app apps/web/src/lib/metadata.ts apps/web/test/app
@@ -849,7 +854,7 @@ git commit -m "feat: complete product metadata and boundaries"
   organization fixture, and readiness markers.
 - Produces: desktop/mobile acceptance coverage and closed source-boundary rules.
 
-- [ ] **Step 1: Write failing inventory and source-boundary tests**
+- [x] **Step 1: Write failing inventory and source-boundary tests**
 
 The inventory covers every design URL and asserts a target page,
 navigation-slot leaf, localized page ID, and metadata decision. The source test
@@ -865,7 +870,7 @@ expect(source).not.toMatch(/fetch\(["'`]\/api\/v1/iu);
 Allow only the existing documents OG Route Handler; do not broaden current
 exceptions.
 
-- [ ] **Step 2: Run focused tests and observe RED**
+- [x] **Step 2: Run focused tests and observe RED**
 
 ```bash
 cd apps/web
@@ -874,7 +879,7 @@ npm test -- --runInBand test/app/route-parity-inventory.test.ts test/contracts/a
 
 Expected: FAIL until inventory/rules describe the completed surface.
 
-- [ ] **Step 3: Add desktop Playwright journeys**
+- [x] **Step 3: Add desktop Playwright journeys**
 
 At 1440x1100 verify landing hero/docs/login/theme; authenticated sidebar,
 identity, organization switcher, dashboard, workspaces, settings, docs shortcut,
@@ -882,7 +887,7 @@ and logout; one browser renewal per navigation; active `aria-current`; no raw
 API error, password, cookie, cursor, or dashboard-persistence claim. Reuse
 existing cleanup helpers in `finally`.
 
-- [ ] **Step 4: Add mobile and dashboard journeys**
+- [x] **Step 4: Add mobile and dashboard journeys**
 
 At 390x844 verify closed initial drawer, accessible open/close, navigation-
 driven close, organization switch, theme after reload, seven-day mobile chart
@@ -897,14 +902,14 @@ await page.screenshot({
 });
 ```
 
-- [ ] **Step 5: Extend existing organization/auth scenarios**
+- [x] **Step 5: Extend existing organization/auth scenarios**
 
 Keep canonical redirect, zero-org onboarding, permission denial, workspace
 pagination, and session-count assertions. Update selectors only for new
 accessible labels. Assert KPI cards and the local-demo notice after organization
 creation.
 
-- [ ] **Step 6: Run focused and full browser suites**
+- [x] **Step 6: Run focused and full browser suites**
 
 ```bash
 cd apps/web
@@ -917,7 +922,7 @@ npm run e2e
 Expected: all non-opt-in scenarios PASS; only pre-existing live provider screens
 may remain skipped.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/web/e2e apps/web/scripts/check-boundaries.mjs apps/web/test/app/route-parity-inventory.test.ts apps/web/test/contracts/application-shell-boundaries.test.ts
@@ -936,7 +941,7 @@ git commit -m "test: cover application shell parity journeys"
 - Produces: truthful iteration-9 acceptance evidence and explicit later-scope
   boundaries.
 
-- [ ] **Step 1: Observe the documentation check fail**
+- [x] **Step 1: Observe the documentation check fail**
 
 ```bash
 rg -n 'Итерация 9.*Завершена|UI-only composition|static.*dashboard|no new.*OpenAPI' docs/aspnetcore-migration-plan.md docs/web-conventions.md
@@ -945,7 +950,7 @@ rg -n 'Итерация 9.*Завершена|UI-only composition|static.*dashbo
 Expected: non-zero because iteration 9 remains not started and decisions are
 not recorded.
 
-- [ ] **Step 2: Update durable conventions and migration scope**
+- [x] **Step 2: Update durable conventions and migration scope**
 
 Record route-group separation, route-aware navigation slot, cached SDK shell,
 single renewal, preference/auth-cookie separation, capability navigation,
@@ -955,7 +960,7 @@ the approved correspondence table, and unchanged REST/OpenAPI/schema/
 transaction boundaries. Do not claim command or PR-review results before they
 are observed.
 
-- [ ] **Step 3: Run required .NET gates**
+- [x] **Step 3: Run required .NET gates**
 
 ```bash
 time dotnet restore Template.sln
@@ -965,7 +970,7 @@ time dotnet test Template.sln --no-restore
 
 Expected: PASS with zero failed tests.
 
-- [ ] **Step 4: Run deterministic web gates**
+- [x] **Step 4: Run deterministic web gates**
 
 ```bash
 cd apps/web
@@ -984,7 +989,7 @@ npm run audit:prod
 Expected: every command exits zero. Record warning-only output separately.
 Generated content/client paths remain clean after checks.
 
-- [ ] **Step 5: Run full unit, build, and browser gates**
+- [x] **Step 5: Run full unit, build, and browser gates**
 
 ```bash
 cd apps/web
@@ -1001,7 +1006,7 @@ npm run e2e
 
 Expected: Jest and non-opt-in Playwright pass and standalone output exists.
 
-- [ ] **Step 6: Run repository/reference/OpenSpec guards**
+- [x] **Step 6: Run repository/reference/OpenSpec guards**
 
 ```bash
 cd ../..
@@ -1015,7 +1020,7 @@ git status --short
 Expected: whitespace clean, template checks empty, no active OpenSpec change,
 only intended evidence edits remaining.
 
-- [ ] **Step 7: Fill observed evidence and commit**
+- [x] **Step 7: Fill observed evidence and commit**
 
 Record exact totals/results, warning-only output, intentional differences, and
 iteration-10/11/12 exclusions. Do not claim clean PR review yet.
