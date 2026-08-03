@@ -76,6 +76,7 @@ export default defineConfig({
         ASPNETCORE_ENVIRONMENT: "Test",
         ASPNETCORE_URLS: apiOrigin,
         ...externalAuthenticationEnvironment(),
+        Documents__DefaultLocale: "en",
         LocalAutomationAuth__Enabled: "true",
         LocalAutomationAuth__CreateRateLimitPerMinute: "200",
         LocalAutomationAuth__SignInRateLimitPerFiveMinutes: "200",
@@ -89,6 +90,7 @@ export default defineConfig({
       env: {
         API_INTERNAL_BASE_URL: apiOrigin,
         API_PROXY_TARGET: apiOrigin,
+        APP_PUBLIC_ORIGIN: webOrigin,
         PUBLIC_DEFAULT_LOCALE: "en",
       },
       reuseExistingServer: !process.env.CI,
