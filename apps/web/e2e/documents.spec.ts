@@ -89,7 +89,7 @@ test.describe("anonymous documentation", () => {
   test("search shortcut exposes empty navigation and reaches a page heading", async ({
     page,
   }) => {
-    await page.goto("/docs/api/api-v1");
+    await page.goto("/docs");
 
     // Opening once through the hydrated control gives the global shortcut
     // effect a deterministic black-box readiness boundary.
