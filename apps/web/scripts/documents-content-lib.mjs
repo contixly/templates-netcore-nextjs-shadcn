@@ -1,5 +1,6 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
+import { createProcessor } from "@mdx-js/mdx";
 import matter from "gray-matter";
 
 export const DOCUMENT_LOCALES = ["en", "ru"];
@@ -141,20 +142,20 @@ export function extractHeadings(content) {
 }
 
 function validateMdxSyntax(content, sourcePath) {
-  for (const { line, number } of getUnfencedLines(content)) {
-    const visibleLine = stripInlineCode(line);
-    if (
-      /^\s*import(?:\s+(?:[A-Za-z_$*{]|["'])|\s*\()/u.test(visibleLine) ||
-      /^\s*export(?:\s+(?:default\b|const\b|let\b|var\b|function\b|class\b|async\b|type\b|interface\b|enum\b|namespace\b|[{:*=])|\s*=)/u.test(
-        visibleLine,
-      )
-    ) {
-      fail(
-        "documents_mdx_module_syntax",
-        `${sourcePath}:${number} contains forbidden import/export syntax`,
-      );
-    }
+  const visibleLines = getUnfencedLines(content);
+  const moduleNode = createProcessor()
+    .parse(content)
+    .children.find((node) => node.type === "mdxjsEsm");
 
+  if (moduleNode) {
+    fail(
+      "documents_mdx_module_syntax",
+      `${sourcePath}:${moduleNode.position?.start.line ?? 1} contains forbidden import/export syntax`,
+    );
+  }
+
+  for (const { line, number } of visibleLines) {
+    const visibleLine = stripInlineCode(line);
     MDX_COMPONENT_PATTERN.lastIndex = 0;
     let match;
     while ((match = MDX_COMPONENT_PATTERN.exec(visibleLine)) !== null) {
@@ -436,6 +437,13 @@ function parseContentPath(contentRoot, path) {
     withoutExtension === "index"
       ? "index"
       : withoutExtension.replace(/\/index$/u, "");
+
+  if (canonicalUrl === "og" || canonicalUrl.startsWith("og/")) {
+    fail(
+      "documents_reserved_slug",
+      `${sourcePath} maps to reserved canonical URL ${canonicalUrl}`,
+    );
+  }
 
   return {
     sourcePath,

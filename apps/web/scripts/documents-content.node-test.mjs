@@ -104,6 +104,20 @@ async function runFixture(name) {
       title: "Implicit locale",
     });
   }
+  if (name === "reserved-og") {
+    files["og.en.md"] = frontmatter({ ...metadata, title: "Reserved OG" });
+    files["og.ru.md"] = frontmatter({ ...metadata, title: "Reserved OG" });
+  }
+  if (name === "reserved-og-child") {
+    files["og/example.en.md"] = frontmatter({
+      ...metadata,
+      title: "Reserved OG child",
+    });
+    files["og/example.ru.md"] = frontmatter({
+      ...metadata,
+      title: "Reserved OG child",
+    });
+  }
   if (name === "broken-link") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
@@ -194,6 +208,48 @@ async function runFixture(name) {
       "export const unsafe = true\n",
     );
   }
+  if (name === "multiline-export-prose") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "export\nconst unsafe = true\n",
+    );
+  }
+  if (name === "ordinary-import-prose") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "import\nA plain-language continuation for documentation authors.\n",
+    );
+  }
+  if (name === "commented-content-export") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "export /* compiler boundary */ const unsafe = true\n",
+    );
+  }
+  if (name === "commented-content-import") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      'import /* compiler boundary */ { readFile } from "node:fs/promises"\n',
+    );
+  }
+  if (name === "inline-module-code") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "Use `export const example = true` as an explanatory inline sample.\n",
+    );
+  }
+  if (name === "fence-separated-module-tokens") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "export",
+        "```text",
+        "This fence separates the surrounding prose.",
+        "```",
+        "const remains explanatory prose.",
+      ].join("\n"),
+    );
+  }
   if (name === "fenced-content") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
@@ -273,6 +329,24 @@ test("rejects content sources without an explicit supported locale suffix", asyn
     /documents_missing_locale_suffix: guides\/implicit\.md must include an explicit \.en or \.ru suffix/,
   );
 });
+
+for (const [name, path, slug] of [
+  ["reserved-og", "og.en.md", "og"],
+  ["reserved-og-child", "og/example.en.md", "og/example"],
+]) {
+  test(`rejects the exact OG route's reserved slug ${slug}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      (error) => {
+        assert.equal(
+          error.message,
+          `documents_reserved_slug: ${path} maps to reserved canonical URL ${slug}`,
+        );
+        return true;
+      },
+    );
+  });
+}
 
 test("extracts stable duplicate heading identifiers outside code fences", () => {
   assert.deepEqual(
@@ -374,6 +448,44 @@ test("rejects executable MDX imports and exports", async () => {
     async () => (await runFixture("content-export")).result,
     /documents_mdx_module_syntax/,
   );
+});
+
+test("accepts multiline export words that MDX parses as prose", async () => {
+  const { result } = await runFixture("multiline-export-prose");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("accepts an ordinary import word followed by prose", async () => {
+  const { result } = await runFixture("ordinary-import-prose");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("rejects executable MDX exports separated from syntax by comments", async () => {
+  await assert.rejects(
+    async () => (await runFixture("commented-content-export")).result,
+    /documents_mdx_module_syntax: index\.en\.mdx:\d+ contains forbidden import\/export syntax/,
+  );
+});
+
+test("rejects executable MDX imports separated from syntax by comments", async () => {
+  await assert.rejects(
+    async () => (await runFixture("commented-content-import")).result,
+    /documents_mdx_module_syntax: index\.en\.mdx:\d+ contains forbidden import\/export syntax/,
+  );
+});
+
+test("accepts import and export syntax inside inline code", async () => {
+  const { result } = await runFixture("inline-module-code");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("does not combine module-like tokens across a code fence", async () => {
+  const { result } = await runFixture("fence-separated-module-tokens");
+
+  assert.deepEqual(result.diagnostics, []);
 });
 
 test("ignores headings, links, images, and MDX syntax in either fence style", async () => {

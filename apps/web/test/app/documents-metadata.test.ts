@@ -16,11 +16,38 @@ import {
 
 jest.mock("next/og", () => ({
   ImageResponse: class extends Response {
-    constructor() {
+    readonly element: unknown;
+
+    constructor(element: unknown) {
       super(null, { headers: { "content-type": "image/png" } });
+      this.element = element;
     }
   },
 }));
+
+function readImageText(response: Response): string[] {
+  const text: string[] = [];
+
+  function visit(node: unknown) {
+    if (typeof node === "string") {
+      text.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (node && typeof node === "object" && "props" in node) {
+      const props = node.props;
+      if (props && typeof props === "object" && "children" in props) {
+        visit(props.children);
+      }
+    }
+  }
+
+  visit((response as Response & { element?: unknown }).element);
+  return text;
+}
 
 const previousPublicOrigin = process.env.APP_PUBLIC_ORIGIN;
 const previousDefaultLocale = process.env.PUBLIC_DEFAULT_LOCALE;
@@ -150,9 +177,12 @@ describe("documentation metadata", () => {
 });
 
 describe("exact documentation OG route", () => {
-  it.each(["en", "ru"])(
-    "renders a known localized document as PNG for %s",
-    async (locale) => {
+  it.each([
+    ["en", "Template documentation", "Documentation"],
+    ["ru", "Документация Template", "Документация"],
+  ] as const)(
+    "renders localized image chrome from the selected %s document",
+    async (locale, header, footer) => {
       const response = await getDocumentImage(
         new Request(
           `https://docs.example.com/docs/og/api/api-v1?locale=${locale}`,
@@ -162,6 +192,9 @@ describe("exact documentation OG route", () => {
 
       expect(response.status).toBe(200);
       expect(response.headers.get("content-type")).toBe("image/png");
+      expect(readImageText(response)).toEqual(
+        expect.arrayContaining([header, footer]),
+      );
     },
   );
 

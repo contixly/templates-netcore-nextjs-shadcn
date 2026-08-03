@@ -1,7 +1,7 @@
 export function slugifyDocumentHeadingText(text: string): string {
   return text
     .trim()
-    .toLocaleLowerCase()
+    .toLowerCase()
     .replaceAll("ё", "е")
     .replace(/[^\p{Letter}\p{Number}\s-]/gu, "")
     .replace(/\s+/gu, "-")

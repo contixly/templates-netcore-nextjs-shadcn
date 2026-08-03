@@ -7,9 +7,22 @@ export const DOCUMENT_SOCIAL_IMAGE_SIZE = {
   height: 630,
 } as const;
 
+const DOCUMENT_SOCIAL_IMAGE_CHROME = {
+  en: {
+    header: "Template documentation",
+    footer: "Documentation",
+  },
+  ru: {
+    header: "Документация Template",
+    footer: "Документация",
+  },
+} as const;
+
 export function createDocumentSocialImage(
-  document: Pick<DocumentInfo, "meta">,
+  document: Pick<DocumentInfo, "contentLocale" | "meta">,
 ): ImageResponse {
+  const chrome = DOCUMENT_SOCIAL_IMAGE_CHROME[document.contentLocale];
+
   return new ImageResponse(
     <div
       style={{
@@ -34,7 +47,7 @@ export function createDocumentSocialImage(
           textTransform: "uppercase",
         }}
       >
-        Template documentation
+        {chrome.header}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
         <div
@@ -68,7 +81,7 @@ export function createDocumentSocialImage(
         }}
       >
         <span>Next.js + ASP.NET Core</span>
-        <span style={{ color: "#a1a1aa" }}>Documentation</span>
+        <span style={{ color: "#a1a1aa" }}>{chrome.footer}</span>
       </div>
     </div>,
     DOCUMENT_SOCIAL_IMAGE_SIZE,
