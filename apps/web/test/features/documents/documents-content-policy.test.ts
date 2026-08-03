@@ -136,3 +136,35 @@ describe("API and application documentation content policy", () => {
     );
   });
 });
+
+describe("developer and general documentation content policy", () => {
+  const featureSliceEn = readFileSync(
+    resolve(contentRoot, "developers/feature-slice.en.md"),
+    "utf8",
+  );
+  const serverBoundaryEn = readFileSync(
+    resolve(contentRoot, "developers/server-actions.en.md"),
+    "utf8",
+  );
+  const authoringEn = readFileSync(
+    resolve(contentRoot, "general/authoring/how-to-write-docs.en.md"),
+    "utf8",
+  );
+  const authoringRu = readFileSync(
+    resolve(contentRoot, "general/authoring/how-to-write-docs.ru.md"),
+    "utf8",
+  );
+
+  it("documents the target feature-slice layers and REST boundary", () => {
+    expect(featureSliceEn).toContain("Domain");
+    expect(featureSliceEn).toContain("Application");
+    expect(featureSliceEn).toContain("Infrastructure");
+    expect(featureSliceEn).toContain("Api");
+    expect(serverBoundaryEn).toContain("REST");
+  });
+
+  it("documents the content policy check in both locales", () => {
+    expect(authoringEn).toContain("npm run content:check");
+    expect(authoringRu).toContain("npm run content:check");
+  });
+});

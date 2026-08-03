@@ -1,6 +1,6 @@
 ---
 title: "Feature slice architecture"
-description: "Where to place routes, actions, schemas, repositories, UI, and messages when adding a feature."
+description: "Place a feature across Domain, Application, Infrastructure, Api, and the separate Next.js UI while preserving inward dependencies."
 group: "For developers"
 groupOrder: 300
 parentItem: "Project development"
@@ -16,43 +16,60 @@ editedAt: "2026-07-06"
 
 # Feature slice architecture
 
-Use a feature slice for each product capability. The goal is to keep business behavior close to the
-feature that owns it while keeping route files thin.
+A feature slice follows one product capability across the backend layers and, when needed, the web
+UI. It does not collapse those layers into one folder or let an outer concern become a business
+rule.
 
-## Default file layout
+## Backend placement
 
-Feature code lives under `src/features/{feature-name}`:
+| Layer                     | Typical feature content                                                                   | May depend on                                   |
+| ------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `Template.Domain`         | Value objects, closed policies, and rules that need no I/O.                               | Nothing in Application, Infrastructure, or Api. |
+| `Template.Application`    | Use cases, application models, and ports under `Ports/`.                                  | Domain only.                                    |
+| `Template.Infrastructure` | EF Core stores, Identity/OpenIddict adapters, cryptography, and port implementations.     | Application and Domain.                         |
+| `Template.Api`            | Request/response contracts, boundary helpers, an `IEndpointModule`, and OpenAPI metadata. | Application and Infrastructure composition.     |
 
-| File or folder | Purpose |
-| -------------- | ------- |
-| `actions/` | Server actions for mutations. |
-| `components/` | Feature-specific UI components. |
-| `{feature}-repository.ts` | Data access and cached reads. |
-| `{feature}-types.ts` | Types, DTOs, and cache tag helpers. |
-| `{feature}-schemas.ts` | Zod validation schemas. |
-| `{feature}-routes.ts` | Route definitions owned by the feature. |
-| `{feature}-logger.ts` | Structured logger child for the feature. |
+Use the existing capability folders such as `Organizations`, `Collaboration`, or `ApiKeys` as the
+shape to follow. `Template.Api` is the only HTTP host. It validates and authorizes at the boundary,
+then delegates to Application. Domain and Application must not know about `HttpContext`, Minimal
+API results, EF Core, or React.
 
-`src/app` should contain only pages, layouts, and route handlers that delegate to feature modules.
+## Web placement
 
-## Dependency direction
+The separate UI uses these boundaries:
 
-Feature slices may depend on shared libraries and shared UI. They should not depend on other
-features directly. When two features need shared behavior, move the behavior to `src/lib`,
-`src/server`, or a shared component boundary.
+- routes and layouts under `apps/web/src/app` compose pages;
+- product coordination belongs under `apps/web/src/features`;
+- reusable rendered controls belong under `apps/web/src/components`;
+- server and browser API adapters belong under `apps/web/src/lib/api`;
+- transport DTOs and operations come from `apps/web/src/lib/api/generated`.
 
-## Messages and metadata
+Next.js never imports .NET assemblies, queries PostgreSQL, reads authentication storage, or owns an
+`/api/**` route. It uses REST for both server-rendered reads and browser interactions.
 
-User-facing text belongs in `src/messages` and should be added for both supported locales. Route
-metadata should use the existing page metadata helpers instead of hard-coded strings in page files.
+## Add behavior test-first
 
-## Public documentation
+1. Add a failing Domain or Application unit test for the business rule.
+2. Add a failing API test through `WebApplicationFactory` for HTTP validation, authorization,
+   status, headers, and response shape.
+3. Implement the smallest inward-layer change and a thin Minimal API endpoint.
+4. Export `contracts/openapi/v1.json` and regenerate the TypeScript SDK.
+5. Add or update the Next.js adapter and its focused Jest test.
+6. Add Playwright only for the complete browser workflow that needs it.
 
-When a feature changes user-visible behavior, update or add the matching public documentation page.
-Use [OpenSpec, E2E, and docs](/docs/developers/openspec-e2e-docs) as the cross-surface checklist.
+Keep ports owned by Application and their external implementations in Infrastructure. A React
+component must not reproduce an Application or Domain authorization rule; client validation is only
+a usability aid, and the API remains authoritative.
+
+## Cross-slice dependencies
+
+Do not make one feature reach into another feature's internal store or endpoint boundary. Share a
+domain concept, an Application port/use case, or an explicit API contract instead. Keep changes
+small enough that the owning tests and public documentation identify the capability clearly.
 
 ## Related pages
 
-- [Server actions](/docs/developers/server-actions)
+- [REST boundary instead of Server Actions](/docs/developers/server-actions)
+- [Add an API v1 endpoint](/docs/developers/api-v1-endpoint)
 - [Application shell](/docs/application)
 - [How to write documentation](/docs/general/authoring/how-to-write-docs)

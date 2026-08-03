@@ -1,6 +1,6 @@
 ---
 title: "Quick start"
-description: "Create a project from the template, configure the required services, and verify that the first local run works."
+description: "Configure PostgreSQL, start the ASP.NET Core API and separate Next.js UI, and verify the local REST boundary."
 group: "General"
 groupOrder: 2000
 parentItem: "Getting started"
@@ -16,82 +16,112 @@ editedAt: "2026-07-06"
 
 # Quick start
 
-Use this page when you are creating a new service from the template. It covers the minimum path from
-a generated repository to a working local application with authentication, database access, and
-workspace flows available for review.
+This tutorial starts the current two-application template locally: `Template.Api` is the only HTTP
+API host, and `apps/web` is a separate Next.js UI that calls it over REST. The repository assumes a
+clean PostgreSQL database and identity store; it does not migrate data from the legacy reference.
 
 ## What you need
 
-- Node.js 22 or newer.
-- A PostgreSQL database for Prisma.
-- Optional Redis or Valkey if you want distributed Cache Components and ISR storage.
-- OAuth application credentials for the providers you want to show on the login page.
+- the .NET 10 SDK selected by `global.json`;
+- Node.js 22.18 or newer and the npm version recorded by `apps/web/package.json`;
+- a clean PostgreSQL database;
+- Docker when running Testcontainers-based integration tests or Playwright E2E.
 
-## Create the repository
+OAuth credentials are optional. A provider appears only when its complete local configuration is
+present.
 
-Create a repository from the GitHub template, then install dependencies:
+## Restore dependencies
+
+From the repository root:
 
 ```bash
-npm install
+dotnet tool restore
+dotnet restore Template.sln
+cd apps/web
+npm ci
+cd ../..
 ```
 
-Update the new project's package name and visible metadata before publishing the service. Use the
-repository checklist in `TEMPLATE.md` for the full handoff list.
+Do not install Prisma or Better Auth. ASP.NET Core and EF Core own persistence and identity; Next.js
+uses the committed generated REST SDK.
 
-## Configure environment variables
+## Configure the API
 
-Copy the environment values from `.env.example` or the README into `.env.local`. The required local
-values are:
-
-| Variable | Purpose |
-| -------- | ------- |
-| `DATABASE_URL` | PostgreSQL connection used by Prisma. |
-| `BETTER_AUTH_SECRET` | Secret used to sign Better Auth sessions. |
-| `BETTER_AUTH_URL` | Server-side application origin, for example `http://localhost:3000`. |
-| `NEXT_PUBLIC_APP_BASE_URL` | Public application origin used by browser-side code. |
-| `PUBLIC_DEFAULT_LOCALE` | Default UI and documentation locale. The template falls back to `en`. |
-
-Configure OAuth provider variables only for providers you actually use. Providers with incomplete
-credentials stay hidden from login and account connection screens.
-
-## Prepare the database
-
-Run the Prisma migration after `DATABASE_URL` is set:
+Set the PostgreSQL connection string outside tracked files:
 
 ```bash
-npx prisma migrate dev
+export ConnectionStrings__Postgres='Host=localhost;Port=5432;Database=template;Username=postgres;Password=postgres'
 ```
 
-Use `npx prisma studio` if you need to inspect local users, sessions, organizations, teams, or API
-keys while evaluating the template.
+For optional OAuth configuration, copy the shape from
+`apps/api/src/Template.Api/appsettings.Local.example.json` into the ignored
+`appsettings.Local.json`, replace only the providers you need, and keep the real file mode `0600`.
+Never commit credentials.
 
-## Start the app
-
-Start the development server:
+Apply migrations explicitly; the API never applies them at startup:
 
 ```bash
+dotnet ef database update \
+  --project apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj \
+  --startup-project apps/api/src/Template.Api/Template.Api.csproj \
+  --context TemplateDbContext
+```
+
+## Configure the web UI
+
+Create the ignored local environment file:
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+```
+
+The example points `API_INTERNAL_BASE_URL` and the development-only `API_PROXY_TARGET` to
+`http://127.0.0.1:5297`. `PUBLIC_DEFAULT_LOCALE` accepts `en` or `ru`. Do not add a public API origin
+or a browser token: browser calls stay same-origin and use secure HttpOnly cookies.
+
+## Start both applications
+
+In the first terminal, keep `ConnectionStrings__Postgres` set and start the API:
+
+```bash
+dotnet run --project apps/api/src/Template.Api/Template.Api.csproj
+```
+
+The development launch profile listens on `http://localhost:5297` and enables the local-automation
+sign-in boundary. In a second terminal:
+
+```bash
+cd apps/web
 npm run dev
 ```
 
-Open `/` to review the public page, `/auth/login` to sign in, and `/docs` to read the public
-documentation. After signing in, the workspace flows guide users to create a workspace or review
-pending invitations.
+Open `http://localhost:3000`. Use `/docs` for public documentation or `/auth/login` and **Create
+local automation user** for a generated local session. The UI sends `/api/**` through the local
+rewrite; ASP.NET Core remains the owner of those routes.
 
-## Verify the template surface
+## Verify the setup
 
-Run the relevant checks before treating the generated service as ready for product work:
+Check API liveness/readiness, the web home page, login, and documentation. Before product work, run
+the core gates:
 
 ```bash
-npm run lint
-npm run test
-npm run e2e
+dotnet build Template.sln --no-restore
+dotnet test Template.sln --no-restore
+cd apps/web
+npm run api:check
+npm run boundaries:check
+npm run content:check
+npm run typecheck
+npm test -- --runInBand
+npm run build
 ```
 
-The E2E command starts its own local server by default and enables the local automation auth flags
-needed by browser scenarios.
+`dotnet test` and `npm run e2e` require Docker because their orchestration creates disposable
+PostgreSQL databases. Run `npm run e2e` when you are ready to verify the full browser workflow.
 
 ## Next steps
 
-- Read [Workspace](/docs/workspace) to understand the organization-backed collaboration model.
-- Read [API keys](/docs/api) before exposing integrations.
-- Read [For developers](/docs/developers) before adding your first product feature.
+- Read [Application shell](/docs/application) for the API/UI ownership boundary.
+- Read [Workspace](/docs/workspace) for organization-backed collaboration.
+- Read [API access](/docs/api) before creating machine credentials.
+- Read [For developers](/docs/developers) before adding a feature.

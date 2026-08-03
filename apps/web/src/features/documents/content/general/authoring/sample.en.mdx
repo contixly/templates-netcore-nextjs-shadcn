@@ -1,6 +1,6 @@
 ---
 title: "Documentation components"
-description: "Visual reference for Markdown and documentation-specific MDX components"
+description: "Live rendering fixture for Markdown and every custom MDX component allowed in public documentation"
 group: "Documentation"
 groupOrder: 400
 parentItem: "Authoring"
@@ -16,8 +16,9 @@ editedAt: "2026-07-06"
 
 # Documentation components
 
-This page shows how regular Markdown and documentation-specific components look for content authors.
-Use it as a visual reference before creating a new public documentation page.
+This page is a live rendering fixture for regular Markdown and the closed custom-component
+vocabulary. Keep each component rendered here when editing the fixture; fenced examples alone do
+not prove that runtime rendering works.
 
 ## Basic Markdown
 
@@ -57,6 +58,9 @@ parentItem: "Authors"
 order: 30
 status: "draft"
 toc: true
+author: "Template Maintainers"
+version: "1.2.0"
+editedAt: "2026-08-03"
 ---
 ```
 
@@ -70,6 +74,9 @@ toc: true
 | `status`      | string  | Page status: `draft`, `review`, `published`, or `archived` |
 | `hide`        | boolean | Hides the page in production for every status              |
 | `toc`         | boolean | Enables the right column with page section navigation      |
+| `author`      | string  | Production-corpus author                                   |
+| `version`     | string  | Document version                                           |
+| `editedAt`    | date    | Real ISO date-only edit date                               |
 
 ### Checklists
 
@@ -83,26 +90,28 @@ Checklists are useful for page acceptance before publishing:
 ## Highlighted notes
 
 <Callout title="Regular note">
-  Use this block for an important explanation that should stand out more than a normal paragraph.
+  Use this block for an important explanation that should stand out more than a
+  normal paragraph.
 </Callout>
 
 <Callout title="Helpful context" variant="info">
-  Additional information that helps readers understand the scenario but does not block the main
-  flow. Use it to link related documents or share a nuance.
+  Additional information that helps readers understand the scenario but does not
+  block the main flow. Use it to link related documents or share a nuance.
 </Callout>
 
 <Callout title="Done" variant="success">
-  Confirmation that a step finished successfully: for example, the page is published, materials are
-  approved, or navigation reflects the change.
+  Confirmation that a step finished successfully: for example, the page is
+  published, materials are approved, or navigation reflects the change.
 </Callout>
 
 <Callout title="Warning" variant="warning">
-  Use a warning when an action requires attention: for example, before publishing a page or changing
-  a material status.
+  Use a warning when an action requires attention: for example, before
+  publishing a page or changing a material status.
 </Callout>
 
 <Callout title="Critical limitation" variant="danger">
-  Use this variant for errors that block the scenario, or rules where violation can cause data loss.
+  Use this variant for errors that block the scenario, or rules where violation
+  can cause data loss.
 </Callout>
 
 ## Step-by-step scenario
@@ -124,26 +133,19 @@ Checklists are useful for page acceptance before publishing:
 ## File structure
 
 <Files>
-  <Folder name="content">
-    <File name="index.en.mdx" />
-    <File name="index.ru.mdx" />
-    <Folder name="general">
-      <Folder name="authoring">
-        <File name="how-to-write-docs.en.md" />
-        <File name="how-to-write-docs.ru.md" />
-        <File name="sample.en.mdx" />
-        <File name="sample.ru.mdx" />
-      </Folder>
-    </Folder>
-    <Folder name="history">
-      <Folder name="releases">
-        <File name="index.en.md" />
-        <File name="index.ru.md" />
-        <File name="0.0.1.en.md" />
-        <File name="0.0.1.ru.md" />
-        <File name="..." />
-        <File name="0.0.10.en.mdx" />
-        <File name="0.0.10.ru.mdx" />
+  <Folder name="apps">
+    <Folder name="web">
+      <Folder name="src/features/documents/content">
+        <File name="index.en.mdx" />
+        <File name="index.ru.mdx" />
+        <Folder name="general">
+          <Folder name="authoring">
+            <File name="how-to-write-docs.en.md" />
+            <File name="how-to-write-docs.ru.md" />
+            <File name="sample.en.mdx" />
+            <File name="sample.ru.mdx" />
+          </Folder>
+        </Folder>
       </Folder>
     </Folder>
   </Folder>
@@ -176,6 +178,29 @@ Checklists are useful for page acceptance before publishing:
   </Tab>
 </Tabs>
 
+## Documentation links
+
+<DocumentLinkGrid>
+  <DocumentLinkGroup
+    title="Authoring"
+    description="Rules and examples for safe public documentation."
+  >
+    <DocumentLinkCard
+      href="/docs/general/authoring/how-to-write-docs"
+      title="How to write documentation"
+    >
+      Apply strict metadata, paired locales, validated links, and deterministic
+      generation.
+    </DocumentLinkCard>
+    <DocumentLinkCard
+      href="/docs/general/authoring/localized-content"
+      title="Localized content"
+    >
+      Keep English and Russian variants on one canonical route.
+    </DocumentLinkCard>
+  </DocumentLinkGroup>
+</DocumentLinkGrid>
+
 ## Recommendations for authors
 
 Write a page around one user scenario. If the material starts mixing roles, statuses, instructions,
@@ -183,6 +208,11 @@ and reference information, split it into several pages and connect them with lin
 
 Start main sections with second-level headings. The right navigation is built from them, so names should be
 short and recognizable.
+
+After editing source pages, run `npm run content:generate`, `npm run content:check`, and
+`npm run content:test` from `apps/web`. Unknown components, executable MDX imports/exports, broken
+internal links, missing `/img/...` files, invalid frontmatter, or an unpaired published page stop
+compilation.
 
 ## Related pages
 

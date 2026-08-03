@@ -1,6 +1,6 @@
 ---
 title: "Server actions"
-description: "Use the template's protected action pattern for validated, authorized, cache-aware mutations."
+description: "Legacy Server Action guidance and the target REST boundary between the ASP.NET Core API and the separate Next.js UI."
 group: "For developers"
 groupOrder: 300
 parentItem: "Project development"
@@ -16,40 +16,59 @@ editedAt: "2026-07-06"
 
 # Server actions
 
-All product mutations should use server actions unless they are framework or external API surfaces.
-This keeps validation, authorization, mutation, cache refresh, and result shape consistent.
+This canonical route is retained so existing links remain valid. Its former full-stack Next.js
+pattern is legacy guidance: the target application has no Server Actions for product reads or
+mutations. ASP.NET Core owns every `/api/**` operation, and the separate Next.js UI communicates
+with it over REST.
 
-## Action flow
+## Why the boundary changed
 
-Every action should follow the same sequence:
+A single REST boundary gives browser code, server rendering, automated tests, and external
+consumers one observable contract. ASP.NET Core remains the authority for validation,
+authentication, authorization, business use cases, persistence, rate limits, and Problem Details.
+OpenAPI records that contract, and the generated TypeScript SDK keeps the UI aligned with it.
 
-1. Validate input with Zod.
-2. Load the authenticated user on the server.
-3. Authorize access to the target entity.
-4. Mutate data with Prisma.
-5. Refresh cache tags and affected paths.
-6. Return an `ActionResult`.
+Putting a mutation in a Server Action would create a second server-side application boundary,
+bypass the committed OpenAPI contract, and risk duplicating authorization or data-access rules.
+Next.js therefore contains no Prisma, Better Auth, direct database access, or product API Route
+Handlers either.
 
-## Protected helpers
+## Read through REST
 
-Use the shared protected action helpers instead of reimplementing auth and error handling in each
-feature:
+Server Components create an isolated generated-SDK client with the server-only
+`API_INTERNAL_BASE_URL`. A loader forwards only approved cookie and correlation context. A
+cookie-bearing safe projection may add the narrow session-renewal suppression marker because a
+Server Component cannot deliver the API's renewal cookie to the browser.
 
-- `createProtectedActionWithInput` for actions that accept validated input;
-- `createProtectedAction` for actions without input.
+Client Components use a relative same-origin client with `credentials: "same-origin"`. In local
+development, `API_PROXY_TARGET` enables the Next.js rewrite to ASP.NET Core; in the final
+same-origin topology ASP.NET Core owns `/api/**` directly.
 
-## Cache refresh
+## Mutate through REST
 
-Server actions should use cache tag helpers from the feature types file. Route handlers that mutate
-data should revalidate affected paths.
+For a browser mutation:
 
-## Error handling
+1. obtain a fresh request token from `GET /api/v1/auth/csrf`;
+2. call the generated SDK operation with `X-CSRF-TOKEN`;
+3. treat the API response as authoritative;
+4. normalize Problem Details to a safe UI result;
+5. refresh or reconcile with generated GET operations without repeating a committed mutation.
 
-Return user-safe error messages and stable error codes. Log implementation details through the
-feature logger instead of exposing them in the UI.
+The secure HttpOnly session cookie travels automatically. JavaScript never reads it and never
+stores a bearer token. Machine integrations use the documented `x-api-key` contract instead of the
+browser-session flow.
+
+## Migrating a legacy action
+
+Write a failing Application/API test for the behavior, move its business rules into Domain or
+Application, put persistence behind an Application port, and expose a thin Minimal API operation in
+`Template.Api`. Export OpenAPI, regenerate the SDK, then replace the Server Action caller with a
+server or browser REST adapter. Remove legacy transport types and direct database imports rather
+than maintaining both paths.
 
 ## Related pages
 
 - [Feature slice architecture](/docs/developers/feature-slice)
-- [Caching](/docs/application/caching)
-- [OpenSpec, E2E, and docs](/docs/developers/openspec-e2e-docs)
+- [Add an API v1 endpoint](/docs/developers/api-v1-endpoint)
+- [Runtime security](/docs/application/runtime-security)
+- [API v1 reference](/docs/api/api-v1)

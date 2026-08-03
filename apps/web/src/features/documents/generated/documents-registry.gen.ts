@@ -60,28 +60,28 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Create the repository",
-        "id": "create-the-repository"
+        "title": "Restore dependencies",
+        "id": "restore-dependencies"
       },
       {
         "level": 2,
-        "title": "Configure environment variables",
-        "id": "configure-environment-variables"
+        "title": "Configure the API",
+        "id": "configure-the-api"
       },
       {
         "level": 2,
-        "title": "Prepare the database",
-        "id": "prepare-the-database"
+        "title": "Configure the web UI",
+        "id": "configure-the-web-ui"
       },
       {
         "level": 2,
-        "title": "Start the app",
-        "id": "start-the-app"
+        "title": "Start both applications",
+        "id": "start-both-applications"
       },
       {
         "level": 2,
-        "title": "Verify the template surface",
-        "id": "verify-the-template-surface"
+        "title": "Verify the setup",
+        "id": "verify-the-setup"
       },
       {
         "level": 2,
@@ -91,7 +91,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Quick start",
-      "description": "Create a project from the template, configure the required services, and verify that the first local run works.",
+      "description": "Configure PostgreSQL, start the ASP.NET Core API and separate Next.js UI, and verify the local REST boundary.",
       "group": "General",
       "groupOrder": 2000,
       "parentItem": "Getting started",
@@ -123,13 +123,13 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Application and routing",
-        "id": "application-and-routing"
+        "title": "Architecture and routing",
+        "id": "architecture-and-routing"
       },
       {
         "level": 2,
-        "title": "Accounts and authentication",
-        "id": "accounts-and-authentication"
+        "title": "Authentication and security",
+        "id": "authentication-and-security"
       },
       {
         "level": 2,
@@ -138,13 +138,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "API and integrations",
-        "id": "api-and-integrations"
+        "title": "API and generated contracts",
+        "id": "api-and-generated-contracts"
       },
       {
         "level": 2,
-        "title": "Localization, cache, and documentation",
-        "id": "localization-cache-and-documentation"
+        "title": "Documentation and quality",
+        "id": "documentation-and-quality"
       },
       {
         "level": 2,
@@ -154,7 +154,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Glossary",
-      "description": "Definitions for the main Next.js template, workspace, API access, and documentation terms.",
+      "description": "Definitions for the ASP.NET Core REST API, separate Next.js UI, authentication, workspaces, generated contracts, and documentation pipeline.",
       "group": "General",
       "parentItem": "Glossary",
       "parentItemOrder": 10,
@@ -230,28 +230,28 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Создайте репозиторий",
-        "id": "создайте-репозиторий"
+        "title": "Восстановите зависимости",
+        "id": "восстановите-зависимости"
       },
       {
         "level": 2,
-        "title": "Настройте переменные окружения",
-        "id": "настройте-переменные-окружения"
+        "title": "Настройте API",
+        "id": "настройте-api"
       },
       {
         "level": 2,
-        "title": "Подготовьте базу",
-        "id": "подготовьте-базу"
+        "title": "Настройте web-UI",
+        "id": "настройте-web-ui"
       },
       {
         "level": 2,
-        "title": "Запустите приложение",
-        "id": "запустите-приложение"
+        "title": "Запустите оба приложения",
+        "id": "запустите-оба-приложения"
       },
       {
         "level": 2,
-        "title": "Проверьте поверхность шаблона",
-        "id": "проверьте-поверхность-шаблона"
+        "title": "Проверьте настройку",
+        "id": "проверьте-настройку"
       },
       {
         "level": 2,
@@ -261,7 +261,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Быстрый старт",
-      "description": "Создайте проект из шаблона, настройте обязательные сервисы и проверьте первый локальный запуск.",
+      "description": "Настройка PostgreSQL, запуск API на ASP.NET Core и отдельного UI Next.js и проверка локальной REST-границы.",
       "group": "Общее",
       "groupOrder": 2000,
       "parentItem": "Начало работы",
@@ -293,13 +293,13 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Приложение и маршруты",
-        "id": "приложение-и-маршруты"
+        "title": "Архитектура и маршрутизация",
+        "id": "архитектура-и-маршрутизация"
       },
       {
         "level": 2,
-        "title": "Аккаунты и авторизация",
-        "id": "аккаунты-и-авторизация"
+        "title": "Аутентификация и безопасность",
+        "id": "аутентификация-и-безопасность"
       },
       {
         "level": 2,
@@ -308,13 +308,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "API и интеграции",
-        "id": "api-и-интеграции"
+        "title": "API и сгенерированные контракты",
+        "id": "api-и-сгенерированные-контракты"
       },
       {
         "level": 2,
-        "title": "Локализация, кеш и документация",
-        "id": "локализация-кеш-и-документация"
+        "title": "Документация и качество",
+        "id": "документация-и-качество"
       },
       {
         "level": 2,
@@ -324,7 +324,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Глоссарий",
-      "description": "Словарь основных терминов Next.js шаблона, модели рабочих пространств, API-доступа и документации.",
+      "description": "Определения для REST API на ASP.NET Core, отдельного UI Next.js, аутентификации, рабочих пространств, сгенерированных контрактов и конвейера документации.",
       "group": "Общее",
       "parentItem": "Глоссарий",
       "parentItemOrder": 10,
@@ -2740,6 +2740,11 @@ export const documents = [
       },
       {
         "level": 2,
+        "title": "Documentation links",
+        "id": "documentation-links"
+      },
+      {
+        "level": 2,
         "title": "Recommendations for authors",
         "id": "recommendations-for-authors"
       },
@@ -2751,7 +2756,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Documentation components",
-      "description": "Visual reference for Markdown and documentation-specific MDX components",
+      "description": "Live rendering fixture for Markdown and every custom MDX component allowed in public documentation",
       "group": "Documentation",
       "groupOrder": 400,
       "parentItem": "Authoring",
@@ -2784,8 +2789,8 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "File names",
-        "id": "file-names"
+        "title": "File pairs",
+        "id": "file-pairs"
       },
       {
         "level": 2,
@@ -2794,13 +2799,18 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Fallback content",
-        "id": "fallback-content"
+        "title": "Pair semantics",
+        "id": "pair-semantics"
       },
       {
         "level": 2,
-        "title": "Validation",
-        "id": "validation"
+        "title": "Fallback marker",
+        "id": "fallback-marker"
+      },
+      {
+        "level": 2,
+        "title": "Validate the pair",
+        "id": "validate-the-pair"
       },
       {
         "level": 2,
@@ -2810,7 +2820,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Localized documentation content",
-      "description": "Name documentation files by locale, keep canonical URLs stable, and understand fallback language markers.",
+      "description": "Maintain paired English and Russian source files at one canonical URL and understand publication and fallback rules.",
       "group": "Documentation",
       "groupOrder": 400,
       "parentItem": "Authoring",
@@ -2843,28 +2853,28 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Metadata",
-        "id": "metadata"
+        "title": "Use strict frontmatter",
+        "id": "use-strict-frontmatter"
       },
       {
         "level": 2,
-        "title": "Recommended page structure",
-        "id": "recommended-page-structure"
+        "title": "Name and structure the pair",
+        "id": "name-and-structure-the-pair"
       },
       {
         "level": 2,
-        "title": "Headings and anchors",
-        "id": "headings-and-anchors"
+        "title": "Use the closed MDX vocabulary",
+        "id": "use-the-closed-mdx-vocabulary"
       },
       {
         "level": 2,
-        "title": "MDX components",
-        "id": "mdx-components"
+        "title": "Add links and images",
+        "id": "add-links-and-images"
       },
       {
         "level": 2,
-        "title": "Links and related pages",
-        "id": "links-and-related-pages"
+        "title": "Generate and check artifacts",
+        "id": "generate-and-check-artifacts"
       },
       {
         "level": 2,
@@ -2874,7 +2884,7 @@ export const documents = [
     ],
     "meta": {
       "title": "How to write documentation",
-      "description": "Rules for structure, metadata, and public documentation content",
+      "description": "Author paired public pages with strict frontmatter, closed MDX components, validated links and images, and deterministic generated artifacts.",
       "group": "Documentation",
       "groupOrder": 400,
       "parentItem": "Authoring",
@@ -2956,6 +2966,11 @@ export const documents = [
       },
       {
         "level": 2,
+        "title": "Ссылки на документацию",
+        "id": "ссылки-на-документацию"
+      },
+      {
+        "level": 2,
         "title": "Рекомендации авторам",
         "id": "рекомендации-авторам"
       },
@@ -2967,7 +2982,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Компоненты документации",
-      "description": "Визуальный справочник для Markdown и специальных MDX-компонентов документации",
+      "description": "Живой fixture рендеринга Markdown и всех специальных MDX-компонентов, разрешенных в публичной документации",
       "group": "Документация",
       "groupOrder": 400,
       "parentItem": "Подготовка страниц",
@@ -3000,8 +3015,8 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Имена файлов",
-        "id": "имена-файлов"
+        "title": "Пары файлов",
+        "id": "пары-файлов"
       },
       {
         "level": 2,
@@ -3010,13 +3025,18 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Запасной контент",
-        "id": "запасной-контент"
+        "title": "Семантика пары",
+        "id": "семантика-пары"
       },
       {
         "level": 2,
-        "title": "Валидация",
-        "id": "валидация"
+        "title": "Маркер fallback",
+        "id": "маркер-fallback"
+      },
+      {
+        "level": 2,
+        "title": "Проверка пары",
+        "id": "проверка-пары"
       },
       {
         "level": 2,
@@ -3026,7 +3046,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Локализованный контент документации",
-      "description": "Имена файлов по локали, стабильные канонические URL и языковые маркеры запасного контента.",
+      "description": "Поддержка парных английских и русских исходных файлов по одному каноническому URL и правила публикации и fallback.",
       "group": "Документация",
       "groupOrder": 400,
       "parentItem": "Подготовка страниц",
@@ -3059,28 +3079,28 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Метаданные",
-        "id": "метаданные"
+        "title": "Используйте строгий frontmatter",
+        "id": "используйте-строгий-frontmatter"
       },
       {
         "level": 2,
-        "title": "Рекомендуемая структура страницы",
-        "id": "рекомендуемая-структура-страницы"
+        "title": "Именуйте и структурируйте пару",
+        "id": "именуйте-и-структурируйте-пару"
       },
       {
         "level": 2,
-        "title": "Заголовки и якоря",
-        "id": "заголовки-и-якоря"
+        "title": "Используйте закрытый набор MDX",
+        "id": "используйте-закрытый-набор-mdx"
       },
       {
         "level": 2,
-        "title": "MDX-компоненты",
-        "id": "mdx-компоненты"
+        "title": "Добавляйте ссылки и изображения",
+        "id": "добавляйте-ссылки-и-изображения"
       },
       {
         "level": 2,
-        "title": "Ссылки и связанные страницы",
-        "id": "ссылки-и-связанные-страницы"
+        "title": "Генерируйте и проверяйте артефакты",
+        "id": "генерируйте-и-проверяйте-артефакты"
       },
       {
         "level": 2,
@@ -3090,7 +3110,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Как писать документацию",
-      "description": "Правила структуры, метаданных и содержания публичных документов",
+      "description": "Подготовка парных публичных страниц со строгим frontmatter, закрытым набором MDX-компонентов, проверяемыми ссылками и изображениями и детерминированными артефактами.",
       "group": "Документация",
       "groupOrder": 400,
       "parentItem": "Подготовка страниц",
@@ -3121,23 +3141,23 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Action flow",
-        "id": "action-flow"
+        "title": "Why the boundary changed",
+        "id": "why-the-boundary-changed"
       },
       {
         "level": 2,
-        "title": "Protected helpers",
-        "id": "protected-helpers"
+        "title": "Read through REST",
+        "id": "read-through-rest"
       },
       {
         "level": 2,
-        "title": "Cache refresh",
-        "id": "cache-refresh"
+        "title": "Mutate through REST",
+        "id": "mutate-through-rest"
       },
       {
         "level": 2,
-        "title": "Error handling",
-        "id": "error-handling"
+        "title": "Migrating a legacy action",
+        "id": "migrating-a-legacy-action"
       },
       {
         "level": 2,
@@ -3147,7 +3167,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Server actions",
-      "description": "Use the template's protected action pattern for validated, authorized, cache-aware mutations.",
+      "description": "Legacy Server Action guidance and the target REST boundary between the ASP.NET Core API and the separate Next.js UI.",
       "group": "For developers",
       "groupOrder": 300,
       "parentItem": "Project development",
@@ -3179,23 +3199,23 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Default file layout",
-        "id": "default-file-layout"
+        "title": "Backend placement",
+        "id": "backend-placement"
       },
       {
         "level": 2,
-        "title": "Dependency direction",
-        "id": "dependency-direction"
+        "title": "Web placement",
+        "id": "web-placement"
       },
       {
         "level": 2,
-        "title": "Messages and metadata",
-        "id": "messages-and-metadata"
+        "title": "Add behavior test-first",
+        "id": "add-behavior-test-first"
       },
       {
         "level": 2,
-        "title": "Public documentation",
-        "id": "public-documentation"
+        "title": "Cross-slice dependencies",
+        "id": "cross-slice-dependencies"
       },
       {
         "level": 2,
@@ -3205,7 +3225,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Feature slice architecture",
-      "description": "Where to place routes, actions, schemas, repositories, UI, and messages when adding a feature.",
+      "description": "Place a feature across Domain, Application, Infrastructure, Api, and the separate Next.js UI while preserving inward dependencies.",
       "group": "For developers",
       "groupOrder": 300,
       "parentItem": "Project development",
@@ -3236,6 +3256,11 @@ export const documents = [
     "headings": [
       {
         "level": 2,
+        "title": "Repository layout",
+        "id": "repository-layout"
+      },
+      {
+        "level": 2,
         "title": "Development model",
         "id": "development-model"
       },
@@ -3252,7 +3277,7 @@ export const documents = [
     ],
     "meta": {
       "title": "For developers",
-      "description": "How to extend a service built from the template while keeping specs, tests, and public documentation aligned.",
+      "description": "How to extend the ASP.NET Core REST API and separate Next.js UI while keeping contracts, tests, and public documentation aligned.",
       "group": "For developers",
       "groupOrder": 300,
       "parentItem": "Project development",
@@ -3284,28 +3309,28 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Choose the route",
-        "id": "choose-the-route"
+        "title": "Start with failing tests",
+        "id": "start-with-failing-tests"
       },
       {
         "level": 2,
-        "title": "Define permissions",
-        "id": "define-permissions"
+        "title": "Implement the inward slice",
+        "id": "implement-the-inward-slice"
       },
       {
         "level": 2,
-        "title": "Require API key auth",
-        "id": "require-api-key-auth"
+        "title": "Describe the HTTP contract",
+        "id": "describe-the-http-contract"
       },
       {
         "level": 2,
-        "title": "Return stable responses",
-        "id": "return-stable-responses"
+        "title": "Export OpenAPI and regenerate the SDK",
+        "id": "export-openapi-and-regenerate-the-sdk"
       },
       {
         "level": 2,
-        "title": "Document and test",
-        "id": "document-and-test"
+        "title": "Connect the Next.js UI",
+        "id": "connect-the-nextjs-ui"
       },
       {
         "level": 2,
@@ -3315,7 +3340,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Add an API v1 endpoint",
-      "description": "Extend the starter API surface with a thin route handler, explicit permissions, and stable envelopes.",
+      "description": "Add a test-first ASP.NET Core Minimal API endpoint, publish its OpenAPI contract, and consume it through the generated REST SDK.",
       "group": "For developers",
       "groupOrder": 300,
       "parentItem": "API development",
@@ -3347,23 +3372,23 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Enable local automation",
-        "id": "enable-local-automation"
+        "title": "Availability boundary",
+        "id": "availability-boundary"
       },
       {
         "level": 2,
-        "title": "Create an automation user",
-        "id": "create-an-automation-user"
+        "title": "Playwright orchestration",
+        "id": "playwright-orchestration"
       },
       {
         "level": 2,
-        "title": "Clean up",
-        "id": "clean-up"
+        "title": "Create, sign in, and clean up",
+        "id": "create-sign-in-and-clean-up"
       },
       {
         "level": 2,
-        "title": "Run E2E",
-        "id": "run-e2e"
+        "title": "Write a focused scenario",
+        "id": "write-a-focused-scenario"
       },
       {
         "level": 2,
@@ -3373,7 +3398,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Local automation and E2E",
-      "description": "Use local automation auth and Playwright helpers to verify protected browser and API workflows.",
+      "description": "Use the ASP.NET Core local-automation endpoints and generated SDK helpers in deterministic Playwright workflows.",
       "group": "For developers",
       "groupOrder": 300,
       "parentItem": "Quality workflow",
@@ -3405,28 +3430,28 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Before implementation",
-        "id": "before-implementation"
+        "title": "Current OpenSpec state",
+        "id": "current-openspec-state"
       },
       {
         "level": 2,
-        "title": "During implementation",
-        "id": "during-implementation"
+        "title": "Drive implementation with tests",
+        "id": "drive-implementation-with-tests"
       },
       {
         "level": 2,
-        "title": "E2E coverage",
-        "id": "e2e-coverage"
+        "title": "Keep generated contracts current",
+        "id": "keep-generated-contracts-current"
       },
       {
         "level": 2,
-        "title": "Public documentation",
-        "id": "public-documentation"
+        "title": "Add E2E at the supported boundary",
+        "id": "add-e2e-at-the-supported-boundary"
       },
       {
         "level": 2,
-        "title": "Verification",
-        "id": "verification"
+        "title": "Update public documentation",
+        "id": "update-public-documentation"
       },
       {
         "level": 2,
@@ -3436,7 +3461,7 @@ export const documents = [
     ],
     "meta": {
       "title": "OpenSpec, E2E, and docs",
-      "description": "Keep requirements, browser/API checks, and public documentation aligned when behavior changes.",
+      "description": "Use tests, contracts, browser scenarios, and paired public documentation together; OpenSpec remains initialized-only until explicitly adopted.",
       "group": "For developers",
       "groupOrder": 300,
       "parentItem": "Quality workflow",
@@ -3478,8 +3503,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Localization",
-        "id": "localization"
+        "title": "Localization and metadata",
+        "id": "localization-and-metadata"
+      },
+      {
+        "level": 2,
+        "title": "Generate and verify",
+        "id": "generate-and-verify"
       },
       {
         "level": 2,
@@ -3489,7 +3519,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Releases and changelog",
-      "description": "Maintain release notes and weekly user-visible change summaries for the template.",
+      "description": "Publish factual paired release notes and weekly summaries from the documentation content tree and regenerate its committed artifacts.",
       "group": "For developers",
       "groupOrder": 300,
       "parentItem": "Publishing",
@@ -3521,23 +3551,23 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Последовательность действия",
-        "id": "последовательность-действия"
+        "title": "Почему граница изменилась",
+        "id": "почему-граница-изменилась"
       },
       {
         "level": 2,
-        "title": "Вспомогательные функции защиты",
-        "id": "вспомогательные-функции-защиты"
+        "title": "Читайте через REST",
+        "id": "читайте-через-rest"
       },
       {
         "level": 2,
-        "title": "Обновление кеша",
-        "id": "обновление-кеша"
+        "title": "Изменяйте через REST",
+        "id": "изменяйте-через-rest"
       },
       {
         "level": 2,
-        "title": "Обработка ошибок",
-        "id": "обработка-ошибок"
+        "title": "Перенос legacy action",
+        "id": "перенос-legacy-action"
       },
       {
         "level": 2,
@@ -3547,7 +3577,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Серверные действия",
-      "description": "Паттерн защищенных действий шаблона для проверенных, авторизованных и учитывающих кеш мутаций.",
+      "description": "Устаревшее руководство по Server Actions и целевая REST-граница между API ASP.NET Core и отдельным UI Next.js.",
       "group": "Для разработчиков",
       "groupOrder": 300,
       "parentItem": "Развитие проекта",
@@ -3579,23 +3609,23 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Стандартная структура файлов",
-        "id": "стандартная-структура-файлов"
+        "title": "Размещение на backend",
+        "id": "размещение-на-backend"
       },
       {
         "level": 2,
-        "title": "Направление зависимостей",
-        "id": "направление-зависимостей"
+        "title": "Размещение в web",
+        "id": "размещение-в-web"
       },
       {
         "level": 2,
-        "title": "Сообщения и метаданные",
-        "id": "сообщения-и-метаданные"
+        "title": "Добавляйте поведение через тесты",
+        "id": "добавляйте-поведение-через-тесты"
       },
       {
         "level": 2,
-        "title": "Публичная документация",
-        "id": "публичная-документация"
+        "title": "Зависимости между срезами",
+        "id": "зависимости-между-срезами"
       },
       {
         "level": 2,
@@ -3605,7 +3635,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Архитектура функциональных срезов",
-      "description": "Куда помещать маршруты, действия, схемы, репозитории, UI и сообщения при добавлении функции.",
+      "description": "Размещение функции в Domain, Application, Infrastructure, Api и отдельном UI Next.js с сохранением зависимостей внутрь.",
       "group": "Для разработчиков",
       "groupOrder": 300,
       "parentItem": "Развитие проекта",
@@ -3636,6 +3666,11 @@ export const documents = [
     "headings": [
       {
         "level": 2,
+        "title": "Структура репозитория",
+        "id": "структура-репозитория"
+      },
+      {
+        "level": 2,
         "title": "Модель разработки",
         "id": "модель-разработки"
       },
@@ -3652,7 +3687,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Для разработчиков",
-      "description": "Как развивать сервис на базе шаблона и держать согласованными спецификации, тесты и публичную документацию.",
+      "description": "Как развивать REST API на ASP.NET Core и отдельный UI на Next.js, сохраняя согласованность контрактов, тестов и публичной документации.",
       "group": "Для разработчиков",
       "groupOrder": 300,
       "parentItem": "Развитие проекта",
@@ -3684,28 +3719,28 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Выберите маршрут",
-        "id": "выберите-маршрут"
+        "title": "Начните с падающих тестов",
+        "id": "начните-с-падающих-тестов"
       },
       {
         "level": 2,
-        "title": "Опишите права",
-        "id": "опишите-права"
+        "title": "Реализуйте срез внутрь",
+        "id": "реализуйте-срез-внутрь"
       },
       {
         "level": 2,
-        "title": "Требуйте аутентификацию по API-ключу",
-        "id": "требуйте-аутентификацию-по-api-ключу"
+        "title": "Опишите HTTP-контракт",
+        "id": "опишите-http-контракт"
       },
       {
         "level": 2,
-        "title": "Возвращайте стабильные ответы",
-        "id": "возвращайте-стабильные-ответы"
+        "title": "Экспортируйте OpenAPI и перегенерируйте SDK",
+        "id": "экспортируйте-openapi-и-перегенерируйте-sdk"
       },
       {
         "level": 2,
-        "title": "Документируйте и тестируйте",
-        "id": "документируйте-и-тестируйте"
+        "title": "Подключите UI Next.js",
+        "id": "подключите-ui-nextjs"
       },
       {
         "level": 2,
@@ -3715,7 +3750,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Добавить маршрут API v1",
-      "description": "Расширение стартового API через тонкий обработчик маршрута, явные права и стабильный формат ответа.",
+      "description": "Добавление endpoint Minimal API на ASP.NET Core через тесты, публикация OpenAPI-контракта и использование сгенерированного REST SDK.",
       "group": "Для разработчиков",
       "groupOrder": 300,
       "parentItem": "Разработка API",
@@ -3747,23 +3782,23 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "Включить локальную автоматизацию",
-        "id": "включить-локальную-автоматизацию"
+        "title": "Граница доступности",
+        "id": "граница-доступности"
       },
       {
         "level": 2,
-        "title": "Создать пользователя для автоматизации",
-        "id": "создать-пользователя-для-автоматизации"
+        "title": "Оркестрация Playwright",
+        "id": "оркестрация-playwright"
       },
       {
         "level": 2,
-        "title": "Очистить данные",
-        "id": "очистить-данные"
+        "title": "Создание, вход и очистка",
+        "id": "создание-вход-и-очистка"
       },
       {
         "level": 2,
-        "title": "Запустить E2E",
-        "id": "запустить-e2e"
+        "title": "Пишите точечный сценарий",
+        "id": "пишите-точечный-сценарий"
       },
       {
         "level": 2,
@@ -3773,7 +3808,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Локальная автоматизация и E2E",
-      "description": "Использование локальной авторизации для автоматизации и вспомогательных функций Playwright для проверки защищенных браузерных и API-сценариев.",
+      "description": "Использование локальных endpoints ASP.NET Core и helpers сгенерированного SDK в детерминированных сценариях Playwright.",
       "group": "Для разработчиков",
       "groupOrder": 300,
       "parentItem": "Процесс качества",
@@ -3805,28 +3840,28 @@ export const documents = [
     "headings": [
       {
         "level": 2,
-        "title": "До реализации",
-        "id": "до-реализации"
+        "title": "Текущее состояние OpenSpec",
+        "id": "текущее-состояние-openspec"
       },
       {
         "level": 2,
-        "title": "Во время реализации",
-        "id": "во-время-реализации"
+        "title": "Ведите реализацию через тесты",
+        "id": "ведите-реализацию-через-тесты"
       },
       {
         "level": 2,
-        "title": "E2E-покрытие",
-        "id": "e2e-покрытие"
+        "title": "Поддерживайте сгенерированные контракты",
+        "id": "поддерживайте-сгенерированные-контракты"
       },
       {
         "level": 2,
-        "title": "Публичная документация",
-        "id": "публичная-документация"
+        "title": "Добавляйте E2E на поддерживаемой границе",
+        "id": "добавляйте-e2e-на-поддерживаемой-границе"
       },
       {
         "level": 2,
-        "title": "Проверка",
-        "id": "проверка"
+        "title": "Обновляйте публичную документацию",
+        "id": "обновляйте-публичную-документацию"
       },
       {
         "level": 2,
@@ -3836,7 +3871,7 @@ export const documents = [
     ],
     "meta": {
       "title": "OpenSpec, E2E и документация",
-      "description": "Синхронизация требований, браузерных/API-проверок и публичной документации при изменении поведения.",
+      "description": "Совместное использование тестов, контрактов, браузерных сценариев и парной публичной документации; OpenSpec остается только инициализированным до явного внедрения.",
       "group": "Для разработчиков",
       "groupOrder": 300,
       "parentItem": "Процесс качества",
@@ -3878,8 +3913,13 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Локализация",
-        "id": "локализация"
+        "title": "Локализация и метаданные",
+        "id": "локализация-и-метаданные"
+      },
+      {
+        "level": 2,
+        "title": "Генерация и проверка",
+        "id": "генерация-и-проверка"
       },
       {
         "level": 2,
@@ -3889,7 +3929,7 @@ export const documents = [
     ],
     "meta": {
       "title": "Релизы и журнал изменений",
-      "description": "Поддержка заметок к релизам и еженедельных пользовательских сводок изменений для шаблона.",
+      "description": "Публикация фактических парных заметок к релизам и еженедельных сводок из дерева документации с перегенерацией зафиксированных артефактов.",
       "group": "Для разработчиков",
       "groupOrder": 300,
       "parentItem": "Публикация",

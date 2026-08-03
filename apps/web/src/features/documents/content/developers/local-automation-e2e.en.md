@@ -1,6 +1,6 @@
 ---
 title: "Local automation and E2E"
-description: "Use local automation auth and Playwright helpers to verify protected browser and API workflows."
+description: "Use the ASP.NET Core local-automation endpoints and generated SDK helpers in deterministic Playwright workflows."
 group: "For developers"
 groupOrder: 300
 parentItem: "Quality workflow"
@@ -16,37 +16,66 @@ editedAt: "2026-07-06"
 
 # Local automation and E2E
 
-The template includes a local-only Better Auth automation flow for Playwright and browser
-automation. It creates temporary signed-in users without enabling unsafe production shortcuts.
+ASP.NET Core provides a deliberately local-only credential flow for Playwright and browser
+verification. It creates real clean-store users and persistent HttpOnly-cookie sessions without
+adding a production sign-in shortcut.
 
-## Enable local automation
+## Availability boundary
 
-Set `LOCAL_AUTOMATION_AUTH_ENABLED=true` only in local development. For tests that depend on fresh
-session reads, also set `AUTH_DISABLE_SESSION_COOKIE_CACHE=true`.
+Local automation is available only when both conditions are true:
 
-Do not enable local automation auth in production.
+- the API environment is `Development` or `Test`;
+- `LocalAutomationAuth__Enabled=true`.
 
-## Create an automation user
+Production returns `404 local_auth_disabled` even if the flag is accidentally enabled. Keep real
+credentials out of committed settings; the local flow generates its own scenario credentials. Every
+unsafe automation request follows the normal CSRF contract.
 
-E2E tests should prefer `signInLocalAutomationUser(page)` from `e2e/support/local-auth`. The helper
-creates a local automation user, signs in through the same browser context, and returns scenario
-data for the test.
+## Playwright orchestration
 
-Automation users use the `local-agent+...@local-agent.test` email namespace.
+`npm run e2e` uses `apps/web/playwright.config.ts`. It starts
+`apps/api/tests/Template.E2EHost`, which creates and migrates a disposable PostgreSQL 18.4 database
+and launches the real `Template.Api` process. It also starts Next.js on `127.0.0.1:3127` with the
+local `/api/**` rewrite to the API on `127.0.0.1:5297`.
 
-## Clean up
+`Template.E2EHost` is an orchestration executable, not a second HTTP host. The readiness probe is
+`/api/health/ready`, and normal teardown stops Next.js, the API process, and the disposable database.
 
-Use `cleanupLocalAutomationUser(page)` from the same authenticated browser context. Cleanup refuses
-non-automation users and removes now-memberless local organizations created by the scenario.
+## Create, sign in, and clean up
 
-## Run E2E
+Use generated-SDK helpers from `apps/web/e2e/support/generated-auth-api.ts`:
 
-`npm run e2e` starts its own dev server on the configured Playwright base URL by default. Use
-`PLAYWRIGHT_START_SERVER=false` only when intentionally testing against an already running app with
-matching local automation settings.
+- `createLocalAutomationUser` creates a scenario through `/api/local-auth/scenario`;
+- `signInLocalAutomationUser` creates another persistent session when a scenario needs it;
+- `confirmGeneratedLocalAutomationEmail` confirms only an eligible local scenario user;
+- `cleanupLocalAutomationUser` deletes the current local scenario through the authenticated
+  context.
+
+Helpers obtain a fresh CSRF token and use the same-origin generated client. Keep each user's browser
+context isolated. Register cleanup as soon as a scenario is created, and never print returned
+passwords, API keys, cookies, or response bodies containing secrets.
+
+## Write a focused scenario
+
+Prefer role-based locators and wait for the application's explicit interaction-readiness markers.
+Assert browser behavior and the observable REST request, not internal component state or direct SQL.
+Use API helpers to arrange only behavior that is part of the supported contract. Do not change
+verification flags directly in PostgreSQL.
+
+Run one file while iterating, then the complete deterministic suite:
+
+```bash
+cd apps/web
+npm run e2e -- authentication.spec.ts
+npm run e2e
+```
+
+Live OAuth provider navigation is separate and opt-in through `E2E_LIVE_PROVIDER_SMOKE=1`; it does
+not submit credentials or prove a callback.
 
 ## Related pages
 
-- [OpenSpec, E2E, and docs](/docs/developers/openspec-e2e-docs)
+- [Requirements, E2E, and docs](/docs/developers/openspec-e2e-docs)
+- [Runtime security](/docs/application/runtime-security)
 - [Account settings](/docs/account)
 - [Workspace](/docs/workspace)

@@ -1,6 +1,6 @@
 ---
 title: "Localized documentation content"
-description: "Name documentation files by locale, keep canonical URLs stable, and understand fallback language markers."
+description: "Maintain paired English and Russian source files at one canonical URL and understand publication and fallback rules."
 group: "Documentation"
 groupOrder: 400
 parentItem: "Authoring"
@@ -16,42 +16,66 @@ editedAt: "2026-07-06"
 
 # Localized documentation content
 
-Documentation content is localized by file name. The URL stays canonical and does not include the
-locale.
+Documentation localization is encoded in source filenames, not public URLs. The deployment locale
+selects the matching compiled variant while links remain canonical.
 
-## File names
+## File pairs
 
-Use explicit locale suffixes for public pages:
+Use an explicit supported suffix:
 
-- `page.en.md` or `page.en.mdx`;
-- `page.ru.md` or `page.ru.mdx`.
+- `page.en.md` and `page.ru.md`;
+- `page.en.mdx` and `page.ru.mdx` when custom components are required;
+- `index.en.md` and `index.ru.md` for a directory index.
 
-For index pages, use `index.en.md` and `index.ru.md`. Both publish at the same canonical URL.
+A production-visible canonical page must have both English and Russian variants. A draft or review
+variant may be temporarily unpaired during local authoring, but it cannot be used to publish an
+incomplete pair.
 
 ## Canonical URLs
 
-Locale suffixes are removed from URLs. For example:
+The compiler removes the locale suffix, extension, and terminal `index` segment:
 
-| File | URL |
-| ---- | --- |
-| `workspace/settings.en.md` | `/docs/workspace/settings` |
-| `workspace/settings.ru.md` | `/docs/workspace/settings` |
+| Source file                    | Canonical URL               |
+| ------------------------------ | --------------------------- |
+| `general/quick-start.en.md`    | `/docs/general/quick-start` |
+| `general/quick-start.ru.md`    | `/docs/general/quick-start` |
+| `general/glossary/index.en.md` | `/docs/general/glossary`    |
+| `general/glossary/index.ru.md` | `/docs/general/glossary`    |
 
-Internal links should always use canonical `/docs/...` URLs without `.en` or `.ru`.
+Internal links never include `.en`, `.ru`, `.md`, or `.mdx`. Duplicate source files for the same
+canonical URL and locale fail compilation.
 
-## Fallback content
+## Pair semantics
 
-If a page exists only in one locale, the documentation system can use that page as fallback content
-for both supported interface languages. The UI shows a language marker when fallback content is
-displayed.
+Translate meaning rather than sentence structure. Keep these facts equivalent:
 
-Use fallback intentionally. Public template documentation should normally include both `en` and
-`ru` variants.
+- supported behavior, limits, security rules, and deferred capabilities;
+- heading hierarchy and task order;
+- API methods, routes, field names, codes, and commands;
+- status, version, `editedAt`, navigation order, and related canonical routes.
 
-## Validation
+Use stable technical identifiers exactly as the implementation exposes them. Do not translate a
+route, environment variable, command, Problem Details code, JSON field, or generated operation name.
 
-The content registry rejects duplicate files for the same canonical URL and locale, unsupported
-locale suffixes, locale-suffixed static params, and broken internal links.
+## Fallback marker
+
+The registry records available locales and the runtime can label fallback content when the selected
+variant is absent. This supports local draft/review work and safe handling of an incomplete source,
+but it does not relax the publication rule: a `published` or `archived` page must have both
+production-visible variants.
+
+## Validate the pair
+
+Run from `apps/web`:
+
+```bash
+npm run content:generate
+npm run content:check
+npm run content:test
+```
+
+Then review the paired source diff and generated search entries. Confirm that internal links and
+heading fragments resolve in both locales and that no locale suffix appears in a canonical link.
 
 ## Related pages
 
