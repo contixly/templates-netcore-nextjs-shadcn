@@ -154,6 +154,10 @@ describe("developer and general documentation content policy", () => {
     resolve(contentRoot, "general/authoring/how-to-write-docs.ru.md"),
     "utf8",
   );
+  const quickStartRu = readFileSync(
+    resolve(contentRoot, "general/quick-start.ru.md"),
+    "utf8",
+  );
 
   it("documents the target feature-slice layers and REST boundary", () => {
     expect(featureSliceEn).toContain("Domain");
@@ -166,5 +170,12 @@ describe("developer and general documentation content policy", () => {
   it("documents the content policy check in both locales", () => {
     expect(authoringEn).toContain("npm run content:check");
     expect(authoringRu).toContain("npm run content:check");
+  });
+
+  it("uses the exact Russian local-automation action label", () => {
+    expect(quickStartRu).toContain(
+      "Создать локального пользователя автоматизации",
+    );
+    expect(quickStartRu).not.toContain("Create local automation user");
   });
 });
