@@ -1143,6 +1143,15 @@ OpenAPI exports were byte-identical (**44 paths / 58 operations**). The literal
 precondition was established with safe Python `shutil.rmtree` before the
 passing build. Push/PR/automatic review remain unobserved Task 18 work.
 
+**Final-review fix evidence (2026-08-03):** the earlier Task 17 numbers remain
+the evidence for `dff6e3d`. After adding final-review regressions, fresh content
+Node is **23/23**, the unchanged Task 17 focused Jest command is **12 suites /
+69 tests**, and full Jest is **82 suites / 648 tests**. Focused route/config
+tests are **9/9** and **2/2**; focused documents Playwright is **3/3**; full
+Playwright remains **28 passed / 5 opt-in skipped**. Content generate/check,
+boundaries **8/8**, API client drift, format, typecheck, lint (the same 17
+warning-only aliases), clean build **137/137**, and repository guards passed.
+
 - [x] **Step 7: Commit durable docs**
 
 ```bash

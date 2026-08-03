@@ -2918,6 +2918,23 @@ migration semantics to accept for this slice.
 | `npm run e2e` | PASS; **28 passed, 5 skipped**, 0 failed; skipped cases are opt-in live external-provider screens; `real 69.78s`; non-failing `NO_COLOR`/`FORCE_COLOR` warnings observed |
 | repository guards | PASS before docs edit: `git diff --check`; branch-range `template/` diff empty; no active non-archive `openspec/changes`; status inspected |
 
+### Final-review fix-wave evidence — 2026-08-03
+
+The Task 17 table above remains the exact evidence for `dff6e3d`. The final
+review added four Node compiler regressions and four Jest regressions without
+changing .NET source. Fresh evidence is: content generate/check and Node
+**23/23**; unchanged Task 17 focused Jest **12 suites / 69 tests**; focused
+route/config Jest **9/9** and **2/2**; full Jest **82 suites / 648 tests**;
+focused documents Playwright **3/3**; full Playwright **28 passed / 5 opt-in
+skipped**; boundaries **8/8**; and clean build **137/137**. Typecheck, format,
+API client drift, lint with the same 17 warning-only aliases, template/OpenSpec,
+and whitespace guards also passed.
+
+The compiler now rejects locale-less sources and distinguishes broken targets
+from unpublished matching-locale targets. `/docs/index` is a permanent alias of
+`/docs`; docs loading/error messages are paired for `en`/`ru`; and production
+guidance now requires `APP_PUBLIC_ORIGIN`.
+
 The harness rejected the literal destructive `rm -rf .next` spelling before it
 started that combined command. A safe `python3` `shutil.rmtree(...,
 ignore_errors=True)` removed `.next` instead, immediately before the recorded

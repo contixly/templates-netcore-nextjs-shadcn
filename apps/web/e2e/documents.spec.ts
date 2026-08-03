@@ -6,6 +6,17 @@ test.describe("anonymous documentation", () => {
   test("public routes expose the locale-neutral documentation shell without authentication", async ({
     page,
   }) => {
+    const indexResponse = await page.goto("/docs/index");
+    const indexRequest = indexResponse?.request().redirectedFrom();
+    const redirectResponse = await indexRequest?.response();
+
+    expect(redirectResponse?.status()).toBe(308);
+    await expect(page).toHaveURL(`${webOrigin}/docs`);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      `${webOrigin}/docs`,
+    );
+
     const rootResponse = await page.goto("/docs");
 
     expect(rootResponse?.status()).toBe(200);

@@ -98,6 +98,12 @@ async function runFixture(name) {
       editedAt: "2026-02-30",
     });
   }
+  if (name === "missing-locale-suffix") {
+    files["guides/implicit.md"] = frontmatter({
+      ...metadata,
+      title: "Implicit locale",
+    });
+  }
   if (name === "broken-link") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
@@ -130,6 +136,40 @@ async function runFixture(name) {
   }
   if (name === "published-missing-ru") {
     delete files["guides/start.ru.md"];
+  }
+  if (
+    name === "published-link-to-draft" ||
+    name === "published-link-to-review" ||
+    name === "published-link-to-hidden"
+  ) {
+    const status = name.endsWith("draft")
+      ? "draft"
+      : name.endsWith("review")
+        ? "review"
+        : "published";
+    const hide = name.endsWith("hidden") ? true : undefined;
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "[Start](/docs/guides/start)\n",
+    );
+    files["guides/start.en.md"] = frontmatter(
+      {
+        ...metadata,
+        title: "Start",
+        status,
+        ...(hide === undefined ? {} : { hide }),
+      },
+      "## Details\n",
+    );
+    files["guides/start.ru.md"] = frontmatter(
+      {
+        ...metadata,
+        title: "Начало",
+        status,
+        ...(hide === undefined ? {} : { hide }),
+      },
+      "## Details\n",
+    );
   }
   if (name === "unknown-component") {
     files["index.en.mdx"] = frontmatter(
@@ -228,6 +268,13 @@ test("rejects invalid editedAt dates", async () => {
   );
 });
 
+test("rejects content sources without an explicit supported locale suffix", async () => {
+  await assert.rejects(
+    async () => (await runFixture("missing-locale-suffix")).result,
+    /documents_missing_locale_suffix: guides\/implicit\.md must include an explicit \.en or \.ru suffix/,
+  );
+});
+
 test("extracts stable duplicate heading identifiers outside code fences", () => {
   assert.deepEqual(
     contentCompiler.extractHeadings?.(
@@ -244,6 +291,27 @@ test("rejects broken internal document links", async () => {
   await assert.rejects(
     async () => (await runFixture("broken-link")).result,
     /documents_broken_link/,
+  );
+});
+
+test("rejects production-visible links to matching-locale draft targets", async () => {
+  await assert.rejects(
+    async () => (await runFixture("published-link-to-draft")).result,
+    /documents_unpublished_link: index\.en\.mdx:\d+ -> \/docs\/guides\/start/,
+  );
+});
+
+test("rejects production-visible links to matching-locale review targets", async () => {
+  await assert.rejects(
+    async () => (await runFixture("published-link-to-review")).result,
+    /documents_unpublished_link: index\.en\.mdx:\d+ -> \/docs\/guides\/start/,
+  );
+});
+
+test("rejects production-visible links to matching-locale hidden targets", async () => {
+  await assert.rejects(
+    async () => (await runFixture("published-link-to-hidden")).result,
+    /documents_unpublished_link: index\.en\.mdx:\d+ -> \/docs\/guides\/start/,
   );
 });
 

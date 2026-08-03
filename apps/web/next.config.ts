@@ -44,6 +44,15 @@ const nextConfig: NextConfig = {
     "next-intl",
     "use-intl",
   ],
+  async redirects() {
+    return [
+      {
+        source: "/docs/index",
+        destination: "/docs",
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return apiProxyTarget
       ? [

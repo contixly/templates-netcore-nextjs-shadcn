@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 
 import { DocumentsPage } from "@/src/components/documents/documents-page";
 import {
@@ -25,6 +25,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const canonicalDocumentUrl = canonicalDocumentUrlFromSlug(slug);
+  if (canonicalDocumentUrl === "index") {
+    permanentRedirect(documentsRoutes.root);
+  }
   const locale = resolveDocumentsLocale();
   const document = findPublishedDocument(locale, canonicalDocumentUrl);
 
@@ -74,6 +77,9 @@ export default async function DocumentsDocumentPage({
 }) {
   const { slug } = await params;
   const canonicalUrl = canonicalDocumentUrlFromSlug(slug);
+  if (canonicalUrl === "index") {
+    permanentRedirect(documentsRoutes.root);
+  }
   const document = findPublishedDocument(
     resolveDocumentsLocale(),
     canonicalUrl,

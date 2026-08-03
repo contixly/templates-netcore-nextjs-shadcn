@@ -725,6 +725,13 @@ the `en` or `ru` registry variant; production-visible canonical pages require
 both. Static rendering, navigation, metadata, sitemap, and article content need
 no live API call.
 
+`/docs/index` permanently redirects with HTTP 308 to canonical `/docs`; page
+and metadata resolution retain the same guard before registry lookup.
+`APP_PUBLIC_ORIGIN` supplies the absolute public origin for canonical metadata,
+social image URLs, and the sitemap. Local development safely defaults to
+`http://localhost:3000`, but production must set its externally reachable HTTPS
+origin explicitly.
+
 Next.js 16.2.11 Cache Components remain enabled. In that mode
 `dynamicParams` is unavailable, so documentation routes do not export
 `dynamicParams = false`. `generateStaticParams()` still enumerates every

@@ -1,8 +1,8 @@
 # Public Documentation System Design
 
-**Iteration:** 8 — Public documentation system  
-**Status:** approved design  
-**Branch:** `codex/iteration-8-public-documentation`  
+**Iteration:** 8 — Public documentation system
+**Status:** approved design
+**Branch:** `codex/iteration-8-public-documentation`
 **Date:** 2026-08-02
 
 ## 1. Goal
@@ -195,6 +195,9 @@ stable JSON formatting and no current timestamp or filesystem-mtime fallback.
 Existing explicit `editedAt` values remain authoritative. A second generation
 must be byte-identical.
 
+Every source name ends in an explicit supported `.en` or `.ru` locale suffix
+before `.md` or `.mdx`; the compiler has no implicit-English fallback.
+
 The compiler emits:
 
 - a typed web registry containing metadata, canonical URL, slug, locale,
@@ -245,9 +248,12 @@ The compiler:
 - validates canonical absolute `/docs/**` inline links, reference definitions
   and MDX `href` values;
 - normalizes query/hash/trailing slash and treats `/docs/index` as `/docs`;
-- ignores external HTTP(S), hash-only and non-document links;
+- ignores external HTTP(S) and non-document links; resolves hash-only links
+  against the current localized document;
 - ignores links and headings inside backtick or tilde fenced code blocks;
 - distinguishes unpublished from broken targets;
+- requires a production-visible source to link only to a production-visible
+  matching-locale target;
 - validates internal fragments against generated heading identifiers;
 - creates stable duplicate anchors with `-2`, `-3`, and so on;
 - validates repository-local images and their public paths;
@@ -410,6 +416,8 @@ Documentation uses a dedicated public route group rather than the protected
 switcher.
 
 - `/docs` renders the canonical `index` document;
+- `/docs/index` permanently redirects with HTTP `308` to `/docs`, and page plus
+  metadata resolution retain the same canonical guard;
 - `/docs/{**slug}` renders a generated published document;
 - `generateStaticParams()` returns every production-visible canonical slug;
 - `cacheComponents: true` remains enabled; Next.js 16.2.11 does not permit the

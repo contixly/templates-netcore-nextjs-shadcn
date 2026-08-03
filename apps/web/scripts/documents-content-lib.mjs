@@ -322,6 +322,19 @@ async function validateContentTargets(documents, sourceByPath, publicRoot) {
           );
         }
 
+        const matchingLocaleTarget = documentsByUrlAndLocale.get(
+          `${normalized.targetUrl}\u0000${document.contentLocale}`,
+        );
+        if (
+          isProductionVisible(document) &&
+          (!matchingLocaleTarget || !isProductionVisible(matchingLocaleTarget))
+        ) {
+          fail(
+            "documents_unpublished_link",
+            `${document.sourcePath}:${target.line} -> ${target.href}`,
+          );
+        }
+
         if (normalized.fragment) {
           const targetDocument =
             documentsByUrlAndLocale.get(
@@ -407,10 +420,14 @@ async function findContentFiles(directory) {
 function parseContentPath(contentRoot, path) {
   const sourcePath = normalizePath(relative(contentRoot, path));
   const localeMatch = sourcePath.match(LOCALE_SUFFIX_PATTERN);
-  const contentLocale = localeMatch?.[1].toLowerCase() ?? "en";
-  const canonicalSourcePath = localeMatch
-    ? sourcePath.replace(LOCALE_SUFFIX_PATTERN, "$2")
-    : sourcePath;
+  if (!localeMatch) {
+    fail(
+      "documents_missing_locale_suffix",
+      `${sourcePath} must include an explicit .en or .ru suffix`,
+    );
+  }
+  const contentLocale = localeMatch[1].toLowerCase();
+  const canonicalSourcePath = sourcePath.replace(LOCALE_SUFFIX_PATTERN, "$2");
   const withoutExtension = canonicalSourcePath.replace(
     CONTENT_FILE_PATTERN,
     "",
@@ -425,7 +442,7 @@ function parseContentPath(contentRoot, path) {
     canonicalSourcePath,
     canonicalUrl,
     contentLocale,
-    hasExplicitLocale: Boolean(localeMatch),
+    hasExplicitLocale: true,
   };
 }
 

@@ -14,6 +14,12 @@
     "onThisPage": "On this page",
     "navigation": "Document navigation"
   },
+  "boundary": {
+    "loading": "Loading documentation",
+    "errorTitle": "Documentation is unavailable",
+    "errorDescription": "The requested document could not be rendered safely.",
+    "retry": "Try again"
+  },
   "meta": {
     "group": "Group",
     "parent": "Section",

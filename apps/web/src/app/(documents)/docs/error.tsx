@@ -1,17 +1,21 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
 export default function DocumentsError({
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const t = useTranslations("documents.boundary");
+
   return (
     <section role="alert">
-      <h2>Documentation is unavailable</h2>
-      <p>The requested document could not be rendered safely.</p>
+      <h2>{t("errorTitle")}</h2>
+      <p>{t("errorDescription")}</p>
       <button type="button" onClick={reset}>
-        Try again
+        {t("retry")}
       </button>
     </section>
   );

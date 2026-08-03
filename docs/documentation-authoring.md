@@ -15,7 +15,9 @@ apps/web/src/features/documents/content/**/*.{en,ru}.{md,mdx}
 Use `.md` unless a page needs a closed custom component; use `.mdx` for that
 case. Each canonical page has an explicit pair such as `quick-start.en.md` and
 `quick-start.ru.md`. A directory index uses `index.en.md` and `index.ru.md`.
-The compiler removes the locale suffix, extension, and terminal `/index`:
+Every source must have one of those explicit suffixes; a bare `.md` or `.mdx`
+source is rejected rather than treated as English. The compiler then removes
+the locale suffix, extension, and terminal `/index`:
 
 | Source | Public route |
 | --- | --- |
@@ -127,12 +129,15 @@ Internal documentation links use canonical absolute `/docs` or `/docs/...`
 paths. Query strings and trailing slashes are normalized for validation;
 `/docs/index` is the root. Hash-only links target the current page. A fragment
 must match a generated `h2`/`h3` anchor in the target locale, with fallback to the
-first source variant only when that locale source is absent. Markdown inline
-links, reference definitions, and supported MDX `href` literals are checked.
+first source variant only for a non-production source when that locale variant
+is absent. Markdown inline links, reference definitions, and supported MDX
+`href` literals are checked.
 
-The compiler fails a missing canonical target or fragment. It currently checks
-that a target source exists, not that the target is production-visible, so
-maintainers must not link a published page to a draft, review, or hidden page.
+The compiler gives a broken-link diagnostic when no canonical target exists. A
+production-visible source also requires a production-visible target in the same
+locale; a matching-locale draft, review, hidden, or absent variant gives a
+distinct unpublished-link diagnostic. Fragment validation follows that target
+resolution.
 Normal `http://` and `https://` links, `mailto:` links, hash-only links, and
 non-document paths are outside canonical-document target validation. At render
 time unsafe protocols are suppressed and unavailable `/docs` links are rendered
