@@ -567,6 +567,7 @@ export function ActivityTable({
 
             <DndContext
               collisionDetection={closestCenter}
+              id="dashboard-sections"
               onDragEnd={handleDragEnd}
               sensors={sensors}
             >

@@ -85,10 +85,12 @@ async function createTrackedContext(
 
 async function expectForbidden(page: Page) {
   await expect(
-    page.getByRole("heading", { name: "403", exact: true }),
+    page.getByRole("heading", { name: "Access denied", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "This page could not be accessed." }),
+    page.getByText("You do not have permission to open this page.", {
+      exact: true,
+    }),
   ).toBeVisible();
 }
 

@@ -1,6 +1,8 @@
 import { readFile, readdir } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 
+import { findSourceBoundaryViolations } from "./source-boundary-ast.mjs";
+
 const webRoot = process.cwd();
 const sourceRoot = resolve(webRoot, "src");
 const generatedRoot = resolve(sourceRoot, "lib/api/generated");
@@ -70,20 +72,14 @@ for (const path of await sourceFiles(sourceRoot)) {
   if (/["']use server["']/.test(content)) {
     violations.push(`Server Action directive: ${localPath}`);
   }
-  if (/\bfetch\s*\(/.test(content)) {
-    violations.push(`raw fetch outside generated runtime: ${localPath}`);
+  for (const violation of findSourceBoundaryViolations(localPath, content)) {
+    violations.push(`${violation}: ${localPath}`);
   }
   if (/(?:@prisma|better-auth)/i.test(content)) {
     violations.push(`forbidden full-stack import: ${localPath}`);
   }
   if (/NEXT_PUBLIC_[A-Z0-9_]*API/.test(content)) {
     violations.push(`public API origin variable: ${localPath}`);
-  }
-  if (
-    /(?:localStorage|sessionStorage)/.test(content) &&
-    /(?:authorization|bearer|token)/i.test(content)
-  ) {
-    violations.push(`browser credential storage: ${localPath}`);
   }
   if (handwrittenTransportTypePattern.test(content)) {
     violations.push(`handwritten OpenAPI DTO: ${localPath}`);

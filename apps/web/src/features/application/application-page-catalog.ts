@@ -50,6 +50,7 @@ function dynamicRoutePattern(build: (placeholder: string) => Route): RegExp {
 
 const organizationRoot = dynamicRoutePattern(organizationRoutes.workspace);
 const organizationDashboard = dynamicRoutePattern(organizationRoutes.dashboard);
+const organizationSettings = dynamicRoutePattern(organizationRoutes.settings);
 const organizationWorkspace = dynamicRoutePattern(
   organizationRoutes.settingsWorkspace,
 );
@@ -155,7 +156,9 @@ export const applicationPageCatalog: readonly ApplicationPageDefinition[] = [
     id: "organizationWorkspace",
     indexable: false,
     messageKey: "application.pages.organizationWorkspace",
-    match: pattern(organizationWorkspace),
+    match: (pathname) =>
+      organizationSettings.test(pathname) ||
+      organizationWorkspace.test(pathname),
   },
   {
     id: "organizationUsers",

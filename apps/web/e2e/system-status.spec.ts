@@ -3,9 +3,7 @@ import { expect, test } from "@playwright/test";
 import { waitForInteraction } from "./support/app-readiness";
 
 const webOrigin = "http://127.0.0.1:3127";
-const browserStatusPath = "/api/v1/system/status";
-
-test("SSR and browser use the API through their supported paths", async ({
+test("public landing keeps health diagnostics out of the product while the API remains same-origin", async ({
   page,
 }) => {
   const pageErrors: string[] = [];
@@ -18,48 +16,34 @@ test("SSR and browser use the API through their supported paths", async ({
     }
   });
 
-  const browserRequest = page.waitForRequest((request) => {
-    const url = new URL(request.url());
-    return (
-      url.pathname === browserStatusPath &&
-      url.searchParams.get("echo") === "browser"
-    );
-  });
-
   await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Build the product, not the plumbing" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("status-ssr")).toHaveCount(0);
+  await expect(page.getByTestId("status-browser")).toHaveCount(0);
 
-  const request = await browserRequest;
-  expect(new URL(request.url()).origin).toBe(webOrigin);
-
-  const serverRegion = page
-    .getByTestId("status-ssr")
-    .filter({ hasText: "API is available" });
-  await expect(serverRegion).toContainText("API is available");
-  await expect(serverRegion).toContainText("API version");
-  await expect(serverRegion).toContainText("ssr");
-
-  const browserRegion = page.getByTestId("status-browser");
-  await expect(browserRegion).toContainText("API is available");
-  await expect(browserRegion).toContainText("API version");
-  await expect(browserRegion).toContainText("browser");
+  const response = await page.request.get(
+    `${webOrigin}/api/v1/system/status?echo=browser`,
+  );
+  expect(response.status()).toBe(200);
+  expect(new URL(response.url()).origin).toBe(webOrigin);
+  await expect(response.json()).resolves.toMatchObject({
+    data: { echo: "browser" },
+  });
 
   expect(pageErrors).toEqual([]);
   expect(firstPartyServerErrors).toEqual([]);
 });
 
-test("browser Problem Details is safe and retry restores success", async ({
+test("public landing never mounts diagnostic Problem Details content", async ({
   page,
 }) => {
   const routePattern = "**/api/v1/system/status**";
+  let diagnosticRequested = false;
 
   await page.route(routePattern, async (route) => {
-    const url = new URL(route.request().url());
-
-    if (url.searchParams.get("echo") !== "browser") {
-      await route.continue();
-      return;
-    }
-
+    diagnosticRequested = true;
     await route.fulfill({
       status: 500,
       contentType: "application/problem+json",
@@ -76,22 +60,14 @@ test("browser Problem Details is safe and retry restores success", async ({
   });
 
   await page.goto("/");
-
-  const browserRegion = page.getByTestId("status-browser");
-  await expect(browserRegion).toContainText(
+  expect(diagnosticRequested).toBe(false);
+  await expect(page.locator("body")).not.toContainText(
     "The API could not complete the request.",
   );
-  await expect(browserRegion).toContainText("Trace ID: trace-playwright");
-  await expect(browserRegion).not.toContainText("private backend detail");
-  await expect(browserRegion).not.toContainText("Invariant internal title");
-
-  await page.unroute(routePattern);
-  const retry = browserRegion.getByRole("button", { name: "Retry" });
-  await waitForInteraction(retry);
-  await retry.click();
-
-  await expect(browserRegion).toContainText("API is available");
-  await expect(browserRegion).toContainText("browser");
+  await expect(page.locator("body")).not.toContainText("trace-playwright");
+  await expect(page.locator("body")).not.toContainText(
+    "private backend detail",
+  );
 });
 
 test("theme toggle is keyboard accessible", async ({ page }) => {
