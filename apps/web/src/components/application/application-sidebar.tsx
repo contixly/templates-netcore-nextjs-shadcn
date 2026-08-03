@@ -69,6 +69,7 @@ function ApplicationSidebarContent({
 }>) {
   const t = useTranslations("application.shell.sidebar");
   const closeMobileSidebar = useMobileSidebarClose();
+  const { isMobile, state } = useSidebar();
   const dashboardHref = data.currentOrganization
     ? organizationRoutes.dashboard(data.currentOrganization.canonicalKey)
     : applicationRoutes.dashboard;
@@ -82,6 +83,11 @@ function ApplicationSidebarContent({
       <SidebarHeader>
         <div className="flex items-center gap-2">
           <Link
+            aria-label={
+              !isMobile && state === "collapsed"
+                ? t("brandHomeLabel")
+                : undefined
+            }
             className="flex h-8 min-w-0 flex-1 items-center gap-2 px-2 text-sm font-semibold group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
             href={dashboardHref}
             onClick={closeMobileSidebar}

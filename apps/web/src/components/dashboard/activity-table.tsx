@@ -432,10 +432,12 @@ export function ActivityTable({
       .rows.map((row) => row.original);
     const reordered = reorder([...displayed]);
     const displayedIds = new Set(displayed.map((row) => row.id));
-    setRows((current) => [
-      ...reordered,
-      ...current.filter((row) => !displayedIds.has(row.id)),
-    ]);
+    setRows((current) => {
+      let reorderedIndex = 0;
+      return current.map((row) =>
+        displayedIds.has(row.id) ? reordered[reorderedIndex++]! : row,
+      );
+    });
     setSorting([]);
   };
   const moveRow = (id: number, offset: number) => {

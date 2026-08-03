@@ -44,6 +44,7 @@
       "settings": "Settings"
     },
     "sidebar": {
+      "brandHomeLabel": "Application Template home",
       "open": "Open sidebar",
       "close": "Close sidebar",
       "mobileTitle": "Application navigation",

@@ -120,13 +120,105 @@ it("keeps the switcher trigger unavailable in server HTML until its client handl
   ).toBeVisible();
 });
 
-it("does not render outside authenticated organization-aware paths", () => {
-  pathname.mockReturnValue("/user/profile");
-  renderWithMessages(<OrganizationSwitcher organizations={organizations} />);
+it.each([
+  "/workspaces",
+  "/welcome",
+  "/user/profile",
+  "/user/connections",
+  "/user/security",
+  "/user/invitations",
+  "/user/api-keys",
+  "/user/danger",
+])("uses the active workspace on the protected global route %s", (route) => {
+  pathname.mockReturnValue(route);
+  renderWithMessages(
+    <OrganizationSwitcher
+      activeOrganizationId="new-id"
+      organizations={organizations}
+    />,
+  );
 
   expect(
-    screen.queryByRole("button", { name: /current workspace/i }),
-  ).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "Current workspace: New" }),
+  ).toBeVisible();
+});
+
+it.each([null, "active-id-beyond-first-page"])(
+  "uses a neutral global state when active workspace %s cannot be resolved from supplied options",
+  async (activeOrganizationId) => {
+    pathname.mockReturnValue("/workspaces");
+    renderWithMessages(
+      <OrganizationSwitcher
+        activeOrganizationId={activeOrganizationId}
+        organizations={organizations}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "No active workspace" }),
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Switch to Old" }),
+    ).not.toHaveAttribute("aria-current");
+    expect(
+      screen.getByRole("button", { name: "Switch to New" }),
+    ).not.toHaveAttribute("aria-current");
+  },
+);
+
+it("selects a workspace from an unresolved global active state", async () => {
+  pathname.mockReturnValue("/workspaces");
+  const onNavigate = jest.fn();
+  setActive.mockResolvedValue({
+    ok: true,
+    data: { organizationId: "new-id" },
+  });
+  renderWithMessages(
+    <OrganizationSwitcher
+      activeOrganizationId="active-id-beyond-first-page"
+      onNavigate={onNavigate}
+      organizations={organizations}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "No active workspace" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+
+  await waitFor(() => {
+    expect(setActive).toHaveBeenCalledWith(
+      { id: "browser-client" },
+      { organizationId: "new-id" },
+    );
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledWith("/w/new/dashboard");
+  });
+});
+
+it("switches a global route to the selected workspace dashboard and closes mobile navigation", async () => {
+  pathname.mockReturnValue("/user/security");
+  const onNavigate = jest.fn();
+  setActive.mockResolvedValue({
+    ok: true,
+    data: { organizationId: "new-id" },
+  });
+  renderWithMessages(
+    <OrganizationSwitcher
+      activeOrganizationId="old-id"
+      onNavigate={onNavigate}
+      organizations={organizations}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Current workspace: Old" }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+
+  await waitFor(() => {
+    expect(push).toHaveBeenCalledWith("/w/new/dashboard");
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
 });
 
 it("uses the explicit current context when it is not in the first page", async () => {

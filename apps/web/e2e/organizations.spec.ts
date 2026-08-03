@@ -211,6 +211,11 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Workspaces", exact: true }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Current workspace: E2E Organization",
+      }),
+    ).toBeVisible();
     await expectBrowserSessionReads(1);
 
     await page
@@ -238,6 +243,11 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(page).toHaveURL("/user/profile");
     await expect(
       page.getByRole("heading", { name: "Profile settings" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Current workspace: E2E Organization",
+      }),
     ).toBeVisible();
     await expectBrowserSessionReads(4);
 

@@ -89,6 +89,56 @@ it("reports selected and total rows from the filtered row models", () => {
   expect(screen.getByText("1 of 12 row(s) selected.")).toBeVisible();
 });
 
+it("reorders filtered matches only within their original full-order slots", () => {
+  const rows = dashboardRows.slice(0, 5).map((row, index) => ({
+    ...row,
+    header: [
+      "Match one",
+      "Hidden alpha",
+      "Match two",
+      "Hidden beta",
+      "Match three",
+    ][index]!,
+  }));
+  renderWithMessages(<ActivityTable initialRows={rows} />);
+
+  fireEvent.change(screen.getByRole("textbox", { name: "Search sections" }), {
+    target: { value: "Match" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Move Match one down" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Search sections" }), {
+    target: { value: "" },
+  });
+
+  const displayedRows = screen.getAllByRole("row").slice(1);
+  expect(displayedRows[0]).toHaveTextContent("Match two");
+  expect(displayedRows[1]).toHaveTextContent("Hidden alpha");
+  expect(displayedRows[2]).toHaveTextContent("Match one");
+  expect(displayedRows[3]).toHaveTextContent("Hidden beta");
+  expect(displayedRows[4]).toHaveTextContent("Match three");
+});
+
+it("keeps a single filtered row in place after a no-op move", () => {
+  renderWithMessages(<ActivityTable initialRows={dashboardRows.slice(0, 5)} />);
+
+  fireEvent.change(screen.getByRole("textbox", { name: "Search sections" }), {
+    target: { value: "Technical approach" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Move Technical approach down" }),
+  );
+  fireEvent.change(screen.getByRole("textbox", { name: "Search sections" }), {
+    target: { value: "" },
+  });
+
+  const displayedRows = screen.getAllByRole("row").slice(1);
+  expect(displayedRows[0]).toHaveTextContent("Introduction");
+  expect(displayedRows[1]).toHaveTextContent("Table of contents");
+  expect(displayedRows[2]).toHaveTextContent("Executive summary");
+  expect(displayedRows[3]).toHaveTextContent("Technical approach");
+  expect(displayedRows[4]).toHaveTextContent("Design");
+});
+
 it("switches between localized desktop tabs and exposes the mobile view selector", () => {
   renderWithMessages(
     <ActivityTable initialRows={dashboardRows.slice(0, 12)} />,

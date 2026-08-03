@@ -74,8 +74,19 @@ async function exerciseDashboardInteractions(page: Page) {
   ).toBeVisible();
   await expect(table.getByText("Introduction", { exact: true })).toHaveCount(0);
   await expect(page.getByText("0 of 1 row(s) selected.")).toBeVisible();
+  await page
+    .getByRole("button", { name: "Move Technical approach down" })
+    .click();
   await search.fill("");
   await expect(page.getByText("1 of 68 row(s) selected.")).toBeVisible();
+  for (const [index, header] of [
+    "Introduction",
+    "Table of contents",
+    "Executive summary",
+    "Technical approach",
+  ].entries()) {
+    await expect(table.getByRole("row").nth(index + 1)).toContainText(header);
+  }
 
   await page.getByRole("button", { name: "Go to next page" }).click();
   await expect(page.getByText("Page 2 of 7")).toBeVisible();
@@ -275,6 +286,9 @@ test("desktop landing and authenticated shell cover primary navigation", async (
       .getByRole("navigation", { name: "Workspace", exact: true })
       .getByRole("link", { name: "Workspaces", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("button", { name: "Current workspace: E2E Shell Beta" }),
+  ).toBeVisible();
   await expectNoSensitiveShellText(page, desktopIdentity.password);
 
   await page
@@ -326,6 +340,9 @@ test("desktop landing and authenticated shell cover primary navigation", async (
   await expect(
     page.getByRole("link", { name: "Profile", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("button", { name: "Current workspace: E2E Shell Beta" }),
+  ).toBeVisible();
   await expectNoSensitiveShellText(page, desktopIdentity.password);
 
   const logout = page

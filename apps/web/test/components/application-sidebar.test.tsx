@@ -66,6 +66,7 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) =>
     ({
       account: "Account",
+      brandHomeLabel: "Application Template home",
       close: "Close sidebar",
       dashboard: "Dashboard",
       documentation: "Documentation",
@@ -81,14 +82,29 @@ jest.mock("@/src/hooks/use-mobile", () => ({
 }));
 
 jest.mock("@/src/components/organizations/organization-switcher", () => ({
-  OrganizationSwitcher: ({ onNavigate }: { onNavigate?: () => void }) => (
-    <div>
-      <button type="button">Current workspace: Acme</button>
-      <button onClick={onNavigate} type="button">
-        Complete workspace navigation
-      </button>
-    </div>
-  ),
+  OrganizationSwitcher: ({
+    activeOrganizationId,
+    currentOrganization,
+    onNavigate,
+    organizations,
+  }: {
+    activeOrganizationId?: string | null;
+    currentOrganization?: { id: string; name: string } | null;
+    onNavigate?: () => void;
+    organizations: readonly { id: string; name: string }[];
+  }) => {
+    const current =
+      organizations.find(({ id }) => id === activeOrganizationId) ??
+      currentOrganization;
+    return current ? (
+      <div>
+        <button type="button">Current workspace: {current.name}</button>
+        <button onClick={onNavigate} type="button">
+          Complete workspace navigation
+        </button>
+      </div>
+    ) : null;
+  },
 }));
 
 jest.mock("@/src/components/authentication/logout-button", () => ({
@@ -127,6 +143,23 @@ it("renders organization-aware primary, documentation, and account navigation", 
   expect(screen.getByRole("button", { name: "Log out" })).toBeEnabled();
 });
 
+it.each(["/workspaces", "/welcome", "/user/profile"])(
+  "keeps the active workspace switcher in the sidebar on %s",
+  (pathname) => {
+    const globalShellData: ApplicationShellData = {
+      ...shellData,
+      currentOrganization: null,
+      organizations: [shellData.currentOrganization],
+    };
+
+    render(<ApplicationSidebar data={globalShellData} pathname={pathname} />);
+
+    expect(
+      screen.getByRole("button", { name: "Current workspace: Acme" }),
+    ).toBeVisible();
+  },
+);
+
 it("labels the desktop rail from the current collapsed state", () => {
   render(
     <TooltipProvider>
@@ -140,6 +173,25 @@ it("labels the desktop rail from the current collapsed state", () => {
   expect(
     screen.getByRole("button", { name: "Close sidebar" }),
   ).toBeInTheDocument();
+});
+
+it("keeps the collapsed brand link accessible through a localized name", () => {
+  render(
+    <TooltipProvider>
+      <SidebarProvider defaultOpen={false}>
+        <ApplicationSidebar data={shellData} pathname="/w/acme/dashboard" />
+      </SidebarProvider>
+    </TooltipProvider>,
+  );
+
+  const brandLink = screen.getByRole("link", {
+    name: "Application Template home",
+  });
+  expect(brandLink).toHaveAttribute("href", "/w/acme/dashboard");
+  expect(brandLink).toHaveAccessibleName("Application Template home");
+  expect(
+    screen.queryByText("Application Template home"),
+  ).not.toBeInTheDocument();
 });
 
 it("provides a focusable localized close action inside the mobile sheet", () => {

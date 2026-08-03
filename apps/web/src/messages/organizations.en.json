@@ -47,6 +47,7 @@
   },
   "switcher": {
     "current": "Current workspace: {name}",
+    "unselected": "No active workspace",
     "title": "Switch workspace",
     "description": "Choose an accessible workspace.",
     "switchTo": "Switch to {name}",
