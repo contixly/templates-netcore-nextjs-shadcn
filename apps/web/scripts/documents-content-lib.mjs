@@ -722,8 +722,8 @@ export async function compileDocumentsContent({ contentRoot, publicRoot }) {
     documents.push(document);
   }
 
-  validatePublishedLocales(documents);
   await validateContentTargets(documents, sourceByPath, publicRoot);
+  validatePublishedLocales(documents);
 
   const availableLocalesByUrl = new Map();
   for (const document of documents) {

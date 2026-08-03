@@ -165,8 +165,7 @@ async function runFixture(name) {
       {
         ...metadata,
         title: "Начало",
-        status,
-        ...(hide === undefined ? {} : { hide }),
+        status: "published",
       },
       "## Details\n",
     );
@@ -294,21 +293,21 @@ test("rejects broken internal document links", async () => {
   );
 });
 
-test("rejects production-visible links to matching-locale draft targets", async () => {
+test("rejects links to matching-locale draft targets with a published sibling", async () => {
   await assert.rejects(
     async () => (await runFixture("published-link-to-draft")).result,
     /documents_unpublished_link: index\.en\.mdx:\d+ -> \/docs\/guides\/start/,
   );
 });
 
-test("rejects production-visible links to matching-locale review targets", async () => {
+test("rejects links to matching-locale review targets with a published sibling", async () => {
   await assert.rejects(
     async () => (await runFixture("published-link-to-review")).result,
     /documents_unpublished_link: index\.en\.mdx:\d+ -> \/docs\/guides\/start/,
   );
 });
 
-test("rejects production-visible links to matching-locale hidden targets", async () => {
+test("rejects links to matching-locale hidden targets with a published sibling", async () => {
   await assert.rejects(
     async () => (await runFixture("published-link-to-hidden")).result,
     /documents_unpublished_link: index\.en\.mdx:\d+ -> \/docs\/guides\/start/,
