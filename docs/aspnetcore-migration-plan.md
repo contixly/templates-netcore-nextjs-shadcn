@@ -260,6 +260,15 @@ controller и не self-asserted этим документом.
 **Выход:** все нужные UI routes работают с уже мигрированными API modules; нет Server Actions, Prisma или Better Auth в `apps/web`.
 **Reference:** `template/src/features/application`, `template/src/features/dashboard`, `template/src/messages/**`.
 
+**Dashboard presentation decision (2026-08-03):** dashboard fixture data remains
+neutral, immutable, target-owned demo data; localized row/type/status labels are
+serializable message projections supplied to the client boundary. All dashboard
+copy crossing the React Server Component boundary is plain data (including
+placeholder templates, never functions). Sorting/filtering establishes the
+displayed order used by a subsequent local reorder, and no dashboard interaction
+claims or performs persistence. Chart value descriptions live outside the
+`role="img"` subtree and are connected with `aria-describedby`.
+
 ### Итерация 10 — Aspire и локальная интеграционная среда
 
 **Цель:** ускорить разработку и сделать локальный distributed application наблюдаемым.
