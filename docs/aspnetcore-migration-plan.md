@@ -3140,13 +3140,14 @@ function не обёрнут и не должен описываться как 
   render sections under the shell-owned `main#main-content`; the standalone
   root surfaces retain their own main landmark. Source-inventory and rendered
   integration tests enforce that distinction.
-- The browser-storage boundary scanner rejects `localStorage`/`sessionStorage`
-  writes through direct, aliased, destructured, bound, `.call` and `.apply`
-  `setItem` forms. For `setItem.apply.bind`, its capability carries partially or
-  fully pre-bound application arguments through the later invocation, so a
-  sensitive array cannot disappear at bind time. Safe preferences and shadowed
-  non-browser objects remain allowed. This is static enforcement in addition to
-  runtime E2E checks.
+- The handwritten-source boundary reserves every syntactic identifier,
+  statically spelled property, or string capability named exactly `fetch`,
+  `localStorage`, or `sessionStorage`, and separately rejects literal/template
+  product paths under `/api/v1`. Shadowed names and direct safe-preference
+  storage are intentionally rejected; product code must use the generated SDK,
+  `next-themes`, and sidebar cookie helpers. This conservative closed-world rule
+  supersedes the scope-aware alias interpreter and excludes only the
+  header-checked generated SDK directory at integration level.
 - No EF model/migration, table, index, seed, transaction, cache invalidation,
   audit event or background job was added. Existing account, organization,
   collaboration, invitation and API-key transaction/schema behavior is
@@ -3237,6 +3238,18 @@ implementation commit was amended before every final command above was rerun
 from `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`. The complete development tree
 still reports one high-severity dev-only vulnerability; it is not hidden by the
 separate zero-vulnerability production audit.
+
+The subsequent GitHub review exposed that extending that scope-aware analyzer
+had turned the guard into an incomplete JavaScript interpreter: the original
+pre-bound storage and computed-fetch examples could be closed one data-flow
+shape at a time while other compositions remained possible. The replacement is
+deliberately syntactic and closed-world. It rejects the three reserved
+capability tokens and raw literal/template `/api/v1` paths wherever they occur
+in handwritten source, so alias, bind/call/apply, higher-order, spread, branch,
+recursive, destructured, computed-const, and shadowed-name forms do not require
+runtime emulation. Approved wrappers contain no reserved token. This closes the
+two reported examples by policy; exact-current-head automatic-review and thread
+evidence remains Task 10 controller work and is not finalized here.
 
 ### Intentional differences and later exclusions
 

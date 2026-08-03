@@ -72,173 +72,171 @@ function checkFixture(source: string) {
   }
 }
 
-it("rejects structural raw-fetch and sensitive browser-storage variants", () => {
+function expectBoundaryViolation(
+  label: string,
+  source: string,
+  message: string,
+) {
+  const result = checkFixture(source);
+  expect({ label, status: result.status }).toEqual({ label, status: 1 });
+  expect(result.stderr).toContain(
+    `${message}: src/__application_shell_boundary_test__/boundary-fixture.ts`,
+  );
+}
+
+it("enforces the conservative reserved-capability boundary syntactically", () => {
   const rejected = [
     [
-      "optional window fetch",
-      'window.fetch?.("/api/v1/status");\n',
+      "original fully pre-bound storage finding",
+      'const save = localStorage.setItem.bind(localStorage, "token", value);\nsave();\n',
+      "browser credential storage",
+    ],
+    [
+      "original computed fetch finding",
+      'const method = "fetch";\nwindow[method]("/api/v1/account");\n',
       "raw fetch outside generated runtime",
     ],
     [
-      "fetch call",
-      'fetch.call(globalThis, "/api/v1/status");\n',
+      "direct fetch alias",
+      "const request = fetch;\nvoid request;\n",
       "raw fetch outside generated runtime",
     ],
     [
-      "bound fetch alias",
-      'const apiFetch = fetch.bind(globalThis);\napiFetch("/api/v1/status");\n',
+      "call and apply composition",
+      'const invoke = globalThis["fetch"].call.bind(globalThis.fetch);\nvoid invoke;\n',
       "raw fetch outside generated runtime",
     ],
     [
-      "window fetch alias",
-      'const apiFetch = window.fetch;\napiFetch("/api/v1/status");\n',
+      "higher-order identity",
+      "const identity = <T>(value: T) => value;\nidentity(sessionStorage);\n",
+      "browser credential storage",
+    ],
+    [
+      "spread capability",
+      "const copy = { ...localStorage };\nvoid copy;\n",
+      "browser credential storage",
+    ],
+    [
+      "branch capability",
+      "const request = enabled ? fetch : fallback;\nvoid request;\n",
       "raw fetch outside generated runtime",
     ],
     [
-      "destructured fetch alias",
-      'const { fetch: apiFetch } = globalThis;\napiFetch("/api/v1/status");\n',
+      "recursive capability",
+      'function requestAgain() {\n  return fetch("/health").then(requestAgain);\n}\n',
       "raw fetch outside generated runtime",
     ],
     [
-      "multiline password value",
-      'const passwordValue = "sensitive";\nlocalStorage.setItem(\n  "theme",\n  passwordValue,\n);\n',
+      "destructured capability",
+      "const { localStorage: preferences } = window;\nvoid preferences;\n",
       "browser credential storage",
     ],
     [
-      "reversed secret key",
-      'const secretStorageKey = "opaque";\nsessionStorage.setItem(\n  secretStorageKey,\n  "value",\n);\n',
+      "computed const property",
+      'const capability = "sessionStorage";\nwindow[capability].clear();\n',
       "browser credential storage",
     ],
     [
-      "session cookie value",
-      'sessionStorage.setItem("temporary", authCookie);\n',
+      "shadowed reserved identifier",
+      'const localStorage = new Map<string, string>();\nlocalStorage.set("theme", "dark");\n',
       "browser credential storage",
     ],
     [
-      "storage property assignment",
-      'localStorage["sessionSecret"] = opaqueValue;\n',
+      "direct safe preference is still reserved",
+      'localStorage.setItem("template.theme", "dark");\n',
       "browser credential storage",
     ],
     [
-      "window storage",
-      'window.localStorage.setItem("password", opaqueValue);\n',
+      "statically spelled object property",
+      "const capabilities = { sessionStorage: memoryStore };\nvoid capabilities;\n",
       "browser credential storage",
     ],
     [
-      "aliased window storage",
-      'const store = window.sessionStorage;\nstore.setItem("secret", opaqueValue);\n',
-      "browser credential storage",
-    ],
-    [
-      "browser global alias",
-      'const browser = window;\nbrowser.localStorage.setItem("password", value);\n',
-      "browser credential storage",
-    ],
-    [
-      "chained browser and storage aliases",
-      'const root = globalThis;\nconst browser = root.window;\nconst store = browser.sessionStorage;\nstore.setItem("credential", value);\n',
-      "browser credential storage",
-    ],
-    [
-      "destructured storage alias",
-      'const { localStorage: store } = window;\nstore.setItem("session", value);\n',
-      "browser credential storage",
-    ],
-    [
-      "destructured setItem alias",
-      'const { setItem: save } = sessionStorage;\nsave("secret", value);\n',
-      "browser credential storage",
-    ],
-    [
-      "bound setItem alias",
-      'const save = localStorage.setItem.bind(localStorage);\nsave("password", value);\n',
-      "browser credential storage",
-    ],
-    [
-      "direct setItem apply",
-      'localStorage.setItem.apply(localStorage, ["token", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "aliased setItem apply",
-      'const save = window.localStorage.setItem;\nsave.apply(window.localStorage, ["credential", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "destructured setItem apply",
-      'const { setItem: save } = sessionStorage;\nsave.apply(sessionStorage, ["secret", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "bound setItem apply",
-      'const save = localStorage.setItem.bind(localStorage);\nsave.apply(undefined, ["password", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "bound apply alias",
-      'const applySave = localStorage.setItem.apply.bind(localStorage.setItem);\napplySave(localStorage, ["session", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "partially bound apply arguments",
-      'const save = localStorage.setItem.apply.bind(localStorage.setItem, localStorage);\nsave(["token", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "fully bound apply arguments",
-      'const save = localStorage.setItem.apply.bind(localStorage.setItem, localStorage, ["credential", value]);\nsave();\n',
-      "browser credential storage",
-    ],
-    [
-      "aliased partially bound apply arguments",
-      'const applySave = window.localStorage.setItem.apply;\nconst save = applySave.bind(window.localStorage.setItem, window.localStorage);\nsave(["password", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "destructured fully bound apply arguments",
-      'const { apply: applySave } = sessionStorage.setItem;\nconst save = applySave.bind(sessionStorage.setItem, sessionStorage, ["secret", value]);\nsave();\n',
-      "browser credential storage",
-    ],
-    [
-      "destructured apply alias",
-      'const { apply: applySave } = sessionStorage.setItem;\napplySave(sessionStorage, ["bearer", value]);\n',
-      "browser credential storage",
-    ],
-    [
-      "constant sensitive key alias",
-      'const key = "password";\nlocalStorage.setItem(key, value);\n',
-      "browser credential storage",
+      "statically spelled string capability",
+      'const capabilityName = "fetch";\nvoid capabilityName;\n',
+      "raw fetch outside generated runtime",
     ],
   ] as const;
 
   for (const [label, source, message] of rejected) {
-    const result = checkFixture(source);
-    expect({ label, status: result.status }).toEqual({ label, status: 1 });
-    expect(result.stderr).toContain(
-      `${message}: src/__application_shell_boundary_test__/boundary-fixture.ts`,
-    );
+    expectBoundaryViolation(label, source, message);
   }
 });
 
-it("allows known-safe preference storage despite unrelated sensitive words", () => {
-  const allowed = [
-    'const token = "render-only";\nlocalStorage.setItem("theme", "dark");\nvoid token;\n',
-    'sessionStorage.setItem(\n  "sidebar-preference",\n  "collapsed",\n);\n',
-    'localStorage.setItem("color-scheme", "system");\n',
-    'const localStorage = new Map<string, string>();\nlocalStorage.set("session", "ui");\n',
-    'const localStorage = new Map<string, string>();\nlocalStorage.setItem("session", "ui");\n',
-    'localStorage.setItem.apply(localStorage, ["theme", "dark"]);\n',
-    'const save = sessionStorage.setItem;\nconst args = ["sidebar-preference", "collapsed"];\nsave.apply(sessionStorage, args);\n',
-    'const save = localStorage.setItem.apply.bind(localStorage.setItem, localStorage);\nsave(["theme", "dark"]);\n',
-    'const applySave = sessionStorage.setItem.apply;\nconst save = applySave.bind(sessionStorage.setItem, sessionStorage, ["sidebar-preference", "collapsed"]);\nsave();\n',
-    'const localStorage = new Map<string, string>();\nlocalStorage.setItem.apply(localStorage, ["session", "ui"]);\n',
-    'const localStorage = new Map<string, string>();\nconst applySave = localStorage.setItem.apply;\nconst save = applySave.bind(localStorage.setItem, localStorage);\nsave(["token", "visual-label"]);\n',
-    'const preferences = new Map<string, string>();\nconst { setItem } = preferences;\nsetItem?.apply(preferences, ["token", "visual-label"]);\n',
-  ];
+it("rejects literal and template raw product API paths without evaluating synthesized strings", () => {
+  const rejected = [
+    ["relative literal", 'const path = "/api/v1/account";\n'],
+    [
+      "absolute literal",
+      'const path = "https://example.test/api/v1/organizations";\n',
+    ],
+    ["no-substitution template", "const path = `/api/v1/account`;\n"],
+    [
+      "template head",
+      "const path = `/api/v1/organizations/${organizationId}/teams`;\n",
+    ],
+    ["wildcard route pattern", 'const path = "**/api/v1/auth/session";\n'],
+  ] as const;
 
-  for (const source of allowed) {
+  for (const [label, source] of rejected) {
+    expectBoundaryViolation(label, source, "raw product API path");
+  }
+});
+
+it("allows approved wrappers and unrelated browser or string syntax", () => {
+  const allowed = [
+    [
+      "generated SDK and approved preference wrappers",
+      'import { getAccount } from "@/src/lib/api/generated";\nimport { serializeSidebarPreference } from "@/src/components/application/sidebar-state";\nimport { useTheme } from "next-themes";\nvoid getAccount;\nvoid useTheme;\ndocument.cookie = serializeSidebarPreference(true);\n',
+    ],
+    ["unrelated browser location", 'window.location.assign("/docs");\n'],
+    [
+      "non-product strings",
+      'const labels = ["fetching", "/api/v2/account", "/api/v10/account"];\nvoid labels;\n',
+    ],
+    [
+      "dynamic non-reserved property",
+      "declare const propertyName: string;\nconst capability = window[propertyName];\nvoid capability;\n",
+    ],
+    [
+      "dynamic string synthesis is not evaluated",
+      'const propertyName = ["fe", "tch"].join("");\nconst capability = window[propertyName];\nvoid capability;\n',
+    ],
+  ] as const;
+
+  for (const [label, source] of allowed) {
     const result = checkFixture(source);
+    expect({ label, stderr: result.stderr, status: result.status }).toEqual({
+      label,
+      stderr: "",
+      status: 0,
+    });
+  }
+});
+
+it("excludes generated SDK source at the integration boundary", () => {
+  const fixture = resolve(generatedRoot, "__boundary-fixture.gen.ts");
+  writeFileSync(
+    fixture,
+    '// This file is auto-generated by @hey-api/openapi-ts\nexport const raw = () => fetch("/api/v1/account");\n',
+  );
+
+  try {
+    const result = spawnSync(
+      process.execPath,
+      ["scripts/check-boundaries.mjs"],
+      {
+        cwd: webRoot,
+        encoding: "utf8",
+      },
+    );
     expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "Web dependency and source boundaries are clean.",
+    );
+    expect(result.stderr).toBe("");
+  } finally {
+    rmSync(fixture, { force: true });
   }
 });
 

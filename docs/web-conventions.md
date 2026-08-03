@@ -848,17 +848,18 @@ Problem Details, opaque-cursor, feature-filter, transaction, and schema behavior
 is unchanged, and `npm run api:check` guards the generated client against the
 unchanged OpenAPI contract.
 
-The browser-storage source boundary rejects direct, aliased, destructured,
-bound, `.call`, and `.apply` forms of `localStorage.setItem` and
-`sessionStorage.setItem`, including bound-apply combinations. A
-`setItem.apply.bind` capability retains arguments supplied after `.bind`'s
-receiver and combines them with later invocation arguments, so both partially
-and fully pre-bound sensitive application arrays are rejected through direct,
-aliased and destructured paths. The analysis remains scope-aware so shadowed
-`Map`-like objects do not become false positives. The dedicated
-safe-preferences module is the only narrow persistence exception and continues
-to store only approved presentation preferences, never identity, credentials,
-bearer tokens, protected data, or dashboard edits.
+The handwritten-source boundary uses a conservative closed-world syntactic
+policy rather than a scope-aware alias interpreter. Any identifier, statically
+spelled property, or string capability named exactly `fetch`, `localStorage`,
+or `sessionStorage` is reserved and rejected, including declarations that
+shadow a browser global and direct writes of otherwise safe preferences. String
+and template literal product paths under `/api/v1` are rejected separately.
+The rule does not interpret aliases, branches, higher-order calls, recursion,
+or dynamically synthesized strings: those forms cannot hide a reserved token,
+and arbitrary runtime evaluation is outside this source guard's contract.
+Handwritten product code instead uses the generated SDK, `next-themes`, and the
+sidebar cookie helpers without spelling a reserved capability. The generated
+SDK directory remains the explicit header-checked integration exclusion.
 
 The exact `postcss` override is `8.5.25`. It replaced `8.5.22` after the
 production audit began reporting the incomplete source-map advisory fix in

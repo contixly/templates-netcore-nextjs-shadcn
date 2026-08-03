@@ -10,7 +10,7 @@
 
 **Tech Stack:** .NET 10 verification only; Next.js 16.2.11 App Router with Cache Components; React 19.2.8; TypeScript 6.0.3; next-intl 4.13.4; Tailwind CSS 4.3.3; shadcn/radix-ui; Jest 30; Playwright 1.61.1; generated Hey API client; Recharts 3.9.1; TanStack Table 8.21.3; dnd-kit; Sonner; Vaul; Zod 4.4.3.
 
-**Execution status (2026-08-03):** Tasks 1–9 are implemented and locally accepted at implementation head `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`, including both final whole-branch review/fix rounds described below. Task 10 (push, ready PR, and current-head GitHub review) has not started and is not claimed.
+**Execution status (2026-08-03):** Tasks 1–9 are implemented and locally accepted at implementation head `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`, including both final whole-branch review/fix rounds described below. Task 10 is in progress; exact-current-head GitHub review and thread evidence is not finalized or claimed.
 
 ## Global Constraints
 
@@ -1099,6 +1099,28 @@ production audit reported zero. Playwright emitted only the repeated
 `NO_COLOR`/`FORCE_COLOR` and development cache-bypass diagnostics. Task 10
 remains deliberately unchecked below: this re-review claims no push, ready PR,
 current-head automatic review, mergeability, or review-thread state.
+
+#### GitHub boundary-policy simplification addendum — 2026-08-03
+
+- [x] Verified that handwritten production JS/TS contains no direct `fetch`,
+      `localStorage`, or `sessionStorage` token before changing the guard.
+- [x] Added RED contract fixtures for the two original GitHub examples, the
+      representative alias/bind/call/apply/higher-order/spread/branch/
+      recursion/destructuring/computed/shadowed combinations, direct safe
+      preference storage, raw literal/template `/api/v1` paths, approved
+      wrapper usage, unrelated syntax, and generated-SDK exclusion.
+- [x] Replaced the partial scope/data-flow interpreter with a conservative
+      closed-world AST walk: exact reserved identifiers/properties/strings and
+      literal/template product API paths are forbidden in handwritten source.
+      Dynamic string synthesis is intentionally not evaluated.
+- [x] Removed the obsolete scope, callable, control-flow, and abstract-value
+      interpreter fixtures and implementation instead of retaining unreachable
+      complexity.
+
+This addendum records only the local policy correction for the two GitHub
+findings. The unchecked Task 10 completion gates still require a pushed current
+head, fresh automatic review, zero unresolved actionable threads, passing
+checks, and observed mergeability.
 
 ### Task 10: Publish a ready PR and close automatic-review findings
 
