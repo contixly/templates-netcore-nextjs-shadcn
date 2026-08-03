@@ -1,16 +1,25 @@
 import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 
-export default function ProtectedLayout({
+import { ProtectedApplicationShell } from "@/src/components/application/protected-application-shell";
+import { parseSidebarPreference } from "@/src/components/application/sidebar-state";
+
+export default async function ProtectedLayout({
   children,
   applicationNavigation,
 }: Readonly<{
   children: ReactNode;
   applicationNavigation: ReactNode;
 }>) {
+  const cookieStore = await cookies();
+  const defaultSidebarOpen = parseSidebarPreference(cookieStore.toString());
+
   return (
-    <>
-      {applicationNavigation}
-      <main id="main-content">{children}</main>
-    </>
+    <ProtectedApplicationShell
+      defaultSidebarOpen={defaultSidebarOpen}
+      navigation={applicationNavigation}
+    >
+      {children}
+    </ProtectedApplicationShell>
   );
 }

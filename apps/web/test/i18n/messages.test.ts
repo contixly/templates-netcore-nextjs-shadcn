@@ -275,6 +275,15 @@ describe("fixed deployment locale", () => {
     expect(russian.application.shell.navigation.dashboard).toBe(
       "Панель управления",
     );
+    expect(english.application.shell.sidebar.mobileTitle).toBe(
+      "Application navigation",
+    );
+    expect(russian.application.shell.sidebar.mobileTitle).not.toBe(
+      english.application.shell.sidebar.mobileTitle,
+    );
+    expect(russian.application.shell.sidebar.mobileDescription).not.toBe(
+      english.application.shell.sidebar.mobileDescription,
+    );
     expect(english.dashboard.table.demoNotice).toMatch(/not saved/i);
     expect(russian.dashboard.table.demoNotice).toMatch(/не сохраня/iu);
   });

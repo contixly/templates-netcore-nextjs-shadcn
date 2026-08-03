@@ -20,6 +20,8 @@
     "sidebar": {
       "open": "Open sidebar",
       "close": "Close sidebar",
+      "mobileTitle": "Application navigation",
+      "mobileDescription": "Navigate the application and manage your workspace and account.",
       "workspace": "Workspace",
       "workspaceSettings": "Workspace settings",
       "accountSettings": "Account settings"

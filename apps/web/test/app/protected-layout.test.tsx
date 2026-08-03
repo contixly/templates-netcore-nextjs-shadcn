@@ -1,36 +1,56 @@
-import { Children, type ReactElement, type ReactNode } from "react";
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 import ProtectedLayout from "@/src/app/(protected)/layout";
 
-function asElement<Props extends object>(node: ReactNode): ReactElement<Props> {
-  if (typeof node !== "object" || node === null || !("type" in node)) {
-    throw new Error("Expected a React element");
-  }
+const protectedApplicationShell = jest.fn(
+  ({
+    children,
+    navigation,
+  }: {
+    children: ReactNode;
+    navigation: ReactNode;
+  }) => (
+    <div data-testid="protected-shell">
+      {navigation}
+      <main id="main-content">{children}</main>
+    </div>
+  ),
+);
 
-  return node as ReactElement<Props>;
-}
+jest.mock("next/headers", () => ({
+  cookies: async () => ({
+    toString: (): string => "template.sidebar=open",
+  }),
+}));
+jest.mock("@/src/components/application/protected-application-shell", () => ({
+  ProtectedApplicationShell: (props: {
+    children: ReactNode;
+    defaultSidebarOpen: boolean;
+    navigation: ReactNode;
+  }) => protectedApplicationShell(props),
+}));
 
-it("renders one route-aware navigation slot and one main-content target", () => {
+it("renders one route-aware navigation slot and one main-content target", async () => {
   const applicationNavigation = (
     <nav data-slot="application-navigation">Navigation</nav>
   );
-  const layout = asElement<{ children: ReactNode }>(
-    ProtectedLayout({
+
+  render(
+    await ProtectedLayout({
       children: <article>Protected page</article>,
       applicationNavigation,
     }),
   );
-  const nodes = Children.toArray(layout.props.children).map((node) =>
-    asElement<Record<string, unknown>>(node),
-  );
 
   expect(
-    nodes.filter(
-      ({ props }) => props["data-slot"] === "application-navigation",
-    ),
+    screen
+      .getAllByRole("navigation")
+      .filter((node) => node.dataset.slot === "application-navigation"),
   ).toHaveLength(1);
-  expect(nodes.filter(({ props }) => props.id === "main-content")).toHaveLength(
-    1,
+  expect(document.querySelectorAll("#main-content")).toHaveLength(1);
+  expect(protectedApplicationShell).toHaveBeenCalledWith(
+    expect.objectContaining({ defaultSidebarOpen: true }),
   );
-  expect(JSON.stringify(layout)).not.toContain("HomePage");
+  expect(document.body.innerHTML).not.toContain("HomePage");
 });

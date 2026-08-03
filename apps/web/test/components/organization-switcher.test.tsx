@@ -215,6 +215,7 @@ it("preserves the full accessible name while constraining long labels", () => {
 
 it("sets active context before preserving a registered route and refreshing once after StrictMode replay", async () => {
   const order: string[] = [];
+  const onNavigate = jest.fn(() => order.push("close-mobile"));
   setActive.mockImplementation(async () => {
     order.push("mutation");
     return { ok: true, data: { organizationId: "new-id" } };
@@ -227,7 +228,10 @@ it("sets active context before preserving a registered route and refreshing once
   });
   renderWithMessages(
     <StrictMode>
-      <OrganizationSwitcher organizations={organizations} />
+      <OrganizationSwitcher
+        onNavigate={onNavigate}
+        organizations={organizations}
+      />
     </StrictMode>,
   );
 
@@ -246,7 +250,27 @@ it("sets active context before preserving a registered route and refreshing once
   });
   expect(setActive).toHaveBeenCalledTimes(1);
   expect(push).toHaveBeenCalledTimes(1);
-  expect(order).toEqual(["mutation", "navigation", "refresh"]);
+  expect(onNavigate).toHaveBeenCalledTimes(1);
+  expect(order).toEqual(["mutation", "close-mobile", "navigation", "refresh"]);
+});
+
+it("notifies the shell when workspace-list navigation starts", async () => {
+  const onNavigate = jest.fn();
+  renderWithMessages(
+    <OrganizationSwitcher
+      onNavigate={onNavigate}
+      organizations={organizations}
+    />,
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Current workspace: Old" }),
+  );
+  const link = await screen.findByRole("link", { name: "Manage workspaces" });
+  link.addEventListener("click", (event) => event.preventDefault());
+  fireEvent.click(link);
+
+  expect(onNavigate).toHaveBeenCalledTimes(1);
 });
 
 it.each([

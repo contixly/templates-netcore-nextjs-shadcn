@@ -3,6 +3,7 @@ import { Activity, StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
+import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
 import { createBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 
@@ -171,6 +172,28 @@ it("uses the returned canonical key and refreshes after successful creation", as
     expect(push).toHaveBeenCalledWith("/w/acme-team/dashboard");
     expect(refresh).toHaveBeenCalledTimes(1);
   });
+});
+
+it("notifies the shell before navigating to a newly created workspace", async () => {
+  const onNavigate = jest.fn();
+  createOrganization.mockResolvedValue({
+    ok: true,
+    data: createdOrganization,
+  });
+  renderWithMessages(<OrganizationCreateDialog onNavigate={onNavigate} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Create New Workspace" }));
+  fireEvent.change(
+    await screen.findByRole("textbox", { name: "Workspace name" }),
+    { target: { value: "Acme Team" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+  await waitFor(() => expect(push).toHaveBeenCalled());
+  expect(onNavigate).toHaveBeenCalledTimes(1);
+  expect(onNavigate.mock.invocationCallOrder[0]).toBeLessThan(
+    push.mock.invocationCallOrder[0]!,
+  );
 });
 
 it("suppresses a successful create continuation after permanent deletion", async () => {

@@ -17,6 +17,11 @@ jest.mock("next-intl/server", () => ({
 jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
+jest.mock("@/src/components/application/application-sidebar", () => ({
+  ApplicationSidebar: () => (
+    <nav aria-label="Workspace" data-slot="application-navigation" />
+  ),
+}));
 jest.mock("@/src/lib/api/application/server/load-application-shell", () => ({
   loadApplicationShell: jest.fn(),
 }));

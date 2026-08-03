@@ -62,11 +62,13 @@ export function OrganizationSwitcher({
   activeOrganizationId,
   currentOrganization,
   nextCursor,
+  onNavigate,
   organizations,
 }: Readonly<{
   activeOrganizationId?: string | null;
   currentOrganization?: OrganizationSwitcherItem | null;
   nextCursor?: string | null;
+  onNavigate?: () => void;
   organizations: readonly OrganizationSwitcherItem[];
 }>) {
   const t = useTranslations("organizations.switcher");
@@ -184,6 +186,7 @@ export function OrganizationSwitcher({
       queuedRefresh.current = origin;
       return;
     }
+    onNavigate?.();
     router.push(
       resolveOrganizationSwitchHref(
         origin.pathname,
@@ -285,7 +288,10 @@ export function OrganizationSwitcher({
           <Button asChild className="sm:flex-1" variant="outline">
             <Link
               href={organizationRoutes.workspaces}
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+                onNavigate?.();
+              }}
               onNavigate={() => setOpen(false)}
             >
               {t("manage")}
@@ -295,7 +301,10 @@ export function OrganizationSwitcher({
             <Button asChild className="sm:flex-1" variant="outline">
               <Link
                 href={organizationRoutes.workspaces}
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  onNavigate?.();
+                }}
                 onNavigate={() => setOpen(false)}
               >
                 {t("loadMore")}

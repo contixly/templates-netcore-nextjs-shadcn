@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 import type { AppLocale } from "@/src/i18n/config";
 import type { I18nMessages } from "@/src/i18n/messages";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
 
 export function AppProviders({
   children,
@@ -31,7 +32,7 @@ export function AppProviders({
         messages={messages}
         timeZone={timeZone}
       >
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
       </NextIntlClientProvider>
     </ThemeProvider>
   );
