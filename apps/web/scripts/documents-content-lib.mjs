@@ -57,6 +57,46 @@ const ALLOWED_MDX_INTRINSIC_ELEMENTS = new Set([
   "tr",
   "ul",
 ]);
+const CUSTOM_MDX_ATTRIBUTE_CONTRACTS = new Map([
+  ["Callout", { optional: ["title", "variant"] }],
+  ["Steps", {}],
+  ["Step", { required: ["title"] }],
+  ["Files", {}],
+  ["Folder", { required: ["name"] }],
+  ["File", { required: ["name"] }],
+  ["Tabs", { optional: ["defaultValue"] }],
+  ["Tab", { required: ["title", "value"] }],
+  ["DocumentLinkGrid", {}],
+  ["DocumentLinkGroup", { required: ["title"], optional: ["description"] }],
+  ["DocumentLinkCard", { required: ["href", "title"] }],
+]);
+const INTRINSIC_MDX_ATTRIBUTE_CONTRACTS = new Map([
+  ["a", { optional: ["href", "title"] }],
+  ["blockquote", { optional: ["cite"] }],
+  ["code", { optional: ["className"] }],
+  ["del", { optional: ["cite", "dateTime"] }],
+  ["img", { required: ["src"], optional: ["alt", "height", "title", "width"] }],
+  ["ol", { optional: ["start", "type"] }],
+  ["td", { optional: ["colSpan", "rowSpan"] }],
+  ["th", { optional: ["colSpan", "rowSpan", "scope"] }],
+]);
+const CALLOUT_VARIANTS = new Set([
+  "default",
+  "info",
+  "success",
+  "warning",
+  "danger",
+]);
+const SAFE_DOCUMENT_SEGMENT_PATTERN = /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/u;
+const RESERVED_DOCUMENT_HEADING_IDS = [
+  "document-title",
+  "main-content",
+  "footnote-label",
+];
+const RESERVED_GFM_HEADING_ID_PREFIXES = [
+  "user-content-fn-",
+  "user-content-fnref-",
+];
 const METADATA_FIELDS = new Set([
   "title",
   "description",
@@ -99,6 +139,13 @@ function visitMdxTree(node, visitor, ancestors = []) {
   }
 }
 
+const isNamedMdxElement = (node, name) =>
+  Boolean(
+    node &&
+    (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") &&
+    node.name === name,
+  );
+
 function headingText(node) {
   if (node.type === "text" || node.type === "inlineCode") {
     return node.value;
@@ -119,9 +166,31 @@ const slugifyHeading = (title) =>
     .replace(/-+/gu, "-")
     .replace(/^-|-$/gu, "");
 
+function articleHeadingBaseId(title) {
+  const baseId = slugifyHeading(title) || "section";
+  return RESERVED_GFM_HEADING_ID_PREFIXES.some((prefix) =>
+    baseId.startsWith(prefix),
+  )
+    ? `document-heading-${baseId}`
+    : baseId;
+}
+
+function allocateUniqueHeadingId(baseId, seenIds) {
+  let count = (seenIds.get(baseId) ?? 0) + 1;
+  let id = count === 1 ? baseId : `${baseId}-${count}`;
+  while (seenIds.has(id)) {
+    count += 1;
+    id = `${baseId}-${count}`;
+  }
+
+  seenIds.set(baseId, count);
+  seenIds.set(id, 1);
+  return id;
+}
+
 export function extractHeadings(content, tree = parseMdx(content)) {
   const headings = [];
-  const seenIds = new Map();
+  const seenIds = new Map(RESERVED_DOCUMENT_HEADING_IDS.map((id) => [id, 1]));
 
   visitMdxTree(tree, (node) => {
     if (node.type !== "heading" || (node.depth !== 2 && node.depth !== 3)) {
@@ -129,17 +198,93 @@ export function extractHeadings(content, tree = parseMdx(content)) {
     }
     const title = headingText(node).replace(/\s+/gu, " ").trim();
 
-    const baseId = slugifyHeading(title) || "section";
-    const count = seenIds.get(baseId) ?? 0;
-    seenIds.set(baseId, count + 1);
+    const baseId = articleHeadingBaseId(title);
     headings.push({
       level: node.depth,
       title,
-      id: count === 0 ? baseId : `${baseId}-${count + 1}`,
+      id: allocateUniqueHeadingId(baseId, seenIds),
     });
   });
 
   return headings;
+}
+
+function validateMdxAttributes(node, sourcePath, line) {
+  const contract = ALLOWED_MDX_COMPONENTS.has(node.name)
+    ? CUSTOM_MDX_ATTRIBUTE_CONTRACTS.get(node.name)
+    : (INTRINSIC_MDX_ATTRIBUTE_CONTRACTS.get(node.name) ?? {});
+  const required = new Set(contract.required ?? []);
+  const optional = new Set(contract.optional ?? []);
+  const attributes = new Map();
+
+  for (const attribute of node.attributes) {
+    if (attribute.type !== "mdxJsxAttribute") continue;
+    const attributeLine = attribute.position?.start.line ?? line;
+    if (!required.has(attribute.name) && !optional.has(attribute.name)) {
+      fail(
+        "documents_mdx_attribute_unknown",
+        `${sourcePath}:${attributeLine} does not allow ${attribute.name} on ${node.name}`,
+      );
+    }
+    if (attributes.has(attribute.name)) {
+      fail(
+        "documents_mdx_attribute_duplicate",
+        `${sourcePath}:${attributeLine} contains duplicate ${node.name}.${attribute.name}`,
+      );
+    }
+    if (typeof attribute.value !== "string") {
+      fail(
+        "documents_mdx_attribute_invalid",
+        `${sourcePath}:${attributeLine} requires quoted string ${node.name}.${attribute.name}`,
+      );
+    }
+    if (required.has(attribute.name) && attribute.value.trim().length === 0) {
+      fail(
+        "documents_mdx_attribute_invalid",
+        `${sourcePath}:${attributeLine} requires non-empty ${node.name}.${attribute.name}`,
+      );
+    }
+    attributes.set(attribute.name, attribute.value);
+  }
+
+  for (const attributeName of required) {
+    if (!attributes.has(attributeName)) {
+      fail(
+        "documents_mdx_attribute_required",
+        `${sourcePath}:${line} requires ${node.name}.${attributeName}`,
+      );
+    }
+  }
+
+  const calloutVariant =
+    node.name === "Callout" ? attributes.get("variant") : undefined;
+  if (calloutVariant !== undefined && !CALLOUT_VARIANTS.has(calloutVariant)) {
+    fail(
+      "documents_mdx_attribute_invalid",
+      `${sourcePath}:${line} has invalid Callout.variant`,
+    );
+  }
+
+  const documentCardHref =
+    node.name === "DocumentLinkCard" ? attributes.get("href") : undefined;
+  if (
+    documentCardHref !== undefined &&
+    !/^\/docs(?:[/?#]|$)/u.test(documentCardHref)
+  ) {
+    fail(
+      "documents_mdx_attribute_invalid",
+      `${sourcePath}:${line} requires canonical DocumentLinkCard.href`,
+    );
+  }
+
+  const tabsDefaultValue =
+    node.name === "Tabs" ? attributes.get("defaultValue") : undefined;
+  if (tabsDefaultValue !== undefined && tabsDefaultValue.trim().length === 0) {
+    fail(
+      "documents_mdx_attribute_invalid",
+      `${sourcePath}:${line} requires non-empty Tabs.defaultValue`,
+    );
+  }
 }
 
 function validateMdxSyntax(content, sourcePath) {
@@ -155,6 +300,20 @@ function validateMdxSyntax(content, sourcePath) {
       fail(
         "documents_footnote_heading_unsupported",
         `${sourcePath}:${line} contains h2/h3 inside a GFM footnote definition`,
+      );
+    }
+    if (
+      node.type === "heading" &&
+      (node.depth === 2 || node.depth === 3) &&
+      ancestors.some(
+        (ancestor) =>
+          isNamedMdxElement(ancestor, "Tab") ||
+          isNamedMdxElement(ancestor, "Tabs"),
+      )
+    ) {
+      fail(
+        "documents_tab_heading_unsupported",
+        `${sourcePath}:${line} contains h2/h3 inside Tabs/Tab`,
       );
     }
     if (node.type === "mdxjsEsm") {
@@ -176,6 +335,12 @@ function validateMdxSyntax(content, sourcePath) {
       node.type === "mdxJsxFlowElement" ||
       node.type === "mdxJsxTextElement"
     ) {
+      if (node.name === "Tab" && !isNamedMdxElement(ancestors.at(-1), "Tabs")) {
+        fail(
+          "documents_tabs_structure_invalid",
+          `${sourcePath}:${line} requires Tab to be a direct child of Tabs`,
+        );
+      }
       if (
         node.name &&
         !ALLOWED_MDX_INTRINSIC_ELEMENTS.has(node.name) &&
@@ -220,6 +385,56 @@ function validateMdxSyntax(content, sourcePath) {
           `${sourcePath}:${expressionAttribute.position?.start.line ?? line} contains forbidden expression-valued JSX attribute syntax`,
         );
       }
+      validateMdxAttributes(node, sourcePath, line);
+    }
+  });
+
+  visitMdxTree(tree, (node) => {
+    if (!isNamedMdxElement(node, "Tabs")) return;
+
+    const tabChildren = node.children ?? [];
+    const invalidChild = tabChildren.find(
+      (child) => !isNamedMdxElement(child, "Tab"),
+    );
+    if (invalidChild) {
+      fail(
+        "documents_tabs_structure_invalid",
+        `${sourcePath}:${invalidChild.position?.start.line ?? node.position?.start.line ?? 1} requires every direct Tabs child to be Tab`,
+      );
+    }
+
+    if (tabChildren.length === 0) {
+      fail(
+        "documents_tabs_structure_invalid",
+        `${sourcePath}:${node.position?.start.line ?? 1} requires Tabs to contain at least one direct Tab`,
+      );
+    }
+
+    const values = new Set();
+    for (const child of tabChildren) {
+      const value = child.attributes.find(
+        (attribute) =>
+          attribute.type === "mdxJsxAttribute" && attribute.name === "value",
+      )?.value;
+      if (values.has(value)) {
+        fail(
+          "documents_tabs_structure_invalid",
+          `${sourcePath}:${child.position?.start.line ?? node.position?.start.line ?? 1} requires unique direct Tab.value attributes`,
+        );
+      }
+      values.add(value);
+    }
+
+    const defaultValue = node.attributes.find(
+      (attribute) =>
+        attribute.type === "mdxJsxAttribute" &&
+        attribute.name === "defaultValue",
+    )?.value;
+    if (defaultValue !== undefined && !values.has(defaultValue)) {
+      fail(
+        "documents_tabs_structure_invalid",
+        `${sourcePath}:${node.position?.start.line ?? 1} requires Tabs.defaultValue to match a direct Tab.value`,
+      );
     }
   });
 
@@ -304,19 +519,16 @@ function normalizeDocumentHref(href, currentUrl) {
   const hashIndex = trimmed.indexOf("#");
   const withoutHash = hashIndex < 0 ? trimmed : trimmed.slice(0, hashIndex);
   const rawFragment = hashIndex < 0 ? undefined : trimmed.slice(hashIndex + 1);
-  const pathname = safeDecode(withoutHash.split("?", 1)[0], decodeURI).replace(
-    /\/+$/u,
-    "",
-  );
+  const pathname = withoutHash.split("?", 1)[0].replace(/\/+$/u, "");
 
   if (pathname !== "/docs" && !pathname.startsWith("/docs/")) {
     return undefined;
   }
 
   const rawTarget =
-    pathname === "/docs"
+    pathname === "/docs" || pathname === "/docs/index"
       ? "index"
-      : pathname.slice("/docs/".length).replace(/\/index$/u, "");
+      : pathname.slice("/docs/".length);
 
   return {
     targetUrl: rawTarget || "index",
@@ -325,6 +537,23 @@ function normalizeDocumentHref(href, currentUrl) {
         ? undefined
         : safeDecode(rawFragment, decodeURIComponent),
   };
+}
+
+function validateSafeLinkTarget(href, sourcePath, line) {
+  const trimmed = href.trim();
+  let parsed;
+  try {
+    parsed = new URL(trimmed, "https://documents.invalid");
+  } catch {
+    fail("documents_unsafe_link_target", `${sourcePath}:${line} -> ${href}`);
+  }
+
+  if (
+    href !== trimmed ||
+    !["http:", "https:", "mailto:"].includes(parsed.protocol)
+  ) {
+    fail("documents_unsafe_link_target", `${sourcePath}:${line} -> ${href}`);
+  }
 }
 
 function normalizeImageHref(href) {
@@ -386,6 +615,7 @@ async function validateContentTargets(documents, sourceByPath, publicRoot) {
       sourceByPath.get(document.sourcePath).tree,
     )) {
       if (target.kind === "link") {
+        validateSafeLinkTarget(target.href, document.sourcePath, target.line);
         const normalized = normalizeDocumentHref(
           target.href,
           document.canonicalUrl,
@@ -522,6 +752,26 @@ function parseContentPath(contentRoot, path) {
     withoutExtension === "index"
       ? "index"
       : withoutExtension.replace(/\/index$/u, "");
+
+  if (
+    withoutExtension !== "index" &&
+    (canonicalUrl === "index" || canonicalUrl.endsWith("/index"))
+  ) {
+    fail(
+      "documents_ambiguous_index_alias",
+      `${sourcePath} still maps to terminal index canonical URL ${canonicalUrl}`,
+    );
+  }
+
+  const invalidSegment = canonicalUrl
+    .split("/")
+    .find((segment) => !SAFE_DOCUMENT_SEGMENT_PATTERN.test(segment));
+  if (invalidSegment !== undefined) {
+    fail(
+      "documents_invalid_slug",
+      `${sourcePath} contains unsafe canonical route segment ${JSON.stringify(invalidSegment)}`,
+    );
+  }
 
   if (canonicalUrl === "og" || canonicalUrl.startsWith("og/")) {
     fail(
@@ -713,6 +963,7 @@ function createRegistrySource(documents) {
 
 const normalizeSearchText = (value) =>
   value
+    .normalize("NFC")
     .toLowerCase()
     .replace(/ё/gu, "е")
     .replace(/[^\p{Letter}\p{Number}\s]/gu, " ")

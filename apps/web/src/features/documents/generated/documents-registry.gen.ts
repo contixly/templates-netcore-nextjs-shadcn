@@ -2893,8 +2893,8 @@ export const documents = [
       "status": "published",
       "toc": true,
       "author": "Template Maintainers",
-      "version": "1.2.0",
-      "editedAt": "2026-07-06"
+      "version": "1.2.1",
+      "editedAt": "2026-08-03"
     },
     "availableLocales": [
       "en",
@@ -3119,8 +3119,8 @@ export const documents = [
       "status": "published",
       "toc": true,
       "author": "Команда шаблона",
-      "version": "1.2.0",
-      "editedAt": "2026-07-06"
+      "version": "1.2.1",
+      "editedAt": "2026-08-03"
     },
     "availableLocales": [
       "en",

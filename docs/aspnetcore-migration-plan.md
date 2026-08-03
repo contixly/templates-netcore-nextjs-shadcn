@@ -2863,8 +2863,8 @@ CSRF requirement or per-search rate limiter was added.
 
 | Reference | Новый API | Новый UI | Fresh evidence |
 | --- | --- | --- | --- |
-| `template/src/features/documents-system/**` registry/compiler/search tools | Application search + embedded neutral index | generated registry/import map, 108 target-owned sources | content Node **60/60**; focused documents Jest **12 suites / 74 tests** |
-| `template/src/app/api/v1/documents-system/search/route.ts` | anonymous `GET /api/v1/documents-system/search`, `{ data }`, no-store, Problem Details | generated `searchDocumentsSystem` adapter, debounced/cancellable search dialog | Application search **21/21**; API search/OpenAPI focus **71/71**; boundary **8/8** |
+| `template/src/features/documents-system/**` registry/compiler/search tools | Application search + embedded neutral index | generated registry/import map, 108 target-owned sources | content Node **109/109**; focused documents Jest **12 suites / 80 tests** |
+| `template/src/app/api/v1/documents-system/search/route.ts` | anonymous `GET /api/v1/documents-system/search`, `{ data }`, no-store, Problem Details | generated `searchDocumentsSystem` adapter, debounced/cancellable search dialog | Application search **25/25**; API endpoint focus **32/32**; API/OpenAPI focus **89/89**; full API **773/773**; boundary **8/8** |
 | `template/src/app/(public)/(documents-system)/docs/**` | none for rendering | `/docs`, `/docs/{**slug}`, public shell/article/sidebar/prev-next/TOC | page/component/metadata Jest focus; Playwright documents scenarios within final **28 passed** |
 | reference OG routes and metadata files | none | sole Next Route Handler `/docs/og/{**slug}` plus metadata file conventions | production build and Playwright PNG/unknown-image cases |
 | `template/src/app/sitemap.ts` | none | published canonical docs projection | focused sitemap Jest plus clean build |
@@ -2886,7 +2886,9 @@ most 8 pages and 8 headings, with deterministic exact/prefix/contains/metadata/
 fuzzy ranking and generated order for ties. There is no caller limit, cursor,
 page number, independent filter, or pagination response. Success is required
 non-null `{ data: { pages, headings } }` and `Cache-Control: no-store`; errors
-are safe typed `400`, `406`, or `500` Problem Details. Logs/artifacts do not
+are safe typed `400`, `406`, or `500` Problem Details. Incompatible success
+media ranges return `406 not_acceptable`; JSON/wildcard ranges are accepted,
+and the Problem Details writer remains independent of `Accept`. Logs/artifacts do not
 expose content bodies, query-derived exception text, filesystem paths or
 credentials.
 
@@ -2898,13 +2900,13 @@ migration semantics to accept for this slice.
 
 | Gate / command | Observed result |
 | --- | --- |
-| focused `dotnet test ...Template.Application.Tests... --filter FullyQualifiedName~DocumentSearch` | PASS; **21/21**, 0 failed/skipped |
-| focused `dotnet test ...Template.Api.Tests... --filter 'FullyQualifiedName~DocumentSearch\|FullyQualifiedName~OpenApiContractTests'` | PASS; **71/71**, 0 failed/skipped; `real 32.62s` |
-| `npm run content:check`; `npm run content:test` | PASS; drift clean; Node **60/60**, 0 failed/skipped |
-| focused documents Jest command from Task 17 | PASS; **12/12 suites, 74/74 tests**, 0 snapshots |
+| focused `dotnet test ...Template.Application.Tests... --filter FullyQualifiedName~DocumentSearch` | PASS after third review wave; **25/25**, 0 failed/skipped |
+| focused `dotnet test ...Template.Api.Tests... --filter FullyQualifiedName~DocumentSearchEndpointTests`; Task 17 API/OpenAPI filter | PASS after third review wave; endpoint **32/32**, combined **89/89**, 0 failed/skipped |
+| `npm run content:check`; `npm run content:test` | PASS; drift clean; Node **109/109**, 0 failed/skipped |
+| focused documents Jest command from Task 17 | PASS; **12/12 suites, 80/80 tests**, 0 snapshots |
 | `dotnet restore Template.sln` | PASS; all projects current; `real 0.98s` |
 | `dotnet build Template.sln --no-restore` | PASS; **0 warnings, 0 errors**; `real 2.23s` |
-| `dotnet test Template.sln --no-restore` | PASS; Application **339/339**, API **755/755**, aggregate **1094/1094**, 0 failed/skipped |
+| `dotnet test Template.sln --no-restore` | PASS after third review wave; Application **343/343**, API **773/773**, aggregate **1116/1116**, 0 failed/skipped |
 | `dotnet format Template.sln --no-restore --verify-no-changes` | PASS; `real 13.71s` |
 | `dotnet list Template.sln package --vulnerable --include-transitive` | PASS; no vulnerable NuGet packages in all 7 projects; `real 13.14s` |
 | `npm run content:generate`; second `npm run content:check` | PASS; generated registry/index current; `real 0.26s` and `0.18s` |
@@ -2915,8 +2917,8 @@ migration semantics to accept for this slice.
 | `npm run format:check` | PASS; Prettier clean; `real 3.98s` |
 | `npm run lint` | PASS exit 0; **0 errors, 17 warning-only** unused compile-time aliases in `test/contracts/generated-sdk.test.ts`; `real 8.03s` |
 | `npm run typecheck` | PASS; Next typegen and TypeScript clean; `real 4.90s` |
-| full `npm test -- --runInBand` | PASS; **82/82 suites, 653/653 tests**, 0 snapshots |
-| clean `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build`; standalone check | PASS; Next.js 16.2.11, Cache Components enabled, **137/137** static-page generation, standalone server present; `real 12.13s` |
+| full `npm test -- --runInBand` | PASS after third review wave; **82/82 suites, 659/659 tests**, 0 snapshots |
+| clean `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build`; standalone check | PASS; Next.js 16.2.11, Cache Components enabled, **137/137** static-page generation, standalone server present; `real 12.47s` |
 | `npm run audit:prod` | PASS; **0 production vulnerabilities**; `real 1.17s` |
 | `npm audit --json` | observed full development tree: **1 high**, 0 critical/moderate/low; transitive `brace-expansion` DoS advisory, fix available |
 | `npm run e2e` | PASS; **28 passed, 5 skipped**, 0 failed; skipped cases are opt-in live external-provider screens; `real 69.78s`; non-failing `NO_COLOR`/`FORCE_COLOR` warnings observed |
@@ -2925,21 +2927,48 @@ migration semantics to accept for this slice.
 ### Automatic-review fix-wave evidence — 2026-08-03
 
 The initial Task 17 table was extended by automatic-review regressions. Fresh
-current evidence is: content generate/check and Node **60/60**; focused
-documents Jest **12 suites / 74 tests**; full Jest **82 suites / 653 tests**;
-full .NET **1094/1094**; full Playwright **28 passed / 5 opt-in skipped**;
+current evidence is: content generate/check and Node **109/109**; focused
+documents Jest **12 suites / 80 tests**; full Jest **82 suites / 659 tests**;
+full .NET **1116/1116**; full Playwright **28 passed / 5 opt-in skipped**;
 boundaries **8/8**; and clean build **137/137**. Typecheck, format, API client
 drift, lint with the same 17 warning-only aliases, production audit,
 template/OpenSpec and whitespace guards also passed. One combined verification
 shell received process exit 139 when entering Jest after the preceding gates;
 an immediately isolated full Jest command passed at that checkpoint, the latest
-full suite passes **653/653**, and no source change was made for that
+full suite passes **659/659**, and no source change was made for that
 environment/process failure.
 
 The compiler now rejects locale-less sources and distinguishes broken targets
 from unpublished matching-locale targets. `/docs/index` is a permanent alias of
 `/docs`; docs loading/error messages are paired for `en`/`ru`; and production
 guidance now requires `APP_PUBLIC_ORIGIN`.
+
+The third automatic-review wave further closes the authoring/runtime boundary:
+canonical route segments are validated before URL generation against the
+lowercase ASCII letter/digit alphabet with single `-`/`.` separators, and
+repeated terminal source `/index` aliases are rejected before collision/link
+validation; only the exact `/docs/index` compatibility link maps to the root,
+while nested/repeated terminal aliases and percent-encoded document paths are
+broken; closed quoted-string MDX attribute contracts require every mandatory
+custom-component field and reject duplicate attribute names before JSX
+last-value-wins behavior;
+`h2`/`h3` at any nesting depth inside `Tabs`/`Tab` are rejected, with direct
+`Tabs` → `Tab` ownership, non-empty tabs, unique values, and exact optional
+default selection enforced; compiler and runtime
+reserve `document-title`/`main-content`/`footnote-label` and allocate globally
+unused anchors outside GFM's dynamic footnote-ID namespaces; unsafe or
+whitespace-obfuscated link protocols fail compilation and are suppressed at
+runtime; and rendered document links remove all trailing slashes exactly like
+compiler validation. Search input is composed to
+NFC in both generated JavaScript index text and .NET query normalization.
+Incompatible search `Accept` values now produce safe no-store
+`406 not_acceptable application/problem+json`, while JSON and wildcard ranges
+remain accepted, representation-compatible `charset=utf-8` is honored, and
+media-type specificity cannot be outranked by repeated parameters. Error
+Problem Details do not depend on `Accept`. Strict complete-list parsing rejects
+malformed tokens/parameters, invalid quality, and mixed valid/invalid values
+instead of treating a malformed present header as absent; qvalues also enforce
+the RFC three-fractional-digit grammar.
 
 The syntax-aware compiler uses the same GFM parser as rendering, rejects MDX
 module/flow/text expressions, JSX expression/spread attributes, and executable

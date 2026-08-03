@@ -92,6 +92,28 @@ async function runFixture(name) {
       title: "Duplicate",
     });
   }
+  const ambiguousIndexAliases = {
+    "ambiguous-root-index-alias": "index/index",
+    "ambiguous-linked-index-alias": "guides/index/index",
+    "ambiguous-deep-index-alias": "guides/index/index/index",
+  };
+  if (ambiguousIndexAliases[name]) {
+    const path = ambiguousIndexAliases[name];
+    files[`${path}.en.md`] = frontmatter({
+      ...metadata,
+      title: "Ambiguous index alias",
+    });
+    files[`${path}.ru.md`] = frontmatter({
+      ...metadata,
+      title: "Неоднозначный index alias",
+    });
+    if (name === "ambiguous-linked-index-alias") {
+      files["index.en.mdx"] = frontmatter(
+        { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+        "[Ambiguous alias](/docs/guides/index)\n",
+      );
+    }
+  }
   if (name === "bad-date") {
     files["guides/start.en.md"] = frontmatter({
       ...metadata,
@@ -118,10 +140,54 @@ async function runFixture(name) {
       title: "Reserved OG child",
     });
   }
+  const unsafeSlugSegments = {
+    "unsafe-slug-hash": "guide#setup",
+    "unsafe-slug-query": "guide?setup",
+    "unsafe-slug-backslash": "guide\\setup",
+    "unsafe-slug-space": "guide setup",
+    "unsafe-slug-percent": "guide%20setup",
+    "unsafe-slug-unicode": "руководство",
+    "unsafe-slug-uppercase": "Guide",
+    "unsafe-slug-underscore": "guide_setup",
+  };
+  if (unsafeSlugSegments[name]) {
+    const segment = unsafeSlugSegments[name];
+    files[`guides/${segment}.en.md`] = frontmatter({
+      ...metadata,
+      title: "Unsafe slug",
+    });
+    files[`guides/${segment}.ru.md`] = frontmatter({
+      ...metadata,
+      title: "Unsafe slug",
+    });
+  }
   if (name === "broken-link") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
       "[Missing](/docs/missing)\n",
+    );
+  }
+  if (name === "nested-index-link") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "[Nested alias](/docs/guides/start/index)\n",
+    );
+  }
+  if (name === "repeated-root-index-link") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "[Repeated root alias](/docs/index/index)\n",
+    );
+  }
+  const encodedDocumentLinks = {
+    "encoded-root-index-link": "/docs/%69ndex",
+    "encoded-canonical-link": "/docs/guides/%73tart",
+  };
+  if (encodedDocumentLinks[name]) {
+    const href = encodedDocumentLinks[name];
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      `[Encoded document path](${href})\n`,
     );
   }
   if (name === "duplicate-link-definition") {
@@ -151,6 +217,25 @@ async function runFixture(name) {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
       "## Overview\n\n[Missing](#missing)\n",
+    );
+  }
+  if (name === "reserved-heading-fragment-valid") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        "## Document title",
+        "",
+        "## Document title 2",
+        "",
+        "[Reserved base](#document-title-2)",
+        "[Derived collision](#document-title-2-2)",
+      ].join("\n"),
+    );
+  }
+  if (name === "reserved-heading-fragment-missing") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "## Document title\n\n[Wrong target](#document-title)\n",
     );
   }
   if (name === "missing-image") {
@@ -387,6 +472,162 @@ async function runFixture(name) {
       '<Callout title="Safe" variant="info">Literal content</Callout>\n',
     );
   }
+  if (name === "unsafe-leading-whitespace-link") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      '<a href=" javascript:alert(1)">Unsafe</a>\n',
+    );
+  }
+  if (name === "unsafe-markdown-link-protocol") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      "[Unsafe](javascript:alert(1))\n",
+    );
+  }
+  const invalidMdxAttributeFixtures = {
+    "boolean-anchor-href": "<a href>Unsafe</a>",
+    "boolean-image-src": '<img alt="Unsafe" src />',
+    "boolean-callout-title": "<Callout title>Unsafe</Callout>",
+    "boolean-tabs-default":
+      '<Tabs defaultValue><Tab title="A" value="a">A</Tab></Tabs>',
+    "boolean-link-description": '<DocumentLinkGroup title="A" description />',
+    "unknown-custom-attribute": '<Callout style="color: red">Unsafe</Callout>',
+    "invalid-callout-variant": '<Callout variant="loud">Unsafe</Callout>',
+    "missing-step-title": "<Step />",
+    "missing-folder-name": "<Folder />",
+    "missing-file-name": "<File />",
+    "missing-tab-title": '<Tabs>\n  <Tab value="one" />\n</Tabs>',
+    "missing-tab-value": '<Tabs>\n  <Tab title="One" />\n</Tabs>',
+    "missing-link-group-title": "<DocumentLinkGroup />",
+    "missing-link-card-href": '<DocumentLinkCard title="One" />',
+    "missing-link-card-title": '<DocumentLinkCard href="/docs" />',
+    "invalid-link-card-href":
+      '<DocumentLinkCard href="http://[" title="Broken" />',
+  };
+  if (invalidMdxAttributeFixtures[name]) {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      `${invalidMdxAttributeFixtures[name]}\n`,
+    );
+  }
+  if (name === "heading-in-nested-tab") {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      [
+        '<Tabs defaultValue="visible">',
+        '  <Tab title="Visible" value="visible">',
+        "    Visible",
+        "  </Tab>",
+        '  <Tab title="Hidden" value="hidden">',
+        "    <Callout>",
+        "",
+        "### Unmounted heading",
+        "",
+        "    </Callout>",
+        "  </Tab>",
+        "</Tabs>",
+      ].join("\n"),
+    );
+  }
+  const tabsStructureFixtures = {
+    "heading-directly-in-tabs": [
+      '<Tabs defaultValue="visible">',
+      "",
+      "## Discarded heading",
+      "",
+      '  <Tab title="Visible" value="visible">',
+      "    Visible",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+    "heading-in-tabs-container": [
+      '<Tabs defaultValue="visible">',
+      "  <Callout>",
+      "",
+      "## Discarded nested heading",
+      "",
+      "  </Callout>",
+      '  <Tab title="Visible" value="visible">',
+      "    Visible",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+    "paragraph-directly-in-tabs": [
+      '<Tabs defaultValue="visible">',
+      "",
+      "Discarded prose",
+      "",
+      '  <Tab title="Visible" value="visible">',
+      "    Visible",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+    "orphan-tab": [
+      '<Tab title="Orphan" value="orphan">',
+      "  Orphan content",
+      "</Tab>",
+    ],
+    "nested-tab-owner": [
+      '<Tabs defaultValue="nested">',
+      "  <Callout>",
+      '    <Tab title="Nested" value="nested">',
+      "      Nested content",
+      "    </Tab>",
+      "  </Callout>",
+      "</Tabs>",
+    ],
+    "empty-tabs": ["<Tabs />"],
+    "empty-tabs-default": [
+      '<Tabs defaultValue="">',
+      '  <Tab title="Visible" value="visible">',
+      "    Visible",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+    "unmatched-tabs-default": [
+      '<Tabs defaultValue="missing">',
+      '  <Tab title="Visible" value="visible">',
+      "    Visible",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+    "duplicate-tab-values": [
+      '<Tabs defaultValue="same">',
+      '  <Tab title="First" value="same">',
+      "    First",
+      "  </Tab>",
+      '  <Tab title="Second" value="same">',
+      "    Second",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+    "duplicate-tabs-default-attribute": [
+      '<Tabs defaultValue="visible" defaultValue="missing">',
+      '  <Tab title="Visible" value="visible">',
+      "    Visible",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+    "duplicate-tab-value-attribute": [
+      '<Tabs defaultValue="visible">',
+      '  <Tab title="Visible" value="visible" value="missing">',
+      "    Visible",
+      "  </Tab>",
+      "</Tabs>",
+    ],
+  };
+  if (tabsStructureFixtures[name]) {
+    files["index.en.mdx"] = frontmatter(
+      { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
+      tabsStructureFixtures[name].join("\n"),
+    );
+  }
+  if (name === "unicode-search-normalization") {
+    files["guides/start.en.md"] = frontmatter(
+      { ...metadata, title: "Маи\u0306" },
+      "## Cafe\u0301\n",
+    );
+  }
   if (name === "reserved-footnote-attribute") {
     files["index.en.mdx"] = frontmatter(
       { ...metadata, title: "Home", group: "Home", groupOrder: 20 },
@@ -504,6 +745,29 @@ test("rejects duplicate localized variants", async () => {
   );
 });
 
+for (const [name, path, canonicalUrl] of [
+  ["ambiguous-root-index-alias", "index/index.en.md", "index"],
+  ["ambiguous-linked-index-alias", "guides/index/index.en.md", "guides/index"],
+  [
+    "ambiguous-deep-index-alias",
+    "guides/index/index/index.en.md",
+    "guides/index/index",
+  ],
+]) {
+  test(`rejects repeated terminal index alias ${path}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      (error) => {
+        assert.equal(
+          error.message,
+          `documents_ambiguous_index_alias: ${path} still maps to terminal index canonical URL ${canonicalUrl}`,
+        );
+        return true;
+      },
+    );
+  });
+}
+
 test("rejects invalid editedAt dates", async () => {
   await assert.rejects(
     async () => (await runFixture("bad-date")).result,
@@ -517,6 +781,24 @@ test("rejects content sources without an explicit supported locale suffix", asyn
     /documents_missing_locale_suffix: guides\/implicit\.md must include an explicit \.en or \.ru suffix/,
   );
 });
+
+for (const [name, segment] of [
+  ["unsafe-slug-hash", "guide#setup"],
+  ["unsafe-slug-query", "guide?setup"],
+  ["unsafe-slug-backslash", "guide\\setup"],
+  ["unsafe-slug-space", "guide setup"],
+  ["unsafe-slug-percent", "guide%20setup"],
+  ["unsafe-slug-unicode", "руководство"],
+  ["unsafe-slug-uppercase", "Guide"],
+  ["unsafe-slug-underscore", "guide_setup"],
+]) {
+  test(`rejects unsafe canonical route segment ${JSON.stringify(segment)}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_invalid_slug:/,
+    );
+  });
+}
 
 for (const [name, path, slug] of [
   ["reserved-og", "og.en.md", "og"],
@@ -578,12 +860,69 @@ test("keeps compiler heading IDs aligned for footnote references and images", ()
   );
 });
 
+test("reserves runtime-owned IDs when allocating compiler heading anchors", () => {
+  assert.deepEqual(
+    contentCompiler.extractHeadings?.(
+      "## Document title\n\n## Document title 2\n\n## Main content\n\n## Footnote label\n\n## Document title",
+    ),
+    [
+      { level: 2, title: "Document title", id: "document-title-2" },
+      { level: 2, title: "Document title 2", id: "document-title-2-2" },
+      { level: 2, title: "Main content", id: "main-content-2" },
+      { level: 2, title: "Footnote label", id: "footnote-label-2" },
+      { level: 2, title: "Document title", id: "document-title-3" },
+    ],
+  );
+
+  assert.deepEqual(
+    contentCompiler.extractHeadings?.(
+      "## Document title 2\n\n## Document title",
+    ),
+    [
+      { level: 2, title: "Document title 2", id: "document-title-2" },
+      { level: 2, title: "Document title", id: "document-title-3" },
+    ],
+  );
+
+  assert.deepEqual(
+    contentCompiler.extractHeadings?.(
+      "## User content fn note\n\n## User content fnref note",
+    ),
+    [
+      {
+        level: 2,
+        title: "User content fn note",
+        id: "document-heading-user-content-fn-note",
+      },
+      {
+        level: 2,
+        title: "User content fnref note",
+        id: "document-heading-user-content-fnref-note",
+      },
+    ],
+  );
+});
+
 test("rejects broken internal document links", async () => {
   await assert.rejects(
     async () => (await runFixture("broken-link")).result,
     /documents_broken_link/,
   );
 });
+
+for (const [name, href] of [
+  ["nested-index-link", "/docs/guides/start/index"],
+  ["repeated-root-index-link", "/docs/index/index"],
+  ["encoded-root-index-link", "/docs/%69ndex"],
+  ["encoded-canonical-link", "/docs/guides/%73tart"],
+]) {
+  test(`rejects noncanonical document link ${href}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      new RegExp(`documents_broken_link: index\\.en\\.mdx:\\d+ -> ${href}`),
+    );
+  });
+}
 
 test("uses the first duplicate Markdown link definition like the renderer", async () => {
   await assert.rejects(
@@ -629,6 +968,19 @@ test("accepts same-document links to generated heading fragments", async () => {
 test("rejects same-document links to missing heading fragments", async () => {
   await assert.rejects(
     async () => (await runFixture("same-page-fragment-missing")).result,
+    /documents_broken_fragment/,
+  );
+});
+
+test("accepts fragments allocated after reserved page chrome IDs", async () => {
+  const { result } = await runFixture("reserved-heading-fragment-valid");
+
+  assert.deepEqual(result.diagnostics, []);
+});
+
+test("does not publish a reserved page chrome ID as an article fragment", async () => {
+  await assert.rejects(
+    async () => (await runFixture("reserved-heading-fragment-missing")).result,
     /documents_broken_fragment/,
   );
 });
@@ -789,6 +1141,137 @@ test("accepts string-valued attributes on allowed MDX components", async () => {
   const { result } = await runFixture("mdx-literal-attributes");
 
   assert.deepEqual(result.diagnostics, []);
+});
+
+for (const name of [
+  "boolean-anchor-href",
+  "boolean-image-src",
+  "boolean-callout-title",
+  "boolean-tabs-default",
+  "boolean-link-description",
+]) {
+  test(`rejects boolean syntax for string-valued MDX attribute: ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_mdx_attribute_invalid:/,
+    );
+  });
+}
+
+for (const name of [
+  "missing-step-title",
+  "missing-folder-name",
+  "missing-file-name",
+  "missing-tab-title",
+  "missing-tab-value",
+  "missing-link-group-title",
+  "missing-link-card-href",
+  "missing-link-card-title",
+]) {
+  test(`requires custom component string attributes: ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_mdx_attribute_required:/,
+    );
+  });
+}
+
+test("rejects custom component attributes outside the safe contract", async () => {
+  await assert.rejects(
+    async () => (await runFixture("unknown-custom-attribute")).result,
+    /documents_mdx_attribute_unknown:/,
+  );
+});
+
+test("rejects a Callout variant outside the closed vocabulary", async () => {
+  await assert.rejects(
+    async () => (await runFixture("invalid-callout-variant")).result,
+    /documents_mdx_attribute_invalid:/,
+  );
+});
+
+test("requires DocumentLinkCard href to use a canonical documentation path", async () => {
+  await assert.rejects(
+    async () => (await runFixture("invalid-link-card-href")).result,
+    /documents_mdx_attribute_invalid:/,
+  );
+});
+
+for (const name of [
+  "unsafe-leading-whitespace-link",
+  "unsafe-markdown-link-protocol",
+]) {
+  test(`rejects unsafe author-written link target: ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_unsafe_link_target:/,
+    );
+  });
+}
+
+for (const name of [
+  "heading-in-nested-tab",
+  "heading-directly-in-tabs",
+  "heading-in-tabs-container",
+]) {
+  test(`rejects h2/h3 at any nesting depth inside Tabs/Tab: ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_tab_heading_unsupported: index\.en\.mdx:\d+ contains h2\/h3 inside Tabs\/Tab/,
+    );
+  });
+}
+
+for (const [name, message] of [
+  ["paragraph-directly-in-tabs", "requires every direct Tabs child to be Tab"],
+  ["orphan-tab", "requires Tab to be a direct child of Tabs"],
+  ["nested-tab-owner", "requires Tab to be a direct child of Tabs"],
+  ["empty-tabs", "requires Tabs to contain at least one direct Tab"],
+  [
+    "unmatched-tabs-default",
+    "requires Tabs.defaultValue to match a direct Tab.value",
+  ],
+  ["duplicate-tab-values", "requires unique direct Tab.value attributes"],
+]) {
+  test(`rejects ambiguous Tabs structure: ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      new RegExp(
+        `documents_tabs_structure_invalid: index\\.en\\.mdx:\\d+ ${message}`,
+      ),
+    );
+  });
+}
+
+test("rejects an empty Tabs.defaultValue", async () => {
+  await assert.rejects(
+    async () => (await runFixture("empty-tabs-default")).result,
+    /documents_mdx_attribute_invalid: index\.en\.mdx:\d+ requires non-empty Tabs\.defaultValue/,
+  );
+});
+
+for (const name of [
+  "duplicate-tabs-default-attribute",
+  "duplicate-tab-value-attribute",
+]) {
+  test(`rejects duplicate custom-component attributes: ${name}`, async () => {
+    await assert.rejects(
+      async () => (await runFixture(name)).result,
+      /documents_mdx_attribute_duplicate: index\.en\.mdx:\d+ contains duplicate (Tabs\.defaultValue|Tab\.value)/,
+    );
+  });
+}
+
+test("normalizes generated search input to NFC before filtering", async () => {
+  const { result } = await runFixture("unicode-search-normalization");
+  const index = JSON.parse(result.searchIndexJson).locales.en;
+  const page = index.pages.find((entry) => entry.href === "/docs/guides/start");
+  const heading = index.headings.find((entry) => entry.titleText === "café");
+
+  assert.equal(page.titleText, "май");
+  assert.match(page.searchText, /^май /u);
+  assert.equal(heading.titleText, "café");
+  assert.match(heading.searchText, /^café май /u);
 });
 
 test("rejects author-supplied data-footnote-ref attributes", async () => {

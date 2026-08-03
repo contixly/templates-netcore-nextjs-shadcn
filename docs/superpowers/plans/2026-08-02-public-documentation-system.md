@@ -1146,9 +1146,9 @@ PR and review-loop progress are recorded below.
 
 **Automatic-review fix evidence (2026-08-03):** ready PR
 [#9](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/9)
-exists. After test-first review fixes, fresh content Node is **60/60**, focused
-documents Jest is **12 suites / 74 tests**, full Jest is **82 suites / 653
-tests**, and full .NET is **1094/1094**. Full Playwright remains **28 passed / 5
+exists. After the third test-first review wave, fresh content Node is **109/109**, focused
+documents Jest is **12 suites / 80 tests**, full Jest is **82 suites / 659
+tests**, and full .NET is **1116/1116**. Full Playwright remains **28 passed / 5
 opt-in skipped**. Content generate/check, boundaries **8/8**, API client drift,
 format, typecheck, lint (the same 17 warning-only aliases), production audit,
 clean build **137/137**, and repository guards passed. Exact-current-head clean

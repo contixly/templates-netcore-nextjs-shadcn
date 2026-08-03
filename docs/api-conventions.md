@@ -20,7 +20,8 @@ stable `code` and `traceId`. Validation responses also require an `errors`
 dictionary. Each segment of a dotted validation property path is camel-cased,
 and messages from source keys that normalize to the same JSON path are merged.
 The initial codes are `invalid_request`, `validation_failed`, `unauthorized`,
-`forbidden`, `not_found`, `method_not_allowed`, and `internal_error`.
+`forbidden`, `not_found`, `method_not_allowed`, `not_acceptable`, and
+`internal_error`.
 Authentication adds `antiforgery_failed`,
 `local_auth_invalid_credentials`, `local_auth_user_required`,
 `local_auth_disabled`, `local_auth_user_exists`, and `rate_limited`.
@@ -890,17 +891,31 @@ units after trimming. `locale` is optional and, when supplied, must be exactly
 to `en`. An unsupported explicit locale, duplicate field, overlong query, or
 unknown query field returns `400 validation_failed`. The stricter unknown-field
 rule is enforced by the implementation even though OpenAPI cannot express
-closed query-string property sets. Content-negotiation failures remain typed
-`406` Problem Details. An unexpected index/search failure is safe
+closed query-string property sets. Success accepts a truly absent `Accept`,
+`application/json`, `application/*`, or `*/*`; a most-specific JSON range with
+quality zero, an incompatible range, or an incompatible pre-quality media
+parameter returns `406 not_acceptable`. `charset=utf-8` matches the emitted
+representation; unsupported parameters such as `profile` and duplicate
+`charset` parameters do not. Media-range specificity is compared before
+parameter specificity, so repeated parameters cannot outrank an exact JSON
+range. The `application/problem+json` error contract remains independent of the
+incompatible request header. An unexpected index/search failure is safe
 `500 application/problem+json`; no query text, content body, generated artifact,
 filesystem path, or exception detail is exposed.
+
+A present `Accept` value is parsed as a strict complete list. Invalid media
+tokens or parameters, a malformed or out-of-range `q`, and a mixed list that
+contains any invalid item all return the same no-store `406 not_acceptable`
+Problem Details response; malformed presence is never treated as absence. A
+quality token is unquoted RFC qvalue syntax with at most three fractional
+digits (`0` through `0.999`, or `1` followed only by up to three zeroes).
 
 An empty query returns the first 32 pages in generated navigation order and no
 headings. A non-empty query returns at most 8 pages and 8 headings. There is no
 cursor, page number, caller-selected limit, filter, or pagination metadata. The
 fixed bounded result makes pagination unnecessary for this reference lookup.
 
-Application owns normalization, keyboard-layout correction, fuzzy matching,
+Application owns NFC-first normalization, keyboard-layout correction, fuzzy matching,
 ranking, stable tie order, and response projection. Infrastructure implements
 `IDocumentSearchIndexProvider` by strictly parsing the embedded
 `Template.Documents.SearchIndex.v1.json` once. Its source is the neutral,

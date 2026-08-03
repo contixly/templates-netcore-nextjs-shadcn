@@ -57,6 +57,17 @@ public sealed class DocumentSearchServiceTests
     }
 
     [Fact]
+    public void Search_MatchesDecomposedQueryToPrecomposedGeneratedIndexText()
+    {
+        var service = CreateService(
+            pages: [Page("Май", 0, "май", "май руководство")]);
+
+        var result = service.Search(new("маи\u0306", DocumentLocale.En));
+
+        Assert.Equal(["Май"], result.Pages.Select(page => page.Title));
+    }
+
+    [Fact]
     public void Search_EmptyQueryReturnsOnlyTheFirst32Pages()
     {
         var pages = Enumerable.Range(0, 40)

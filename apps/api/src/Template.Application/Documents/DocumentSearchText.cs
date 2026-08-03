@@ -21,7 +21,8 @@ public static class DocumentSearchText
         var result = new StringBuilder(value.Length);
         var pendingSpace = false;
 
-        foreach (var lowerRune in ToUnicodeDefaultLower(value).EnumerateRunes())
+        foreach (var lowerRune in ToUnicodeDefaultLower(
+                     value.Normalize(NormalizationForm.FormC)).EnumerateRunes())
         {
             var rune = lowerRune;
 
@@ -53,7 +54,8 @@ public static class DocumentSearchText
     {
         ArgumentNullException.ThrowIfNull(query);
 
-        var normalizedQuery = Normalize(query);
+        var canonicalQuery = query.Normalize(NormalizationForm.FormC);
+        var normalizedQuery = Normalize(canonicalQuery);
 
         if (normalizedQuery.Length == 0)
         {
@@ -61,7 +63,7 @@ public static class DocumentSearchText
         }
 
         var variants = new List<string> { normalizedQuery };
-        var convertedQuery = ConvertKeyboardLayout(query);
+        var convertedQuery = ConvertKeyboardLayout(canonicalQuery);
 
         if (convertedQuery is not null)
         {

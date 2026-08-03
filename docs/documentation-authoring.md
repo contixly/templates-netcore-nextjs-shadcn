@@ -25,8 +25,16 @@ the locale suffix, extension, and terminal `/index`:
 | `general/quick-start.ru.md` | `/docs/general/quick-start` |
 | `general/glossary/index.en.md` | `/docs/general/glossary` |
 
+Only one conventional terminal `/index` is removed. A non-root source such as
+`index/index.en.md`, `general/index/index.en.md`, or a deeper repeated terminal
+`index` is ambiguous and rejected before collision or link validation.
+
 Never put `.en`, `.ru`, `.md`, or `.mdx` in a public link. A duplicate
-canonical-route/locale source is an error.
+canonical-route/locale source is an error. Every directory and filename route
+segment uses lowercase ASCII letters/digits separated only by a single `-` or
+`.` (`.` is retained for version routes such as `0.0.11`). Uppercase, `_`,
+Unicode, spaces, percent escapes, `#`, `?`, backslashes, empty separators, and
+leading/trailing separators are rejected before any public URL is generated.
 
 ## Frontmatter reference
 
@@ -99,14 +107,32 @@ searchable headings and stable anchors, including headings nested inside an
 allowed MDX container. Generated footnote-reference numbers and images do not
 contribute to the anchor text; therefore every heading should contain readable
 text and should not consist only of an image. Duplicate anchor text receives
-`-2`, `-3`, and so on. Backtick and tilde fenced code does not create headings,
-links, images, or MDX validations.
+`-2`, `-3`, and so on. Page/runtime markup already owns `document-title`,
+`main-content`, and the GFM footnote label `footnote-label`, so an article
+heading that normalizes to one of those IDs starts at `-2`. Every emitted ID is
+globally unused even when one heading's base equals another heading's generated
+suffix. Heading bases in GFM's dynamic `user-content-fn-` and
+`user-content-fnref-` namespaces are escaped with `document-heading-`, so
+footnote forward/back links cannot collide with authored headings. Compiler
+fragment checks and the runtime allocator use the same rules.
+Backtick and tilde fenced code does not create headings, links, images, or MDX
+validations.
 
 Do not place `##` or `###` inside a GFM footnote definition. The renderer moves
 referenced footnotes and omits unreferenced definitions, so those headings are
 rejected rather than assigned unstable anchors. Ordinary footnote paragraphs,
 lists, links, code, and images remain supported under the normal validation
 rules.
+
+Do not place `##` or `###` anywhere inside `Tabs` or `Tab`, including inside
+another allowed container nested in either component. Inactive Radix tab
+content is unmounted, so tabs cannot own a published TOC/search fragment.
+`Tabs` accepts only direct `Tab` element children, and every `Tab` must be a
+direct child of `Tabs`; prose or wrapper components directly under `Tabs` are
+rejected rather than silently discarded. A `Tabs` block has at least one tab,
+direct `Tab.value` strings are unique, and an optional non-empty
+`Tabs.defaultValue` exactly matches one of them. Headings in other allowed
+containers remain supported.
 
 GFM tables, task lists, footnotes, blockquotes, inline code, and fenced code are
 supported. Give images meaningful alt text and keep examples free of secrets,
@@ -117,9 +143,14 @@ credentials, access tokens, real user data, or private URLs.
 Executable MDX `import`/`export`, flow/text expressions, JSX spread attributes,
 expression-valued JSX attributes, member expressions, namespaced expressions,
 and every name outside the explicit safe intrinsic/custom sets are rejected;
-executable elements such as `script` and `iframe` are never accepted. Supported
-component attributes must be boolean literals or quoted strings. The complete
-custom set is:
+executable elements such as `script` and `iframe` are never accepted. Author
+written JSX attributes use a per-element closed contract and every supported
+attribute is a quoted string; boolean shorthand such as `<a href>` is rejected.
+Unknown attributes, missing or empty required custom attributes, and invalid
+`Callout.variant` values fail compilation before a route can render. Duplicate
+attribute names are rejected rather than resolved with JSX last-value-wins
+behavior. The
+complete custom set is:
 
 `data-footnote-ref` is reserved for GFM-generated reference anchors and cannot
 be supplied in author-written MDX JSX.
@@ -142,8 +173,13 @@ component, rendering, and both-locale fixture tests in the same change.
 ## Links
 
 Internal documentation links use canonical absolute `/docs` or `/docs/...`
-paths. Query strings and trailing slashes are normalized for validation;
-`/docs/index` is the root. Hash-only links target the current page. A fragment
+paths. Query strings are ignored for target lookup and all trailing slashes are
+removed consistently by compiler and renderer; `/docs/index` is the root.
+Only that exact root alias is supported: nested terminal aliases such as
+`/docs/general/index` and repeated `/docs/index/index` are broken links.
+Percent-encoded document path segments, even encoded spellings of otherwise
+canonical characters, are noncanonical broken links in compiler and renderer.
+Hash-only links target the current page. A fragment
 must match a generated `h2`/`h3` anchor in the target locale, with fallback to the
 first source variant only for a non-production source when that locale variant
 is absent. Markdown inline links, reference definitions, and supported MDX
@@ -159,9 +195,11 @@ locale; a matching-locale draft, review, hidden, or absent variant gives a
 distinct unpublished-link diagnostic. Fragment validation follows that target
 resolution.
 Normal `http://` and `https://` links, `mailto:` links, hash-only links, and
-non-document paths are outside canonical-document target validation. At render
-time unsafe protocols are suppressed and unavailable `/docs` links are rendered
-as disabled text.
+non-document paths are outside canonical-document target validation, but every
+author-written target must have no surrounding whitespace, parse as a URL, and
+resolve to HTTP(S) or `mailto:`. Unsafe protocols are rejected during
+compilation and suppressed again at render time; unavailable `/docs` links are
+rendered as disabled text.
 
 ## Images
 

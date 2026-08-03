@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -96,6 +97,117 @@ public sealed class DocumentSearchEndpointTests(ApiWebApplicationFactory factory
 
         Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("text/plain")]
+    [InlineData("application/problem+json")]
+    [InlineData("application/json;q=0, */*;q=1")]
+    [InlineData("application/json;q=0, application/json;profile=v2;q=1")]
+    [InlineData("application/json;charset=utf-16")]
+    public async Task IncompatibleAcceptReturnsSafeNoStoreNotAcceptableProblem(
+        string accept)
+    {
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/v1/documents-system/search?q=authentication&locale=en");
+        request.Headers.Accept.ParseAdd(accept);
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotAcceptable, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(406, problem!.Status);
+        Assert.Equal("urn:template:problem:not_acceptable", problem.Type);
+        Assert.Equal("Response representation not acceptable", problem.Title);
+        Assert.Equal("not_acceptable", problem.Extensions["code"]!.ToString());
+        Assert.Equal("/api/v1/documents-system/search", problem.Instance);
+        Assert.False(string.IsNullOrWhiteSpace(problem.Extensions["traceId"]!.ToString()));
+    }
+
+    [Theory]
+    [InlineData("application/json")]
+    [InlineData("application/json;charset=utf-8")]
+    [InlineData("application/*")]
+    [InlineData("*/*")]
+    public async Task JsonAndWildcardAcceptValuesReturnSearchJson(string accept)
+    {
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/v1/documents-system/search?q=authentication&locale=en");
+        request.Headers.Accept.ParseAdd(accept);
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task DuplicateAcceptParametersCannotOverrideAnExactJsonRejection()
+    {
+        using var client = factory.CreateApiClient();
+        var repeatedCharset = string.Join(
+            ';',
+            Enumerable.Repeat("charset=utf-8", 201));
+
+        foreach (var accept in new[]
+                 {
+                     "application/json;charset=utf-8;charset=utf-8",
+                     $"application/json;q=0, */*;{repeatedCharset};q=1"
+                 })
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Get,
+                "/api/v1/documents-system/search?q=authentication&locale=en");
+            request.Headers.Accept.ParseAdd(accept);
+
+            using var response = await client.SendAsync(
+                request,
+                TestContext.Current.CancellationToken);
+
+            Assert.Equal(HttpStatusCode.NotAcceptable, response.StatusCode);
+        }
+    }
+
+    [Theory]
+    [InlineData("bogus")]
+    [InlineData("application/json;=x")]
+    [InlineData("application/json;q=2")]
+    [InlineData("application/json;q=wat")]
+    [InlineData("application/json;q=0.1234")]
+    [InlineData("application/json;q=1.0000")]
+    [InlineData("application/json, bogus")]
+    [InlineData("application/json, */*;q=0.1234")]
+    public async Task MalformedPresentAcceptReturnsSafeNoStoreNotAcceptableProblem(
+        string accept)
+    {
+        using var client = factory.CreateApiClient();
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "/api/v1/documents-system/search?q=authentication&locale=en");
+        Assert.True(request.Headers.TryAddWithoutValidation("Accept", accept));
+
+        using var response = await client.SendAsync(
+            request,
+            TestContext.Current.CancellationToken);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>(
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.NotAcceptable, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("not_acceptable", problem!.Extensions["code"]!.ToString());
     }
 
     [Theory]

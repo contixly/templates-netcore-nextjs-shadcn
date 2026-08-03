@@ -24,6 +24,22 @@ public sealed class DocumentSearchTextTests
         Assert.Equal("ος οσα", DocumentSearchText.Normalize("ΟΣ ΟΣΑ"));
     }
 
+    [Theory]
+    [InlineData("маи\u0306", "май")]
+    [InlineData("cafe\u0301", "café")]
+    public void Normalize_ComposesCanonicalUnicodeBeforeLowercaseAndFiltering(
+        string decomposed,
+        string expected)
+    {
+        Assert.Equal(expected, DocumentSearchText.Normalize(decomposed));
+    }
+
+    [Fact]
+    public void CreateQueryVariants_ComposesDecomposedRussianLettersBeforeKeyboardConversion()
+    {
+        Assert.Equal(["май", "vfq"], DocumentSearchText.CreateQueryVariants("маи\u0306"));
+    }
+
     [Fact]
     public void CreateQueryVariants_AddsTheExactOppositeKeyboardLayout()
     {

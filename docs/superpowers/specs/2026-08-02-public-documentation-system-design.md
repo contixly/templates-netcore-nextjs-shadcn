@@ -245,11 +245,22 @@ Previous/next navigation and empty-query search use that same order.
 
 The compiler:
 
+- validates every canonical route segment before URL generation against the
+  current-corpus-compatible lowercase ASCII alphabet: letters/digits separated
+  by a single `-` or `.` (dots retain version routes), rejecting URL delimiters,
+  backslashes, percent escapes, spaces, uppercase and Unicode;
+- removes one conventional terminal `/index` and rejects a non-root source that
+  still maps to `index` or an `/index` suffix, preventing repeated source aliases;
 - validates canonical absolute `/docs/**` inline links, reference definitions
   and MDX `href` values;
 - normalizes query/hash/trailing slash and treats `/docs/index` as `/docs`;
-- ignores external HTTP(S) and non-document links; resolves hash-only links
-  against the current localized document;
+- rejects every nested or repeated terminal `/index` link alias; only the exact
+  `/docs/index` compatibility alias maps to the documentation root;
+- rejects percent-encoded document path segments instead of decoding them into
+  canonical aliases or routes, matching runtime registry lookup;
+- excludes safe external HTTP(S), `mailto:`, and non-document links from
+  canonical-target lookup; resolves hash-only links against the current
+  localized document;
 - ignores links and headings inside backtick or tilde fenced code blocks;
 - distinguishes unpublished from broken targets;
 - requires a production-visible source to link only to a production-visible
@@ -257,18 +268,31 @@ The compiler:
 - validates internal fragments against generated heading identifiers;
 - extracts top-level and allowed-container headings in source order, excludes
   generated footnote-reference numbers and images from heading text, and
-  creates stable duplicate anchors with `-2`, `-3`, and so on;
+  creates stable, globally unused duplicate anchors with `-2`, `-3`, and so on
+  while seeding the compiler/runtime allocators with runtime-owned IDs
+  `document-title`, `main-content`, and `footnote-label`, and escapes heading
+  bases in GFM's dynamic `user-content-fn-`/`user-content-fnref-` namespaces;
 - rejects `h2`/`h3` inside GFM footnote definitions because rendering relocates
   referenced definitions and omits unreferenced definitions;
+- rejects `h2`/`h3` at any depth inside `Tabs` or `Tab` because inactive Radix
+  content is unmounted and cannot own a published fragment; requires every
+  direct `Tabs` child to be `Tab` and every `Tab` to be directly owned by
+  `Tabs`; requires at least one tab, unique direct `Tab.value` strings, and an
+  optional non-empty `Tabs.defaultValue` that matches exactly one direct tab;
 - resolves duplicate Markdown reference labels with renderer-equivalent
   first-definition-wins semantics;
+- rejects malformed, surrounding-whitespace, or unsafe-protocol link targets
+  during compilation and suppresses unsafe targets again at runtime;
 - permits only explicit HTTP(S) images or repository-local `/img/**` paths that
   remain below `apps/web/public/img`, and rejects `srcSet` candidates;
 - permits only the closed MDX component set implemented by this slice and
   an explicit safe intrinsic-element set; rejects executable elements, module
   syntax, flow/text expressions, JSX spread attributes and expression-valued
-  JSX attributes, and reserves author-supplied `data-footnote-ref` for the GFM
-  renderer;
+  JSX attributes; applies closed per-element quoted-string attribute contracts,
+  rejects duplicate attribute names before JSX last-value-wins semantics can
+  diverge from validation, requires custom string attributes and enforces the
+  closed Callout variant enum; and
+  reserves author-supplied `data-footnote-ref` for the GFM renderer;
 - fails production builds for broken links, missing fragments, missing images,
   unsafe/unknown MDX components or generated drift.
 
@@ -370,6 +394,8 @@ serve a reference scenario and is intentionally omitted.
 
 Search reproduces the reference behavior:
 
+- NFC composition before lowercase and letter/number filtering in both the
+  generated JavaScript index and .NET query path;
 - invariant lowercase;
 - `ё` is normalized to `е`;
 - non-letter/non-number punctuation becomes whitespace;
@@ -396,6 +422,17 @@ Document body paragraphs and fenced code are not indexed.
   behavior and current simple loader conventions;
 - validation failures return target RFC Problem Details with stable
   `validation_failed` and field errors;
+- absent/JSON/wildcard `Accept` permits success, including a matching
+  `charset=utf-8`; incompatible media parameters and success ranges return
+  no-store `406 not_acceptable application/problem+json`, and the Problem
+  Details writer deliberately remains independent of `Accept`; media type and
+  parameter specificity are compared lexicographically and duplicate media
+  parameters are incompatible;
+- strict complete-list parsing distinguishes an absent `Accept` from malformed
+  presence; invalid tokens/parameters, invalid or out-of-range quality, and
+  mixed valid/invalid lists return the same no-store `406` Problem Details;
+  raw quality tokens follow RFC qvalue precision with at most three fractional
+  digits and only zeroes after `1.`;
 - unexpected index/search failures return safe `500 application/problem+json`;
 - Problem Details and logs never include source body, query-derived exception
   text, filesystem paths or generated artifact contents;

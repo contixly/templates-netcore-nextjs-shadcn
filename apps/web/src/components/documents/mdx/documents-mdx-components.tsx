@@ -37,7 +37,10 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/src/components/ui/tabs";
-import { createUniqueDocumentHeadingId } from "@/src/features/documents/documents-heading-tools";
+import {
+  createDocumentHeadingIdState,
+  createUniqueDocumentHeadingId,
+} from "@/src/features/documents/documents-heading-tools";
 import { getDocumentsRegistry } from "@/src/features/documents/documents-registry";
 import type { DocumentInfo } from "@/src/features/documents/documents-types";
 import { cn } from "@/src/lib/utils";
@@ -184,16 +187,20 @@ function DocumentsTabs({
 }
 
 function normalizedDocumentTarget(href: string): string | undefined {
-  const parsed = new URL(href, "https://documents.invalid");
+  let parsed: URL;
+  try {
+    parsed = new URL(href, "https://documents.invalid");
+  } catch {
+    return undefined;
+  }
   if (
     parsed.origin !== "https://documents.invalid" ||
     (parsed.pathname !== "/docs" && !parsed.pathname.startsWith("/docs/"))
   ) {
     return undefined;
   }
-  let path = parsed.pathname.replace(/^\/docs\/?/u, "").replace(/\/$/u, "");
+  const path = parsed.pathname.replace(/^\/docs\/?/u, "").replace(/\/+$/u, "");
   if (!path || path === "index") return "index";
-  if (path.endsWith("/index")) path = path.slice(0, -6);
   return path;
 }
 
@@ -211,10 +218,25 @@ function safeImageSource(source: string | undefined): boolean {
   );
 }
 
+function normalizeSafeLinkHref(href: string | undefined): string | undefined {
+  if (!href) return undefined;
+  const normalized = href.trim();
+  if (!normalized) return undefined;
+
+  try {
+    const protocol = new URL(normalized, "https://documents.invalid").protocol;
+    return ["http:", "https:", "mailto:"].includes(protocol)
+      ? normalized
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function createDocumentMdxComponents(
   document: DocumentInfo,
 ): MDXComponents {
-  const seenHeadings = new Map<string, number>();
+  const seenHeadings = createDocumentHeadingIdState();
   const labels = copyLabels[document.requestedLocale];
 
   function heading(level: 2 | 3) {
@@ -255,26 +277,32 @@ export function createDocumentMdxComponents(
     h2: heading(2),
     h3: heading(3),
     a: ({ children, href, ...props }: ComponentProps<"a">) => {
-      if (!href || /^javascript:/iu.test(href)) return <span>{children}</span>;
-      if (/^(?:https?:)?\/\//iu.test(href)) {
+      const safeHref = normalizeSafeLinkHref(href);
+      if (!safeHref) return <span>{children}</span>;
+      if (/^(?:https?:)?\/\//iu.test(safeHref)) {
         return (
-          <a {...props} href={href} rel="noopener noreferrer" target="_blank">
+          <a
+            {...props}
+            href={safeHref}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
             {children}
           </a>
         );
       }
-      if (href.startsWith("/docs") && !isSafeDocumentHref(document, href)) {
+      if (
+        safeHref.startsWith("/docs") &&
+        !isSafeDocumentHref(document, safeHref)
+      ) {
         return (
           <span aria-disabled="true" data-document-link-state="unavailable">
             {children}
           </span>
         );
       }
-      if (/^[a-z][a-z\d+.-]*:/iu.test(href) && !/^mailto:/iu.test(href)) {
-        return <span>{children}</span>;
-      }
       return (
-        <a {...props} href={href}>
+        <a {...props} href={safeHref}>
           {children}
         </a>
       );

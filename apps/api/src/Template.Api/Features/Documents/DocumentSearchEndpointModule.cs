@@ -31,6 +31,7 @@ internal sealed class DocumentSearchEndpointModule : IEndpointModule
         HttpContext http)
     {
         DocumentSearchEndpointBoundary.NoStore(http);
+        DocumentSearchEndpointBoundary.RequireJsonAccepted(http);
         var request = DocumentSearchEndpointBoundary.Request(
             http,
             q,

@@ -195,6 +195,37 @@ it("preserves the generated accessible GFM footnote heading", () => {
   expect(screen.queryByRole("button", { name: "Copy link" })).toBeNull();
 });
 
+it("keeps authored heading IDs outside generated GFM footnote namespaces", () => {
+  const localComponents = createDocumentMdxComponents(document);
+  const H2 = localComponents.h2 as ComponentType<{ children?: ReactNode }>;
+
+  const { container } = render(
+    <>
+      <H2>User content fn note</H2>
+      <H2>User content fnref note</H2>
+      <a id="user-content-fnref-note" href="#user-content-fn-note">
+        1
+      </a>
+      <ol>
+        <li id="user-content-fn-note">Footnote</li>
+      </ol>
+    </>,
+  );
+
+  expect(
+    screen.getByRole("heading", { name: "User content fn note" }),
+  ).toHaveAttribute("id", "document-heading-user-content-fn-note");
+  expect(
+    screen.getByRole("heading", { name: "User content fnref note" }),
+  ).toHaveAttribute("id", "document-heading-user-content-fnref-note");
+  expect(
+    container.querySelectorAll('[id="user-content-fn-note"]'),
+  ).toHaveLength(1);
+  expect(
+    container.querySelectorAll('[id="user-content-fnref-note"]'),
+  ).toHaveLength(1);
+});
+
 it("renders safe links, unavailable documentation targets, images, and GFM tables", () => {
   const Anchor = components.a as ComponentType<{
     children?: ReactNode;
@@ -207,11 +238,19 @@ it("renders safe links, unavailable documentation targets, images, and GFM table
       <Anchor href="https://nextjs.org/docs">External</Anchor>
       <Anchor href="/docs">Documentation home</Anchor>
       <Anchor href="/docs/general/quick-start">Quick start</Anchor>
+      <Anchor href="/docs/general/quick-start///?from=test#details">
+        Quick start with slashes
+      </Anchor>
+      <Anchor href="/docs/general/quick-start/index">Nested index alias</Anchor>
+      <Anchor href="/docs/index/index">Repeated root index alias</Anchor>
+      <Anchor href="/docs/%69ndex">Encoded root index alias</Anchor>
+      <Anchor href="/docs/general/%71uick-start">Encoded canonical path</Anchor>
       <Anchor href="/docsgeneral/quick-start">
         Malformed documentation prefix
       </Anchor>
       <Anchor href="/docs/private/draft">Unavailable</Anchor>
       <Anchor href="javascript:alert(1)">Unsafe</Anchor>
+      <Anchor href=" javascript:alert(1)">Whitespace unsafe</Anchor>
       <Image alt="Template logo" src="/img/branding/template_logo_nb_s.png" />
       <Table>
         <thead>
@@ -244,7 +283,22 @@ it("renders safe links, unavailable documentation targets, images, and GFM table
     "/docs/general/quick-start",
   );
   expect(
+    screen.getByRole("link", { name: "Quick start with slashes" }),
+  ).toHaveAttribute("href", "/docs/general/quick-start///?from=test#details");
+  expect(
     screen.queryByRole("link", { name: "Malformed documentation prefix" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Nested index alias" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Repeated root index alias" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Encoded root index alias" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Encoded canonical path" }),
   ).not.toBeInTheDocument();
   expect(
     screen.queryByRole("link", { name: "Unavailable" }),
@@ -252,12 +306,61 @@ it("renders safe links, unavailable documentation targets, images, and GFM table
   expect(
     screen.queryByRole("link", { name: "Unsafe" }),
   ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Whitespace unsafe" }),
+  ).not.toBeInTheDocument();
   expect(screen.getByRole("img", { name: "Template logo" })).toHaveClass(
     "max-w-full",
   );
   expect(
     within(screen.getByRole("table")).getByText("title"),
   ).toBeInTheDocument();
+});
+
+it("reserves runtime-owned IDs in the runtime heading allocator", () => {
+  const H2 = components.h2 as ComponentType<{ children?: ReactNode }>;
+  const H3 = components.h3 as ComponentType<{ children?: ReactNode }>;
+
+  render(
+    <>
+      <H2>Document title</H2>
+      <H2>Document title 2</H2>
+      <H3>Main content</H3>
+      <H2>Footnote label</H2>
+      <H2>Document title</H2>
+    </>,
+  );
+
+  const documentTitles = screen.getAllByRole("heading", {
+    name: "Document title",
+  });
+  expect(documentTitles[0]).toHaveAttribute("id", "document-title-2");
+  expect(documentTitles[1]).toHaveAttribute("id", "document-title-3");
+  expect(
+    screen.getByRole("heading", { name: "Document title 2" }),
+  ).toHaveAttribute("id", "document-title-2-2");
+  expect(screen.getByRole("heading", { name: "Main content" })).toHaveAttribute(
+    "id",
+    "main-content-2",
+  );
+  expect(
+    screen.getByRole("heading", { name: "Footnote label" }),
+  ).toHaveAttribute("id", "footnote-label-2");
+});
+
+it("renders malformed direct document-card href values as unavailable without throwing", () => {
+  render(
+    <Component
+      component="DocumentLinkCard"
+      href="http://["
+      title="Malformed card"
+    />,
+  );
+
+  expect(screen.queryByRole("link", { name: /Malformed card/ })).toBeNull();
+  expect(
+    screen.getByText("Malformed card").closest("[aria-disabled='true']"),
+  ).toHaveAttribute("data-document-link-state", "unavailable");
 });
 
 it.each(["HTTP://example.com/diagram.png", "HTTPS://example.com/diagram.png"])(

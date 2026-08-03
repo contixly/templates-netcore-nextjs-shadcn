@@ -9,8 +9,8 @@ order: 10
 status: "published"
 toc: true
 author: "Команда шаблона"
-version: "1.2.0"
-editedAt: "2026-07-06"
+version: "1.2.1"
+editedAt: "2026-08-03"
 ---
 
 # Как писать документацию
@@ -57,12 +57,29 @@ Production corpus также содержит непустые `author` и `vers
 Варианты индекса называются `index.en.md` и `index.ru.md`. В обеих локалях должны совпадать факты,
 иерархия заголовков, статус, положение в навигации и связанные маршруты.
 
+Каждый segment каталога и имени файла для маршрута состоит из строчных ASCII-букв и цифр с
+одиночными разделителями `-` или `.`; точки сохраняют version routes вроде `0.0.11`. Uppercase, `_`,
+Unicode, пробелы, percent escapes, URL delimiters и backslashes останавливают compilation до
+генерации маршрута.
+Compiler удаляет один conventional terminal `/index`; повторные terminal aliases вроде
+`index/index` или `guide/index/index` неоднозначны и останавливают compilation.
+
 Используйте стабильную структуру страницы: назначение, понятия или prerequisites, шаги задачи или
 справочные факты, ограничения и ошибки, проверка и связанные страницы. Правое оглавление строится
 по заголовкам `##` и `###`, в том числе внутри поддерживаемых MDX-контейнеров. Номера footnote
 references и изображения не входят в heading ID, поэтому каждый заголовок должен содержать текст.
 Не помещайте `##` или `###` внутрь footnote definition: GFM переносит используемые footnotes и
 удаляет неиспользуемые. Обычные paragraphs, lists, links, code и images в footnote поддерживаются.
+Не помещайте `##` или `###` на любой глубине внутри `Tabs` или `Tab`: содержимое неактивного tab не
+смонтировано и не может владеть опубликованным fragment. `Tabs` содержит только непосредственные
+элементы `Tab`, а каждый `Tab` должен непосредственно принадлежать `Tabs`; прямой prose или wrapper
+component останавливает compilation. Каждый `Tabs` содержит хотя бы один tab, непосредственные
+`Tab.value` уникальны, а заданный непустой `Tabs.defaultValue` в точности совпадает с одним из них.
+Page/runtime markup резервирует
+`document-title`, `main-content` и `footnote-label`, поэтому заголовок с таким normalized ID
+начинается с `-2`, а generated suffix никогда не повторяет ID другого заголовка. Heading base из
+динамических GFM namespaces `user-content-fn-`/`user-content-fnref-` получает prefix
+`document-heading-`.
 
 ## Используйте закрытый набор MDX
 
@@ -76,8 +93,10 @@ references и изображения не входят в heading ID, поэто
 
 Исполняемые конструкции MDX `import` и `export`, flow/text expressions, JSX spreads,
 expression-valued attributes, executable elements вроде `script`/`iframe` и неизвестные компоненты
-останавливают compilation. Атрибуты специальных компонентов должны быть строками в кавычках или
-boolean literals. Используйте
+останавливают compilation. JSX attributes используют закрытый per-element contract и должны быть
+строками в кавычках: boolean shorthand, неизвестные attributes, отсутствующие или пустые
+обязательные attributes компонентов, повторные имена attributes и невалидные variants останавливают
+compilation до rendering. Используйте
 [Компоненты документации](/docs/general/authoring/sample) как живой fixture поддерживаемого
 рендеринга.
 JSX-атрибут `data-footnote-ref` зарезервирован для anchors, создаваемых GFM.
@@ -86,8 +105,12 @@ JSX-атрибут `data-footnote-ref` зарезервирован для ancho
 
 Внутренние ссылки используют канонические URL `/docs/...` без расширения файла и суффикса локали.
 Compiler проверяет существование целевой страницы и соответствие fragment идентификатору
-сгенерированного заголовка. В связанных разделах английского и русского вариантов сохраняйте
+сгенерированного заголовка. Query string не участвует в target lookup, а любое число trailing
+slashes одинаково нормализуется при compilation и rendering. В связанных разделах английского и русского вариантов сохраняйте
 одинаковые маршруты.
+`/docs/index` — единственный root alias; nested `/docs/.../index` и повторный `/docs/index/index`
+отклоняются, потому что соответствующего публичного route нет. Percent-encoded segments пути
+документа, включая encoded-написание канонических символов, неканоничны и отклоняются.
 
 Не дублируйте Markdown reference labels. Если label определён несколько раз, первая definition
 имеет приоритет, как и при MDX rendering.
@@ -98,6 +121,9 @@ Compiler проверяет существование целевой стран
 отсутствующие изображения останавливают compilation. Пишите содержательный alt text и не помещайте
 secrets, credentials или пользовательские данные в примеры и image artifacts. Используйте один
 `src`: `srcSet` не поддерживается.
+
+Link target не должен содержать внешние пробелы и обязан разрешаться в HTTP(S) или `mailto:`;
+исполняемые и malformed protocols останавливают compilation и повторно блокируются при rendering.
 
 ## Генерируйте и проверяйте артефакты
 
