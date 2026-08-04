@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import GlobalDashboardPage from "@/src/app/(site)/dashboard/page";
-import OrganizationDashboardError from "@/src/app/(site)/w/[organizationKey]/dashboard/error";
-import OrganizationDashboardLoading from "@/src/app/(site)/w/[organizationKey]/dashboard/loading";
-import OrganizationDashboardPage from "@/src/app/(site)/w/[organizationKey]/dashboard/page";
-import WorkspaceRootPage from "@/src/app/(site)/w/[organizationKey]/page";
-import WelcomePage from "@/src/app/(site)/welcome/page";
-import WorkspacesError from "@/src/app/(site)/workspaces/error";
-import WorkspacesLoading from "@/src/app/(site)/workspaces/loading";
-import WorkspacesPage from "@/src/app/(site)/workspaces/page";
+import GlobalDashboardPage from "@/src/app/(protected)/dashboard/page";
+import OrganizationDashboardError from "@/src/app/(protected)/w/[organizationKey]/dashboard/error";
+import OrganizationDashboardLoading from "@/src/app/(protected)/w/[organizationKey]/dashboard/loading";
+import OrganizationDashboardPage from "@/src/app/(protected)/w/[organizationKey]/dashboard/page";
+import WorkspaceRootPage from "@/src/app/(protected)/w/[organizationKey]/page";
+import WelcomePage from "@/src/app/(protected)/welcome/page";
+import WorkspacesError from "@/src/app/(protected)/workspaces/error";
+import WorkspacesLoading from "@/src/app/(protected)/workspaces/loading";
+import WorkspacesPage from "@/src/app/(protected)/workspaces/page";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
 import type {
@@ -19,6 +19,7 @@ import type {
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
 import { renderWithMessages } from "@/test/support/render";
+import { mockDashboardGeometry } from "@/test/support/dashboard-geometry";
 
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),
@@ -33,6 +34,7 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
 }));
 jest.mock("next-intl/server", () => ({
+  getLocale: async () => "en",
   getTranslations: async (namespace: string) => {
     const values: Record<string, string> = {
       "organizations.pages.workspaces.title": "Workspaces",
@@ -76,6 +78,7 @@ const loadSession = jest.mocked(loadServerAuthSession);
 const loadDetail = jest.mocked(loadOrganization);
 const loadList = jest.mocked(loadOrganizations);
 const loadInvitations = jest.mocked(loadAccountInvitations);
+let restoreGeometry: () => void;
 
 const capabilities = {
   canUpdateOrganization: true,
@@ -150,6 +153,7 @@ function anonymous() {
 }
 
 beforeEach(() => {
+  restoreGeometry = mockDashboardGeometry();
   jest.clearAllMocks();
   authenticated(null);
   loadList.mockResolvedValue({
@@ -162,6 +166,8 @@ beforeEach(() => {
     data: { items: [], nextCursor: null },
   });
 });
+
+afterEach(() => restoreGeometry());
 
 it("redirects existing-organization welcome through the dashboard", async () => {
   await expect(WelcomePage()).rejects.toThrow("NEXT_REDIRECT:/dashboard");
@@ -401,7 +407,7 @@ it("renders onboarding from deep links when no organization is accessible", asyn
   ).toBeVisible();
 });
 
-it("renders only minimal accessible organization dashboard context", async () => {
+it("renders the local dashboard presentation at the canonical workspace URL", async () => {
   render(
     await OrganizationDashboardPage({
       params: Promise.resolve({ organizationKey: "acme" }),
@@ -411,12 +417,12 @@ it("renders only minimal accessible organization dashboard context", async () =>
   expect(
     screen.getByRole("heading", { name: "Workspace dashboard" }),
   ).toBeVisible();
-  expect(screen.getAllByText("Acme")).toHaveLength(2);
-  expect(screen.getByText("acme")).toBeVisible();
+  expect(screen.getByText("Acme")).toHaveClass("sr-only");
+  expect(screen.getByText("$1,250.00")).toBeVisible();
   expect(
     screen.queryByTestId("browser-session-refresh"),
   ).not.toBeInTheDocument();
-  expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  expect(screen.getByRole("table", { name: "Sections" })).toBeVisible();
   expect(redirect).not.toHaveBeenCalled();
 });
 

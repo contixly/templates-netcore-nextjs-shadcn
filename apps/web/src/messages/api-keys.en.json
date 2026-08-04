@@ -2,7 +2,9 @@
   "page": {
     "title": "API keys",
     "description": "Create and manage personal API credentials for read-only automation.",
+    "personalSectionTitle": "Personal API keys",
     "organizationDescription": "Create and manage read-only API credentials owned by this organization.",
+    "organizationSectionTitle": "Organization API keys",
     "loading": "Loading API keys",
     "failureTitle": "API keys are unavailable",
     "failureDescription": "API keys could not be loaded safely. Try again."

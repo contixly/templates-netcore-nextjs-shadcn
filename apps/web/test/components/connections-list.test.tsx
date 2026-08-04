@@ -109,6 +109,20 @@ afterEach(() => {
   assignSpy.mockRestore();
 });
 
+it("subordinates provider headings beneath a settings section heading", () => {
+  renderWithMessages(
+    <ConnectionsList
+      headingLevel={3}
+      initialConnections={initialConnections}
+    />,
+  );
+
+  for (const name of ["Google", "GitHub", "GitLab"]) {
+    expect(screen.getByRole("heading", { level: 3, name })).toBeVisible();
+  }
+  expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+});
+
 it("renders configured, connected, current, and disabled server states", () => {
   renderWithMessages(
     <ConnectionsList initialConnections={initialConnections} />,

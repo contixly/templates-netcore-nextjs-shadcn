@@ -55,6 +55,26 @@ beforeEach(() => {
   jest.mocked(createBrowserApiClient).mockReturnValue(client);
 });
 
+it("can defer its visible list heading to an enclosing settings section", () => {
+  renderWithMessages(
+    <ApiKeyManagement
+      headingLevel={3}
+      initialPage={{ items: [], nextCursor: null }}
+      owner={{ kind: "personal" }}
+      showListHeading={false}
+    />,
+  );
+
+  expect(screen.getByRole("region", { name: "API keys" })).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "API keys" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Choose the right owner" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+});
+
 it("renders education and an empty state", () => {
   renderWithMessages(
     <ApiKeyManagement

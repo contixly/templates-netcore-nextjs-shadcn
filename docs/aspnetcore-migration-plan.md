@@ -1,15 +1,14 @@
 # Поэтапная миграция: Next.js template → ASP.NET Core 10 API + Next.js UI
 
 **Статус:** активная дорожная карта.
-**Текущая итерация:** 7 — API keys и public `/api/v1` — функциональный
-scope локально принят для implementation head
-`d7ea69c988474e81768aaf49b472c3fd95503594`. Ready PR #8 (base `main`) был
-mergeable при наблюдении на reviewed head
-`8bdf31f828c29f7fff75058b7261404718cec47f`; первый GitHub Codex review не
-нашёл major issues. Этот durable документ фиксирует только наблюдённый clean
-review head `8bdf31f828c29f7fff75058b7261404718cec47f`; последующие
-documentation-only commits намеренно не self-assert собственный review result,
-а exact-current-head review state остаётся PR metadata/controller evidence.
+**Текущая итерация:** 9 — application shell, dashboard и frontend parity —
+fresh local acceptance завершена для implementation head
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`. Это UI-only изменение переиспользует
+существующий REST/OpenAPI contract. Observed PR #10 evidence относится только к
+этому source head: он был ready/non-draft, `MERGEABLE`, с пустым observed
+`statusCheckRollup`, clean connector review и 5/5 resolved threads. Текущий
+local unpushed documentation-only head не покрыт тем review и до окончательного
+завершения требует собственного fresh exact-head review.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -250,15 +249,31 @@ navigation/search/OG journey; content, OpenAPI, SDK и browser validation вхо
 controller и не self-asserted этим документом.
 **Reference:** `template/src/features/documents-system`, `template/src/app/(public)/(documents-system)/docs/**`.
 
-### Итерация 9 — Application shell, dashboard и frontend parity
+### Итерация 9 — Application shell, dashboard и frontend parity **(Завершена локальная acceptance; PR/review ожидаются)**
 
 **Цель:** закончить общие UI composition patterns и удалить остаточные зависимости нового UI от reference assumptions.
 
-**Состав:** protected shell, sidebar, dashboard, settings navigation, responsive states, theme, localization messages, metadata, error/loading pages, route-by-route visual/behavioral parity review.
+**Состав:** route-group separation, route-aware protected shell, responsive
+sidebar/header, shared settings composition, static interactive dashboard,
+target-architecture landing, fixed-locale messages, safe metadata/indexing and
+error/loading boundaries, exact route inventory, desktop/mobile browser
+journeys. Это UI-only composition: no new API endpoint or OpenAPI operation.
 
 **Вход:** итерации 4–8 для соответствующих data sources.
-**Выход:** все нужные UI routes работают с уже мигрированными API modules; нет Server Actions, Prisma или Better Auth в `apps/web`.
+**Выход:** все нужные UI routes работают с уже мигрированными API modules; нет
+Server Actions, Prisma или Better Auth в `apps/web`; REST, authentication,
+validation, Problem Details, opaque pagination/filtering, transactions, schema
+и OpenAPI остаются неизменными.
 **Reference:** `template/src/features/application`, `template/src/features/dashboard`, `template/src/messages/**`.
+
+**Dashboard presentation decision (2026-08-03):** dashboard fixture data remains
+neutral, immutable, target-owned demo data; localized row/type/status labels are
+serializable message projections supplied to the client boundary. All dashboard
+copy crossing the React Server Component boundary is plain data (including
+placeholder templates, never functions). Sorting/filtering establishes the
+displayed order used by a subsequent local reorder, and no dashboard interaction
+claims or performs persistence. Chart value descriptions live outside the
+`role="img"` subtree and are connected with `aria-describedby`.
 
 ### Итерация 10 — Aspire и локальная интеграционная среда
 
@@ -312,7 +327,8 @@ controller и не self-asserted этим документом.
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
-| 9–12                                                | Не начаты | Product shell/dashboard parity (9), Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) remain out of iteration 8. |
+| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена; source PR head observed | Implementation head `ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply.bind` guards and dashboard interaction parity passed fresh local gates. Observed PR #10 evidence for that source head was ready/non-draft, `MERGEABLE`, empty `statusCheckRollup`, clean connector review and 5/5 resolved threads; current local unpushed documentation-only head still requires its own fresh exact-head review. |
+| 10–12                                               | Не начаты | Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) не входят в итерацию 9. |
 
 ## Acceptance evidence: итерация 1
 
@@ -3051,6 +3067,239 @@ exists and automatic-review findings have been processed test-first.
 Exact-current-head fresh clean review and zero unresolved actionable threads
 remain external PR/controller evidence; this tracked document does not
 self-assert that state.
+
+## Acceptance evidence: итерация 9
+
+### Scope и implementation state
+
+Fresh local acceptance выполнена 2026-08-04 для implementation head
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`. Она supersedes прежнее
+`d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`-only evidence: после него были
+две GitHub automatic-review/fix waves. Первый review
+`PRR_kwDOThDXX88AAAABIOv-CQ` (2026-08-03T18:16:09Z) проверил
+`61e99b8414110169b31c767dd5a9037892174b76` и сообщил два P2 boundary findings;
+их test-first fixes вошли в `74d5fe09e5cc50db8dbfb6ac41b92b38f1d87035`.
+Второй review `PRR_kwDOThDXX88AAAABIPwoag` (2026-08-03T20:39:59Z) проверил
+`74d5fe09e5cc50db8dbfb6ac41b92b38f1d87035` и сообщил три P2 findings:
+filtered reorder сохраняет позиции скрытых строк, global protected routes
+показывают organization selector с neutral null/stale/off-page state, а
+collapsed brand link имеет accessible name. Их test-first fixes вошли в
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`.
+
+На момент наблюдения PR [#10](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/10)
+открыт, ready/non-draft, его `headRefOid` равен `ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`,
+`mergeable` — `MERGEABLE`, а `statusCheckRollup` пуст (`[]`; checks не были
+возвращены при этом наблюдении). Запрос `@codex review` имеет comment ID
+`IC_kwDOThDXX88AAAABNEIXhQ` и время 2026-08-03T21:06:27Z. Последующий connector
+comment `IC_kwDOThDXX88AAAABNEKwzA` от 2026-08-03T21:10:43Z говорит “Didn't find
+any major issues” и указывает reviewed commit `ffd7bf0b50`; GraphQL показал
+5/5 resolved review threads и ноль unresolved actionable threads. Это
+наблюдаемое current-head evidence, а не self-assertion.
+
+Этот documentation-only commit является текущим local unpushed docs head и
+изменил HEAD после review `ffd7bf0`; его нельзя считать покрытым тем review. До
+окончательного завершения он должен быть pushed и получить отдельный свежий
+review exact нового pushed head. В текущей задаче commit не pushится и review не
+запрашивается.
+
+Итерация разделяет `(public)/(home)`, простые authentication routes,
+`(documents)` и `(protected)` без изменения URL. Route-aware
+`@applicationNavigation` slot вызывает composite shell loader, который собирает
+request-cached constituent generated-SDK projections session/account/
+organizations/current organization; сам composite function не заявляется как
+React-cached. Slot монтирует один browser session renewal и передаёт точный
+return path/current organization. Capability-derived links, отдельный
+non-sensitive sidebar cookie, shared settings composition, fixed `en | ru`
+locale, protected `noindex`, safe metadata/error copy и component-local
+dashboard state зафиксированы в [`web-conventions.md`](web-conventions.md).
+
+Это наблюдаемое implementation решение намеренно supersedes proposal design
+spec §6.2 о composite React-cached loader. Один route-aware navigation slot
+выполняет одну composite invocation для protected leaf; request-cached
+constituent loaders session/account/organizations/current organization
+deduplicate общие upstream projections с page composition. Поэтому composite
+function не обёрнут и не должен описываться как React-cached.
+
+### Reference → API → UI → test
+
+| Immutable reference | Existing API | Target UI | Observed evidence |
+| --- | --- | --- | --- |
+| `components/application/app-sidebar.tsx`, `app-site-header.tsx`, breadcrumbs/navigation | current session, account, organizations, active-organization, CSRF/logout operations | responsive protected shell, header, sidebar, breadcrumbs and account/workspace navigation | shell loader/layout/navigation Jest; desktop/mobile `application-shell` Playwright |
+| `/dashboard` resolver | session plus organization list/detail | active organization, deterministic first organization, or zero-organization welcome redirect | organization-routing Jest; authentication/organizations Playwright |
+| organization dashboard, `features/dashboard/ui/template/**`, `dashboard/data.json` | none; no new API | target-owned static cards, 90/30/7 chart, tabs/table/drawer and mirrored skeleton | dashboard component/routing Jest; desktop/mobile dashboard Playwright |
+| `settings-shell.tsx`, account/workspace settings navigation | existing account/organization capability projections and existing feature APIs | shared semantic settings rail/sections, responsive navigation and capability-derived links | settings/account/workspace component Jest; organization/API-key/collaboration Playwright authorization cases |
+| `(public)/(home)` and `features/application/**` | none required | target-architecture landing with safe login/docs actions | home/landing Jest; landing, authentication and system-status Playwright |
+| `messages/common.*` plus application/dashboard messages | none | paired fixed-locale `en`/`ru` application/dashboard catalogs | i18n deep-shape and component-localization Jest |
+| metadata helpers, per-route metadata, manifest, robots, sitemap and social images | none | closed-catalog localized metadata, protected/auth noindex, public-only sitemap | product-metadata/manifest/robots/sitemap Jest; clean 144-page production build; documents/system-status Playwright |
+| root error/status surfaces and Suspense fallbacks | existing safe Problem Details | shell-aware loading/errors plus provider-independent global error; protected descendants preserve the shell's sole `main#main-content` and skip target | rendered-landmark Jest, exact route inventory/source guards and browser non-disclosure/landmark assertions |
+
+### Unchanged contracts and state boundaries
+
+- No file under `apps/api/` or `contracts/openapi/` changed in iteration 9. No
+  endpoint, OpenAPI operation, request schema, validation rule, status/code,
+  success envelope, Problem Details mapping or generated transport DTO was
+  added or changed. `npm run api:check` regenerated four client files and found
+  them deterministic/current.
+- Browser authentication remains the secure same-origin HttpOnly session cookie.
+  SSR forwards only the allow-listed cookie/correlation context, uses
+  `no-store`, and suppresses sliding renewal. One browser renewal remains the
+  visible protected-navigation owner. Unsafe mutations keep the antiforgery
+  cookie plus `X-CSRF-TOKEN` flow.
+- API authorization and non-disclosure remain authoritative. Capability-derived
+  navigation is presentation only. Failure UI uses localized stable copy plus
+  an optional safe `traceId`; raw Problem Details detail, exceptions, provider
+  text, route/query/body/cursor values, cookies and credentials are excluded.
+- The organization page keeps its opaque cursor, limit, ordering and validation;
+  all account, collaboration and API-key cursors/filters remain unchanged.
+  Dashboard range, filtering, sorting, selection, visibility, pagination,
+  reorder and edit behavior is local presentation state and is never a REST
+  filter or persistence contract.
+- Protected descendants never add another `<main>` inside the application
+  shell. Their loading, error, not-found, unauthorized and forbidden surfaces
+  render sections under the shell-owned `main#main-content`; the standalone
+  root surfaces retain their own main landmark. Source-inventory and rendered
+  integration tests enforce that distinction.
+- The handwritten-source boundary reserves every syntactic identifier,
+  statically spelled property, or string capability named exactly `fetch`,
+  `localStorage`, or `sessionStorage`, and separately rejects literal/template
+  product paths under `/api/v1`. Shadowed names and direct safe-preference
+  storage are intentionally rejected; product code must use the generated SDK,
+  `next-themes`, and sidebar cookie helpers. This conservative closed-world rule
+  supersedes the scope-aware alias interpreter and excludes only the
+  header-checked generated SDK directory at integration level.
+- No EF model/migration, table, index, seed, transaction, cache invalidation,
+  audit event or background job was added. Existing account, organization,
+  collaboration, invitation and API-key transaction/schema behavior is
+  unchanged.
+
+### Fresh local acceptance — 2026-08-04
+
+All commands below ran from implementation head
+`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`; no install command ran in this
+acceptance, and nothing ran in immutable `template/`.
+
+| Command | Exact observed result |
+| --- | --- |
+| `time dotnet restore Template.sln` | PASS; 2 test projects restored and 5/7 projects already current; `2.385s` total |
+| `time dotnet build Template.sln --no-restore` | PASS; 0 warnings, 0 errors; MSBuild `8.50s`, shell `8.672s` total |
+| `time dotnet test Template.sln --no-restore` | PASS; Application 343/343 in `106ms`, API 773/773 in `2m 41s`, total 1116/1116, 0 failed, 0 skipped; `2:47.81` total |
+| `npm run content:generate` | PASS; deterministic artifacts regenerated; `0.652s` total |
+| `npm run content:check` | PASS; generated content current; `0.471s` total |
+| `npm run content:test` | PASS; 109/109, 0 failed/skipped; Node duration `691.996ms`, shell `0.830s` total |
+| `npm run api:check` | PASS; four generated files in `168ms`, deterministic/current; `0.864s` total |
+| `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan; Node duration `10.881s`, shell `11.528s` total |
+| `npm run format:check` | PASS; all matched web files formatted; `3.700s` total |
+| `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes; `6.984s` total |
+| `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit`; `2.336s` total |
+| `npm run audit:prod` | PASS; 0 production vulnerabilities; `1.240s` total |
+| `npm test -- --runInBand` | PASS; 102/102 suites, 841/841 tests, 0 snapshots; Jest `28.606s`, shell `29.162s` total |
+| Python `.next` cleanup | PASS; `.next` removed before production build; `0.849s` total |
+| `APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build` | PASS; Next.js 16.2.11, Cache Components enabled and `authInterrupts` experiment banner printed; compile `5.1s`, TypeScript `5.4s`, 144/144 static pages in `896ms`; `13.345s` total |
+| `test -f .next/standalone/server.js` | PASS; standalone server exists |
+| `npm run e2e` | PASS; 35 total: 30 passed, 5 opt-in live-provider screens skipped, 0 failed; Playwright `1.6m`, shell `1:37.47` total |
+| `git diff --check` | PASS; no whitespace errors |
+| template/OpenSpec/API guards | PASS; working-tree and untracked `template/` clean; no active `openspec/changes/*`; `git diff 74d5fe0..ffd7bf0 -- apps/api contracts/openapi` empty |
+
+#### Historical pre-2026-08-04 install/development-audit context
+
+The following is solely historical context from the 2026-08-03 predecessor
+acceptance at `d44d7200af7b0d4f9492cb19f8cb7f8332d608e2`; it is not output from
+the fresh `ffd7bf0` acceptance table above.
+
+`npm ci` reported deprecations for `inflight@1.0.6`,
+`whatwg-encoding@3.1.1`, `glob@7.2.3`, and `glob@10.5.0`; 394 packages looking
+for funding; and one high-severity vulnerability in the complete development
+tree. Its install-script warning named `@parcel/watcher@2.6.0`,
+`fsevents@2.3.3`, `@swc/core@1.15.46`, `fsevents@2.3.2`, and
+`unrs-resolver@1.12.2`. The required production audit separately reported zero
+vulnerabilities. ESLint's 17 warnings are the existing unused compile-time type
+probes in `test/contracts/generated-sdk.test.ts`; there were zero errors.
+Playwright repeatedly reported that `NO_COLOR` was ignored because `FORCE_COLOR`
+was set and emitted Next development cache-bypass diagnostics. No assertion was
+weakened and no new skip was added; the five skips are exactly the opt-in Google,
+GitHub, GitLab, VK and Yandex authorization-screen smokes.
+
+The production build also printed the expected Next.js 16.2.11 banners that
+Cache Components are enabled and that `authInterrupts` is an experiment to use
+with caution; these were warning/information-only and the build passed.
+
+Before Task 8's final reliability amendment, two complete runs at old head
+`0d5cd2626fa34732224437ee00e4878dfc29a8d7` each reported 28 passed, 5 skipped
+and 2 failed: the desktop docs navigation and local-auth welcome redirect hit
+the default 5-second URL wait only under five-worker load. Both scenarios passed
+focused (3/3) with two workers. The amendment added route-specific readiness and
+scoped wait budgets, was independently re-reviewed, and produced the fresh
+clean 30/5/0 precursor run at `180f29b`; the failed runs are diagnostic history,
+not acceptance evidence.
+
+The final whole-branch review then added focused regressions before each fix:
+protected source/render tests first observed nested `main` landmarks and absent
+protected status surfaces; the filtered-selection test observed `1 of 1`
+instead of `0 of 1`; boundary fixtures observed an allowed direct
+`setItem.apply`; the dashboard contract observed the missing vertical modifier;
+and the real browser flow observed the hidden-row selection mismatch. Focused
+GREEN covered 22 Jest regressions, 8 boundary fixtures and the desktop,
+organization zero-state and collaboration journeys. The first complete E2E run
+under five-worker load then timed out at the final pre-existing collaboration
+`Status` assertion after earlier assertions had passed; the scenario passed
+focused in 22 seconds. Its describe budget was raised from 60 to 90 seconds
+without changing an assertion or skip, the focused rerun passed, and the fresh
+full run at `57ebe23746dc83d5444e1667cb6065335da5c10d` produced the accepted
+30/5/0 precursor result.
+
+Final security re-review then found that `storage-set-item-apply-bind` discarded
+arguments supplied after `.bind`'s receiver. Four table-driven RED fixtures
+proved that sensitive arrays partially or fully bound before invocation, in
+direct, aliased and destructured forms, exited zero. The capability now retains
+those pre-bound argument nodes/values and combines them with invocation
+arguments before inspecting the effective `apply` array. Three allow fixtures
+preserve safe theme/sidebar keys and scope-shadowed storage. Focused GREEN was
+11/11 Jest tests plus 8/8 boundary tests and the clean source scan.
+
+The first fresh acceptance attempt after that code change also observed a new
+production-audit RED: the registry advisory database classified the pinned
+`postcss@8.5.22` as three moderate production vulnerabilities. The existing
+override was advanced to `8.5.25`, `npm audit --omit=dev` returned zero, and the
+implementation commit was amended before later review/fix work. The complete
+development tree still reports one high-severity dev-only vulnerability; it is
+not hidden by the separate zero-vulnerability production audit.
+
+The subsequent GitHub review exposed that extending that scope-aware analyzer
+had turned the guard into an incomplete JavaScript interpreter: the original
+pre-bound storage and computed-fetch examples could be closed one data-flow
+shape at a time while other compositions remained possible. The replacement is
+deliberately syntactic and closed-world. It rejects the three reserved
+capability tokens and raw literal/template `/api/v1` paths wherever they occur
+in handwritten source, so alias, bind/call/apply, higher-order, spread, branch,
+recursive, destructured, computed-const, and shadowed-name forms do not require
+runtime emulation. Approved wrappers contain no reserved token. This closes the
+two reported examples by policy. The current exact-head PR/review/thread
+observation is recorded above; the current local unpushed documentation-only
+head deliberately requires its own fresh review before final completion.
+
+### Intentional differences and later exclusions
+
+- Implemented request caching supersedes design spec §6.2's proposed composite
+  React-cached loader: the route-aware slot owns one composite invocation, and
+  request-cached session/account/organization constituents provide upstream
+  projection deduplication without caching the composite function.
+- Dashboard fixture data is neutral, immutable and target-owned. All edits,
+  reorder, filters, selection, pagination and chart range are local demo state,
+  reset on navigation/reload and never claim server persistence.
+- Landing copy describes ASP.NET Core 10 plus REST instead of the reference
+  Prisma/Better Auth/Server Actions architecture. Yandex Metrika and other new
+  analytics are not added.
+- Locale stays deployment-fixed `en | ru`; there is no locale prefix or user
+  language switcher. Authentication/protected pages are `noindex,nofollow`.
+- Security, authorization, non-disclosure and REST boundaries take priority
+  over implementation-level visual identity with the immutable reference.
+- Iteration 10 remains responsible for Aspire, ServiceDefaults,
+  Redis/Valkey/PostgreSQL orchestration and local telemetry wiring.
+- Iteration 11 remains responsible for YARP, the production Docker image,
+  Next standalone process supervision, signals and production health topology.
+- Iteration 12 remains responsible for the final security, performance,
+  accessibility/SEO, backup/restore, license/dependency and route/API parity
+  audit. Iteration 9 neither archives nor deletes `template/`.
 
 ## 9. Правило обновления этого документа
 

@@ -43,8 +43,12 @@ function traceId(failure: ApiFailure | null): string | undefined {
 }
 
 export function OrganizationCreateDialog({
+  onNavigate,
   presentation = "default",
-}: Readonly<{ presentation?: "default" | "onboarding" }>) {
+}: Readonly<{
+  onNavigate?: () => void;
+  presentation?: "default" | "onboarding";
+}>) {
   const t = useTranslations("organizations.createDialog");
   const onboarding = useTranslations("organizations.onboarding");
   const router = useRouter();
@@ -131,6 +135,7 @@ export function OrganizationCreateDialog({
       queuedRouterEffects.current = () => router.refresh();
       return;
     }
+    onNavigate?.();
     router.push(organizationRoutes.dashboard(result.data.canonicalKey));
     router.refresh();
   }

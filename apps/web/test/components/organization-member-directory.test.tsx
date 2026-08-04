@@ -119,6 +119,25 @@ function memberPageResult(
   } as Awaited<ReturnType<typeof getOrganizationMembers>>;
 }
 
+it("subordinates membership headings beneath a settings section heading", () => {
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      headingLevel={3}
+      initialPage={initialPage}
+      organization={organization}
+    />,
+  );
+
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Your access" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Other members" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+});
+
 it("separates the current actor, preserves returned order, and never renders member removal", () => {
   const laterMember = {
     ...otherMember,

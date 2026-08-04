@@ -172,11 +172,15 @@ function traceId(failure: ApiFailure) {
 }
 
 export function ApiKeyManagement({
+  headingLevel = 2,
   initialPage,
   owner,
+  showListHeading = true,
 }: Readonly<{
+  headingLevel?: 2 | 3;
   initialPage: ApiKeyPageResponse;
   owner: ApiKeyOwner;
+  showListHeading?: boolean;
 }>) {
   const t = useTranslations("apiKeys");
   const interactionReady = useInteractionReady();
@@ -211,6 +215,7 @@ export function ApiKeyManagement({
     failure: ApiFailure;
   } | null>(null);
   const [feedback, setFeedback] = useState<ConfirmedAction | null>(null);
+  const ListHeading = headingLevel === 3 ? "h3" : "h2";
 
   useEffect(() => {
     const mutationLeases = activeMutationLeases.current;
@@ -386,15 +391,21 @@ export function ApiKeyManagement({
 
   return (
     <div className="flex flex-col gap-8">
-      <ApiKeyEducation owner={owner} />
+      <ApiKeyEducation headingLevel={headingLevel} owner={owner} />
       <section
-        aria-labelledby="api-key-list-title"
+        aria-label={showListHeading ? undefined : t("list.label")}
+        aria-labelledby={showListHeading ? "api-key-list-title" : undefined}
         className="flex flex-col gap-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-medium" id="api-key-list-title">
-            {t("list.label")}
-          </h2>
+          {showListHeading ? (
+            <ListHeading
+              className="text-lg font-medium"
+              id="api-key-list-title"
+            >
+              {t("list.label")}
+            </ListHeading>
+          ) : null}
           <ApiKeyCreateDialog
             onConfirmed={(apiKey) => confirmed(apiKey, "created")}
             owner={owner}

@@ -3,6 +3,7 @@
     "page": {
       "title": "Workspace teams",
       "description": "Organize workspace members into teams.",
+      "sectionTitle": "Team directory",
       "loading": "Loading workspace teams"
     },
     "list": {
@@ -81,11 +82,13 @@
     "settings": {
       "title": "Workspace invitations",
       "description": "Invite people and review invitation activity.",
+      "sectionTitle": "Invitation activity",
       "loading": "Loading workspace invitations"
     },
     "account": {
       "title": "Invitations",
       "description": "Review invitations sent to your verified email addresses.",
+      "sectionTitle": "Pending invitations",
       "loading": "Loading invitations",
       "listLabel": "Pending invitations",
       "emptyTitle": "No pending invitations",

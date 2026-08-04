@@ -5,7 +5,7 @@ import { Button } from "@/src/components/ui/button";
 import { applicationRoutes } from "@/src/features/application/application-routes";
 
 export default async function NotFound() {
-  const boundaries = await getTranslations("system.boundaries");
+  const boundaries = await getTranslations("application.shell.safeBoundaries");
   const actions = await getTranslations("common.actions");
 
   return (

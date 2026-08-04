@@ -395,10 +395,12 @@ function detachActiveRead(activeReadRef: { current: ReadCoordinator | null }) {
 
 export function OrganizationMemberDirectory({
   currentActor,
+  headingLevel = 2,
   initialPage,
   organization,
 }: Readonly<{
   currentActor: OrganizationCurrentActorView;
+  headingLevel?: 2 | 3;
   initialPage: OrganizationMemberPageView;
   organization: OrganizationMemberDirectoryView;
 }>) {
@@ -686,9 +688,15 @@ export function OrganizationMemberDirectory({
       <Card aria-labelledby="organization-current-member-heading" role="region">
         <CardHeader>
           <CardTitle>
-            <h2 id="organization-current-member-heading">
-              {t("currentTitle")}
-            </h2>
+            {headingLevel === 3 ? (
+              <h3 id="organization-current-member-heading">
+                {t("currentTitle")}
+              </h3>
+            ) : (
+              <h2 id="organization-current-member-heading">
+                {t("currentTitle")}
+              </h2>
+            )}
           </CardTitle>
           <CardDescription>{t("currentDescription")}</CardDescription>
           <CardAction>
@@ -701,7 +709,15 @@ export function OrganizationMemberDirectory({
       <Card aria-labelledby="organization-other-members-heading" role="region">
         <CardHeader>
           <CardTitle>
-            <h2 id="organization-other-members-heading">{t("othersTitle")}</h2>
+            {headingLevel === 3 ? (
+              <h3 id="organization-other-members-heading">
+                {t("othersTitle")}
+              </h3>
+            ) : (
+              <h2 id="organization-other-members-heading">
+                {t("othersTitle")}
+              </h2>
+            )}
           </CardTitle>
           <CardDescription>{t("othersDescription")}</CardDescription>
           {organization.capabilities.canAddMembers &&

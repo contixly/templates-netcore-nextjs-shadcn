@@ -12,8 +12,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: resolvePublicOrigin(),
-    title: messages.system.metadata.title,
-    description: messages.system.metadata.description,
+    applicationName: messages.common.brand,
   };
 }
 

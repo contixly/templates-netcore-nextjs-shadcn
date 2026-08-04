@@ -1,207 +1,85 @@
-import { renderToString } from "react-dom/server";
-import { screen } from "@testing-library/react";
+import { existsSync, readdirSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
+import type { ReactElement } from "react";
 
-import NonWorkspaceSwitcherSlotPage from "@/src/app/(site)/@organizationSwitcher/workspaces/page";
-import WorkspaceSwitcherSlotPage from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/dashboard/page";
-import { SiteHeader } from "@/src/components/application/site-header";
-import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
-import type {
-  OrganizationDetailResponse,
-  OrganizationSummaryResponse,
-} from "@/src/lib/api/generated/types.gen";
-import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
-import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
-import { renderWithMessages, withMessages } from "@/test/support/render";
+import OrganizationDashboardNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/dashboard/page";
+import OrganizationNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/page";
+import OrganizationApiKeysNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/api-keys/page";
+import OrganizationInvitationsNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/invitations/page";
+import OrganizationSettingsNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/page";
+import OrganizationRolesNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/roles/page";
+import OrganizationTeamsNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/teams/page";
+import OrganizationUsersNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/users/page";
+import OrganizationWorkspaceNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/workspace/page";
+import WorkspacesNavigation from "@/src/app/(protected)/@applicationNavigation/workspaces/page";
+import type { ApplicationNavigationSlotProps } from "@/src/components/application/application-navigation-slot";
 
-const pathname = jest.fn(() => "/w/acme/dashboard");
-
-jest.mock("next/navigation", () => ({
-  usePathname: () => pathname(),
-  useRouter: () => ({ push: jest.fn(), refresh: jest.fn() }),
-}));
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),
 }));
-jest.mock("@/src/components/application/theme-switcher", () => ({
-  ThemeSwitcher: () => <button aria-label="Toggle theme" type="button" />,
-}));
-jest.mock("@/src/lib/api/auth/server/load-server-auth-session", () => ({
-  loadServerAuthSession: jest.fn(),
-}));
-jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
-  loadOrganization: jest.fn(),
-}));
-jest.mock("@/src/lib/api/organizations/server/load-organizations", () => ({
-  loadOrganizations: jest.fn(),
-}));
 
-const loadSession = jest.mocked(loadServerAuthSession);
-const loadDetail = jest.mocked(loadOrganization);
-const loadList = jest.mocked(loadOrganizations);
-const capabilities = {
-  canUpdateOrganization: true,
-  canDeleteOrganization: true,
-  canAddMembers: true,
-  canUpdateMemberRoles: true,
-  canManageTeams: true,
-  canManageInvitations: true,
-  canManageApiKeys: true,
-};
+function protectedPageFiles(root: string): string[] {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
 
-function summary(
-  id: string,
-  name: string,
-  canonicalKey: string,
-  canManageInvitations = false,
-): Extract<OrganizationSummaryResponse, { accessPrincipal: "user" }> {
-  return {
-    id,
-    name,
-    slug: canonicalKey,
-    canonicalKey,
-    createdAt: "2026-07-30T10:00:00Z",
-    updatedAt: "2026-07-30T10:00:00Z",
-    accessPrincipal: "user" as const,
-    currentRole: "owner",
-    capabilities: { ...capabilities, canManageInvitations },
-  };
-}
+    if (entry.name === "@applicationNavigation") {
+      return [];
+    }
 
-function detail(
-  id: string,
-  name: string,
-  canonicalKey: string,
-): OrganizationDetailResponse {
-  return {
-    ...summary(id, name, canonicalKey, true),
-    allowedEmailDomains: [],
-  };
-}
+    if (entry.isDirectory()) {
+      return protectedPageFiles(path);
+    }
 
-beforeEach(() => {
-  jest.clearAllMocks();
-  loadSession.mockResolvedValue({
-    ok: true,
-    data: {
-      authenticated: true,
-      user: {
-        id: "user-id",
-        name: "User",
-        email: "user@example.test",
-        emailVerified: true,
-        image: null,
-      },
-      session: {
-        id: "session-id",
-        createdAt: "2026-07-30T10:00:00Z",
-        updatedAt: "2026-07-30T10:00:00Z",
-        expiresAt: "2026-08-01T10:00:00Z",
-        activeOrganizationId: null,
-      },
-    },
-  });
-  loadList.mockResolvedValue({
-    ok: true,
-    data: {
-      items: [summary("first-id", "First Page", "first-page")],
-      nextCursor: "page-two",
-    },
-  });
-});
-
-async function workspaceSlot(organizationKey: string, name: string) {
-  loadDetail.mockResolvedValueOnce({
-    ok: true,
-    data: detail(`${organizationKey}-id`, name, organizationKey),
-  });
-  return WorkspaceSwitcherSlotPage({
-    params: Promise.resolve({
-      organizationKey,
-      path: ["dashboard"],
-    }),
+    return entry.name === "page.tsx" ? [path] : [];
   });
 }
 
-it("includes the resolved off-first-page current workspace in initial server HTML", async () => {
-  pathname.mockReturnValue("/w/acme/dashboard");
-  const organizationSwitcher = await workspaceSlot("acme", "Acme Current");
+function slotProps(
+  element: ReactElement<ApplicationNavigationSlotProps>,
+): ApplicationNavigationSlotProps {
+  return element.props;
+}
 
-  const html = renderToString(
-    withMessages(<SiteHeader organizationSwitcher={organizationSwitcher} />),
-  );
+const params = (organizationKey: string) =>
+  Promise.resolve({ organizationKey });
 
-  expect(html).toContain("Current workspace: Acme Current");
-  expect(html).not.toContain("Current workspace: First Page");
+it("passes every organization route's exact URL and key to the shared slot", async () => {
+  const cases = [
+    [OrganizationNavigation, "/w/acme"],
+    [OrganizationDashboardNavigation, "/w/acme/dashboard"],
+    [OrganizationSettingsNavigation, "/w/acme/settings"],
+    [OrganizationWorkspaceNavigation, "/w/acme/settings/workspace"],
+    [OrganizationUsersNavigation, "/w/acme/settings/users"],
+    [OrganizationRolesNavigation, "/w/acme/settings/roles"],
+    [OrganizationApiKeysNavigation, "/w/acme/settings/api-keys"],
+    [OrganizationTeamsNavigation, "/w/acme/settings/teams"],
+    [OrganizationInvitationsNavigation, "/w/acme/settings/invitations"],
+  ] as const;
+
+  for (const [Navigation, redirectPath] of cases) {
+    const element = await Navigation({ params: params("acme") });
+    expect(slotProps(element)).toEqual({
+      redirectPath,
+      organizationKey: "acme",
+    });
+  }
 });
 
-it("serializes only compact first-page and current switcher projections", async () => {
-  const organizationSwitcher = await workspaceSlot("acme", "Acme Current");
-
-  expect(organizationSwitcher).toMatchObject({
-    props: {
-      currentOrganization: {
-        canonicalKey: "acme",
-        id: "acme-id",
-        name: "Acme Current",
-        canManageInvitations: true,
-      },
-      organizations: [
-        {
-          canonicalKey: "first-page",
-          id: "first-id",
-          name: "First Page",
-          canManageInvitations: false,
-        },
-      ],
-    },
+it("keeps non-organization navigation free of an organization key", () => {
+  expect(slotProps(WorkspacesNavigation())).toEqual({
+    redirectPath: "/workspaces",
   });
-  expect(
-    Object.keys(
-      (organizationSwitcher as { props: { currentOrganization: object } }).props
-        .currentOrganization,
-    ).sort(),
-  ).toEqual(["canManageInvitations", "canonicalKey", "id", "name"]);
-  expect(
-    Object.keys(
-      (organizationSwitcher as { props: { organizations: object[] } }).props
-        .organizations[0] ?? {},
-    ).sort(),
-  ).toEqual(["canManageInvitations", "canonicalKey", "id", "name"]);
 });
 
-it("replaces A with B atomically during a workspace soft-route transition", async () => {
-  pathname.mockReturnValue("/w/a/dashboard");
-  const slotA = await workspaceSlot("a", "Workspace A");
-  const view = renderWithMessages(<SiteHeader organizationSwitcher={slotA} />);
-  expect(
-    screen.getByRole("button", { name: "Current workspace: Workspace A" }),
-  ).toBeVisible();
+it("has a matching navigation leaf for every protected page leaf", () => {
+  const protectedRoot = resolve(process.cwd(), "src/app/(protected)");
+  const slotRoot = join(protectedRoot, "@applicationNavigation");
+  const pageLeaves = protectedPageFiles(protectedRoot);
 
-  pathname.mockReturnValue("/w/b/dashboard");
-  const slotB = await workspaceSlot("b", "Workspace B");
-  view.rerender(withMessages(<SiteHeader organizationSwitcher={slotB} />));
-
-  expect(
-    screen.getByRole("button", { name: "Current workspace: Workspace B" }),
-  ).toBeVisible();
-  expect(screen.queryByText(/Workspace A/)).not.toBeInTheDocument();
-});
-
-it("clears the server-owned slot when navigating away from workspace routes", async () => {
-  pathname.mockReturnValue("/w/acme/dashboard");
-  const workspace = await workspaceSlot("acme", "Acme Current");
-  const view = renderWithMessages(
-    <SiteHeader organizationSwitcher={workspace} />,
-  );
-  expect(
-    screen.getByRole("button", { name: "Current workspace: Acme Current" }),
-  ).toBeVisible();
-
-  pathname.mockReturnValue("/workspaces");
-  const cleared = await NonWorkspaceSwitcherSlotPage();
-  view.rerender(withMessages(<SiteHeader organizationSwitcher={cleared} />));
-
-  expect(
-    screen.queryByRole("button", { name: /current workspace/i }),
-  ).not.toBeInTheDocument();
+  expect(pageLeaves).not.toHaveLength(0);
+  for (const page of pageLeaves) {
+    expect(existsSync(join(slotRoot, relative(protectedRoot, page)))).toBe(
+      true,
+    );
+  }
 });

@@ -8,12 +8,12 @@ import {
 } from "@testing-library/react";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 
-import InviteSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/invite/[invitationId]/page";
-import AccountInvitationsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/user/invitations/page";
-import SettingsInvitationsSwitcherSlot from "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/settings/invitations/page";
-import InvitePage from "@/src/app/(site)/invite/[invitationId]/page";
-import AccountInvitationsPage from "@/src/app/(site)/user/invitations/page";
-import SettingsInvitationsPage from "@/src/app/(site)/w/[organizationKey]/settings/invitations/page";
+import InviteSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/invite/[invitationId]/page";
+import AccountInvitationsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/user/invitations/page";
+import SettingsInvitationsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/invitations/page";
+import InvitePage from "@/src/app/(protected)/invite/[invitationId]/page";
+import AccountInvitationsPage from "@/src/app/(protected)/user/invitations/page";
+import SettingsInvitationsPage from "@/src/app/(protected)/w/[organizationKey]/settings/invitations/page";
 import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
 import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
 import { InvitationDecision } from "@/src/components/collaboration/invitation-decision";
@@ -45,11 +45,18 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: jest.fn(), replace: jest.fn() }),
 }));
 jest.mock("next-intl/server", () => ({
-  getTranslations: async () => (key: string) =>
-    ({
-      title: "Invitations",
-      description: "Invitation description",
-    })[key] ?? key,
+  getTranslations: async (namespace: string) => (key: string) => {
+    const messages: Record<string, string> = {
+      "collaboration.invitations.account.title": "Invitations",
+      "collaboration.invitations.account.description": "Invitation description",
+      "collaboration.invitations.account.sectionTitle": "Pending invitations",
+      "collaboration.invitations.settings.title": "Workspace invitations",
+      "collaboration.invitations.settings.description":
+        "Invitation description",
+      "collaboration.invitations.settings.sectionTitle": "Invitation activity",
+    };
+    return messages[`${namespace}.${key}`] ?? key;
+  },
 }));
 jest.mock("@/src/lib/api/auth/server/load-server-auth-state", () => ({
   loadServerAuthState: jest.fn(),
@@ -84,13 +91,6 @@ jest.mock(
   "@/src/lib/api/collaboration/server/load-invitation-decision",
   () => ({ loadInvitationDecision: jest.fn() }),
 );
-jest.mock(
-  "@/src/app/(site)/@organizationSwitcher/w/[organizationKey]/workspace-organization-switcher",
-  () => ({
-    WorkspaceOrganizationSwitcherSlot: () => <span>workspace switcher</span>,
-  }),
-);
-
 const organization: OrganizationDetailResponse = {
   id: "org-1",
   name: "Acme",
@@ -292,6 +292,13 @@ it("loads authorized activity and team choices through the REST loaders", async 
     id: organization.id,
     currentRole: "owner",
   });
+
+  const view = render(withMessages(page));
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Workspace invitations", "Invitation activity"]);
 });
 
 it("loads every team page and makes a later-page team selectable without duplicates", async () => {
@@ -399,6 +406,16 @@ it("uses only the account invitation loader and exposes the paged account list",
     items: [invitation],
     nextCursor: null,
   });
+});
+
+it("uses distinct page and section headings for account invitations", async () => {
+  const view = render(withMessages(await AccountInvitationsPage()));
+
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Invitations", "Pending invitations"]);
 });
 
 it("renders the account empty state returned by the account-only endpoint", async () => {
@@ -621,15 +638,21 @@ it("redirects an anonymous invitation visitor back to the exact encoded route", 
   expect(loadInvitationDecision).not.toHaveBeenCalled();
 });
 
-it("provides empty switcher slots for both account and decision routes and a workspace slot for settings", () => {
+it("provides exact application-navigation return paths for invitation routes", async () => {
   const accountSlot = AccountInvitationsSwitcherSlot();
-  const inviteSlot = InviteSwitcherSlot();
-  expect(accountSlot).toBeNull();
-  expect(inviteSlot).toBeNull();
-  render(
-    <SettingsInvitationsSwitcherSlot
-      params={Promise.resolve({ organizationKey: "acme" })}
-    />,
-  );
-  expect(screen.getByText("workspace switcher")).toBeVisible();
+  const inviteSlot = await InviteSwitcherSlot({
+    params: Promise.resolve({ invitationId: "invite/id" }),
+  });
+  const settingsSlot = await SettingsInvitationsSwitcherSlot({
+    params: Promise.resolve({ organizationKey: "acme" }),
+  });
+
+  expect(accountSlot.props).toEqual({ redirectPath: "/user/invitations" });
+  expect(inviteSlot.props).toEqual({
+    redirectPath: "/invite/invite%2Fid",
+  });
+  expect(settingsSlot.props).toEqual({
+    redirectPath: "/w/acme/settings/invitations",
+    organizationKey: "acme",
+  });
 });

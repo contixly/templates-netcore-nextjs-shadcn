@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test";
 
 import {
+  waitForApplicationShell,
   waitForInteraction,
   waitForOrganizationControlInteraction,
 } from "./support/app-readiness";
@@ -72,6 +73,15 @@ async function expectOrganizationSettingsLinks(page: Page) {
   await expect(page.getByRole("link", { name: /api keys?/i })).toBeVisible();
 }
 
+async function expandDesktopSidebar(page: Page) {
+  const trigger = page
+    .getByRole("banner")
+    .getByRole("button", { name: "Open sidebar" });
+  if (await trigger.isVisible()) {
+    await trigger.click();
+  }
+}
+
 function isOrganizationCreateResponse(url: string, method: string) {
   return method === "POST" && new URL(url).pathname === "/api/v1/organizations";
 }
@@ -88,7 +98,9 @@ async function createWorkspaceThroughBrowser(
   triggerName: "Create New Workspace" | "Create Workspace",
   name: string,
 ): Promise<OrganizationDetailResponse> {
-  const trigger = page.getByRole("button", { name: triggerName });
+  const trigger = (
+    triggerName === "Create New Workspace" ? page.getByRole("main") : page
+  ).getByRole("button", { name: triggerName });
   await waitForOrganizationControlInteraction(trigger);
   await trigger.click();
   await page.getByLabel(/Workspace name/i).fill(name);
@@ -139,6 +151,8 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Create your first workspace" }),
     ).toBeVisible();
+    await expect(page.getByRole("main")).toHaveCount(1);
+    await expect(page.getByRole("main")).toHaveAttribute("id", "main-content");
     await expectBrowserSessionReads(1);
     await page.goto("/workspaces");
     await expect(
@@ -147,6 +161,8 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "No workspaces yet" }),
     ).toBeVisible();
+    await expect(page.getByRole("main")).toHaveCount(1);
+    await expect(page.getByRole("main")).toHaveAttribute("id", "main-content");
     await expectBrowserSessionReads(2);
     await waitForOrganizationControlInteraction(
       page.getByRole("button", { name: "Create New Workspace" }),
@@ -159,7 +175,9 @@ test.describe.serial("organization full-stack workflows", () => {
       ["/user/danger", "Danger zone"],
     ] as const) {
       await page.goto(route[0]);
-      await expect(page.getByRole("heading", { name: route[1] })).toBeVisible();
+      await expect(
+        page.getByRole("heading", { name: route[1], exact: true }),
+      ).toBeVisible();
     }
     await expectBrowserSessionReads(6);
 
@@ -173,9 +191,16 @@ test.describe.serial("organization full-stack workflows", () => {
       "E2E Organization",
     );
     await expect(page).toHaveURL("/w/e2e-organization/dashboard");
+    await expect(
+      page
+        .getByRole("region", { name: "Dashboard metrics" })
+        .getByRole("article"),
+    ).toHaveCount(4);
+    await expect(page.getByText("Demo changes are not saved.")).toBeVisible();
 
     await page.waitForTimeout(250);
     browserSessionReads = 0;
+    await expandDesktopSidebar(page);
     const switcher = page.getByRole("button", {
       name: "Current workspace: E2E Organization",
     });
@@ -185,6 +210,11 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(page).toHaveURL("/workspaces");
     await expect(
       page.getByRole("heading", { name: "Workspaces", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Current workspace: E2E Organization",
+      }),
     ).toBeVisible();
     await expectBrowserSessionReads(1);
 
@@ -196,6 +226,8 @@ test.describe.serial("organization full-stack workflows", () => {
     await expect(
       page.getByRole("heading", { name: "Workspace settings" }),
     ).toBeVisible();
+    await expect(page.getByRole("main")).toHaveCount(1);
+    await expect(page.getByRole("main")).toHaveAttribute("id", "main-content");
     await expectBrowserSessionReads(2);
 
     await page.getByRole("link", { name: "Users", exact: true }).click();
@@ -205,10 +237,17 @@ test.describe.serial("organization full-stack workflows", () => {
     ).toBeVisible();
     await expectBrowserSessionReads(3);
 
-    await page.getByRole("link", { name: "Account settings" }).click();
+    await page
+      .getByRole("link", { name: new RegExp(onboardingOwner.name) })
+      .click();
     await expect(page).toHaveURL("/user/profile");
     await expect(
       page.getByRole("heading", { name: "Profile settings" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Current workspace: E2E Organization",
+      }),
     ).toBeVisible();
     await expectBrowserSessionReads(4);
 
@@ -329,6 +368,7 @@ test.describe.serial("organization full-stack workflows", () => {
       name: "Workspace Name",
     });
     await waitForInteraction(workspaceName);
+    await expandDesktopSidebar(page);
     await workspaceName.fill("E2E Membership Policy Renamed");
     const domains = page.getByRole("textbox", {
       name: "Allowed Email Domains",
@@ -374,12 +414,16 @@ test.describe.serial("organization full-stack workflows", () => {
     for (const foreignKey of [organization.canonicalKey, organization.id]) {
       await outsiderPage.goto(`/w/${foreignKey}/dashboard`);
       await expect(
-        outsiderPage.getByRole("heading", { name: "403", exact: true }),
+        outsiderPage.getByRole("heading", {
+          name: "Access denied",
+          exact: true,
+        }),
       ).toBeVisible();
       await expect(
-        outsiderPage.getByRole("heading", {
-          name: "This page could not be accessed.",
-        }),
+        outsiderPage.getByText(
+          "You do not have permission to open this page.",
+          { exact: true },
+        ),
       ).toBeVisible();
       await expect(
         outsiderPage.getByRole("heading", { name: "Workspace dashboard" }),
@@ -687,6 +731,8 @@ test.describe.serial("organization full-stack workflows", () => {
     expect(second.canonicalKey).toBe("e2e-slug-2");
 
     await page.goto("/w/e2e-slug/settings/users");
+    await waitForApplicationShell(page);
+    await expandDesktopSidebar(page);
     const workspaceSwitcher = page.getByRole("button", {
       name: "Current workspace: E2E Slug",
     });

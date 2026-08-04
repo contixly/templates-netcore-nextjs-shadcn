@@ -1,17 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import ConnectionsError from "@/src/app/(site)/user/connections/error";
-import ConnectionsLoading from "@/src/app/(site)/user/connections/loading";
-import ConnectionsPage from "@/src/app/(site)/user/connections/page";
-import DangerError from "@/src/app/(site)/user/danger/error";
-import DangerLoading from "@/src/app/(site)/user/danger/loading";
-import DangerPage from "@/src/app/(site)/user/danger/page";
-import ProfileError from "@/src/app/(site)/user/profile/error";
-import ProfileLoading from "@/src/app/(site)/user/profile/loading";
-import ProfilePage from "@/src/app/(site)/user/profile/page";
-import SecurityError from "@/src/app/(site)/user/security/error";
-import SecurityLoading from "@/src/app/(site)/user/security/loading";
-import SecurityPage from "@/src/app/(site)/user/security/page";
+import ConnectionsError from "@/src/app/(protected)/user/connections/error";
+import ConnectionsLoading from "@/src/app/(protected)/user/connections/loading";
+import ConnectionsPage from "@/src/app/(protected)/user/connections/page";
+import DangerError from "@/src/app/(protected)/user/danger/error";
+import DangerLoading from "@/src/app/(protected)/user/danger/loading";
+import DangerPage from "@/src/app/(protected)/user/danger/page";
+import ProfileError from "@/src/app/(protected)/user/profile/error";
+import ProfileLoading from "@/src/app/(protected)/user/profile/loading";
+import ProfilePage from "@/src/app/(protected)/user/profile/page";
+import SecurityError from "@/src/app/(protected)/user/security/error";
+import SecurityLoading from "@/src/app/(protected)/user/security/loading";
+import SecurityPage from "@/src/app/(protected)/user/security/page";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";
 import { loadConnections } from "@/src/lib/api/account/server/load-connections";
 import { loadSessions } from "@/src/lib/api/account/server/load-sessions";
@@ -60,16 +60,22 @@ jest.mock("next-intl/server", () => ({
     const messages: Record<string, string> = {
       "account.pages.profile.title": "Profile settings",
       "account.pages.profile.description": "Manage your account profile.",
+      "account.pages.profile.sectionTitle": "Profile details",
       "account.pages.profile.loading": "Loading profile",
       "account.pages.connections.title": "Connections",
       "account.pages.connections.description": "Manage sign-in providers.",
+      "account.pages.connections.sectionTitle": "Sign-in connections",
       "account.pages.connections.loading": "Loading connections",
       "account.pages.security.title": "Security",
       "account.pages.security.description": "Manage active sessions.",
+      "account.pages.security.sectionTitle": "Active sessions",
       "account.pages.security.loading": "Loading security",
       "account.pages.danger.title": "Danger zone",
       "account.pages.danger.description": "Manage irreversible actions.",
       "account.pages.danger.loading": "Loading danger zone",
+      "account.danger.title": "Delete account",
+      "account.danger.description": "Permanently delete your account.",
+      "account.danger.warning": "This action cannot be undone.",
       "account.failure.title": "Account settings are unavailable",
       "account.failure.description": "Try again without exposing private data.",
     };
@@ -117,23 +123,58 @@ it("loads each projection through its Task 12 server adapter", async () => {
 
   let view = render(await ProfilePage());
   expect(screen.getByText(/profile projection/)).toHaveTextContent(account.id);
+  expect(
+    screen.getByRole("heading", { level: 1, name: "Profile settings" }),
+  ).toBeVisible();
+  expect(screen.getByText(/profile projection/).closest("article")).toHaveClass(
+    "max-w-3xl",
+  );
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Profile settings", "Profile details"]);
   expect(loadAccountMock).toHaveBeenCalledTimes(1);
   view.unmount();
 
   view = render(await ConnectionsPage());
   expect(screen.getByText("connections projection 0")).toBeInTheDocument();
+  expect(
+    screen.getByText("connections projection 0").closest("article"),
+  ).toHaveAttribute("data-mode", "wide");
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Connections", "Sign-in connections"]);
   expect(loadConnectionsMock).toHaveBeenCalledTimes(1);
   view.unmount();
 
   view = render(await SecurityPage());
   expect(screen.getByText("sessions projection 0")).toBeInTheDocument();
+  expect(
+    screen.getByText("sessions projection 0").closest("article"),
+  ).toHaveClass("max-w-3xl");
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Security", "Active sessions"]);
   expect(loadSessionsMock).toHaveBeenCalledWith();
   view.unmount();
 
-  render(await DangerPage());
+  view = render(await DangerPage());
   expect(
     screen.getByText("delete projection account@example.test"),
   ).toBeInTheDocument();
+  expect(
+    screen.getByRole("region", { name: "Delete account" }),
+  ).toHaveAttribute("data-variant", "destructive");
+  expect(
+    Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
+      heading.textContent?.trim(),
+    ),
+  ).toEqual(["Danger zone", "Delete account"]);
   expect(loadAccountMock).toHaveBeenCalledTimes(2);
 });
 

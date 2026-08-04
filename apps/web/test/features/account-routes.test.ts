@@ -1,6 +1,6 @@
 import type { Route } from "next";
 
-import UserPage from "@/src/app/(site)/user/page";
+import UserPage from "@/src/app/(protected)/user/page";
 import { accountRoutes } from "@/src/features/account/account-routes";
 
 jest.mock("next/navigation", () => ({

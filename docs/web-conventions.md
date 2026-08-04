@@ -17,8 +17,9 @@ Both direct and development dependencies stay exact-pinned, and
 
 Security overrides are exact, narrowly justified compatibility bridges:
 
-- `postcss` is held at `8.5.22` for every consumer because stable Next.js
-  `16.2.11` otherwise installs vulnerable `8.4.31`;
+- `postcss` is held at `8.5.25` for every consumer because stable Next.js
+  `16.2.11` otherwise installs a version now covered by the incomplete
+  source-map-fix advisory;
 - Next.js `sharp` is held at `0.35.3`;
 - the two JavaScript YAML 4 consumers are held at `js-yaml` `4.3.0`;
 - the shadcn MCP dependency is held at `@hono/node-server` `2.0.11`.
@@ -764,3 +765,105 @@ presentation-only `/docs/og/{**slug}` PNG surface. It is not an API/BFF and does
 not establish permission for other Route Handlers. Standard docs Open Graph and
 Twitter images use Next metadata file conventions; the sitemap contains only
 deduplicated production-visible canonical routes.
+
+## Application shell and product presentation (iteration 9)
+
+Iteration 9 is UI-only composition over the REST contracts delivered in
+iterations 4–8. Route groups separate the public landing page, simple
+authentication pages, public documents, and protected product routes without
+changing their URLs. `/docs/**` keeps its documents shell. Protected pages use
+the `(protected)` layout and a route-aware `@applicationNavigation` parallel
+slot; every protected leaf supplies its exact safe login return path and, for a
+workspace route, its organization key.
+
+The navigation slot calls one composite shell loader after authentication. That
+function composes request-cached constituent generated-SDK projections for the
+session, account, organization page, and optional current organization; the
+composite function itself is not described as React-cached. Equivalent page and
+shell reads reuse those cached constituent loaders. SSR reads remain `no-store`
+and suppress sliding renewal; exactly one `BrowserSessionRefresh` performs the
+visible renewal for a protected navigation. Feature pages still own their
+existing reads and mutations, so the shell is a presentation projection rather
+than a business service or replacement transport model.
+
+This implemented composition intentionally supersedes the proposed composite
+React-cached loader in design spec §6.2. The single route-aware navigation slot
+owns one composite invocation for a protected leaf, while the constituent
+session, account, organization-list, and current-organization loaders are
+request-cached. Those constituent caches deduplicate equivalent upstream
+projections shared with page composition, so caching the composite function is
+neither implemented nor required for request-level deduplication.
+
+The responsive shell owns exactly one `main#main-content`, its sidebar/header
+scroll frame, breadcrumbs, documentation shortcut, organization controls, and
+account controls. Protected loading, error, not-found, unauthorized and
+forbidden descendants render semantic sections inside that landmark rather
+than introducing nested mains; standalone root status surfaces retain their
+own main landmark. Source-inventory and rendered-integration tests guard the
+single skip target and single-main invariant. Navigation visibility is derived
+from trusted API capabilities, but hidden links never replace API authorization
+or non-disclosure. The non-sensitive sidebar preference uses the dedicated
+`template.sidebar=open|closed` cookie with `Path=/`, `SameSite=Lax`, and a
+30-day maximum age. It is separate from the secure HttpOnly authentication
+cookie and contains no credential or identity state.
+
+Account and workspace settings reuse shared semantic page/rail/section
+composition without changing generated-SDK operations, CSRF behavior,
+authorization, canonicalization, validation, filtering, pagination, or causal
+mutation reconciliation. The static interactive dashboard uses frozen,
+target-owned fixture data and component-local state for chart range, tabs,
+filtering, sorting, selection, column visibility, pagination, reordering, and
+drawer edits. Navigation or reload resets that state. The static fixture and
+local interactions introduce no additional dashboard data request or new
+endpoint; the existing authentication, access, and organization projections
+still run. All user-facing feedback explicitly says that demo changes are not
+saved. Table selection totals are derived from filtered table row models, so a
+selected row hidden by the current search/filter does not remain in the visible
+selection count. Row reordering uses dnd-kit's vertical-axis modifier and is
+covered by deterministic keyboard drag-and-drop; browser parity also exercises
+search/filtering, hidden selection, pagination, column visibility, drawer
+save/toast feedback, and reload reset without coordinate-dependent gestures.
+
+Locale remains deployment-fixed `en | ru` with the existing safe English
+fallback, fixed UTC time zone, no locale URL prefix, and no language switcher.
+Application and dashboard message catalogs have paired shapes. Product metadata
+uses the closed route catalog and `APP_PUBLIC_ORIGIN`; dynamic protected metadata
+is generic and never loads user or organization data. Authentication and
+protected routes emit `noindex,nofollow` with no canonical or Open Graph URL.
+The sitemap contains only the public landing page and the documentation corpus.
+
+Loading, not-found, unauthorized, forbidden, route-error, and global-error
+surfaces use fixed localized copy. They may expose only a safe trace identifier,
+never raw Problem Details detail, exception/provider text, route/query/body or
+cursor values, cookies, credentials, or protected names. The global error page
+does not depend on the application or i18n providers.
+
+There is no new iteration-9 API endpoint, OpenAPI operation, handwritten
+transport DTO, EF model or migration, table, index, seed, transaction, audit
+event, cache invalidation event, or background job. ASP.NET Core still owns
+`/api/**`, authorization, validation, persistence, and business rules. Browser
+authentication remains the secure same-origin HttpOnly session cookie; unsafe
+operations retain the antiforgery cookie plus `X-CSRF-TOKEN` flow. Existing
+Problem Details, opaque-cursor, feature-filter, transaction, and schema behavior
+is unchanged, and `npm run api:check` guards the generated client against the
+unchanged OpenAPI contract.
+
+The handwritten-source boundary uses a conservative closed-world syntactic
+policy rather than a scope-aware alias interpreter. Any identifier, statically
+spelled property, or string capability named exactly `fetch`, `localStorage`,
+or `sessionStorage` is reserved and rejected, including declarations that
+shadow a browser global and direct writes of otherwise safe preferences. String
+and template literal product paths under `/api/v1` are rejected separately.
+The rule does not interpret aliases, branches, higher-order calls, recursion,
+or dynamically synthesized strings: those forms cannot hide a reserved token,
+and arbitrary runtime evaluation is outside this source guard's contract.
+Handwritten product code instead uses the generated SDK, `next-themes`, and the
+sidebar cookie helpers without spelling a reserved capability. The generated
+SDK directory remains the explicit header-checked integration exclusion.
+
+The exact `postcss` override is `8.5.25`. It replaced `8.5.22` after the
+production audit began reporting the incomplete source-map advisory fix in
+versions through `8.5.22`; the final `npm audit --omit=dev` reports zero
+production vulnerabilities. Future dependency updates must keep the locked
+override, clean install, production audit, build and complete test gates in
+agreement rather than weakening the audit threshold.

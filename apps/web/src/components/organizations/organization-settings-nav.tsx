@@ -29,12 +29,12 @@ function OrganizationSettingsNavLinks({
       label: "users",
     },
     {
-      href: organizationRoutes.settingsRoles(organizationKey),
-      label: "roles",
-    },
-    {
       href: organizationRoutes.settingsTeams(organizationKey),
       label: "teams",
+    },
+    {
+      href: organizationRoutes.settingsRoles(organizationKey),
+      label: "roles",
     },
     ...(canManageInvitations
       ? [

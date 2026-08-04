@@ -89,8 +89,9 @@ function presentUserAgent(
 }
 
 export function SessionList({
+  headingLevel = 2,
   initialPage,
-}: Readonly<{ initialPage: AccountSessionsResponse }>) {
+}: Readonly<{ headingLevel?: 2 | 3; initialPage: AccountSessionsResponse }>) {
   const t = useTranslations("account.sessions");
   const locale = useLocale();
   const interactionReady = useInteractionReady();
@@ -100,6 +101,7 @@ export function SessionList({
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [revokeOthersRefreshRecovery, setRevokeOthersRefreshRecovery] =
     useState<RevokeOthersRefreshRecovery | null>(null);
+  const SessionHeading = headingLevel === 3 ? "h3" : "h2";
 
   async function loadMore() {
     if (!nextCursor || pendingAction) {
@@ -330,7 +332,9 @@ export function SessionList({
               >
                 <div className="flex min-w-0 flex-col gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-sm font-semibold">{title}</h2>
+                    <SessionHeading className="text-sm font-semibold">
+                      {title}
+                    </SessionHeading>
                     {session.isCurrent ? <Badge>{t("current")}</Badge> : null}
                   </div>
                   <p className="text-xs text-muted-foreground">

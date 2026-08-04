@@ -10,6 +10,7 @@ describe("applicationRoutes", () => {
       dashboard: "/dashboard",
       welcome: "/welcome",
       workspaces: "/workspaces",
+      docs: "/docs",
     });
   });
 

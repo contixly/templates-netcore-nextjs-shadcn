@@ -49,6 +49,7 @@ function AccountNavLinks({ pathname }: Readonly<{ pathname: string }>) {
     <nav
       aria-label={t("label")}
       className="w-full shrink-0 border-b md:w-56 md:border-r md:border-b-0"
+      data-slot="account-settings-nav"
     >
       <ul className="flex gap-1 overflow-x-auto p-2 md:flex-col md:overflow-visible">
         {accountNavigation.map((item) => {

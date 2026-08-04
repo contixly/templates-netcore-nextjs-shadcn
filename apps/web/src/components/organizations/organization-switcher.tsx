@@ -62,11 +62,13 @@ export function OrganizationSwitcher({
   activeOrganizationId,
   currentOrganization,
   nextCursor,
+  onNavigate,
   organizations,
 }: Readonly<{
   activeOrganizationId?: string | null;
   currentOrganization?: OrganizationSwitcherItem | null;
   nextCursor?: string | null;
+  onNavigate?: () => void;
   organizations: readonly OrganizationSwitcherItem[];
 }>) {
   const t = useTranslations("organizations.switcher");
@@ -132,25 +134,29 @@ export function OrganizationSwitcher({
     };
   }, [router]);
 
-  if (!key || options.length === 0) {
+  if (options.length === 0) {
     return null;
   }
 
-  const current =
-    options.find(
-      (organization) =>
-        organization.canonicalKey === key || organization.id === key,
-    ) ??
-    currentOrganization ??
-    options.find((organization) => organization.id === activeOrganizationId) ??
-    options[0];
+  const activeOrganization = options.find(
+    (organization) => organization.id === activeOrganizationId,
+  );
+  const current = key
+    ? (options.find(
+        (organization) =>
+          organization.canonicalKey === key || organization.id === key,
+      ) ??
+      currentOrganization ??
+      activeOrganization ??
+      options[0])
+    : activeOrganization;
 
   async function selectOrganization(organization: OrganizationSwitcherItem) {
     if (requestInFlight.current) {
       return;
     }
     if (
-      organization.id === current.id &&
+      organization.id === current?.id &&
       organization.id === activeOrganizationId
     ) {
       setOpen(false);
@@ -184,6 +190,7 @@ export function OrganizationSwitcher({
       queuedRefresh.current = origin;
       return;
     }
+    onNavigate?.();
     router.push(
       resolveOrganizationSwitchHref(
         origin.pathname,
@@ -218,7 +225,7 @@ export function OrganizationSwitcher({
         >
           <IconSelector data-icon="inline-start" />
           <span className="max-w-40 min-w-0 truncate">
-            {t("current", { name: current.name })}
+            {current ? t("current", { name: current.name }) : t("unselected")}
           </span>
         </Button>
       </DialogTrigger>
@@ -246,7 +253,7 @@ export function OrganizationSwitcher({
             <div key={organization.id} role="listitem">
               <Button
                 aria-current={
-                  organization.id === current.id ? "true" : undefined
+                  organization.id === current?.id ? "true" : undefined
                 }
                 aria-label={t("switchTo", { name: organization.name })}
                 className="w-full min-w-0 justify-start"
@@ -258,7 +265,7 @@ export function OrganizationSwitcher({
                 <IconCheck
                   className={cn(
                     "shrink-0",
-                    organization.id === current.id
+                    organization.id === current?.id
                       ? "opacity-100"
                       : "opacity-0",
                   )}
@@ -285,7 +292,10 @@ export function OrganizationSwitcher({
           <Button asChild className="sm:flex-1" variant="outline">
             <Link
               href={organizationRoutes.workspaces}
-              onClick={() => setOpen(false)}
+              onClick={() => {
+                setOpen(false);
+                onNavigate?.();
+              }}
               onNavigate={() => setOpen(false)}
             >
               {t("manage")}
@@ -295,7 +305,10 @@ export function OrganizationSwitcher({
             <Button asChild className="sm:flex-1" variant="outline">
               <Link
                 href={organizationRoutes.workspaces}
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  onNavigate?.();
+                }}
                 onNavigate={() => setOpen(false)}
               >
                 {t("loadMore")}

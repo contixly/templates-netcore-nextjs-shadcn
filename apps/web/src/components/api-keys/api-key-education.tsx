@@ -16,8 +16,12 @@ import { Button } from "@/src/components/ui/button";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
 import { apiKeyRoutes } from "@/src/features/api-keys/api-key-routes";
 
-export function ApiKeyEducation({ owner }: Readonly<{ owner: ApiKeyOwner }>) {
+export function ApiKeyEducation({
+  headingLevel = 2,
+  owner,
+}: Readonly<{ headingLevel?: 2 | 3; owner: ApiKeyOwner }>) {
   const t = useTranslations("apiKeys.education");
+  const Heading = headingLevel === 3 ? "h3" : "h2";
   const items = [
     {
       action: owner.kind === "organization" ? t("personalAction") : undefined,
@@ -46,9 +50,9 @@ export function ApiKeyEducation({ owner }: Readonly<{ owner: ApiKeyOwner }>) {
       aria-labelledby="api-key-education-title"
       className="flex flex-col gap-3"
     >
-      <h2 className="text-lg font-medium" id="api-key-education-title">
+      <Heading className="text-lg font-medium" id="api-key-education-title">
         {t("title")}
-      </h2>
+      </Heading>
       <div className="grid gap-3 lg:grid-cols-3">
         {items.map(({ action, description, href, icon: Icon, id, title }) => (
           <Card key={id}>

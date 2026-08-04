@@ -68,6 +68,20 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
+it("subordinates session headings beneath a settings section heading", () => {
+  renderWithMessages(
+    <SessionList headingLevel={3} initialPage={initialPage} />,
+  );
+
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Chrome on macOS" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { level: 3, name: "Safari on iOS" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+});
+
 it("displays safe session details without exposing the raw user agent", () => {
   renderWithMessages(<SessionList initialPage={initialPage} />);
 

@@ -1,0 +1,163 @@
+{
+  "landing": {
+    "brand": "Application Template",
+    "brandHomeLabel": "Application Template home",
+    "navigationLabel": "Public navigation",
+    "loginAction": "Sign in",
+    "eyebrow": "ASP.NET Core 10 + Next.js",
+    "title": "Build the product, not the plumbing",
+    "description": "Start with a secure application foundation that keeps the API and web UI cleanly separated.",
+    "primaryAction": "Get started",
+    "secondaryAction": "Read the documentation",
+    "featuresTitle": "A clear boundary from browser to business logic",
+    "featuresDescription": "ASP.NET Core owns the API while Next.js stays focused on the product experience.",
+    "features": {
+      "api": {
+        "title": "ASP.NET Core API",
+        "description": "ASP.NET Core 10 owns REST endpoints, authorization, and business rules."
+      },
+      "web": {
+        "title": "REST-only web UI",
+        "description": "Next.js calls the generated REST client without direct database access."
+      },
+      "sessions": {
+        "title": "Secure browser sessions",
+        "description": "Same-origin HttpOnly cookies keep browser authentication out of client storage."
+      },
+      "workspaces": {
+        "title": "Product-ready collaboration",
+        "description": "Workspace, account, invitation, and API-key flows provide a stable starting point."
+      }
+    },
+    "valueEyebrow": "Reusable by design",
+    "valueTitle": "Keep the foundation. Make the product yours.",
+    "valueDescription": "Use the shared shell and documented boundaries, then add only the domain behavior your product needs.",
+    "footer": "© 2026 Application Template",
+    "footerDescription": "A target-architecture starter for ASP.NET Core and Next.js."
+  },
+  "shell": {
+    "navigation": {
+      "dashboard": "Dashboard",
+      "workspaces": "Workspaces",
+      "documentation": "Documentation",
+      "account": "Account",
+      "settings": "Settings"
+    },
+    "sidebar": {
+      "brandHomeLabel": "Application Template home",
+      "open": "Open sidebar",
+      "close": "Close sidebar",
+      "mobileTitle": "Application navigation",
+      "mobileDescription": "Navigate the application and manage your workspace and account.",
+      "workspace": "Workspace",
+      "workspaceSettings": "Workspace settings",
+      "accountSettings": "Account settings"
+    },
+    "breadcrumbs": {
+      "home": "Home",
+      "dashboard": "Dashboard",
+      "workspaces": "Workspaces",
+      "account": "Account",
+      "settings": "Settings"
+    },
+    "safeBoundaries": {
+      "loadingTitle": "Loading application",
+      "errorTitle": "Something went wrong",
+      "errorDescription": "The application could not be loaded safely. Try again.",
+      "retry": "Try again",
+      "unauthorizedTitle": "Sign in required",
+      "unauthorizedDescription": "Sign in to continue to this page.",
+      "unauthorizedAction": "Sign in",
+      "forbiddenTitle": "Access denied",
+      "forbiddenDescription": "You do not have permission to open this page.",
+      "notFoundTitle": "Page not found",
+      "notFoundDescription": "The page you requested is unavailable or you do not have access to it."
+    }
+  },
+  "pages": {
+    "home": {
+      "title": "Home",
+      "description": "Start from a secure application foundation."
+    },
+    "login": {
+      "title": "Sign in",
+      "description": "Sign in to continue to your workspace."
+    },
+    "authError": {
+      "title": "Sign-in unavailable",
+      "description": "We could not complete your sign-in safely."
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "description": "Review your workspace activity and shortcuts."
+    },
+    "welcome": {
+      "title": "Welcome",
+      "description": "Create or join a workspace to get started."
+    },
+    "workspaces": {
+      "title": "Workspaces",
+      "description": "Choose the workspace you want to open."
+    },
+    "invitationDecision": {
+      "title": "Workspace invitation",
+      "description": "Review and respond to this workspace invitation."
+    },
+    "accountProfile": {
+      "title": "Profile settings",
+      "description": "Manage your public display name and account identity."
+    },
+    "accountConnections": {
+      "title": "Connections",
+      "description": "Manage the external providers you can use to sign in."
+    },
+    "accountSecurity": {
+      "title": "Security",
+      "description": "Review active sessions and protect your account."
+    },
+    "accountInvitations": {
+      "title": "Invitations",
+      "description": "Review invitations sent to your account."
+    },
+    "accountApiKeys": {
+      "title": "API keys",
+      "description": "Manage personal API credentials for automation."
+    },
+    "accountDanger": {
+      "title": "Danger zone",
+      "description": "Manage irreversible account actions."
+    },
+    "organization": {
+      "title": "Workspace",
+      "description": "Open this workspace."
+    },
+    "organizationDashboard": {
+      "title": "Workspace dashboard",
+      "description": "Review workspace activity and shortcuts."
+    },
+    "organizationWorkspace": {
+      "title": "Workspace settings",
+      "description": "Manage workspace details and policies."
+    },
+    "organizationUsers": {
+      "title": "Users",
+      "description": "Manage workspace members and their access."
+    },
+    "organizationRoles": {
+      "title": "Roles",
+      "description": "Review workspace roles and permissions."
+    },
+    "organizationApiKeys": {
+      "title": "Workspace API keys",
+      "description": "Manage API credentials owned by this workspace."
+    },
+    "organizationTeams": {
+      "title": "Teams",
+      "description": "Organize workspace members into teams."
+    },
+    "organizationInvitations": {
+      "title": "Workspace invitations",
+      "description": "Create and manage workspace invitations."
+    }
+  }
+}

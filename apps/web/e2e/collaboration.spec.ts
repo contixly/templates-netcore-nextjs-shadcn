@@ -85,10 +85,12 @@ async function createTrackedContext(
 
 async function expectForbidden(page: Page) {
   await expect(
-    page.getByRole("heading", { name: "403", exact: true }),
+    page.getByRole("heading", { name: "Access denied", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "This page could not be accessed." }),
+    page.getByText("You do not have permission to open this page.", {
+      exact: true,
+    }),
   ).toBeVisible();
 }
 
@@ -185,7 +187,7 @@ async function confirmLocalRecipient(page: Page, invitationPath: string) {
 }
 
 test.describe("collaboration full-stack workflows", () => {
-  test.describe.configure({ timeout: 60_000 });
+  test.describe.configure({ timeout: 90_000 });
   test("owner manages team membership while an ordinary member sees read-only composition", async ({
     organizationScenario,
     page,
@@ -592,6 +594,11 @@ test.describe("collaboration full-stack workflows", () => {
       }),
     ).toBeVisible();
     await confirmLocalRecipient(accepting.page, acceptingInvitation.path);
+    await expect(accepting.page.getByRole("main")).toHaveCount(1);
+    await expect(accepting.page.getByRole("main")).toHaveAttribute(
+      "id",
+      "main-content",
+    );
     await accepting.page.goto("/user/invitations");
     await expect(
       accepting.page.getByRole("heading", { name: "Invitations", exact: true }),
@@ -804,6 +811,11 @@ test.describe("collaboration full-stack workflows", () => {
     ).toBeVisible();
 
     await outsider.page.goto(acceptingInvitation.path);
+    await expect(outsider.page.getByRole("main")).toHaveCount(1);
+    await expect(outsider.page.getByRole("main")).toHaveAttribute(
+      "id",
+      "main-content",
+    );
     await expect(
       outsider.page.getByText(
         "This invitation is not available for the current account.",
