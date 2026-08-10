@@ -118,3 +118,11 @@ test("rejects handwritten document search transport DTOs", async () => {
     /handwritten OpenAPI DTO/,
   );
 });
+
+test("rejects legacy domain presentation imports", async () => {
+  await expectViolation(
+    "src/__boundary_guard_test__/legacy-presentation-import.ts",
+    'import "@/src/components/account/profile-form";\n',
+    /legacy domain presentation import/,
+  );
+});

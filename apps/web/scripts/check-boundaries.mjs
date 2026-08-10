@@ -17,6 +17,8 @@ const allowedRouteHandlers = new Set([
 ]);
 const handwrittenTransportTypePattern =
   /(?:interface|type)\s+(?:SystemStatusResponse|ProblemDetails|HttpValidationProblemDetails|ApiResponseOfSystemStatusResponse|AuthCapabilitiesResponse|AuthSessionResponse|AuthUserResponse|AuthSessionMetadataResponse|AuthCsrfResponse|LocalAutomationScenarioResponse|LocalAutomationCleanupResponse|CreateLocalAutomationScenarioRequest|LocalAutomationSignInRequest|AcceptedInvitationResponse|AccountInvitationPageResponse|AddTeamMemberRequest|CreateInvitationRequest|InvitationDecisionResponse|InvitationResponse|OrganizationInvitationPageResponse|TeamCandidatePageResponse|TeamCandidateResponse|TeamDeletionResponse|TeamMemberPageResponse|TeamMemberRemovalResponse|TeamMemberResponse|TeamNameRequest|TeamPageResponse|TeamResponse|DocumentSearchHeadingResponse|DocumentSearchPageResponse|DocumentSearchResponse)\b/;
+const legacyPresentationImportPattern =
+  /["'`]@\/src\/components\/(?:application|account|authentication|api-keys|organizations|collaboration|dashboard|documents|system)(?:\/[^"'`]*)?["'`]/;
 
 const forbiddenPackages = [
   "@better-auth/prisma-adapter",
@@ -77,6 +79,9 @@ for (const path of await sourceFiles(sourceRoot)) {
   }
   if (/(?:@prisma|better-auth)/i.test(content)) {
     violations.push(`forbidden full-stack import: ${localPath}`);
+  }
+  if (legacyPresentationImportPattern.test(content)) {
+    violations.push(`legacy domain presentation import: ${localPath}`);
   }
   if (/NEXT_PUBLIC_[A-Z0-9_]*API/.test(content)) {
     violations.push(`public API origin variable: ${localPath}`);
