@@ -1,11 +1,24 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import {
+  canonicalVisualBaselineEnvironment,
+  currentVisualBaselineEnvironment,
+  isCanonicalVisualBaselineEnvironment,
+} from "./scripts/visual-baseline-environment.mjs";
+
 const apiOrigin = "http://127.0.0.1:5297";
 const webOrigin = "http://127.0.0.1:3127";
 const russianWebOrigin = "http://127.0.0.1:3128";
 const mobileWebOrigin = "https://127.0.0.1:3129";
 const mobileRussianWebOrigin = "https://127.0.0.1:3130";
 const liveProviderSmokeEnabled = process.env.E2E_LIVE_PROVIDER_SMOKE === "1";
+const canonicalVisualBaselineEnabled = isCanonicalVisualBaselineEnvironment(
+  currentVisualBaselineEnvironment(),
+);
+const canonicalVisualBaselineMetadata = {
+  visualBaselineOperatingSystem:
+    canonicalVisualBaselineEnvironment.operatingSystem,
+};
 
 const providerConfigurations = [
   "Google",
@@ -74,41 +87,62 @@ export default defineConfig({
           use: { ...devices["Desktop Chrome"], colorScheme: "light" },
         },
       ]
-    : [
-        {
-          name: "desktop-light",
-          metadata: { russianBaseURL: russianWebOrigin },
-          use: { ...devices["Desktop Chrome"], colorScheme: "light" },
-        },
-        {
-          name: "desktop-dark",
-          metadata: { russianBaseURL: russianWebOrigin },
-          testMatch: "ui-reference-parity.spec.ts",
-          use: { ...devices["Desktop Chrome"], colorScheme: "dark" },
-        },
-        {
-          name: "mobile-light",
-          metadata: { russianBaseURL: mobileRussianWebOrigin },
-          testMatch: "ui-reference-parity.spec.ts",
-          use: {
-            ...devices["iPhone 13"],
-            baseURL: mobileWebOrigin,
-            colorScheme: "light",
-            ignoreHTTPSErrors: true,
+    : canonicalVisualBaselineEnabled
+      ? [
+          {
+            name: "desktop-light",
+            metadata: {
+              ...canonicalVisualBaselineMetadata,
+              russianBaseURL: russianWebOrigin,
+            },
+            use: { ...devices["Desktop Chrome"], colorScheme: "light" },
           },
-        },
-        {
-          name: "mobile-dark",
-          metadata: { russianBaseURL: mobileRussianWebOrigin },
-          testMatch: "ui-reference-parity.spec.ts",
-          use: {
-            ...devices["iPhone 13"],
-            baseURL: mobileWebOrigin,
-            colorScheme: "dark",
-            ignoreHTTPSErrors: true,
+          {
+            name: "desktop-dark",
+            metadata: {
+              ...canonicalVisualBaselineMetadata,
+              russianBaseURL: russianWebOrigin,
+            },
+            testMatch: "ui-reference-parity.spec.ts",
+            use: { ...devices["Desktop Chrome"], colorScheme: "dark" },
           },
-        },
-      ],
+          {
+            name: "mobile-light",
+            metadata: {
+              ...canonicalVisualBaselineMetadata,
+              russianBaseURL: mobileRussianWebOrigin,
+            },
+            testMatch: "ui-reference-parity.spec.ts",
+            use: {
+              ...devices["iPhone 13"],
+              baseURL: mobileWebOrigin,
+              colorScheme: "light",
+              ignoreHTTPSErrors: true,
+            },
+          },
+          {
+            name: "mobile-dark",
+            metadata: {
+              ...canonicalVisualBaselineMetadata,
+              russianBaseURL: mobileRussianWebOrigin,
+            },
+            testMatch: "ui-reference-parity.spec.ts",
+            use: {
+              ...devices["iPhone 13"],
+              baseURL: mobileWebOrigin,
+              colorScheme: "dark",
+              ignoreHTTPSErrors: true,
+            },
+          },
+        ]
+      : [
+          {
+            name: "desktop-light",
+            metadata: { russianBaseURL: russianWebOrigin },
+            testIgnore: "ui-reference-parity.spec.ts",
+            use: { ...devices["Desktop Chrome"], colorScheme: "light" },
+          },
+        ],
   use: {
     ...devices["Desktop Chrome"],
     baseURL: webOrigin,
@@ -145,46 +179,50 @@ export default defineConfig({
       timeout: 120_000,
       url: webOrigin,
     },
-    {
-      command:
-        'root="$(pwd)"; target="${TMPDIR:-/tmp}/netcore-nextjs-shadcn-e2e-ru-3128"; rm -rf "$target"; mkdir -p "$target"; cp next.config.ts postcss.config.mjs tsconfig.json mdx-components.tsx package.json "$target"; cp -R public src "$target"; ln -s "$root/node_modules" "$target/node_modules"; "$root/node_modules/.bin/next" dev "$target" --webpack --hostname 127.0.0.1 --port 3128',
-      env: {
-        API_INTERNAL_BASE_URL: apiOrigin,
-        API_PROXY_TARGET: apiOrigin,
-        APP_PUBLIC_ORIGIN: russianWebOrigin,
-        PUBLIC_DEFAULT_LOCALE: "ru",
-      },
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-      url: russianWebOrigin,
-    },
-    {
-      command:
-        'root="$(pwd)"; target="${TMPDIR:-/tmp}/netcore-nextjs-shadcn-e2e-mobile-en-3129"; rm -rf "$target"; mkdir -p "$target"; cp next.config.ts postcss.config.mjs tsconfig.json mdx-components.tsx package.json "$target"; cp -R public src "$target"; ln -s "$root/node_modules" "$target/node_modules"; openssl req -x509 -newkey rsa:2048 -nodes -keyout "$target/localhost-key.pem" -out "$target/localhost.pem" -days 1 -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1; "$root/node_modules/.bin/next" dev "$target" --webpack --experimental-https --experimental-https-key "$target/localhost-key.pem" --experimental-https-cert "$target/localhost.pem" --hostname 127.0.0.1 --port 3129',
-      env: {
-        API_INTERNAL_BASE_URL: apiOrigin,
-        API_PROXY_TARGET: apiOrigin,
-        APP_PUBLIC_ORIGIN: mobileWebOrigin,
-        PUBLIC_DEFAULT_LOCALE: "en",
-      },
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-      url: mobileWebOrigin,
-      ignoreHTTPSErrors: true,
-    },
-    {
-      command:
-        'root="$(pwd)"; target="${TMPDIR:-/tmp}/netcore-nextjs-shadcn-e2e-mobile-ru-3130"; rm -rf "$target"; mkdir -p "$target"; cp next.config.ts postcss.config.mjs tsconfig.json mdx-components.tsx package.json "$target"; cp -R public src "$target"; ln -s "$root/node_modules" "$target/node_modules"; openssl req -x509 -newkey rsa:2048 -nodes -keyout "$target/localhost-key.pem" -out "$target/localhost.pem" -days 1 -subj "/CN=127.0.0.1" -addext "subjectAltName=IP:127.0.0.1,DNS:localhost" >/dev/null 2>&1; "$root/node_modules/.bin/next" dev "$target" --webpack --experimental-https --experimental-https-key "$target/localhost-key.pem" --experimental-https-cert "$target/localhost.pem" --hostname 127.0.0.1 --port 3130',
-      env: {
-        API_INTERNAL_BASE_URL: apiOrigin,
-        API_PROXY_TARGET: apiOrigin,
-        APP_PUBLIC_ORIGIN: mobileRussianWebOrigin,
-        PUBLIC_DEFAULT_LOCALE: "ru",
-      },
-      reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
-      url: mobileRussianWebOrigin,
-      ignoreHTTPSErrors: true,
-    },
+    ...(!liveProviderSmokeEnabled && canonicalVisualBaselineEnabled
+      ? [
+          {
+            command:
+              "node ./scripts/run-e2e-web-server.mjs --port 3128 --locale ru",
+            env: {
+              API_INTERNAL_BASE_URL: apiOrigin,
+              API_PROXY_TARGET: apiOrigin,
+              APP_PUBLIC_ORIGIN: russianWebOrigin,
+              PUBLIC_DEFAULT_LOCALE: "ru",
+            },
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+            url: russianWebOrigin,
+          },
+          {
+            command:
+              "node ./scripts/run-e2e-web-server.mjs --port 3129 --locale en --https",
+            env: {
+              API_INTERNAL_BASE_URL: apiOrigin,
+              API_PROXY_TARGET: apiOrigin,
+              APP_PUBLIC_ORIGIN: mobileWebOrigin,
+              PUBLIC_DEFAULT_LOCALE: "en",
+            },
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+            url: mobileWebOrigin,
+            ignoreHTTPSErrors: true,
+          },
+          {
+            command:
+              "node ./scripts/run-e2e-web-server.mjs --port 3130 --locale ru --https",
+            env: {
+              API_INTERNAL_BASE_URL: apiOrigin,
+              API_PROXY_TARGET: apiOrigin,
+              APP_PUBLIC_ORIGIN: mobileRussianWebOrigin,
+              PUBLIC_DEFAULT_LOCALE: "ru",
+            },
+            reuseExistingServer: !process.env.CI,
+            timeout: 120_000,
+            url: mobileRussianWebOrigin,
+            ignoreHTTPSErrors: true,
+          },
+        ]
+      : []),
   ],
 });

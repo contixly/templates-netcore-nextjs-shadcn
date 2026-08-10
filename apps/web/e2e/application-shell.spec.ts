@@ -224,6 +224,22 @@ test("desktop landing and authenticated shell cover primary navigation", async (
   await expectDashboard(page);
   await exerciseDashboardInteractions(page);
   await expectRenewals(2);
+  const collapsedSwitcher = page.getByRole("button", {
+    name: "Current workspace: E2E Shell Alpha",
+  });
+  await expect(collapsedSwitcher).toBeVisible();
+  await waitForOrganizationControlInteraction(collapsedSwitcher);
+  await collapsedSwitcher.click();
+  await expect(
+    page.getByRole("menuitem", { name: "Switch to E2E Shell Beta" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await collapsedSwitcher.evaluate((element) =>
+    (element as HTMLElement).blur(),
+  );
+  await page
+    .getByRole("heading", { name: "Workspace dashboard" })
+    .hover();
   const expandSidebar = page
     .getByRole("banner")
     .getByRole("button", { name: "Open sidebar" });

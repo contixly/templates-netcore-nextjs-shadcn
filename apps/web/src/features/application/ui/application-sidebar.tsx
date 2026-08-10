@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { IconX } from "@tabler/icons-react";
 
@@ -70,7 +69,6 @@ function ApplicationSidebarContent({
 }>) {
   const t = useTranslations("application.shell.sidebar");
   const closeMobileSidebar = useMobileSidebarClose();
-  const { isMobile, state } = useSidebar();
   const dashboardHref = data.currentOrganization
     ? organizationRoutes.dashboard(data.currentOrganization.canonicalKey)
     : applicationRoutes.dashboard;
@@ -81,26 +79,8 @@ function ApplicationSidebarContent({
       mobileDescription={t("mobileDescription")}
       mobileTitle={t("mobileTitle")}
     >
-      <SidebarHeader>
-        <div className="flex items-center gap-2">
-          <Link
-            aria-label={
-              !isMobile && state === "collapsed"
-                ? t("brandHomeLabel")
-                : undefined
-            }
-            className="flex h-8 min-w-0 flex-1 items-center gap-2 px-2 text-sm font-semibold group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
-            href={dashboardHref}
-            onClick={closeMobileSidebar}
-          >
-            <span aria-hidden="true">T</span>
-            <span className="group-data-[collapsible=icon]:hidden">
-              Template
-            </span>
-          </Link>
-          <MobileSidebarClose label={t("close")} />
-        </div>
-        <div className="group-data-[collapsible=icon]:hidden">
+      <SidebarHeader className="flex-row items-start">
+        <div className="min-w-0 flex-1">
           <OrganizationSwitcher
             activeOrganizationId={data.session.activeOrganizationId}
             currentOrganization={
@@ -121,6 +101,9 @@ function ApplicationSidebarContent({
                 organization.capabilities.canManageInvitations,
             }))}
           />
+        </div>
+        <div className="shrink-0">
+          <MobileSidebarClose label={t("close")} />
         </div>
       </SidebarHeader>
       <SidebarContent>

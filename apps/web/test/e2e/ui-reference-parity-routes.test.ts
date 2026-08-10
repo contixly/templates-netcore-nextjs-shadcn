@@ -78,3 +78,91 @@ test("Russian overflow pass is limited to the approved representative routes", (
     "workspace-api-keys",
   ]);
 });
+
+test("inner-scroll evidence uses exact named route-specific anchors", () => {
+  expect(
+    Object.fromEntries(
+      referenceParityRoutes
+        .filter((route) => "scrollStates" in route)
+        .map((route) => [route.id, route.scrollStates]),
+    ),
+  ).toEqual({
+    "docs-article": [
+      { anchorSelector: "#problem-details", id: "problem-details" },
+    ],
+    "organization-dashboard": [
+      {
+        anchorSelector: "main#main-content [data-slot='table-container']",
+        id: "activity-table",
+      },
+    ],
+    "user-profile": [
+      { anchorSelector: "#account-display-name", id: "profile-form" },
+    ],
+    "workspace-api-keys": [
+      {
+        anchorSelector:
+          "main#main-content [data-slot='settings-section'] table",
+        id: "api-key-table",
+      },
+    ],
+    "workspace-invitations": [
+      {
+        anchorSelector:
+          "main#main-content [data-slot='settings-section'] table",
+        id: "invitation-table",
+      },
+    ],
+    "workspace-members": [
+      {
+        anchorSelector:
+          "main#main-content [data-slot='settings-section'] table",
+        id: "member-table",
+      },
+    ],
+    "workspace-settings": [
+      {
+        anchorSelector: "#organization-settings-domains",
+        id: "workspace-form",
+      },
+    ],
+  });
+});
+
+test("top and inner-scroll state matrix has exactly 152 named screenshots", () => {
+  const topScreenshots = referenceParityRoutes.length * 4;
+  const russianTopScreenshots =
+    referenceParityRussianOverflowRouteIds.length * 4;
+  const englishScrollScreenshots = referenceParityRoutes.reduce(
+    (total, route) =>
+      total + ("scrollStates" in route ? route.scrollStates.length * 4 : 0),
+    0,
+  );
+  const russianScrollScreenshots = referenceParityRoutes.reduce(
+    (total, route) =>
+      total +
+      (referenceParityRussianOverflowRouteIds.includes(route.id as never) &&
+      "scrollStates" in route
+        ? route.scrollStates.length * 4
+        : 0),
+    0,
+  );
+
+  expect({
+    englishScrollScreenshots,
+    russianScrollScreenshots,
+    russianTopScreenshots,
+    topScreenshots,
+    total:
+      topScreenshots +
+      russianTopScreenshots +
+      englishScrollScreenshots +
+      russianScrollScreenshots,
+  }).toEqual({
+    englishScrollScreenshots: 28,
+    russianScrollScreenshots: 16,
+    russianTopScreenshots: 20,
+    topScreenshots: 88,
+    total: 152,
+  });
+});

@@ -15,9 +15,11 @@ import type {
 } from "@/src/lib/api/generated";
 
 import {
+  addGeneratedOrganizationMember,
   createGeneratedInvitation,
   createGeneratedTeam,
 } from "./generated-collaboration-api";
+import { createGeneratedOrganizationKey } from "./generated-api-keys-api";
 import { signInLocalAutomationUser } from "./generated-auth-api";
 import type {
   OrganizationTestIdentity,
@@ -58,12 +60,19 @@ type ReferenceParityPath =
 
 export type ReferenceParityRoute = Readonly<{
   authentication: "anonymous" | "authenticated";
+  captureReadySelector?: string;
   expectedPath?: ReferenceParityPath;
   id: ReferenceParityRouteId;
   path: ReferenceParityPath;
   readySelector: string;
   requiresOrganization?: true;
+  scrollStates?: readonly ReferenceParityScrollState[];
   volatileSelectors?: readonly string[];
+}>;
+
+export type ReferenceParityScrollState = Readonly<{
+  anchorSelector: string;
+  id: string;
 }>;
 
 export const referenceParityRussianOverflowRouteIds = [
@@ -109,6 +118,9 @@ export const referenceParityRoutes = [
     path: documentsRoutes.document("api/api-v1"),
     authentication: "anonymous",
     readySelector: "main article[aria-labelledby='document-title']",
+    scrollStates: [
+      { id: "problem-details", anchorSelector: "#problem-details" },
+    ],
   },
   {
     id: "welcome",
@@ -140,6 +152,12 @@ export const referenceParityRoutes = [
     authentication: "authenticated",
     readySelector: "main#main-content [data-slot='table-container']",
     requiresOrganization: true,
+    scrollStates: [
+      {
+        id: "activity-table",
+        anchorSelector: "main#main-content [data-slot='table-container']",
+      },
+    ],
   },
   {
     id: "user-profile",
@@ -147,6 +165,9 @@ export const referenceParityRoutes = [
     authentication: "authenticated",
     readySelector: "main#main-content [data-slot='settings-page-section']",
     requiresOrganization: true,
+    scrollStates: [
+      { id: "profile-form", anchorSelector: "#account-display-name" },
+    ],
     volatileSelectors: profileVolatileSelectors,
   },
   {
@@ -193,14 +214,29 @@ export const referenceParityRoutes = [
     authentication: "authenticated",
     readySelector: "main#main-content [data-slot='settings-page-section']",
     requiresOrganization: true,
+    scrollStates: [
+      {
+        id: "workspace-form",
+        anchorSelector: "#organization-settings-domains",
+      },
+    ],
   },
   {
     id: "workspace-members",
     path: ({ organizationKey }) =>
       organizationRoutes.settingsUsers(organizationKey),
     authentication: "authenticated",
+    captureReadySelector:
+      "main#main-content [data-slot='settings-section'] [data-organization-control-interaction-ready='true']",
     readySelector: "main#main-content [data-slot='settings-page-section']",
     requiresOrganization: true,
+    scrollStates: [
+      {
+        id: "member-table",
+        anchorSelector:
+          "main#main-content [data-slot='settings-section'] table",
+      },
+    ],
     volatileSelectors: [
       "main [data-slot='settings-section'] dd.font-medium",
       "main [data-slot='table-body'] [data-slot='table-cell']:nth-child(4)",
@@ -229,6 +265,13 @@ export const referenceParityRoutes = [
     authentication: "authenticated",
     readySelector: "main#main-content [data-slot='settings-page-section']",
     requiresOrganization: true,
+    scrollStates: [
+      {
+        id: "invitation-table",
+        anchorSelector:
+          "main#main-content [data-slot='settings-section'] table",
+      },
+    ],
     volatileSelectors: [
       "main [data-slot='table-body'] [data-slot='table-cell']:nth-child(5)",
       "main [data-slot='table-body'] [data-slot='table-cell']:nth-child(6)",
@@ -239,8 +282,23 @@ export const referenceParityRoutes = [
     path: ({ organizationKey }) =>
       organizationRoutes.settingsApiKeys(organizationKey),
     authentication: "authenticated",
+    captureReadySelector:
+      "main#main-content [data-slot='settings-section'] [data-interaction-ready='true']",
     readySelector: "main#main-content [data-slot='settings-page-section']",
     requiresOrganization: true,
+    scrollStates: [
+      {
+        id: "api-key-table",
+        anchorSelector:
+          "main#main-content [data-slot='settings-section'] table",
+      },
+    ],
+    volatileSelectors: [
+      "main [data-slot='table-body'] [data-slot='table-cell']:nth-child(2) code",
+      "main [data-slot='table-body'] [data-slot='table-cell']:nth-child(5) time",
+      "main [data-slot='table-body'] [data-slot='table-cell']:nth-child(6) time",
+      "main [data-slot='table-body'] [data-slot='table-cell']:nth-child(7) time",
+    ],
   },
   {
     id: "invitation-decision",
@@ -306,6 +364,7 @@ export type ReferenceParityFixture = Readonly<{
   invitationId: string;
   ownerIdentity: OrganizationTestIdentity;
   createOrganizationFixture(): Promise<ReferenceParityOrganizationFixture>;
+  ensureAlternateOrganization(): Promise<void>;
   pathFixture(): ReferenceParityPathFixture;
   signIn(page: Page): Promise<void>;
 }>;
@@ -320,14 +379,29 @@ function safeProjectSlug(projectName: string): string {
 
 function identity(
   projectName: string,
-  role: "owner" | "invite-sender",
+  role: "member" | "owner" | "invite-sender",
   password: string,
 ): OrganizationTestIdentity {
   const slug = safeProjectSlug(projectName);
-  const roleLabel = role === "owner" ? "Owner" : "Invite Sender";
+  const roleLabel =
+    role === "owner" ? "Owner" : role === "member" ? "Member" : "Invite Sender";
   return {
     email: `local-agent+visual-${slug}-${role}@local-agent.test`,
     name: `Visual ${projectName} ${roleLabel}`,
+    password,
+  };
+}
+
+function directoryMemberIdentity(
+  projectName: string,
+  index: number,
+  password: string,
+): OrganizationTestIdentity {
+  const slug = safeProjectSlug(projectName);
+  const suffix = String(index + 1).padStart(2, "0");
+  return {
+    email: `local-agent+visual-${slug}-directory-${suffix}@local-agent.test`,
+    name: `Visual ${projectName} Directory Member ${suffix}`,
     password,
   };
 }
@@ -343,6 +417,9 @@ export async function createReferenceParityFixture(
   const inviterContext = await organizationScenario.createContext(
     `${projectName} visual invitation setup`,
   );
+  const memberContext = await organizationScenario.createContext(
+    `${projectName} visual member setup`,
+  );
   const run = crypto.randomUUID().replaceAll("-", "");
   const ownerIdentity = identity(
     projectName,
@@ -354,18 +431,50 @@ export async function createReferenceParityFixture(
     "invite-sender",
     `E2E-Visual-Inviter-${run}!A1`,
   );
-  const [owner, inviter] = await organizationScenario.createLocalUsers([
-    organizationScenario.prepareLocalUser(
-      ownerContext,
-      ownerIdentity,
-      `${projectName} visual owner`,
+  const memberIdentity = identity(
+    projectName,
+    "member",
+    `E2E-Visual-Member-${run}!A1`,
+  );
+  const directoryMemberIdentities = Array.from({ length: 14 }, (_, index) =>
+    directoryMemberIdentity(
+      projectName,
+      index,
+      `E2E-Visual-Directory-${index + 1}-${run}!A1`,
     ),
-    organizationScenario.prepareLocalUser(
-      inviterContext,
-      inviterIdentity,
-      `${projectName} visual invitation sender`,
+  );
+  const directoryMemberContexts = await Promise.all(
+    directoryMemberIdentities.map((_, index) =>
+      organizationScenario.createContext(
+        `${projectName} visual directory member ${index + 1} setup`,
+      ),
     ),
-  ]);
+  );
+  const [owner, inviter, member, ...directoryMembers] =
+    await organizationScenario.createLocalUsers([
+      organizationScenario.prepareLocalUser(
+        ownerContext,
+        ownerIdentity,
+        `${projectName} visual owner`,
+      ),
+      organizationScenario.prepareLocalUser(
+        inviterContext,
+        inviterIdentity,
+        `${projectName} visual invitation sender`,
+      ),
+      organizationScenario.prepareLocalUser(
+        memberContext,
+        memberIdentity,
+        `${projectName} visual member`,
+      ),
+      ...directoryMemberIdentities.map((directoryIdentity, index) =>
+        organizationScenario.prepareLocalUser(
+          directoryMemberContexts[index],
+          directoryIdentity,
+          `${projectName} visual directory member ${index + 1}`,
+        ),
+      ),
+    ]);
   const invitationOrganization = await organizationScenario.createOrganization(
     inviter,
     inviterContext.request,
@@ -377,11 +486,17 @@ export async function createReferenceParityFixture(
     { email: ownerIdentity.email, role: "member" },
   );
   let organizationFixture: ReferenceParityOrganizationFixture | undefined;
+  let alternateOrganizationCreated = false;
 
   return {
     async assertSafeScreenshot(targetPage) {
       const bodyText = await targetPage.locator("body").innerText();
-      for (const secret of [ownerIdentity.password, inviterIdentity.password]) {
+      for (const secret of [
+        ownerIdentity.password,
+        inviterIdentity.password,
+        memberIdentity.password,
+        ...directoryMemberIdentities.map(({ password }) => password),
+      ]) {
         if (bodyText.includes(secret)) {
           throw new Error(
             "Visual screenshot surface disclosed an E2E credential.",
@@ -416,6 +531,20 @@ export async function createReferenceParityFixture(
         ownerContext.request,
         `Visual ${projectName} Workspace`,
       );
+      await addGeneratedOrganizationMember(
+        ownerContext.request,
+        organization.id,
+        member.user.id,
+        "member",
+      );
+      for (const directoryMember of directoryMembers) {
+        await addGeneratedOrganizationMember(
+          ownerContext.request,
+          organization.id,
+          directoryMember.user.id,
+          "member",
+        );
+      }
       const team = await createGeneratedTeam(
         ownerContext.request,
         organization.id,
@@ -430,6 +559,24 @@ export async function createReferenceParityFixture(
           teamId: team.id,
         },
       );
+      for (let index = 0; index < 14; index += 1) {
+        await createGeneratedInvitation(ownerContext.request, organization.id, {
+          email: `visual-${safeProjectSlug(projectName)}-pending-${String(index + 1).padStart(2, "0")}@example.test`,
+          role: "member",
+          teamId: team.id,
+        });
+      }
+      for (let index = 0; index < 15; index += 1) {
+        const createdApiKey = await createGeneratedOrganizationKey(
+          ownerContext.request,
+          organization.id,
+          {
+            name: `Visual ${projectName} Reader ${String(index + 1).padStart(2, "0")}`,
+            presetIds: ["organization-read"],
+          },
+        );
+        createdApiKey.takeCredential();
+      }
       organizationFixture = {
         invitation: incomingInvitation,
         organization,
@@ -437,6 +584,18 @@ export async function createReferenceParityFixture(
         team,
       };
       return organizationFixture;
+    },
+    async ensureAlternateOrganization() {
+      if (!organizationFixture) {
+        throw new Error("Visual organization fixture is not ready.");
+      }
+      if (alternateOrganizationCreated) return;
+      await organizationScenario.createOrganization(
+        owner,
+        ownerContext.request,
+        `Visual ${projectName} Alternate Workspace`,
+      );
+      alternateOrganizationCreated = true;
     },
     pathFixture() {
       if (!organizationFixture) {

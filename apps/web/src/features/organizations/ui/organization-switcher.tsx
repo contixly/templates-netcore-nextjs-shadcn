@@ -20,6 +20,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import {
   SidebarMenu,
+  SidebarMenuButton,
   SidebarMenuItem,
   useOptionalSidebar,
 } from "@/src/components/ui/sidebar";
@@ -167,6 +168,23 @@ export function OrganizationSwitcher({
     .slice(0, 2)
     .map((segment) => segment[0]?.toUpperCase() ?? "")
     .join("");
+  const triggerContent = (
+    <>
+      <span className="sr-only">{currentLabel}</span>
+      <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+        {initials || "WS"}
+      </span>
+      <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+        <span className="truncate font-medium">
+          {current?.name ?? t("unselected")}
+        </span>
+        <span className="truncate text-xs text-muted-foreground">
+          {current?.slug ?? t("unselected")}
+        </span>
+      </span>
+      <IconSelector aria-hidden="true" className="ml-auto" />
+    </>
+  );
 
   async function selectOrganization(organization: OrganizationSwitcherItem) {
     if (requestInFlight.current) {
@@ -231,32 +249,38 @@ export function OrganizationSwitcher({
           open={open}
         >
           <DropdownMenuTrigger asChild>
-            <Button
-              aria-label={currentLabel}
-              className="h-12 max-w-full justify-start gap-2 px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-              data-organization-control-interaction-ready={
-                interactionReady ? "true" : undefined
-              }
-              disabled={!interactionReady}
-              onClick={(event) => {
-                if (event.detail === 0) setOpen(true);
-              }}
-              variant="ghost"
-            >
-              <span className="sr-only">{currentLabel}</span>
-              <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-                {initials || "WS"}
-              </span>
-              <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">
-                  {current?.name ?? t("unselected")}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {current?.slug ?? t("unselected")}
-                </span>
-              </span>
-              <IconSelector aria-hidden="true" className="ml-auto" />
-            </Button>
+            {sidebar ? (
+              <SidebarMenuButton
+                aria-label={currentLabel}
+                className="max-w-full data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                data-organization-control-interaction-ready={
+                  interactionReady ? "true" : undefined
+                }
+                disabled={!interactionReady}
+                onClick={(event) => {
+                  if (event.detail === 0) setOpen(true);
+                }}
+                size="lg"
+                tooltip={currentLabel}
+              >
+                {triggerContent}
+              </SidebarMenuButton>
+            ) : (
+              <Button
+                aria-label={currentLabel}
+                className="h-12 max-w-full justify-start gap-2 px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                data-organization-control-interaction-ready={
+                  interactionReady ? "true" : undefined
+                }
+                disabled={!interactionReady}
+                onClick={(event) => {
+                  if (event.detail === 0) setOpen(true);
+                }}
+                variant="ghost"
+              >
+                {triggerContent}
+              </Button>
+            )}
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"

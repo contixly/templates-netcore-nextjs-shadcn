@@ -23,6 +23,7 @@
     "boundaries:check": "npm run boundaries:test && node ./scripts/check-boundaries.mjs",
     "e2e": "playwright test",
     "e2e:install": "playwright install chromium webkit",
+    "e2e:visual": "node ./scripts/visual-baseline-environment.mjs --assert && playwright test ui-reference-parity.spec.ts --project=desktop-light --project=desktop-dark --project=mobile-light --project=mobile-dark",
     "content:test": "node --test ./scripts/documents-content.node-test.mjs",
     "content:generate": "node ./scripts/generate-documents-content.mjs",
     "content:check": "node ./scripts/check-documents-content.mjs"
