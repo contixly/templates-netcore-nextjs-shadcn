@@ -87,7 +87,7 @@ export function StatusCard({
         {state.kind === "loading" ? (
           <p>{t("loading")}</p>
         ) : state.kind === "success" ? (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             <p className="font-medium">{t("success")}</p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
               <dt className="text-muted-foreground">{t("state")}</dt>
@@ -105,7 +105,7 @@ export function StatusCard({
             </dl>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-3">
             <p>{t(failureMessageKey(state.failure))}</p>
             {state.failure.kind === "problem" && state.failure.traceId ? (
               <p className="font-mono text-xs text-muted-foreground">
@@ -149,7 +149,7 @@ export function StatusCardSkeleton({
       <CardHeader>
         <CardTitle>{title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="flex flex-col gap-3">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-4 w-full" />
         <Skeleton className="h-4 w-2/3" />

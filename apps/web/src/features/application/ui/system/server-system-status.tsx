@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 
-import { StatusCard } from "@/src/components/system/status-card";
+import { StatusCard } from "@/src/features/application/ui/system/status-card";
 import { loadServerSystemStatus } from "@/src/lib/api/server/load-server-system-status";
 
 export async function ServerSystemStatus() {

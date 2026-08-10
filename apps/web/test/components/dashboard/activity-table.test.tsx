@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 
-import { ActivityTable } from "@/src/components/dashboard/activity-table";
+import { ActivityTable } from "@/src/features/dashboard/ui/activity-table";
 import { dashboardRows } from "@/src/features/dashboard/dashboard-data";
 import { renderWithMessages } from "@/test/support/render";
 

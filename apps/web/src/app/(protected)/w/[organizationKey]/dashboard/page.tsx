@@ -7,7 +7,7 @@ import { OrganizationOnboarding } from "@/src/features/organizations/ui/organiza
 import {
   DashboardPage,
   type DashboardCopy,
-} from "@/src/components/dashboard/dashboard-page";
+} from "@/src/features/dashboard/ui/dashboard-page";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { dashboardRoutes } from "@/src/features/dashboard/dashboard-routes";
 import { dashboardRows } from "@/src/features/dashboard/dashboard-data";

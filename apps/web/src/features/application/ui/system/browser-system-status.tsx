@@ -6,7 +6,7 @@ import { useInteractionReady } from "@/src/features/application/ui/interaction-r
 import {
   StatusCard,
   type StatusCardState,
-} from "@/src/components/system/status-card";
+} from "@/src/features/application/ui/system/status-card";
 import { loadBrowserSystemStatus } from "@/src/lib/api/browser/load-browser-system-status";
 
 export function BrowserSystemStatus() {

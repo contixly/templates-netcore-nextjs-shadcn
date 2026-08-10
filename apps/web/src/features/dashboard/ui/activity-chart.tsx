@@ -12,6 +12,7 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -66,6 +67,8 @@ export function ActivityChart({
 }: Readonly<{ copy?: ActivityChartCopy }>) {
   const isMobile = useIsMobile();
   const descriptionId = useId();
+  const desktopGradientId = useId();
+  const mobileGradientId = useId();
   const [selectedRange, setSelectedRange] = useState<ActivityRange | null>(
     null,
   );
@@ -107,7 +110,7 @@ export function ActivityChart({
         <CardAction>
           <ToggleGroup
             aria-label={copy.title}
-            className="hidden sm:flex"
+            className="hidden *:data-[slot=toggle-group-item]:!px-4 @[767px]/card:flex"
             onValueChange={selectRange}
             type="single"
             value={range}
@@ -126,57 +129,108 @@ export function ActivityChart({
           <Select onValueChange={selectRange} value={range}>
             <SelectTrigger
               aria-label={copy.title}
-              className="w-40 sm:hidden"
+              className="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
               size="sm"
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
-              {rangeOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {copy[option.key]}
-                </SelectItem>
-              ))}
+            <SelectContent className="rounded-xl">
+              <SelectGroup>
+                {rangeOptions.map((option) => (
+                  <SelectItem
+                    className="rounded-lg"
+                    key={option.value}
+                    value={option.value}
+                  >
+                    {copy[option.key]}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </CardAction>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         <div
           aria-describedby={descriptionId}
           aria-label={copy.title}
           role="img"
         >
-          <ChartContainer className="h-64 w-full" config={chartConfig}>
+          <ChartContainer
+            className="aspect-auto h-[250px] w-full"
+            config={chartConfig}
+          >
             <AreaChart accessibilityLayer data={data}>
+              <defs>
+                <linearGradient
+                  id={desktopGradientId}
+                  x1="0"
+                  x2="0"
+                  y1="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="5%"
+                    stopColor="var(--color-desktop)"
+                    stopOpacity={1}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--color-desktop)"
+                    stopOpacity={0.1}
+                  />
+                </linearGradient>
+                <linearGradient
+                  id={mobileGradientId}
+                  x1="0"
+                  x2="0"
+                  y1="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="5%"
+                    stopColor="var(--color-mobile)"
+                    stopOpacity={0.8}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--color-mobile)"
+                    stopOpacity={0.1}
+                  />
+                </linearGradient>
+              </defs>
               <CartesianGrid vertical={false} />
               <XAxis
+                axisLine={false}
                 dataKey="date"
-                minTickGap={28}
+                minTickGap={32}
+                tickMargin={8}
                 tickFormatter={formatDate}
                 tickLine={false}
               />
               <YAxis hide />
               <ChartTooltip
+                cursor={false}
                 content={
                   <ChartTooltipContent
+                    indicator="dot"
                     labelFormatter={(value) => formatDate(String(value))}
                   />
                 }
               />
               <Area
-                dataKey="desktop"
-                fill="var(--color-desktop)"
-                fillOpacity={0.3}
-                stroke="var(--color-desktop)"
-                type="monotone"
+                dataKey="mobile"
+                fill={`url(#${mobileGradientId})`}
+                stackId="activity"
+                stroke="var(--color-mobile)"
+                type="natural"
               />
               <Area
-                dataKey="mobile"
-                fill="var(--color-mobile)"
-                fillOpacity={0.15}
-                stroke="var(--color-mobile)"
-                type="monotone"
+                dataKey="desktop"
+                fill={`url(#${desktopGradientId})`}
+                stackId="activity"
+                stroke="var(--color-desktop)"
+                type="natural"
               />
             </AreaChart>
           </ChartContainer>

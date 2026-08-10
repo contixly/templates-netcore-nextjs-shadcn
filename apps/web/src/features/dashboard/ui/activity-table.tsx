@@ -37,7 +37,10 @@ import {
   IconChevronDown,
   IconChevronLeft,
   IconChevronRight,
+  IconCircleCheckFilled,
   IconGripVertical,
+  IconLayoutColumns,
+  IconLoader,
 } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -58,6 +61,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { Input } from "@/src/components/ui/input";
@@ -65,6 +69,7 @@ import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -183,7 +188,10 @@ function formatCopy(
   );
 }
 
-type EditableDashboardRow = Omit<DashboardRow, "status"> & { status: string };
+type EditableDashboardRow = Omit<DashboardRow, "status"> & {
+  status: string;
+  statusKind: DashboardRow["status"];
+};
 
 function SortableActivityRow({
   copy,
@@ -196,16 +204,24 @@ function SortableActivityRow({
   onEdit: (row: EditableDashboardRow) => void;
   onMoveDown: (id: number) => void;
 }>) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: row.original.id });
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: row.original.id });
 
   return (
     <TableRow
       data-state={row.getIsSelected() ? "selected" : undefined}
+      data-dragging={isDragging}
+      className="relative z-0 data-[dragging=true]:z-10 data-[dragging=true]:opacity-80"
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
     >
-      <TableCell>
+      <TableCell className="w-8">
         <Button
           {...attributes}
           {...listeners}
@@ -276,18 +292,19 @@ function SectionDrawer({
     >
       <DrawerContent>
         <form
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
           onSubmit={(event) => {
             event.preventDefault();
             onSave(header.trim());
           }}
         >
-          <DrawerHeader>
+          <DrawerHeader className="gap-1">
             <DrawerTitle>{copy.editTitle}</DrawerTitle>
             <DrawerDescription>
               {copy.drawerTitle}. {copy.drawerDescription}
             </DrawerDescription>
           </DrawerHeader>
-          <div className="flex flex-col gap-2 px-4">
+          <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-4 text-sm">
             <Label htmlFor="dashboard-section-title">{copy.sectionTitle}</Label>
             <Input
               id="dashboard-section-title"
@@ -325,6 +342,7 @@ export function ActivityTable({
       reviewer:
         row.reviewer === "Assign reviewer" ? copy.assignReviewer : row.reviewer,
       status: copy.statusLabels[row.status] ?? row.status,
+      statusKind: row.status,
       type: copy.typeLabels[row.type] ?? row.type,
     })),
   );
@@ -390,12 +408,30 @@ export function ActivityTable({
           </Button>
         ),
       },
-      { accessorKey: "type", header: copy.type },
+      {
+        accessorKey: "type",
+        header: copy.type,
+        cell: ({ row }) => (
+          <Badge className="px-1.5 text-muted-foreground" variant="outline">
+            {row.original.type}
+          </Badge>
+        ),
+      },
       {
         accessorKey: "status",
         header: copy.status,
         cell: ({ row }) => (
-          <Badge variant="outline">{row.original.status}</Badge>
+          <Badge className="px-1.5 text-muted-foreground" variant="outline">
+            {row.original.statusKind === "Done" ? (
+              <IconCircleCheckFilled
+                aria-hidden="true"
+                className="fill-green-500 dark:fill-green-400"
+              />
+            ) : (
+              <IconLoader aria-hidden="true" />
+            )}
+            {row.original.status}
+          </Badge>
         ),
       },
       { accessorKey: "target", header: copy.target },
@@ -476,32 +512,42 @@ export function ActivityTable({
   ] as const;
 
   return (
-    <section aria-labelledby="activity-table-title" className="px-4 lg:px-6">
-      <Tabs onValueChange={setView} value={view}>
-        <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+    <section
+      aria-labelledby="activity-table-title"
+      className="min-w-0 overflow-hidden"
+    >
+      <Tabs
+        className="w-full flex-col justify-start gap-6"
+        onValueChange={setView}
+        value={view}
+      >
+        <div className="flex flex-col gap-4 px-4 lg:px-6">
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-medium" id="activity-table-title">
               {copy.title}
             </h2>
             <p className="text-xs text-muted-foreground">{copy.demoNotice}</p>
           </div>
-          <div className="flex justify-end">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <Select onValueChange={setView} value={view}>
               <SelectTrigger
                 aria-label={copy.selectView}
-                className="w-full md:hidden"
+                className="flex w-fit @4xl/main:hidden"
+                size="sm"
               >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {viewOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
+                <SelectGroup>
+                  {viewOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
-            <TabsList className="hidden md:flex">
+            <TabsList className="hidden @4xl/main:flex">
               {viewOptions.map((option) => (
                 <TabsTrigger
                   key={option.value}
@@ -512,39 +558,35 @@ export function ActivityTable({
                 </TabsTrigger>
               ))}
             </TabsList>
-          </div>
-        </div>
-        <TabsContent value="outline">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col justify-end gap-3 sm:flex-row sm:items-end">
-              <div className="flex items-center gap-2">
-                <Input
-                  aria-label={copy.search}
-                  className="max-w-56"
-                  onChange={(event) =>
-                    table
-                      .getColumn("header")
-                      ?.setFilterValue(event.target.value)
-                  }
-                  placeholder={copy.search}
-                  value={
-                    (table.getColumn("header")?.getFilterValue() as string) ??
-                    ""
-                  }
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button type="button" variant="outline">
-                      {copy.columns}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+            <div className="flex min-w-0 items-center justify-end gap-2">
+              <Input
+                aria-label={copy.search}
+                className="max-w-56 min-w-0"
+                onChange={(event) =>
+                  table.getColumn("header")?.setFilterValue(event.target.value)
+                }
+                placeholder={copy.search}
+                value={
+                  (table.getColumn("header")?.getFilterValue() as string) ?? ""
+                }
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" type="button" variant="outline">
+                    <IconLayoutColumns aria-hidden="true" />
+                    <span>{copy.columns}</span>
+                    <IconChevronDown aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuGroup>
                     {table
                       .getAllColumns()
                       .filter((column) => column.getCanHide())
                       .map((column) => (
                         <DropdownMenuCheckboxItem
                           checked={column.getIsVisible()}
+                          className="capitalize"
                           key={column.id}
                           onCheckedChange={(checked) =>
                             column.toggleVisibility(Boolean(checked))
@@ -563,70 +605,78 @@ export function ActivityTable({
                                     : copy.reviewer}
                         </DropdownMenuCheckboxItem>
                       ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </div>
+        <TabsContent
+          className="relative flex min-w-0 flex-col gap-4 overflow-auto px-4 lg:px-6"
+          value="outline"
+        >
+          <div className="flex min-w-0 flex-col gap-4">
+            <div className="overflow-hidden rounded-lg border">
+              <DndContext
+                collisionDetection={closestCenter}
+                id="dashboard-sections"
+                modifiers={[restrictToVerticalAxis]}
+                onDragEnd={handleDragEnd}
+                sensors={sensors}
+              >
+                <Table aria-label={copy.title}>
+                  <TableHeader className="sticky top-0 z-10 bg-muted">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <TableRow key={headerGroup.id}>
+                        <TableHead aria-label={copy.sortSections} />
+                        {headerGroup.headers.map((header) => (
+                          <TableHead key={header.id}>
+                            {header.isPlaceholder
+                              ? null
+                              : flexRender(
+                                  header.column.columnDef.header,
+                                  header.getContext(),
+                                )}
+                          </TableHead>
+                        ))}
+                        <TableHead>{copy.actions}</TableHead>
+                      </TableRow>
+                    ))}
+                  </TableHeader>
+                  <TableBody className="**:data-[slot=table-cell]:first:w-8">
+                    <SortableContext
+                      items={table
+                        .getRowModel()
+                        .rows.map((row) => row.original.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {table.getRowModel().rows.length > 0 ? (
+                        table
+                          .getRowModel()
+                          .rows.map((row) => (
+                            <SortableActivityRow
+                              copy={copy}
+                              key={row.id}
+                              onEdit={setEditing}
+                              onMoveDown={(id) => moveRow(id, 1)}
+                              row={row}
+                            />
+                          ))
+                      ) : (
+                        <TableRow>
+                          <TableCell className="h-24 text-center" colSpan={9}>
+                            {copy.empty}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </SortableContext>
+                  </TableBody>
+                </Table>
+              </DndContext>
             </div>
 
-            <DndContext
-              collisionDetection={closestCenter}
-              id="dashboard-sections"
-              modifiers={[restrictToVerticalAxis]}
-              onDragEnd={handleDragEnd}
-              sensors={sensors}
-            >
-              <Table aria-label={copy.title}>
-                <TableHeader>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow key={headerGroup.id}>
-                      <TableHead aria-label={copy.sortSections} />
-                      {headerGroup.headers.map((header) => (
-                        <TableHead key={header.id}>
-                          {header.isPlaceholder
-                            ? null
-                            : flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                        </TableHead>
-                      ))}
-                      <TableHead>{copy.actions}</TableHead>
-                    </TableRow>
-                  ))}
-                </TableHeader>
-                <TableBody>
-                  <SortableContext
-                    items={table
-                      .getRowModel()
-                      .rows.map((row) => row.original.id)}
-                    strategy={verticalListSortingStrategy}
-                  >
-                    {table.getRowModel().rows.length > 0 ? (
-                      table
-                        .getRowModel()
-                        .rows.map((row) => (
-                          <SortableActivityRow
-                            copy={copy}
-                            key={row.id}
-                            onEdit={setEditing}
-                            onMoveDown={(id) => moveRow(id, 1)}
-                            row={row}
-                          />
-                        ))
-                    ) : (
-                      <TableRow>
-                        <TableCell className="h-24 text-center" colSpan={9}>
-                          {copy.empty}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </SortableContext>
-                </TableBody>
-              </Table>
-            </DndContext>
-
-            <div className="flex flex-col justify-between gap-3 text-xs sm:flex-row sm:items-center">
-              <p>
+            <div className="flex flex-col justify-between gap-3 px-4 text-xs sm:flex-row sm:items-center">
+              <p className="text-muted-foreground">
                 {formatCopy(copy.rowsSelected, {
                   selected: table.getFilteredSelectedRowModel().rows.length,
                   total: table.getFilteredRowModel().rows.length,
@@ -664,8 +714,12 @@ export function ActivityTable({
           </div>
         </TabsContent>
         {viewOptions.slice(1).map((option) => (
-          <TabsContent key={option.value} value={option.value}>
-            <p className="py-8 text-sm text-muted-foreground">
+          <TabsContent
+            className="flex flex-col px-4 lg:px-6"
+            key={option.value}
+            value={option.value}
+          >
+            <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
               {copy.emptyView}
             </p>
           </TabsContent>

@@ -475,17 +475,30 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
     .getByRole("article", { name: "E2E Mobile Beta workspace" })
     .getByRole("link", { name: "Settings" })
     .click();
+  const openWorkspaceSettings = page.getByRole("button", {
+    name: "Open workspace settings",
+  });
   await waitForNavigationReady(
     page,
     `/w/${second.canonicalKey}/settings/workspace`,
-    page.getByRole("navigation", { name: "Workspace settings" }),
+    openWorkspaceSettings,
   );
   await waitForApplicationShell(page);
+  await openWorkspaceSettings.click();
+  const workspaceSettingsDrawer = page.getByRole("dialog", {
+    name: "Workspace settings",
+  });
+  await expect(workspaceSettingsDrawer).toBeVisible();
+  const workspaceSettingsNavigation = workspaceSettingsDrawer.getByRole(
+    "navigation",
+    { name: "Workspace settings" },
+  );
+  await expect(workspaceSettingsNavigation).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Workspace settings" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Workspace", exact: true }),
+    workspaceSettingsNavigation.getByRole("link", {
+      name: "Workspace",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-current", "page");
   await expectNoSensitiveShellText(page, mobileIdentity.password);
   expect(hydrationErrors).toEqual([]);

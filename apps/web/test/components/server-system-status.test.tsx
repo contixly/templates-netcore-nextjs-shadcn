@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { connection } from "next/server";
 
-import { ServerSystemStatus } from "@/src/components/system/server-system-status";
+import { ServerSystemStatus } from "@/src/features/application/ui/system/server-system-status";
 import { loadServerSystemStatus } from "@/src/lib/api/server/load-server-system-status";
 import { renderWithMessages } from "@/test/support/render";
 

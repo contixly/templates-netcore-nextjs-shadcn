@@ -1,15 +1,15 @@
 import {
   ActivityChart,
   type ActivityChartCopy,
-} from "@/src/components/dashboard/activity-chart";
+} from "@/src/features/dashboard/ui/activity-chart";
 import {
   ActivityTable,
   type ActivityTableCopy,
-} from "@/src/components/dashboard/activity-table";
+} from "@/src/features/dashboard/ui/activity-table";
 import {
   SectionCards,
   type SectionCardsCopy,
-} from "@/src/components/dashboard/section-cards";
+} from "@/src/features/dashboard/ui/section-cards";
 import { dashboardRows } from "@/src/features/dashboard/dashboard-data";
 
 export type DashboardCopy = Readonly<{
@@ -28,7 +28,7 @@ export function DashboardPage({
   organizationName: string;
 }>) {
   return (
-    <div className="flex flex-col gap-6 py-6">
+    <div className="@container/main flex min-w-0 flex-col gap-6 py-6">
       <header className="flex flex-col gap-1 px-4 lg:px-6">
         <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
         <p className="text-sm text-muted-foreground">
@@ -36,7 +36,7 @@ export function DashboardPage({
         </p>
       </header>
       <SectionCards copy={copy.cards} />
-      <div className="px-4 lg:px-6">
+      <div className="min-w-0 px-4 lg:px-6">
         <ActivityChart copy={copy.chart} />
       </div>
       <ActivityTable copy={copy.table} initialRows={dashboardRows} />

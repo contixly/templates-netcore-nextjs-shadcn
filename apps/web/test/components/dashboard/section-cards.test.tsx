@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 
-import { SectionCards } from "@/src/components/dashboard/section-cards";
+import { SectionCards } from "@/src/features/dashboard/ui/section-cards";
 import { renderWithMessages } from "@/test/support/render";
 
 it("renders the four localized dashboard metrics", () => {

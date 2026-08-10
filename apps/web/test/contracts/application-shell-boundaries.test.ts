@@ -242,7 +242,7 @@ it("excludes generated SDK source at the integration boundary", () => {
 
 it("pins the vertical-axis modifier to the dashboard DndContext", () => {
   const source = readFileSync(
-    resolve(webRoot, "src/components/dashboard/activity-table.tsx"),
+    resolve(webRoot, "src/features/dashboard/ui/activity-table.tsx"),
     "utf8",
   );
 

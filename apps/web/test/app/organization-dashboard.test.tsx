@@ -115,6 +115,9 @@ it("replaces only canonical organization dashboard presentation", async () => {
   );
 
   expect(screen.getByText("$1,250.00")).toBeVisible();
+  expect(
+    screen.getByRole("region", { name: "Dashboard metrics" }).parentElement,
+  ).toHaveClass("@container/main");
   expect(screen.getByRole("img", { name: "Total visitors" })).toBeVisible();
   expect(screen.getByRole("table", { name: "Sections" })).toBeVisible();
   expect(loadSession).toHaveBeenCalledTimes(1);
@@ -127,6 +130,7 @@ it("mirrors the dashboard regions in its accessible loading skeleton", async () 
 
   const status = screen.getByRole("status");
   expect(status).toHaveAttribute("aria-busy", "true");
+  expect(status).toHaveClass("@container/main");
   expect(
     status.querySelectorAll('[data-slot="dashboard-card-skeleton"]'),
   ).toHaveLength(4);

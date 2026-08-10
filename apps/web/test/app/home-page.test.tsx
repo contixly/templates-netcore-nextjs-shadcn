@@ -54,11 +54,11 @@ jest.mock("@/src/features/application/ui/theme-switcher", () => ({
   ThemeSwitcher: () => <button aria-label="Toggle theme" type="button" />,
 }));
 
-jest.mock("@/src/components/system/server-system-status", () => ({
+jest.mock("@/src/features/application/ui/system/server-system-status", () => ({
   ServerSystemStatus: () => mockServerSystemStatus(),
 }));
 
-jest.mock("@/src/components/system/browser-system-status", () => ({
+jest.mock("@/src/features/application/ui/system/browser-system-status", () => ({
   BrowserSystemStatus: () => mockBrowserSystemStatus(),
 }));
 
