@@ -34,7 +34,7 @@ jest.mock("next-intl", () => ({
       documentation: "Documentation",
     })[key] ?? key,
 }));
-jest.mock("@/src/components/organizations/organization-create-dialog", () => ({
+jest.mock("@/src/features/organizations/ui/organization-create-dialog", () => ({
   OrganizationCreateDialog: () => (
     <button type="button">Create workspace</button>
   ),

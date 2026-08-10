@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import type { OrganizationRole } from "@/src/components/organizations/organization-add-member-dialog";
+import type { OrganizationRole } from "@/src/features/organizations/ui/organization-add-member-dialog";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { OrganizationMemberResponse } from "@/src/lib/api/generated/types.gen";
 import { updateBrowserOrganizationMemberRole } from "@/src/lib/api/organizations/browser/organization-mutations";

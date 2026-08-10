@@ -7,7 +7,7 @@ import { useInsertionEffect, useLayoutEffect, useRef, useState } from "react";
 import { IconCheck, IconSelector } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
+import { useOrganizationControlInteractionReady } from "@/src/features/organizations/ui/organization-control-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -150,6 +150,15 @@ export function OrganizationSwitcher({
       activeOrganization ??
       options[0])
     : activeOrganization;
+  const currentLabel = current
+    ? t("current", { name: current.name })
+    : t("unselected");
+  const initials = current?.name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((segment) => segment[0]?.toUpperCase() ?? "")
+    .join("");
 
   async function selectOrganization(organization: OrganizationSwitcherItem) {
     if (requestInFlight.current) {
@@ -215,18 +224,28 @@ export function OrganizationSwitcher({
     >
       <DialogTrigger asChild>
         <Button
-          className="max-w-full min-w-0"
+          aria-label={currentLabel}
+          className="h-auto w-full max-w-full min-w-0 justify-start border-0 bg-transparent p-2 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           data-organization-control-interaction-ready={
             interactionReady ? "true" : undefined
           }
           disabled={!interactionReady}
           type="button"
-          variant="outline"
+          variant="ghost"
         >
-          <IconSelector data-icon="inline-start" />
-          <span className="max-w-40 min-w-0 truncate">
-            {current ? t("current", { name: current.name }) : t("unselected")}
+          <span className="sr-only">{currentLabel}</span>
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+            {initials || "WS"}
           </span>
+          <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-medium">
+              {current?.name ?? t("unselected")}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {t("manage")}
+            </span>
+          </span>
+          <IconSelector className="ml-auto" data-icon="inline-end" />
         </Button>
       </DialogTrigger>
       <DialogContent

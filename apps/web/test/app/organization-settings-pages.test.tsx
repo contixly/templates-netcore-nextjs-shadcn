@@ -27,10 +27,10 @@ import SettingsPage from "@/src/app/(protected)/w/[organizationKey]/settings/pag
 import RolesPage from "@/src/app/(protected)/w/[organizationKey]/settings/roles/page";
 import UsersPage from "@/src/app/(protected)/w/[organizationKey]/settings/users/page";
 import WorkspacePage from "@/src/app/(protected)/w/[organizationKey]/settings/workspace/page";
-import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
-import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
-import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
-import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";
+import { OrganizationDeleteDialog } from "@/src/features/organizations/ui/organization-delete-dialog";
+import { OrganizationMemberDirectory } from "@/src/features/organizations/ui/organization-member-directory";
+import { OrganizationSettingsForm } from "@/src/features/organizations/ui/organization-settings-form";
+import { OrganizationSettingsNav } from "@/src/features/organizations/ui/organization-settings-nav";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { getOrganizationMembers } from "@/src/lib/api/generated/sdk.gen";
 import type {
@@ -333,10 +333,10 @@ it("exposes Teams to every member and Invitations to invitation managers", () =>
       .map((link) => link.textContent),
   ).toEqual([
     "Workspace",
+    "Invitations",
     "Users",
     "Teams",
     "Roles",
-    "Invitations",
     "API keys",
   ]);
 });
@@ -514,9 +514,8 @@ it("renders role-aware workspace, users, and fixed-role explanation pages", asyn
     (heading) => heading.textContent?.trim(),
   );
   expect(new Set(userHeadings).size).toBe(userHeadings.length);
-  expect(
-    screen.getByRole("region", { name: "Workspace membership" }),
-  ).toBeVisible();
+  expect(screen.getByRole("region", { name: "Your access" })).toBeVisible();
+  expect(screen.getByRole("region", { name: "Other members" })).toBeVisible();
   expect(screen.getByText("Current User")).toBeVisible();
   view.unmount();
 

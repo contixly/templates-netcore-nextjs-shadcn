@@ -6,7 +6,7 @@ import { IconX } from "@tabler/icons-react";
 
 import { AccountNavigation } from "@/src/features/application/ui/account-navigation";
 import { PrimaryNavigation } from "@/src/features/application/ui/primary-navigation";
-import { OrganizationSwitcher } from "@/src/components/organizations/organization-switcher";
+import { OrganizationSwitcher } from "@/src/features/organizations/ui/organization-switcher";
 import { Button } from "@/src/components/ui/button";
 import {
   Sidebar,

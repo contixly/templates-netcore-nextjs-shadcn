@@ -9,7 +9,7 @@ import {
   IconLayoutDashboard,
 } from "@tabler/icons-react";
 
-import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
+import { OrganizationCreateDialog } from "@/src/features/organizations/ui/organization-create-dialog";
 import {
   SidebarMenu,
   SidebarMenuButton,

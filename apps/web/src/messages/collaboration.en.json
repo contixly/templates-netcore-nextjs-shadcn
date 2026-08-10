@@ -20,7 +20,13 @@
       "empty": "This team has no members.",
       "loadMore": "Load more members",
       "loadingMore": "Loading more members",
-      "partialFailure": "Some team members could not be loaded."
+      "partialFailure": "Some team members could not be loaded.",
+      "columns": {
+        "user": "User",
+        "email": "Email",
+        "role": "Role",
+        "actions": "Actions"
+      }
     },
     "candidates": {
       "label": "Find a workspace member",
@@ -93,7 +99,16 @@
       "listLabel": "Pending invitations",
       "emptyTitle": "No pending invitations",
       "emptyDescription": "There are no invitations waiting for your response.",
-      "partialFailure": "Some invitations could not be loaded. The invitations already shown are still available."
+      "partialFailure": "Some invitations could not be loaded. The invitations already shown are still available.",
+      "columns": {
+        "email": "Email",
+        "role": "Role",
+        "team": "Team",
+        "inviter": "Invited by",
+        "expires": "Expires",
+        "status": "Status",
+        "actions": "Actions"
+      }
     },
     "activity": {
       "label": "Invitation activity",

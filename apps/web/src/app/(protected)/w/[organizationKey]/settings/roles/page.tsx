@@ -8,7 +8,7 @@ import {
   SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
 import {
   Card,
   CardContent,

@@ -5,7 +5,7 @@ import { useInsertionEffect, useRef, useState, type FormEvent } from "react";
 import { IconUserPlus } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
+import { useOrganizationControlInteractionReady } from "@/src/features/organizations/ui/organization-control-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,

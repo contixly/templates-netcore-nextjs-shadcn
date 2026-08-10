@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 
-import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
+import { InvitationActivity } from "@/src/features/collaboration/ui/invitation-activity";
 import { createBrowserInvitation } from "@/src/lib/api/collaboration/browser/collaboration-mutations";
 import { getOrganizationInvitations } from "@/src/lib/api/generated/sdk.gen";
 import type { InvitationResponse } from "@/src/lib/api/generated/types.gen";

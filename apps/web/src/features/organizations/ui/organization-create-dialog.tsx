@@ -12,7 +12,7 @@ import {
 import { IconPlus } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
+import { useOrganizationControlInteractionReady } from "@/src/features/organizations/ui/organization-control-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -154,6 +154,7 @@ export function OrganizationCreateDialog({
       <DialogTrigger asChild>
         {presentation === "onboarding" ? (
           <Button
+            className="h-auto min-h-9 py-2 whitespace-normal"
             data-organization-control-interaction-ready={
               interactionReady ? "true" : undefined
             }

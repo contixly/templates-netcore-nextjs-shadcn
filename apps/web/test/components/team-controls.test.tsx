@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 
-import { TeamDirectory } from "@/src/components/collaboration/team-directory";
+import { TeamDirectory } from "@/src/features/collaboration/ui/team-directory";
 import {
   addBrowserTeamMember,
   createBrowserTeam,

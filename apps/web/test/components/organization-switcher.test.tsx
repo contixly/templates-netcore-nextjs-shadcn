@@ -10,7 +10,7 @@ import { renderToString } from "react-dom/server";
 import {
   OrganizationSwitcher,
   type OrganizationSwitcherItem,
-} from "@/src/components/organizations/organization-switcher";
+} from "@/src/features/organizations/ui/organization-switcher";
 import { setActiveBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 

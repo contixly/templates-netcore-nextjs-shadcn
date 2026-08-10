@@ -5,11 +5,10 @@ import { getTranslations } from "next-intl/server";
 import {
   SettingsPageIntro,
   SettingsPageSection,
-  SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
-import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
+import { OrganizationMemberDirectory } from "@/src/features/organizations/ui/organization-member-directory";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { evaluateOrganizationEmailDomainEligibility } from "@/src/features/organizations/organization-email-domain-policy";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
@@ -89,32 +88,29 @@ export default async function OrganizationUsersSettingsPage({
   return (
     <SettingsPageSection mode="wide">
       <SettingsPageIntro description={t("description")} title={t("title")} />
-      <SettingsSection title={t("sectionTitle")}>
-        <OrganizationMemberDirectory
-          key={organization.data.id}
-          currentActor={{
-            userId: session.data.user.id,
-            name: session.data.user.name,
-            email: session.data.user.email,
-            role: organization.data.currentRole,
-            isOutsideAllowedEmailDomains: !actorEligibility.isAllowed,
-          }}
-          initialPage={{
-            items: members.data.items.map(compactMember),
-            nextCursor: members.data.nextCursor,
-          }}
-          headingLevel={3}
-          organization={{
-            id: organization.data.id,
-            currentRole: organization.data.currentRole,
-            capabilities: {
-              canAddMembers: organization.data.capabilities.canAddMembers,
-              canUpdateMemberRoles:
-                organization.data.capabilities.canUpdateMemberRoles,
-            },
-          }}
-        />
-      </SettingsSection>
+      <OrganizationMemberDirectory
+        key={organization.data.id}
+        currentActor={{
+          userId: session.data.user.id,
+          name: session.data.user.name,
+          email: session.data.user.email,
+          role: organization.data.currentRole,
+          isOutsideAllowedEmailDomains: !actorEligibility.isAllowed,
+        }}
+        initialPage={{
+          items: members.data.items.map(compactMember),
+          nextCursor: members.data.nextCursor,
+        }}
+        organization={{
+          id: organization.data.id,
+          currentRole: organization.data.currentRole,
+          capabilities: {
+            canAddMembers: organization.data.capabilities.canAddMembers,
+            canUpdateMemberRoles:
+              organization.data.capabilities.canUpdateMemberRoles,
+          },
+        }}
+      />
     </SettingsPageSection>
   );
 }

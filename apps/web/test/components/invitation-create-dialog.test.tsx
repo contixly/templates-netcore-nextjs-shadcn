@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import { InvitationCreateDialog } from "@/src/components/collaboration/invitation-create-dialog";
+import { InvitationCreateDialog } from "@/src/features/collaboration/ui/invitation-create-dialog";
 import { createBrowserInvitation } from "@/src/lib/api/collaboration/browser/collaboration-mutations";
 import type { InvitationResponse } from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages } from "@/test/support/render";

@@ -2,8 +2,8 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Activity, StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 
-import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
-import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
+import { OrganizationOnboarding } from "@/src/features/organizations/ui/organization-onboarding";
+import { OrganizationCreateDialog } from "@/src/features/organizations/ui/organization-create-dialog";
 import { createBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 

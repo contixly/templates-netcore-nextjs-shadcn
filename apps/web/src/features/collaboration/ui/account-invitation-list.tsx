@@ -9,14 +9,6 @@ import { Alert, AlertTitle } from "@/src/components/ui/alert";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -137,41 +129,50 @@ export function AccountInvitationList({
           <AlertTitle>{t("account.partialFailure")}</AlertTitle>
         </Alert>
       ) : null}
-      {items.map((invitation) => (
-        <Card key={invitation.id} size="sm">
-          <CardHeader>
-            <CardTitle>{invitation.organizationName}</CardTitle>
-            <CardDescription>
-              {t("item.recipient", { email: invitation.email })}
-            </CardDescription>
-            <CardAction>
-              <Badge>{t("status.pending")}</Badge>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">{t(`roles.${invitation.role}`)}</Badge>
-              {invitation.teamName ? (
-                <Badge variant="secondary">
-                  {t("item.team", { team: invitation.teamName })}
-                </Badge>
-              ) : null}
+      <div className="flex flex-col gap-4">
+        {items.map((invitation) => (
+          <article className="border p-4" key={invitation.id}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-medium">
+                    {invitation.organizationName}
+                  </h3>
+                  <Badge variant="outline">{t("status.pending")}</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {t("item.recipient", { email: invitation.email })}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {t("item.inviter", { name: invitation.inviterName })}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant="secondary">
+                    {t(`roles.${invitation.role}`)}
+                  </Badge>
+                  {invitation.teamName ? (
+                    <Badge variant="secondary">
+                      {t("item.team", { team: invitation.teamName })}
+                    </Badge>
+                  ) : null}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {t("item.expires", {
+                    date: formattedDate(invitation.expiresAt, locale),
+                  })}
+                </p>
+              </div>
+              <Button asChild className="min-w-fit">
+                <Link
+                  href={collaborationRoutes.invitationDecision(invitation.id)}
+                >
+                  {t("item.review")}
+                </Link>
+              </Button>
             </div>
-            <p className="text-muted-foreground">
-              {t("item.expires", {
-                date: formattedDate(invitation.expiresAt, locale),
-              })}
-            </p>
-            <Button asChild>
-              <Link
-                href={collaborationRoutes.invitationDecision(invitation.id)}
-              >
-                {t("item.review")}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
+          </article>
+        ))}
+      </div>
       {nextCursor ? (
         <Button
           disabled={pending}

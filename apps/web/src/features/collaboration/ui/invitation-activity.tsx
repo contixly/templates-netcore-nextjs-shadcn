@@ -4,19 +4,11 @@ import { IconMail } from "@tabler/icons-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useInsertionEffect, useLayoutEffect, useRef, useState } from "react";
 
-import { InvitationCopyButton } from "@/src/components/collaboration/invitation-copy-button";
-import { InvitationCreateDialog } from "@/src/components/collaboration/invitation-create-dialog";
+import { InvitationCopyButton } from "@/src/features/collaboration/ui/invitation-copy-button";
+import { InvitationCreateDialog } from "@/src/features/collaboration/ui/invitation-create-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
 import {
   Empty,
   EmptyDescription,
@@ -33,6 +25,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/src/components/ui/table";
+import { SettingsSection } from "@/src/features/application/ui/settings/settings-shell";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import { getOrganizationInvitations } from "@/src/lib/api/generated/sdk.gen";
@@ -280,124 +281,146 @@ export function InvitationActivity({
   }
 
   return (
-    <section aria-label={t("activity.label")} className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <Field className="w-full max-w-48">
-          <FieldLabel htmlFor="invitation-status-filter">
-            {t("filters.status")}
-          </FieldLabel>
-          <Select
-            onValueChange={(value) => {
-              if (!filters.includes(value as InvitationFilter)) return;
-              const next = value as InvitationFilter;
-              filterRef.current = next;
-              if (!includesConfirmedInvitation(next)) {
-                queuedReconciliation.current = false;
-              }
-              setFilter(next);
-              void read(next);
-            }}
-            value={filter}
-          >
-            <SelectTrigger id="invitation-status-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {filters.map((value) => (
-                  <SelectItem key={value} value={value}>
-                    {value === "all" ? t("filters.all") : t(`status.${value}`)}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
-        </Field>
+    <SettingsSection
+      action={
         <InvitationCreateDialog
           currentRole={organization.currentRole}
           onConfirmed={invitationCreated}
           organizationId={organization.id}
           teams={teams}
         />
-      </div>
-
-      {partialFailure ? (
-        <Alert variant="destructive">
-          <AlertTitle>{t("activity.partialFailure")}</AlertTitle>
-          <AlertDescription>
-            <Button
-              disabled={pending}
-              onClick={() => void read(filter, failedCursor)}
-              type="button"
-              variant="outline"
+      }
+      description={t("settings.description")}
+      title={t("settings.sectionTitle")}
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <Field className="w-full max-w-48">
+            <FieldLabel htmlFor="invitation-status-filter">
+              {t("filters.status")}
+            </FieldLabel>
+            <Select
+              onValueChange={(value) => {
+                if (!filters.includes(value as InvitationFilter)) return;
+                const next = value as InvitationFilter;
+                filterRef.current = next;
+                if (!includesConfirmedInvitation(next)) {
+                  queuedReconciliation.current = false;
+                }
+                setFilter(next);
+                void read(next);
+              }}
+              value={filter}
             >
-              {t("activity.retry")}
-            </Button>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {visibleItems.length === 0 ? (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <IconMail />
-            </EmptyMedia>
-            <EmptyTitle>{t("activity.empty")}</EmptyTitle>
-            <EmptyDescription>{t("settings.description")}</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {visibleItems.map((invitation) => (
-            <Card key={invitation.id} size="sm">
-              <CardHeader>
-                <CardTitle>{invitation.email}</CardTitle>
-                <CardDescription>
-                  {t("item.inviter", { name: invitation.inviterName })}
-                </CardDescription>
-                <CardAction>
-                  <Badge variant={badgeVariant(invitation.displayState)}>
-                    {t(`status.${invitation.displayState}`)}
-                  </Badge>
-                </CardAction>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">
-                    {t(`roles.${invitation.role}`)}
-                  </Badge>
-                  {invitation.teamName ? (
-                    <Badge variant="secondary">
-                      {t("item.team", { team: invitation.teamName })}
-                    </Badge>
-                  ) : null}
-                </div>
-                <p className="text-muted-foreground">
-                  {t("item.expires", {
-                    date: formattedDate(invitation.expiresAt, locale),
-                  })}
-                </p>
-                <InvitationCopyButton
-                  invitationId={invitation.id}
-                  invitationPath={invitation.invitationPath}
-                />
-              </CardContent>
-            </Card>
-          ))}
+              <SelectTrigger id="invitation-status-filter">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {filters.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {value === "all"
+                        ? t("filters.all")
+                        : t(`status.${value}`)}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
         </div>
-      )}
 
-      {nextCursor && !partialFailure ? (
-        <Button
-          disabled={pending}
-          onClick={() => void read(filter, nextCursor)}
-          type="button"
-          variant="outline"
-        >
-          {pending ? t("activity.loadingMore") : t("activity.loadMore")}
-        </Button>
-      ) : null}
-    </section>
+        {partialFailure ? (
+          <Alert variant="destructive">
+            <AlertTitle>{t("activity.partialFailure")}</AlertTitle>
+            <AlertDescription>
+              <Button
+                disabled={pending}
+                onClick={() => void read(filter, failedCursor)}
+                type="button"
+                variant="outline"
+              >
+                {t("activity.retry")}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        {visibleItems.length === 0 ? (
+          <Empty className="border">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <IconMail />
+              </EmptyMedia>
+              <EmptyTitle>{t("activity.empty")}</EmptyTitle>
+              <EmptyDescription>{t("settings.description")}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <Table className="min-w-[52rem]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("create.email")}</TableHead>
+                <TableHead>{t("create.role")}</TableHead>
+                <TableHead>{t("create.team")}</TableHead>
+                <TableHead>{t("item.inviter", { name: "" })}</TableHead>
+                <TableHead>{t("item.expires", { date: "" })}</TableHead>
+                <TableHead>{t("filters.status")}</TableHead>
+                <TableHead className="text-right">{t("create.copy")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {visibleItems.map((invitation) => (
+                <TableRow key={invitation.id}>
+                  <TableCell className="font-medium">
+                    {invitation.email}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {t(`roles.${invitation.role}`)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {invitation.teamName ? (
+                      <Badge variant="secondary">{invitation.teamName}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {t("create.noTeam")}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>{invitation.inviterName}</TableCell>
+                  <TableCell>
+                    {formattedDate(invitation.expiresAt, locale)}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={badgeVariant(invitation.displayState)}>
+                      {t(`status.${invitation.displayState}`)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <InvitationCopyButton
+                      invitationId={invitation.id}
+                      invitationPath={invitation.invitationPath}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+
+        {nextCursor && !partialFailure ? (
+          <Button
+            disabled={pending}
+            onClick={() => void read(filter, nextCursor)}
+            type="button"
+            variant="outline"
+          >
+            {pending ? t("activity.loadingMore") : t("activity.loadMore")}
+          </Button>
+        ) : null}
+      </div>
+    </SettingsSection>
   );
 }

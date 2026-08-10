@@ -158,6 +158,7 @@ export function InvitationDecision({
 }>) {
   const t = useTranslations("collaboration.decision");
   const roles = useTranslations("collaboration.invitations.roles");
+  const statuses = useTranslations("collaboration.invitations.status");
   const locale = useLocale();
   const router = useRouter();
   const safeServerDecision = sanitizeInvitationDecision(serverDecision);
@@ -482,7 +483,14 @@ export function InvitationDecision({
   return (
     <Card className="w-full">
       <CardHeader>
-        <CardTitle>{t("page.title")}</CardTitle>
+        <CardTitle className="flex flex-wrap items-center gap-2">
+          <span>{t("page.title")}</span>
+          {invitation ? (
+            <Badge variant={actionable ? "default" : "outline"}>
+              {statuses(invitation.displayState)}
+            </Badge>
+          ) : null}
+        </CardTitle>
         <CardDescription>
           {t(
             stateMessageKey,
@@ -494,34 +502,48 @@ export function InvitationDecision({
         {invitation ? (
           <dl className="grid gap-4 sm:grid-cols-2">
             <div>
-              <dt className="text-muted-foreground">
+              <dt className="text-sm text-muted-foreground">
                 {t("details.workspace")}
               </dt>
-              <dd className="font-medium">{invitation.organizationName}</dd>
+              <dd className="mt-1 text-sm font-medium">
+                {invitation.organizationName}
+              </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">{t("details.email")}</dt>
-              <dd className="font-medium">{invitation.email}</dd>
+              <dt className="text-sm text-muted-foreground">
+                {t("details.email")}
+              </dt>
+              <dd className="mt-1 text-sm font-medium">{invitation.email}</dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">{t("details.role")}</dt>
-              <dd>
+              <dt className="text-sm text-muted-foreground">
+                {t("details.role")}
+              </dt>
+              <dd className="mt-1">
                 <Badge variant="secondary">{roles(invitation.role)}</Badge>
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">{t("details.team")}</dt>
-              <dd className="font-medium">
+              <dt className="text-sm text-muted-foreground">
+                {t("details.team")}
+              </dt>
+              <dd className="mt-1 text-sm font-medium">
                 {invitation.teamName ?? t("details.noTeam")}
               </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">{t("details.inviter")}</dt>
-              <dd className="font-medium">{invitation.inviterName}</dd>
+              <dt className="text-sm text-muted-foreground">
+                {t("details.inviter")}
+              </dt>
+              <dd className="mt-1 text-sm font-medium">
+                {invitation.inviterName}
+              </dd>
             </div>
             <div>
-              <dt className="text-muted-foreground">{t("details.expires")}</dt>
-              <dd className="font-medium">
+              <dt className="text-sm text-muted-foreground">
+                {t("details.expires")}
+              </dt>
+              <dd className="mt-1 text-sm font-medium">
                 {formattedDate(invitation.expiresAt, locale)}
               </dd>
             </div>

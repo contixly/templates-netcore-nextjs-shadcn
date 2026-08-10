@@ -3,7 +3,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 
 import TeamsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/teams/page";
 import TeamsPage from "@/src/app/(protected)/w/[organizationKey]/settings/teams/page";
-import { TeamDirectory } from "@/src/components/collaboration/team-directory";
+import { TeamDirectory } from "@/src/features/collaboration/ui/team-directory";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import type {
   OrganizationDetailResponse,

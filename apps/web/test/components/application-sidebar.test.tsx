@@ -81,7 +81,7 @@ jest.mock("@/src/hooks/use-mobile", () => ({
   useIsMobile: () => mockIsMobile,
 }));
 
-jest.mock("@/src/components/organizations/organization-switcher", () => ({
+jest.mock("@/src/features/organizations/ui/organization-switcher", () => ({
   OrganizationSwitcher: ({
     activeOrganizationId,
     currentOrganization,
@@ -110,7 +110,7 @@ jest.mock("@/src/components/organizations/organization-switcher", () => ({
 jest.mock("@/src/features/authentication/ui/logout-button", () => ({
   LogoutButton: () => <button type="button">Log out</button>,
 }));
-jest.mock("@/src/components/organizations/organization-create-dialog", () => ({
+jest.mock("@/src/features/organizations/ui/organization-create-dialog", () => ({
   OrganizationCreateDialog: ({ onNavigate }: { onNavigate?: () => void }) => (
     <div>
       <button type="button">Create workspace</button>

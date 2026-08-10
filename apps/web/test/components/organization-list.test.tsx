@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 
-import { OrganizationList } from "@/src/components/organizations/organization-list";
+import { OrganizationList } from "@/src/features/organizations/ui/organization-list";
 import { deleteBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { getOrganizations } from "@/src/lib/api/generated/sdk.gen";
 import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";

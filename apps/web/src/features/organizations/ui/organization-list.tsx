@@ -2,13 +2,14 @@
 
 import { useTranslations } from "next-intl";
 import { useEffect, useReducer, useRef, useState } from "react";
+import { IconLayoutGridAdd } from "@tabler/icons-react";
 
 import {
   OrganizationCard,
   type OrganizationCardView,
-} from "@/src/components/organizations/organization-card";
-import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
-import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
+} from "@/src/features/organizations/ui/organization-card";
+import { useOrganizationControlInteractionReady } from "@/src/features/organizations/ui/organization-control-readiness";
+import { OrganizationCreateDialog } from "@/src/features/organizations/ui/organization-create-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -16,6 +17,7 @@ import {
   EmptyContent,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/src/components/ui/empty";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -30,6 +32,13 @@ export type OrganizationListPage = Readonly<{
   items: readonly OrganizationListItem[];
   nextCursor: string | null;
 }>;
+
+const pageLayoutClassName =
+  "flex w-full flex-1 flex-col gap-6 pb-8 xl:flex-row xl:items-start xl:gap-8";
+const asideClassName = "w-full shrink-0 xl:sticky xl:top-6 xl:w-[360px]";
+const mainClassName = "min-w-0 flex-1 px-4 xl:max-w-[944px] xl:px-0";
+const organizationsGridClassName =
+  "grid w-full content-start justify-center gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,24rem),1fr))]";
 
 type OrganizationListState = Readonly<{
   accumulated: readonly OrganizationListItem[];
@@ -272,6 +281,27 @@ export function OrganizationList({
     ? state.nextCursor
     : initialPage.nextCursor;
 
+  const organizationCreator = (empty: boolean) => (
+    <Empty className="w-full min-w-0 p-1 md:p-4">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <IconLayoutGridAdd aria-hidden="true" />
+        </EmptyMedia>
+        {empty ? (
+          <>
+            <EmptyTitle>
+              <h2>{t("emptyTitle")}</h2>
+            </EmptyTitle>
+            <EmptyDescription>{t("emptyDescription")}</EmptyDescription>
+          </>
+        ) : null}
+      </EmptyHeader>
+      <EmptyContent>
+        <OrganizationCreateDialog />
+      </EmptyContent>
+    </Empty>
+  );
+
   useEffect(() => {
     if (state.serverPage === initialPage) {
       return;
@@ -315,72 +345,72 @@ export function OrganizationList({
 
   if (organizations.length === 0) {
     return (
-      <Empty className="min-h-72 border">
-        <EmptyHeader>
-          <EmptyTitle>
-            <h2>{t("emptyTitle")}</h2>
-          </EmptyTitle>
-          <EmptyDescription>{t("emptyDescription")}</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <OrganizationCreateDialog />
-        </EmptyContent>
-      </Empty>
+      <div className={pageLayoutClassName}>
+        <aside className={asideClassName}>{organizationCreator(true)}</aside>
+        <div className={mainClassName}>
+          <Empty className="min-h-56 border">
+            <EmptyHeader>
+              <EmptyTitle>{t("emptyTitle")}</EmptyTitle>
+              <EmptyDescription>{t("emptyDescription")}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex justify-end">
-        <OrganizationCreateDialog />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {organizations.map((organization) => (
-          <OrganizationCard
-            canDelete={
-              organization.capabilities.canDeleteOrganization &&
-              (organizations.some(
-                (candidate) => candidate.id !== organization.id,
-              ) ||
-                nextCursor !== null)
-            }
-            key={organization.id}
-            onDeleted={(organizationId) =>
-              dispatch({ type: "delete", organizationId })
-            }
-            organization={organization}
-          />
-        ))}
-      </div>
-      {state.continuationFailure ? (
-        <Alert>
-          <AlertTitle>{t("partialFailureTitle")}</AlertTitle>
-          <AlertDescription>
-            <p>{t("partialFailureDescription")}</p>
-            {state.continuationFailure.kind === "problem" &&
-            state.continuationFailure.traceId ? (
-              <p className="font-mono text-xs">
-                {state.continuationFailure.traceId}
-              </p>
-            ) : null}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {nextCursor ? (
-        <div className="flex justify-center">
-          <Button
-            data-organization-control-interaction-ready={
-              interactionReady ? "true" : undefined
-            }
-            disabled={!interactionReady || state.pending}
-            onClick={loadMore}
-            type="button"
-            variant="outline"
-          >
-            {state.pending ? t("loadingMore") : t("loadMore")}
-          </Button>
+    <div className={pageLayoutClassName}>
+      <aside className={asideClassName}>{organizationCreator(false)}</aside>
+      <div className={`${mainClassName} flex flex-col gap-6`}>
+        <div className={organizationsGridClassName}>
+          {organizations.map((organization) => (
+            <OrganizationCard
+              canDelete={
+                organization.capabilities.canDeleteOrganization &&
+                (organizations.some(
+                  (candidate) => candidate.id !== organization.id,
+                ) ||
+                  nextCursor !== null)
+              }
+              key={organization.id}
+              onDeleted={(organizationId) =>
+                dispatch({ type: "delete", organizationId })
+              }
+              organization={organization}
+            />
+          ))}
         </div>
-      ) : null}
+        {state.continuationFailure ? (
+          <Alert>
+            <AlertTitle>{t("partialFailureTitle")}</AlertTitle>
+            <AlertDescription>
+              <p>{t("partialFailureDescription")}</p>
+              {state.continuationFailure.kind === "problem" &&
+              state.continuationFailure.traceId ? (
+                <p className="font-mono text-xs">
+                  {state.continuationFailure.traceId}
+                </p>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {nextCursor ? (
+          <div className="flex justify-center">
+            <Button
+              data-organization-control-interaction-ready={
+                interactionReady ? "true" : undefined
+              }
+              disabled={!interactionReady || state.pending}
+              onClick={loadMore}
+              type="button"
+              variant="outline"
+            >
+              {state.pending ? t("loadingMore") : t("loadMore")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

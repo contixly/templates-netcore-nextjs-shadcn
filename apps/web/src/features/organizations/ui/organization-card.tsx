@@ -2,7 +2,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { IconArrowRight, IconSettings } from "@tabler/icons-react";
 
-import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
+import { OrganizationDeleteDialog } from "@/src/features/organizations/ui/organization-delete-dialog";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -44,7 +44,7 @@ export function OrganizationCard({
   return (
     <Card
       aria-label={t("accessibleName", { name: organization.name })}
-      className="h-full"
+      className="h-full w-full max-w-md min-w-0 shadow-none transition-shadow"
       role="article"
     >
       <CardHeader className="min-w-0">
@@ -55,9 +55,11 @@ export function OrganizationCard({
           </Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-1 items-center justify-between gap-3">
+      <CardContent className="flex flex-1 items-center justify-between gap-3 text-sm">
         <span className="text-muted-foreground">{t("slugLabel")}</span>
-        <code className="truncate">{organization.slug}</code>
+        <code className="max-w-[70%] truncate bg-muted px-2 py-1 text-xs">
+          {organization.slug}
+        </code>
       </CardContent>
       <CardFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
         {canDelete ? (

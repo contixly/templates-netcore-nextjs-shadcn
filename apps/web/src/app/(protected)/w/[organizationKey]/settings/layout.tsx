@@ -7,9 +7,9 @@ import {
   SettingsContentRail,
   SettingsPageShell,
 } from "@/src/features/application/ui/settings/settings-shell";
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
-import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
-import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
+import { OrganizationOnboarding } from "@/src/features/organizations/ui/organization-onboarding";
+import { OrganizationSettingsNav } from "@/src/features/organizations/ui/organization-settings-nav";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";

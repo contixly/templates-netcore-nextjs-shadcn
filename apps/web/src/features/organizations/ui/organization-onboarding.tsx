@@ -2,8 +2,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { IconMail, IconUserCog } from "@tabler/icons-react";
 
-import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
-import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
+import { AccountInvitationList } from "@/src/features/collaboration/ui/account-invitation-list";
+import { OrganizationCreateDialog } from "@/src/features/organizations/ui/organization-create-dialog";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -23,24 +23,36 @@ export function OrganizationOnboarding({
   const t = useTranslations("organizations.onboarding");
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-1 items-center justify-center px-4 py-12">
+    <section className="flex w-full flex-1 items-center justify-center px-4 py-8 lg:px-6">
       <div className="flex w-full max-w-2xl flex-col gap-6">
-        <Card className="w-full">
-          <CardHeader className="text-center">
+        <Card className="w-full shadow-none">
+          <CardHeader className="gap-3 text-center">
             <CardTitle className="text-2xl">
               <h1>{t("title")}</h1>
             </CardTitle>
-            <CardDescription>{t("description")}</CardDescription>
+            <CardDescription className="text-base">
+              {t("description")}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col justify-center gap-3 sm:flex-row">
+          <CardContent className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
             <OrganizationCreateDialog presentation="onboarding" />
-            <Button asChild size="lg" variant="outline">
+            <Button
+              asChild
+              className="h-auto min-h-9 py-2 whitespace-normal"
+              size="lg"
+              variant="outline"
+            >
               <Link href={accountRoutes.profile}>
                 <IconUserCog data-icon="inline-start" />
                 {t("accountAction")}
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
+            <Button
+              asChild
+              className="h-auto min-h-9 py-2 whitespace-normal"
+              size="lg"
+              variant="outline"
+            >
               <Link href={accountRoutes.invitations}>
                 <IconMail data-icon="inline-start" />
                 {t("reviewInvitationsAction")}
@@ -55,6 +67,6 @@ export function OrganizationOnboarding({
           />
         ) : null}
       </div>
-    </div>
+    </section>
   );
 }

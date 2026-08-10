@@ -15,8 +15,9 @@ import {
   TeamCreateDialog,
   TeamDeleteDialog,
   TeamRenameDialog,
-} from "@/src/components/collaboration/team-controls";
+} from "@/src/features/collaboration/ui/team-controls";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -46,6 +47,14 @@ import {
 } from "@/src/components/ui/empty";
 import { Field, FieldLabel } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/src/components/ui/table";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import {
   addBrowserTeamMember,
@@ -548,52 +557,85 @@ function TeamMemberDirectory({
         </Alert>
       ) : null}
       {visibleMembers.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t("members.empty")}</p>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <IconUsers />
+            </EmptyMedia>
+            <EmptyTitle>{t("members.empty")}</EmptyTitle>
+            <EmptyDescription>{t("list.emptyDescription")}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <ul className="divide-y border" role="list">
-          {visibleMembers.map((member) => (
-            <li
-              className="flex items-center justify-between gap-3 p-3"
-              key={member.id}
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-medium">
-                  {displayName(member)}
-                </span>
-                <span className="block truncate text-muted-foreground">
-                  {member.email}
-                </span>
-              </span>
-              <span className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {
-                    {
-                      member: t("roles.member"),
-                      admin: t("roles.admin"),
-                      owner: t("roles.owner"),
-                    }[member.role]
-                  }
-                </Badge>
-                {organization.canManageTeams ? (
-                  <Button
-                    aria-label={t("actions.removeMemberNamed", {
-                      name: displayName(member),
-                    })}
-                    disabled={pendingRemoval !== null}
-                    onClick={() => remove(member)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    {pendingRemoval === member.userId
-                      ? t("actions.removingMember")
-                      : t("actions.removeMember")}
-                  </Button>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <Table className="min-w-[40rem]">
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t("members.columns.user")}</TableHead>
+              <TableHead>{t("members.columns.email")}</TableHead>
+              <TableHead>{t("members.columns.role")}</TableHead>
+              {organization.canManageTeams ? (
+                <TableHead className="text-right">
+                  {t("members.columns.actions")}
+                </TableHead>
+              ) : null}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {visibleMembers.map((member) => {
+              const name = displayName(member);
+              const initials = name
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((segment) => segment[0]?.toUpperCase() ?? "")
+                .join("");
+              return (
+                <TableRow key={member.id}>
+                  <TableCell className="min-w-48">
+                    <div className="flex items-center gap-3">
+                      <Avatar size="sm">
+                        <AvatarFallback>{initials || "?"}</AvatarFallback>
+                      </Avatar>
+                      <span className="truncate font-medium">{name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {member.email}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">
+                      {
+                        {
+                          member: t("roles.member"),
+                          admin: t("roles.admin"),
+                          owner: t("roles.owner"),
+                        }[member.role]
+                      }
+                    </Badge>
+                  </TableCell>
+                  {organization.canManageTeams ? (
+                    <TableCell className="text-right">
+                      <Button
+                        aria-label={t("actions.removeMemberNamed", {
+                          name,
+                        })}
+                        disabled={pendingRemoval !== null}
+                        onClick={() => remove(member)}
+                        size="sm"
+                        type="button"
+                        variant="ghost"
+                      >
+                        {pendingRemoval === member.userId
+                          ? t("actions.removingMember")
+                          : t("actions.removeMember")}
+                      </Button>
+                    </TableCell>
+                  ) : null}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       )}
       {partialFailure ? (
         <Alert variant="destructive">
@@ -764,10 +806,10 @@ function TeamMemberCandidateDialog({
           <DialogDescription>{t("candidates.description")}</DialogDescription>
         </DialogHeader>
         <form
-          className="flex items-end gap-2"
+          className="flex flex-col gap-2 sm:flex-row sm:items-end"
           onSubmit={(event) => search(event)}
         >
-          <Field>
+          <Field className="min-w-0 flex-1">
             <FieldLabel htmlFor={`candidate-search-${team.id}`}>
               {t("candidates.label")}
             </FieldLabel>
@@ -804,14 +846,14 @@ function TeamMemberCandidateDialog({
           <ul className="max-h-64 divide-y overflow-auto" role="list">
             {candidates.map((candidate) => (
               <li
-                className="flex items-center justify-between gap-3 py-2"
+                className="flex min-w-0 items-center justify-between gap-3 py-2"
                 key={candidate.memberId}
               >
-                <span>
-                  <span className="block font-medium">
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">
                     {candidate.name || candidate.email}
                   </span>
-                  <span className="block text-muted-foreground">
+                  <span className="block truncate text-muted-foreground">
                     {candidate.email}
                   </span>
                 </span>
@@ -1164,7 +1206,7 @@ export function TeamDirectory({
         </Alert>
       ) : null}
       {teamsWithConfirmedMemberCounts.length === 0 ? (
-        <Empty>
+        <Empty className="border">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <IconUsers />
@@ -1178,12 +1220,17 @@ export function TeamDirectory({
           {teamsWithConfirmedMemberCounts.map((team) => (
             <Card key={team.id}>
               <CardHeader>
-                <CardTitle>{team.name}</CardTitle>
+                <CardTitle className="flex min-w-0 flex-wrap items-center gap-2">
+                  <span className="truncate">{team.name}</span>
+                  <Badge variant="outline">
+                    {t("members.count", { count: team.memberCount })}
+                  </Badge>
+                </CardTitle>
                 <CardDescription>
-                  {t("members.count", { count: team.memberCount })}
+                  {t("members.label", { team: team.name })}
                 </CardDescription>
                 {organization.canManageTeams ? (
-                  <CardAction className="flex gap-2">
+                  <CardAction className="flex flex-wrap justify-end gap-2">
                     <TeamRenameDialog
                       key={`rename-${team.id}`}
                       onConfirmed={renamed}
@@ -1199,7 +1246,7 @@ export function TeamDirectory({
                   </CardAction>
                 ) : null}
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex flex-col gap-4">
                 <TeamMemberDirectory
                   key={`${organization.id}:${team.id}`}
                   onMemberCountChange={changeMemberCount}

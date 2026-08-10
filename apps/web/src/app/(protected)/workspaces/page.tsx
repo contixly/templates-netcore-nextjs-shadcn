@@ -5,7 +5,7 @@ import { getTranslations } from "next-intl/server";
 import {
   OrganizationFailure,
   OrganizationList,
-} from "@/src/components/organizations/organization-list";
+} from "@/src/features/organizations/ui/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
@@ -79,7 +79,7 @@ export default async function WorkspacesPage({
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
+    <section className="mx-auto flex w-full max-w-[1360px] flex-col gap-8 px-4 py-8 lg:px-6">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-muted-foreground">{t("description")}</p>

@@ -7,10 +7,11 @@ import { IconAlertTriangle, IconUsers } from "@tabler/icons-react";
 import {
   OrganizationAddMemberDialog,
   type OrganizationRole,
-} from "@/src/components/organizations/organization-add-member-dialog";
-import { useOrganizationControlInteractionReady } from "@/src/components/organizations/organization-control-readiness";
-import { OrganizationMemberRoleControl } from "@/src/components/organizations/organization-member-role-control";
+} from "@/src/features/organizations/ui/organization-add-member-dialog";
+import { useOrganizationControlInteractionReady } from "@/src/features/organizations/ui/organization-control-readiness";
+import { OrganizationMemberRoleControl } from "@/src/features/organizations/ui/organization-member-role-control";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -618,17 +619,30 @@ export function OrganizationMemberDirectory({
       "email" | "isOutsideAllowedEmailDomains" | "name" | "role"
     >,
   ) {
+    const displayName = memberDisplayName(member);
+    const initials = displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((segment) => segment[0]?.toUpperCase() ?? "")
+      .join("");
+
     return (
-      <div className="flex min-w-0 flex-col gap-1">
-        <p className="truncate text-sm font-medium">
-          {memberDisplayName(member)}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">{roles(member.role)}</Badge>
-          {member.isOutsideAllowedEmailDomains ? (
-            <Badge variant="outline">{t("outsidePolicy")}</Badge>
-          ) : null}
+      <div className="flex min-w-0 items-start gap-3">
+        <Avatar>
+          <AvatarFallback>{initials || "?"}</AvatarFallback>
+        </Avatar>
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="truncate text-sm font-medium">{displayName}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {member.email}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline">{roles(member.role)}</Badge>
+            {member.isOutsideAllowedEmailDomains ? (
+              <Badge variant="outline">{t("outsidePolicy")}</Badge>
+            ) : null}
+          </div>
         </div>
       </div>
     );
@@ -685,8 +699,12 @@ export function OrganizationMemberDirectory({
         </Alert>
       ) : null}
 
-      <Card aria-labelledby="organization-current-member-heading" role="region">
-        <CardHeader>
+      <Card
+        aria-labelledby="organization-current-member-heading"
+        className="gap-0 py-0"
+        role="region"
+      >
+        <CardHeader className="border-b px-5 py-4 sm:px-6">
           <CardTitle>
             {headingLevel === 3 ? (
               <h3 id="organization-current-member-heading">
@@ -703,11 +721,17 @@ export function OrganizationMemberDirectory({
             <Badge variant="secondary">{t("you")}</Badge>
           </CardAction>
         </CardHeader>
-        <CardContent>{memberIdentity(currentActor)}</CardContent>
+        <CardContent className="px-5 py-5 sm:px-6">
+          {memberIdentity(currentActor)}
+        </CardContent>
       </Card>
 
-      <Card aria-labelledby="organization-other-members-heading" role="region">
-        <CardHeader>
+      <Card
+        aria-labelledby="organization-other-members-heading"
+        className="gap-0 py-0"
+        role="region"
+      >
+        <CardHeader className="border-b px-5 py-4 sm:px-6">
           <CardTitle>
             {headingLevel === 3 ? (
               <h3 id="organization-other-members-heading">
@@ -731,7 +755,7 @@ export function OrganizationMemberDirectory({
             </CardAction>
           ) : null}
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-4 px-5 py-5 sm:px-6">
           {!organization.capabilities.canAddMembers ? (
             <p className="text-sm text-muted-foreground">{t("readOnly")}</p>
           ) : null}
@@ -746,7 +770,7 @@ export function OrganizationMemberDirectory({
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="overflow-x-auto border">
               {otherMembers.map((member) => {
                 const assignableRoles = roleOptions(member);
                 return (
@@ -754,7 +778,7 @@ export function OrganizationMemberDirectory({
                     aria-label={t("memberLabel", {
                       name: memberDisplayName(member),
                     })}
-                    className="flex flex-col gap-4 border p-4 sm:flex-row sm:items-start sm:justify-between"
+                    className="flex min-w-[36rem] items-start justify-between gap-6 border-b p-4 last:border-b-0"
                     key={member.id}
                   >
                     <div className="flex min-w-0 flex-1 flex-col gap-3">

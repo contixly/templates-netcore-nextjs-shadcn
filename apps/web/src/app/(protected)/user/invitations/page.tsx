@@ -6,8 +6,8 @@ import {
   SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
-import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
+import { AccountInvitationList } from "@/src/features/collaboration/ui/account-invitation-list";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
 import { loadAccountInvitations } from "@/src/lib/api/collaboration/server/load-account-invitations";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 

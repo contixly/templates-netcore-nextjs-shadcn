@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Activity } from "react";
 
-import { InvitationDecision } from "@/src/components/collaboration/invitation-decision";
+import { InvitationDecision } from "@/src/features/collaboration/ui/invitation-decision";
 import { confirmLocalAutomationEmail } from "@/src/lib/api/auth/browser/confirm-local-automation-email";
 import {
   acceptBrowserInvitation,

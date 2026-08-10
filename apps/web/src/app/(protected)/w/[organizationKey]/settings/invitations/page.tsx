@@ -5,11 +5,10 @@ import { getTranslations } from "next-intl/server";
 import {
   SettingsPageIntro,
   SettingsPageSection,
-  SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
-import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
+import { InvitationActivity } from "@/src/features/collaboration/ui/invitation-activity";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
 import { loadAllTeams } from "@/src/lib/api/collaboration/server/load-all-teams";
@@ -72,20 +71,18 @@ export default async function InvitationSettingsPage({
   return (
     <SettingsPageSection mode="wide">
       <SettingsPageIntro description={t("description")} title={t("title")} />
-      <SettingsSection title={t("sectionTitle")}>
-        <InvitationActivity
-          key={organization.data.id}
-          initialPage={invitations.data}
-          organization={{
-            id: organization.data.id,
-            currentRole: organization.data.currentRole,
-          }}
-          teams={teams.data.map((team) => ({
-            id: team.id,
-            name: team.name,
-          }))}
-        />
-      </SettingsSection>
+      <InvitationActivity
+        key={organization.data.id}
+        initialPage={invitations.data}
+        organization={{
+          id: organization.data.id,
+          currentRole: organization.data.currentRole,
+        }}
+        teams={teams.data.map((team) => ({
+          id: team.id,
+          name: team.name,
+        }))}
+      />
     </SettingsPageSection>
   );
 }

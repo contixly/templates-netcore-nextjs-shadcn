@@ -6,7 +6,7 @@ import {
   useLayoutEffect,
 } from "react";
 
-import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
+import { OrganizationSettingsForm } from "@/src/features/organizations/ui/organization-settings-form";
 import { updateBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { OrganizationDetailResponse } from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages, withMessages } from "@/test/support/render";

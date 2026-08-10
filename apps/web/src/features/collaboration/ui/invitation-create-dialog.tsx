@@ -6,7 +6,7 @@ import { useInsertionEffect, useRef, useState, type FormEvent } from "react";
 import {
   InvitationCopyButton,
   invitationAbsoluteUrl,
-} from "@/src/components/collaboration/invitation-copy-button";
+} from "@/src/features/collaboration/ui/invitation-copy-button";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {

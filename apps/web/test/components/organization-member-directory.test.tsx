@@ -8,7 +8,7 @@ import {
 import { Activity } from "react";
 import { renderToString } from "react-dom/server";
 
-import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
+import { OrganizationMemberDirectory } from "@/src/features/organizations/ui/organization-member-directory";
 import {
   addBrowserOrganizationMember,
   updateBrowserOrganizationMemberRole,

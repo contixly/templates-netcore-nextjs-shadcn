@@ -1,8 +1,12 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
-import { InvitationDecision } from "@/src/components/collaboration/invitation-decision";
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
+import {
+  SettingsContentRail,
+  SettingsPageSection,
+} from "@/src/features/application/ui/settings/settings-shell";
+import { InvitationDecision } from "@/src/features/collaboration/ui/invitation-decision";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
 import { authLoginUrl } from "@/src/features/authentication/sanitize-auth-redirect";
 import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
 import { recipientMismatchDecision } from "@/src/features/collaboration/invitation-decision-failure";
@@ -42,27 +46,31 @@ export default async function InvitationDecisionPage({
     const mismatch = recipientMismatchDecision(decision.failure);
     if (!mismatch) return <OrganizationFailure failure={decision.failure} />;
     return (
-      <div className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
-        <InvitationDecision
-          key={invitationId}
-          decision={mismatch}
-          emailVerified={auth.data.session.user.emailVerified}
-          localEmailConfirmationAvailable={false}
-        />
-      </div>
+      <SettingsContentRail>
+        <SettingsPageSection mode="readable">
+          <InvitationDecision
+            key={invitationId}
+            decision={mismatch}
+            emailVerified={auth.data.session.user.emailVerified}
+            localEmailConfirmationAvailable={false}
+          />
+        </SettingsPageSection>
+      </SettingsContentRail>
     );
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-1 px-4 py-12">
-      <InvitationDecision
-        key={invitationId}
-        decision={decision.data}
-        emailVerified={auth.data.session.user.emailVerified}
-        localEmailConfirmationAvailable={
-          auth.data.capabilities.localAutomationEnabled
-        }
-      />
-    </div>
+    <SettingsContentRail>
+      <SettingsPageSection mode="readable">
+        <InvitationDecision
+          key={invitationId}
+          decision={decision.data}
+          emailVerified={auth.data.session.user.emailVerified}
+          localEmailConfirmationAvailable={
+            auth.data.capabilities.localAutomationEnabled
+          }
+        />
+      </SettingsPageSection>
+    </SettingsContentRail>
   );
 }

@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 import { APP_HYDRATED_ATTRIBUTE } from "../../src/features/application/ui/app-hydration-marker";
 import { INTERACTION_READY_ATTRIBUTE } from "../../src/features/application/ui/interaction-readiness";
-import { ORGANIZATION_CONTROL_INTERACTION_READY_ATTRIBUTE } from "../../src/components/organizations/organization-control-readiness";
+import { ORGANIZATION_CONTROL_INTERACTION_READY_ATTRIBUTE } from "../../src/features/organizations/ui/organization-control-readiness";
 
 const APPLICATION_NAVIGATION_TIMEOUT_MS = 15_000;
 

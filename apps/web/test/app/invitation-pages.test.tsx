@@ -14,10 +14,10 @@ import SettingsInvitationsSwitcherSlot from "@/src/app/(protected)/@applicationN
 import InvitePage from "@/src/app/(protected)/invite/[invitationId]/page";
 import AccountInvitationsPage from "@/src/app/(protected)/user/invitations/page";
 import SettingsInvitationsPage from "@/src/app/(protected)/w/[organizationKey]/settings/invitations/page";
-import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
-import { InvitationActivity } from "@/src/components/collaboration/invitation-activity";
-import { InvitationDecision } from "@/src/components/collaboration/invitation-decision";
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
+import { AccountInvitationList } from "@/src/features/collaboration/ui/account-invitation-list";
+import { InvitationActivity } from "@/src/features/collaboration/ui/invitation-activity";
+import { InvitationDecision } from "@/src/features/collaboration/ui/invitation-decision";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
 import { getAccountInvitations } from "@/src/lib/api/generated/sdk.gen";

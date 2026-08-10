@@ -2,8 +2,8 @@ import { forbidden, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getLocale, getTranslations } from "next-intl/server";
 
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
-import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
+import { OrganizationOnboarding } from "@/src/features/organizations/ui/organization-onboarding";
 import {
   DashboardPage,
   type DashboardCopy,
