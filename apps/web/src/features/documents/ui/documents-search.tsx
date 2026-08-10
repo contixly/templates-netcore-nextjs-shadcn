@@ -9,8 +9,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DocumentsSearchResults,
   type DocumentsSearchStatus,
-} from "@/src/components/documents/documents-search-results";
+} from "@/src/features/documents/ui/documents-search-results";
 import { Button } from "@/src/components/ui/button";
+import { Command } from "@/src/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -20,9 +21,11 @@ import {
   DialogTrigger,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
+import { Kbd, KbdGroup } from "@/src/components/ui/kbd";
 import { resolveAppLocale } from "@/src/i18n/config";
 import { searchDocuments } from "@/src/lib/api/documents/browser/search-documents";
 import type { DocumentSearchResponse } from "@/src/lib/api/generated/types.gen";
+import { cn } from "@/src/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 250;
 const emptyResults: DocumentSearchResponse = { pages: [], headings: [] };
@@ -159,20 +162,32 @@ export function DocumentsSearch() {
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogTrigger asChild>
-        <Button aria-label={t("open")} type="button" variant="outline">
-          <IconSearch aria-hidden="true" data-icon="inline-start" />
-          <span className="hidden sm:inline">{t("open")}</span>
-          <kbd
+        <Button
+          aria-label={t("open")}
+          className="h-9 w-9 justify-center px-0 text-muted-foreground sm:w-auto sm:min-w-24 sm:px-3 xl:w-[min(22rem,calc(100vw-8rem))] xl:justify-start"
+          type="button"
+          variant="outline"
+        >
+          <IconSearch
             aria-hidden="true"
-            className="hidden border bg-muted px-1 text-[0.65rem] text-muted-foreground sm:inline"
+            className="sm:hidden xl:block"
+            data-icon="inline-start"
+          />
+          <span className="hidden min-w-0 flex-1 truncate text-left xl:block">
+            {t("placeholder")}
+          </span>
+          <KbdGroup
+            aria-hidden="true"
+            className="hidden sm:inline-flex xl:ml-auto"
           >
-            Ctrl/⌘ K
-          </kbd>
+            <Kbd>Ctrl/⌘</Kbd>
+            <Kbd>K</Kbd>
+          </KbdGroup>
         </Button>
       </DialogTrigger>
 
       <DialogContent
-        className="gap-0 overflow-hidden p-0 sm:max-w-2xl"
+        className="top-1/3 gap-0 overflow-hidden p-0 sm:max-w-2xl"
         showCloseButton={false}
       >
         <DialogHeader className="sr-only">
@@ -180,27 +195,36 @@ export function DocumentsSearch() {
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center gap-2 border-b p-3">
-          <IconSearch aria-hidden="true" />
-          <Input
-            aria-label={t("open")}
-            autoComplete="off"
-            autoFocus
-            className="border-0 p-0 focus-visible:ring-0"
-            maxLength={120}
-            onChange={(event) => handleQueryChange(event.currentTarget.value)}
-            placeholder={t("placeholder")}
-            type="search"
-            value={query}
-          />
-        </div>
+        <Command loop shouldFilter={false}>
+          <div className="flex items-center gap-2 border-b bg-input/30 p-3">
+            <IconSearch
+              aria-hidden="true"
+              className="size-4 shrink-0 opacity-50"
+            />
+            <Input
+              aria-label={t("open")}
+              autoComplete="off"
+              autoFocus
+              className="h-auto border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+              maxLength={120}
+              onChange={(event) => handleQueryChange(event.currentTarget.value)}
+              placeholder={t("placeholder")}
+              type="search"
+              value={query}
+            />
+          </div>
 
-        <DocumentsSearchResults
-          onSelect={handleSelect}
-          query={query}
-          results={searchState.results}
-          status={searchState.status}
-        />
+          <div
+            className={cn(searchState.status === "loading" && "cursor-wait")}
+          >
+            <DocumentsSearchResults
+              onSelect={handleSelect}
+              query={query}
+              results={searchState.results}
+              status={searchState.status}
+            />
+          </div>
+        </Command>
       </DialogContent>
     </Dialog>
   );

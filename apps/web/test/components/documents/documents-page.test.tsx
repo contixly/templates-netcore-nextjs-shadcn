@@ -1,10 +1,10 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 
-import { DocumentsPage } from "@/src/components/documents/documents-page";
+import { DocumentsPage } from "@/src/features/documents/ui/documents-page";
 import {
   findActiveDocumentHeading,
   readDocumentHash,
-} from "@/src/components/documents/documents-scroll-spy";
+} from "@/src/features/documents/ui/documents-scroll-spy";
 import type { DocumentInfo } from "@/src/features/documents/documents-types";
 import { renderWithMessages } from "@/test/support/render";
 

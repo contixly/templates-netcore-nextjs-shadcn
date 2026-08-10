@@ -31,6 +31,7 @@ test.describe("anonymous documentation", () => {
 
     const rootSidebar = page.getByRole("navigation", {
       name: "Documentation",
+      exact: true,
     });
     await expect(
       rootSidebar.getByRole("link", {
@@ -50,6 +51,7 @@ test.describe("anonymous documentation", () => {
 
     const deepSidebar = page.getByRole("navigation", {
       name: "Documentation",
+      exact: true,
     });
     await expect(
       deepSidebar.getByRole("link", {

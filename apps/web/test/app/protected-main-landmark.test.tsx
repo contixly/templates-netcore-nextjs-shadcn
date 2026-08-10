@@ -64,9 +64,9 @@ it("reserves main for standalone route surfaces and shared top-level shells", ()
     "src/app/loading.tsx",
     "src/app/not-found.tsx",
     "src/app/unauthorized.tsx",
-    "src/components/documents/documents-shell.tsx",
     "src/features/application/ui/landing/landing-page.tsx",
     "src/features/application/ui/protected-application-shell.tsx",
+    "src/features/documents/ui/documents-shell.tsx",
   ]);
 });
 

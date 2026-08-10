@@ -17,12 +17,12 @@ function ResultGroup({
   return (
     <div aria-labelledby={labelId} role="group">
       <h3
-        className="px-3 py-2 text-xs font-medium text-muted-foreground"
+        className="px-2 py-1.5 text-xs font-medium text-muted-foreground"
         id={labelId}
       >
         {label}
       </h3>
-      <div className="space-y-1 px-1 pb-1">{children}</div>
+      <div className="space-y-0 px-1 pb-1">{children}</div>
     </div>
   );
 }
@@ -82,7 +82,7 @@ export function DocumentsSearchResults({
     <div
       aria-busy={blocked}
       aria-label={t("results")}
-      className="max-h-[min(28rem,calc(100vh-12rem))] overflow-y-auto p-1"
+      className="max-h-[min(28rem,calc(100vh-12rem))] overflow-x-hidden overflow-y-auto p-1 outline-none"
       role="listbox"
     >
       {blocked ? (
@@ -96,7 +96,7 @@ export function DocumentsSearchResults({
           {results.pages.map((page) => (
             <button
               aria-selected="false"
-              className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm outline-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait disabled:opacity-50"
+              className="flex w-full cursor-default items-start gap-2 rounded-none px-2 py-2 text-left text-xs outline-none select-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait disabled:opacity-50"
               disabled={blocked}
               key={page.href}
               onClick={() => onSelect(page.href)}
@@ -113,35 +113,52 @@ export function DocumentsSearchResults({
                   {page.description}
                 </span>
               </span>
+              <span
+                aria-hidden="true"
+                className="ml-auto text-xs tracking-widest text-muted-foreground"
+              >
+                ↵
+              </span>
             </button>
           ))}
         </ResultGroup>
       ) : null}
 
       {results.headings.length > 0 ? (
-        <ResultGroup label={t("headings")}>
-          {results.headings.map((heading) => (
-            <button
-              aria-selected="false"
-              className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm outline-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait disabled:opacity-50"
-              disabled={blocked}
-              key={heading.href}
-              onClick={() => onSelect(heading.href)}
-              role="option"
-              type="button"
-            >
-              <IconTextCaption aria-hidden="true" className="mt-0.5" />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">
-                  {heading.title}
+        <>
+          {results.pages.length > 0 ? (
+            <div className="my-1 h-px bg-border" />
+          ) : null}
+          <ResultGroup label={t("headings")}>
+            {results.headings.map((heading) => (
+              <button
+                aria-selected="false"
+                className="flex w-full cursor-default items-start gap-2 rounded-none px-2 py-2 text-left text-xs outline-none select-none hover:bg-muted focus-visible:bg-muted disabled:cursor-wait disabled:opacity-50"
+                disabled={blocked}
+                key={heading.href}
+                onClick={() => onSelect(heading.href)}
+                role="option"
+                type="button"
+              >
+                <IconTextCaption aria-hidden="true" className="mt-0.5" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">
+                    {heading.title}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {heading.pageTitle}
+                  </span>
                 </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {heading.pageTitle}
+                <span
+                  aria-hidden="true"
+                  className="ml-auto text-xs tracking-widest text-muted-foreground"
+                >
+                  ↵
                 </span>
-              </span>
-            </button>
-          ))}
-        </ResultGroup>
+              </button>
+            ))}
+          </ResultGroup>
+        </>
       ) : null}
     </div>
   );

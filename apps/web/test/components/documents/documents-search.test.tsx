@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 
-import { DocumentsHeader } from "@/src/components/documents/documents-header";
+import { DocumentsHeader } from "@/src/features/documents/ui/documents-header";
 import { searchDocuments } from "@/src/lib/api/documents/browser/search-documents";
 import type { DocumentSearchResponse } from "@/src/lib/api/generated/types.gen";
 import type { ApiResult } from "@/src/lib/api/result";

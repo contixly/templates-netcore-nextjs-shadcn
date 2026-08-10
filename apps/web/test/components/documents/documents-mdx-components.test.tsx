@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import type { ComponentType, ReactNode } from "react";
 
-import { createDocumentMdxComponents } from "@/src/components/documents/mdx/documents-mdx-components";
+import { createDocumentMdxComponents } from "@/src/features/documents/ui/mdx/documents-mdx-components";
 import type { DocumentInfo } from "@/src/features/documents/documents-types";
 
 const document = {
