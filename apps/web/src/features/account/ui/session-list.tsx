@@ -1,14 +1,29 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import {
+  IconDeviceDesktop,
+  IconDeviceMobile,
+  IconShieldCheck,
+  IconX,
+} from "@tabler/icons-react";
 import { useState } from "react";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { FormErrorNotice } from "@/src/components/ui/custom/form-error-notice";
+import {
+  Empty,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/src/components/ui/empty";
+import { Spinner } from "@/src/components/ui/spinner";
 import {
   revokeBrowserAccountSession,
   revokeOtherBrowserAccountSessions,
@@ -21,6 +36,7 @@ import {
 } from "@/src/lib/api/generated";
 import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import type { ApiFailure } from "@/src/lib/api/result";
+import { cn } from "@/src/lib/utils";
 
 type Feedback =
   | { kind: "failure"; message: string; traceId?: string }
@@ -34,6 +50,7 @@ type RevokeOthersRefreshRecovery = Readonly<{
 
 type UserAgentPresentation = Readonly<{
   browser: string;
+  isMobile: boolean;
   os: string;
 }>;
 
@@ -56,8 +73,10 @@ function presentUserAgent(
   fallback: UserAgentPresentation,
 ): UserAgentPresentation {
   if (!value) {
-    return fallback;
+    return { ...fallback, isMobile: false };
   }
+
+  const isMobile = /Mobile|Android|iPhone|iPad/i.test(value);
 
   let browser = fallback.browser;
   if (value.includes("Edg/")) {
@@ -85,7 +104,7 @@ function presentUserAgent(
     os = "Linux";
   }
 
-  return { browser, os };
+  return { browser, isMobile, os };
 }
 
 export function SessionList({
@@ -264,27 +283,24 @@ export function SessionList({
       </div>
 
       {feedback ? (
-        <div
-          className={
-            feedback.kind === "failure"
-              ? "flex flex-col gap-1 text-sm text-destructive"
-              : "text-sm"
-          }
-          role={feedback.kind === "failure" ? "alert" : "status"}
-        >
-          <p>{feedback.message}</p>
-          {feedback.kind === "failure" && feedback.traceId ? (
-            <p className="font-mono text-xs">{feedback.traceId}</p>
-          ) : null}
-        </div>
+        feedback.kind === "failure" ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <p>{feedback.message}</p>
+              {feedback.traceId ? (
+                <p className="font-mono text-xs">{feedback.traceId}</p>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <p className="text-sm" role="status">
+            {feedback.message}
+          </p>
+        )
       ) : null}
 
       {revokeOthersRefreshRecovery ? (
-        <div
-          className="flex flex-col items-start gap-2 text-sm text-destructive"
-          role="alert"
-        >
-          <p>{t("revokeOthersRefreshFailure")}</p>
+        <FormErrorNotice title={t("revokeOthersRefreshFailure")}>
           {revokeOthersRefreshRecovery.traceId ? (
             <p className="font-mono text-xs">
               {revokeOthersRefreshRecovery.traceId}
@@ -305,21 +321,41 @@ export function SessionList({
               ? t("refreshing")
               : t("retryRefresh")}
           </Button>
-        </div>
+        </FormErrorNotice>
       ) : null}
 
-      {sessions.length === 0 &&
-      !revokeOthersRefreshRecovery &&
-      pendingAction !== "refresh-others" ? (
-        <p className="text-sm text-muted-foreground">{t("empty")}</p>
+      {sessions.length === 0 && pendingAction === "refresh-others" ? (
+        <div
+          aria-busy="true"
+          className="flex min-h-40 items-center justify-center gap-2 text-sm text-muted-foreground"
+        >
+          <Spinner />
+          {t("refreshing")}
+        </div>
+      ) : sessions.length === 0 && !revokeOthersRefreshRecovery ? (
+        <Empty className="min-h-40 border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <IconShieldCheck aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>{t("empty")}</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       ) : sessions.length > 0 ? (
         <div className="grid gap-3">
           {sessions.map((session) => {
             const presentation = presentUserAgent(session.userAgent, {
               browser: t("unknownBrowser"),
+              isMobile: false,
               os: t("unknownOs"),
             });
-            const title = t("browserOnOs", presentation);
+            const title = t("browserOnOs", {
+              browser: presentation.browser,
+              os: presentation.os,
+            });
+            const DeviceIcon = presentation.isMobile
+              ? IconDeviceMobile
+              : IconDeviceDesktop;
             const articleLabel = session.isCurrent
               ? `${title}, ${t("current")}`
               : title;
@@ -327,62 +363,78 @@ export function SessionList({
             return (
               <article
                 aria-label={articleLabel}
-                className="flex flex-col gap-4 border p-4 sm:flex-row sm:items-start sm:justify-between"
+                className={cn(
+                  "relative flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-start sm:justify-between",
+                  session.isCurrent && "border-primary bg-primary/5",
+                )}
                 key={session.id}
               >
-                <div className="flex min-w-0 flex-col gap-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <SessionHeading className="text-sm font-semibold">
-                      {title}
-                    </SessionHeading>
-                    {session.isCurrent ? <Badge>{t("current")}</Badge> : null}
+                <div className="flex min-w-0 items-start gap-4">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <DeviceIcon aria-hidden="true" className="size-5" />
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {t("signedInWith", {
-                      method: t(
-                        `authenticationMethods.${session.authenticationMethod}`,
-                      ),
-                    })}
-                  </p>
-                  {session.ipAddress ? (
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <SessionHeading className="text-sm font-semibold">
+                        {title}
+                      </SessionHeading>
+                      {session.isCurrent ? (
+                        <Badge className="sm:absolute sm:top-2 sm:right-2">
+                          {t("current")}
+                        </Badge>
+                      ) : null}
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      {t("ipAddress", { address: session.ipAddress })}
+                      {t("signedInWith", {
+                        method: t(
+                          `authenticationMethods.${session.authenticationMethod}`,
+                        ),
+                      })}
                     </p>
-                  ) : null}
-                  <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-3 sm:gap-3">
-                    <div>
-                      <dt className="sr-only">{t("created", { date: "" })}</dt>
-                      <dd>
-                        <time dateTime={session.createdAt}>
-                          {t("created", {
-                            date: formattedDate(session.createdAt, locale),
-                          })}
-                        </time>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="sr-only">
-                        {t("lastActive", { date: "" })}
-                      </dt>
-                      <dd>
-                        <time dateTime={session.lastSeenAt}>
-                          {t("lastActive", {
-                            date: formattedDate(session.lastSeenAt, locale),
-                          })}
-                        </time>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="sr-only">{t("expires", { date: "" })}</dt>
-                      <dd>
-                        <time dateTime={session.expiresAt}>
-                          {t("expires", {
-                            date: formattedDate(session.expiresAt, locale),
-                          })}
-                        </time>
-                      </dd>
-                    </div>
-                  </dl>
+                    {session.ipAddress ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("ipAddress", { address: session.ipAddress })}
+                      </p>
+                    ) : null}
+                    <dl className="grid gap-1 text-xs text-muted-foreground sm:grid-cols-3 sm:gap-3">
+                      <div>
+                        <dt className="sr-only">
+                          {t("created", { date: "" })}
+                        </dt>
+                        <dd>
+                          <time dateTime={session.createdAt}>
+                            {t("created", {
+                              date: formattedDate(session.createdAt, locale),
+                            })}
+                          </time>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="sr-only">
+                          {t("lastActive", { date: "" })}
+                        </dt>
+                        <dd>
+                          <time dateTime={session.lastSeenAt}>
+                            {t("lastActive", {
+                              date: formattedDate(session.lastSeenAt, locale),
+                            })}
+                          </time>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="sr-only">
+                          {t("expires", { date: "" })}
+                        </dt>
+                        <dd>
+                          <time dateTime={session.expiresAt}>
+                            {t("expires", {
+                              date: formattedDate(session.expiresAt, locale),
+                            })}
+                          </time>
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
                 </div>
 
                 {!session.isCurrent ? (
@@ -391,10 +443,16 @@ export function SessionList({
                     aria-label={t("revoke")}
                     disabled={!interactionReady || pendingAction !== null}
                     onClick={() => void revoke(session)}
+                    size="icon"
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                   >
-                    {pendingAction === session.id ? t("revoking") : t("revoke")}
+                    <IconX aria-hidden="true" />
+                    <span className="sr-only">
+                      {pendingAction === session.id
+                        ? t("revoking")
+                        : t("revoke")}
+                    </span>
                   </Button>
                 ) : null}
               </article>

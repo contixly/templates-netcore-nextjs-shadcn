@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import { ConnectionsList } from "@/src/components/account/connections-list";
+import { ConnectionsList } from "@/src/features/account/ui/connections-list";
 import { disconnectBrowserAccountProvider } from "@/src/lib/api/account/browser/account-mutations";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import {

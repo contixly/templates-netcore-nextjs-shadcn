@@ -6,7 +6,7 @@ import {
   SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
-import { ConnectionsList } from "@/src/components/account/connections-list";
+import { ConnectionsList } from "@/src/features/account/ui/connections-list";
 import { loadConnections } from "@/src/lib/api/account/server/load-connections";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";

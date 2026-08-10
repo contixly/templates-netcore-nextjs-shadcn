@@ -61,6 +61,8 @@
   },
   "connections": {
     "connectionLabel": "{provider} connection",
+    "emptyTitle": "No sign-in connections",
+    "emptyDescription": "No external sign-in providers are available for this account.",
     "connected": "Connected",
     "notConnected": "Not connected",
     "configurationUnavailable": "Provider configuration is unavailable",

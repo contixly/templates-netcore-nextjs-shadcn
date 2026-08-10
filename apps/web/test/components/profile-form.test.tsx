@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
-import { ProfileForm } from "@/src/components/account/profile-form";
+import { ProfileForm } from "@/src/features/account/ui/profile-form";
 import { updateBrowserAccountProfile } from "@/src/lib/api/account/browser/account-mutations";
 import type { AccountResponse } from "@/src/lib/api/generated";
 import { renderWithMessages } from "@/test/support/render";

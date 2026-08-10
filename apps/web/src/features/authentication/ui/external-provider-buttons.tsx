@@ -2,19 +2,38 @@
 
 import type { Route } from "next";
 import { useTranslations } from "next-intl";
+import {
+  IconBrandGithub,
+  IconBrandGitlab,
+  IconBrandGoogle,
+  IconBrandVk,
+  IconBrandYandex,
+  IconLogin2,
+  type Icon,
+} from "@tabler/icons-react";
 import { useId, useRef, useState } from "react";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
+import { Field, FieldGroup } from "@/src/components/ui/field";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import type { AuthProviderResponse } from "@/src/lib/api/generated";
 import type { ApiFailure } from "@/src/lib/api/result";
 
 type ExternalProviderFailure =
   "failure" | "invalidAuthorizationUrl" | "unavailable";
+
+const providerIcons: Readonly<Record<string, Icon>> = {
+  github: IconBrandGithub,
+  gitlab: IconBrandGitlab,
+  google: IconBrandGoogle,
+  vk: IconBrandVk,
+  yandex: IconBrandYandex,
+};
 
 function failureKey(failure: ApiFailure): ExternalProviderFailure {
   return failure.kind === "network" || failure.kind === "configuration"
@@ -93,45 +112,48 @@ export function ExternalProviderButtons({
   }
 
   return (
-    <section aria-labelledby={headingId} className="space-y-3">
-      <div className="space-y-1">
+    <section aria-labelledby={headingId} className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1 text-center">
         <h2 className="text-sm font-medium" id={headingId}>
           {t("title")}
         </h2>
         <p className="text-xs text-muted-foreground">{t("description")}</p>
       </div>
       {failure ? (
-        <p className="text-sm text-destructive" role="alert">
-          {t(failure)}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{t(failure)}</AlertDescription>
+        </Alert>
       ) : null}
-      <div className="grid gap-2">
+      <FieldGroup>
         {providers.map((provider) => {
           const pending = pendingProvider === provider.id;
           const label = t("button", { provider: provider.displayName });
+          const ProviderIcon = providerIcons[provider.id] ?? IconLogin2;
 
           return (
-            <Button
-              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-              aria-label={
-                pending
+            <Field key={provider.id}>
+              <Button
+                {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+                aria-label={
+                  pending
+                    ? t("pending", { provider: provider.displayName })
+                    : label
+                }
+                className="w-full"
+                disabled={!interactionReady || pendingProvider !== null}
+                onClick={() => void start(provider)}
+                type="button"
+                variant="outline"
+              >
+                <ProviderIcon aria-hidden="true" data-icon="inline-start" />
+                {pending
                   ? t("pending", { provider: provider.displayName })
-                  : label
-              }
-              className="w-full"
-              disabled={!interactionReady || pendingProvider !== null}
-              key={provider.id}
-              onClick={() => void start(provider)}
-              type="button"
-              variant="outline"
-            >
-              {pending
-                ? t("pending", { provider: provider.displayName })
-                : label}
-            </Button>
+                  : label}
+              </Button>
+            </Field>
           );
         })}
-      </div>
+      </FieldGroup>
     </section>
   );
 }

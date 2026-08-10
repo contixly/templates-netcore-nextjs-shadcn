@@ -1,14 +1,33 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { IconLink, IconUnlink } from "@tabler/icons-react";
 import { useState } from "react";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
+import { FormErrorNotice } from "@/src/components/ui/custom/form-error-notice";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/src/components/ui/empty";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemMedia,
+  ItemTitle,
+} from "@/src/components/ui/item";
 import { disconnectBrowserAccountProvider } from "@/src/lib/api/account/browser/account-mutations";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -248,31 +267,28 @@ export function ConnectionsList({
   return (
     <div className="flex flex-col gap-4">
       {feedback ? (
-        <div
-          className={
-            feedback.kind === "failure"
-              ? "flex flex-col gap-1 text-sm text-destructive"
-              : "text-sm"
-          }
-          role={feedback.kind === "failure" ? "alert" : "status"}
-        >
-          <p>{feedback.message}</p>
-          {feedback.kind === "failure" && feedback.traceId ? (
-            <p className="font-mono text-xs">{feedback.traceId}</p>
-          ) : null}
-        </div>
+        feedback.kind === "failure" ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              <p>{feedback.message}</p>
+              {feedback.traceId ? (
+                <p className="font-mono text-xs">{feedback.traceId}</p>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <p className="text-sm" role="status">
+            {feedback.message}
+          </p>
+        )
       ) : null}
 
       {refreshRecovery ? (
-        <div
-          className="flex flex-col items-start gap-2 text-sm text-destructive"
-          role="alert"
+        <FormErrorNotice
+          title={t("disconnectRefreshFailure", {
+            provider: refreshRecovery.provider,
+          })}
         >
-          <p>
-            {t("disconnectRefreshFailure", {
-              provider: refreshRecovery.provider,
-            })}
-          </p>
           {refreshRecovery.traceId ? (
             <p className="font-mono text-xs">{refreshRecovery.traceId}</p>
           ) : null}
@@ -285,126 +301,155 @@ export function ConnectionsList({
           >
             {refreshing ? t("refreshing") : t("retryRefresh")}
           </Button>
-        </div>
+        </FormErrorNotice>
       ) : null}
 
-      <div className="grid gap-3">
-        {connections.map((connection) => {
-          const pending = pendingProvider === connection.provider;
-          const disconnectedReason = connection.disabledReason
-            ? t(`disabledReasons.${connection.disabledReason}`)
-            : t("disabledReasons.unknown");
+      {connections.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <IconLink aria-hidden="true" />
+            </EmptyMedia>
+            <EmptyTitle>{t("emptyTitle")}</EmptyTitle>
+            <EmptyDescription>{t("emptyDescription")}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <ItemGroup>
+          {connections.map((connection) => {
+            const pending = pendingProvider === connection.provider;
+            const disconnectedReason = connection.disabledReason
+              ? t(`disabledReasons.${connection.disabledReason}`)
+              : t("disabledReasons.unknown");
 
-          return (
-            <article
-              aria-label={t("connectionLabel", {
-                provider: connection.displayName,
-              })}
-              className="flex flex-col gap-4 border p-4 sm:flex-row sm:items-start sm:justify-between"
-              key={connection.provider}
-            >
-              <div className="flex min-w-0 flex-col gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <ConnectionHeading className="text-sm font-semibold">
-                    {connection.displayName}
-                  </ConnectionHeading>
-                  <Badge
-                    variant={connection.connected ? "secondary" : "outline"}
-                  >
-                    {connection.connected ? t("connected") : t("notConnected")}
-                  </Badge>
-                  {connection.isCurrentAuthenticationMethod ? (
-                    <Badge>{t("currentMethod")}</Badge>
-                  ) : null}
-                </div>
+            return (
+              <Item
+                asChild
+                className="rounded-lg px-4 py-4 text-sm"
+                key={connection.provider}
+                variant="outline"
+              >
+                <article
+                  aria-label={t("connectionLabel", {
+                    provider: connection.displayName,
+                  })}
+                >
+                  <ItemMedia className="size-10 rounded-full bg-muted">
+                    {connection.connected ? (
+                      <IconLink aria-hidden="true" />
+                    ) : (
+                      <IconUnlink aria-hidden="true" />
+                    )}
+                  </ItemMedia>
+                  <ItemContent>
+                    <ItemTitle className="flex-wrap text-sm">
+                      <ConnectionHeading className="text-sm font-semibold">
+                        {connection.displayName}
+                      </ConnectionHeading>
+                      <Badge
+                        variant={connection.connected ? "secondary" : "outline"}
+                      >
+                        {connection.connected
+                          ? t("connected")
+                          : t("notConnected")}
+                      </Badge>
+                      {connection.isCurrentAuthenticationMethod ? (
+                        <Badge>{t("currentMethod")}</Badge>
+                      ) : null}
+                    </ItemTitle>
 
-                {!connection.configured ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t("configurationUnavailable")}
-                  </p>
-                ) : null}
-                {connection.email ? (
-                  <p className="text-xs break-all text-muted-foreground">
-                    {t("email", { email: connection.email })}
-                  </p>
-                ) : null}
-                {connection.connectedAt ? (
-                  <p className="text-xs text-muted-foreground">
-                    {t("connectedAt", {
-                      date: formattedDate(connection.connectedAt, locale),
-                    })}
-                  </p>
-                ) : null}
-                {connection.connected ? (
-                  <p className="text-xs text-muted-foreground">
-                    {connection.lastUsedAt
-                      ? t("lastUsedAt", {
-                          date: formattedDate(connection.lastUsedAt, locale),
-                        })
-                      : t("neverUsed")}
-                  </p>
-                ) : null}
-                {connection.connected && !connection.canDisconnect ? (
-                  <p className="text-xs text-muted-foreground">
-                    {disconnectedReason}
-                  </p>
-                ) : null}
-              </div>
+                    {!connection.configured ? (
+                      <ItemDescription>
+                        {t("configurationUnavailable")}
+                      </ItemDescription>
+                    ) : null}
+                    {connection.email ? (
+                      <ItemDescription className="break-all">
+                        {t("email", { email: connection.email })}
+                      </ItemDescription>
+                    ) : null}
+                    {connection.connectedAt ? (
+                      <ItemDescription>
+                        {t("connectedAt", {
+                          date: formattedDate(connection.connectedAt, locale),
+                        })}
+                      </ItemDescription>
+                    ) : null}
+                    {connection.connected ? (
+                      <ItemDescription>
+                        {connection.lastUsedAt
+                          ? t("lastUsedAt", {
+                              date: formattedDate(
+                                connection.lastUsedAt,
+                                locale,
+                              ),
+                            })
+                          : t("neverUsed")}
+                      </ItemDescription>
+                    ) : null}
+                    {connection.connected && !connection.canDisconnect ? (
+                      <ItemDescription>{disconnectedReason}</ItemDescription>
+                    ) : null}
+                  </ItemContent>
 
-              <div className="shrink-0">
-                {connection.connected ? (
-                  <Button
-                    {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-                    aria-label={t("disconnect", {
-                      provider: connection.displayName,
-                    })}
-                    disabled={
-                      !interactionReady ||
-                      pendingProvider !== null ||
-                      refreshing ||
-                      !connection.canDisconnect
-                    }
-                    onClick={() => void disconnect(connection)}
-                    type="button"
-                    variant="outline"
-                  >
-                    {pending
-                      ? t("disconnecting", {
-                          provider: connection.displayName,
-                        })
-                      : t("disconnect", {
+                  <ItemActions className="ml-auto shrink-0">
+                    {connection.connected ? (
+                      <Button
+                        {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+                        aria-label={t("disconnect", {
                           provider: connection.displayName,
                         })}
-                  </Button>
-                ) : (
-                  <Button
-                    {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-                    aria-label={t("connect", {
-                      provider: connection.displayName,
-                    })}
-                    disabled={
-                      !interactionReady ||
-                      pendingProvider !== null ||
-                      refreshing ||
-                      !connection.configured ||
-                      !connection.canConnect
-                    }
-                    onClick={() => void connect(connection)}
-                    type="button"
-                    variant="outline"
-                  >
-                    {pending
-                      ? t("connecting", {
+                        disabled={
+                          !interactionReady ||
+                          pendingProvider !== null ||
+                          refreshing ||
+                          !connection.canDisconnect
+                        }
+                        onClick={() => void disconnect(connection)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        {pending
+                          ? t("disconnecting", {
+                              provider: connection.displayName,
+                            })
+                          : t("disconnect", {
+                              provider: connection.displayName,
+                            })}
+                      </Button>
+                    ) : (
+                      <Button
+                        {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+                        aria-label={t("connect", {
                           provider: connection.displayName,
-                        })
-                      : t("connect", { provider: connection.displayName })}
-                  </Button>
-                )}
-              </div>
-            </article>
-          );
-        })}
-      </div>
+                        })}
+                        disabled={
+                          !interactionReady ||
+                          pendingProvider !== null ||
+                          refreshing ||
+                          !connection.configured ||
+                          !connection.canConnect
+                        }
+                        onClick={() => void connect(connection)}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        {pending
+                          ? t("connecting", {
+                              provider: connection.displayName,
+                            })
+                          : t("connect", { provider: connection.displayName })}
+                      </Button>
+                    )}
+                  </ItemActions>
+                </article>
+              </Item>
+            );
+          })}
+        </ItemGroup>
+      )}
     </div>
   );
 }

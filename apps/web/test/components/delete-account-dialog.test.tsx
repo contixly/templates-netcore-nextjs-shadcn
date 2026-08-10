@@ -1,6 +1,6 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 
-import { DeleteAccountDialog } from "@/src/components/account/delete-account-dialog";
+import { DeleteAccountDialog } from "@/src/features/account/ui/delete-account-dialog";
 import { deleteBrowserAccount } from "@/src/lib/api/account/browser/account-mutations";
 import { renderWithMessages } from "@/test/support/render";
 

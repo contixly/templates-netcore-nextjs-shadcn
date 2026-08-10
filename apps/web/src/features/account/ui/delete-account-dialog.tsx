@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { IconAlertTriangle } from "@tabler/icons-react";
 import { useRef, useState, type FormEvent } from "react";
 
 import {
@@ -8,6 +9,8 @@ import {
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
+import { LoadingButton } from "@/src/components/ui/custom/button-loading";
+import { FormErrorNotice } from "@/src/components/ui/custom/form-error-notice";
 import {
   Dialog,
   DialogClose,
@@ -18,8 +21,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import { deleteBrowserAccount } from "@/src/lib/api/account/browser/account-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { ApiFailure } from "@/src/lib/api/result";
@@ -112,7 +120,7 @@ export function DeleteAccountDialog({
         </Button>
       </DialogTrigger>
       <DialogContent
-        className="sm:max-w-lg"
+        className="min-w-md max-sm:min-w-0 sm:max-w-lg"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           inputRef.current?.focus();
@@ -134,70 +142,82 @@ export function DeleteAccountDialog({
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
-        <form className="flex flex-col gap-4" noValidate onSubmit={submit}>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="delete-account-confirmation">
-              {t("confirmationLabel", { email: primaryEmail })}
-            </Label>
-            <Input
-              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-              aria-describedby="delete-account-confirmation-hint"
-              autoComplete="off"
-              disabled={!interactionReady || pending}
-              id="delete-account-confirmation"
-              onChange={(event) => {
-                setConfirmation(event.currentTarget.value);
-                setFailure(null);
-              }}
-              ref={inputRef}
-              value={confirmation}
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex gap-3">
+            <IconAlertTriangle
+              aria-hidden="true"
+              className="mt-0.5 size-5 shrink-0 text-destructive"
             />
-            <p
-              className="text-xs text-muted-foreground"
-              id="delete-account-confirmation-hint"
-            >
-              {t("confirmationHint")}
-            </p>
+            <div className="flex flex-col gap-1 text-sm">
+              <p className="font-medium text-destructive">
+                {danger("warning")}
+              </p>
+              <p className="text-muted-foreground">{t("description")}</p>
+            </div>
           </div>
+        </div>
 
-          {failure ? (
-            <div
-              className="flex flex-col gap-1 text-sm text-destructive"
-              role="alert"
-            >
-              <p>
-                {t(
+        <form noValidate onSubmit={submit}>
+          <FieldGroup>
+            <Field data-disabled={!interactionReady || pending}>
+              <FieldLabel htmlFor="delete-account-confirmation">
+                {t("confirmationLabel", { email: primaryEmail })}
+              </FieldLabel>
+              <Input
+                {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+                aria-describedby="delete-account-confirmation-hint"
+                autoComplete="off"
+                disabled={!interactionReady || pending}
+                id="delete-account-confirmation"
+                onChange={(event) => {
+                  setConfirmation(event.currentTarget.value);
+                  setFailure(null);
+                }}
+                ref={inputRef}
+                value={confirmation}
+              />
+              <FieldDescription id="delete-account-confirmation-hint">
+                {t("confirmationHint")}
+              </FieldDescription>
+            </Field>
+
+            {failure ? (
+              <FormErrorNotice
+                title={t(
                   isOwnershipTransferRequired(failure)
                     ? "ownershipTransferRequired"
                     : "failure",
                 )}
+              >
+                {failureTrace(failure) ? (
+                  <p className="font-mono text-xs">{failureTrace(failure)}</p>
+                ) : null}
+              </FormErrorNotice>
+            ) : null}
+            {success ? (
+              <p className="text-sm" role="status">
+                {t("success")}
               </p>
-              {failureTrace(failure) ? (
-                <p className="font-mono text-xs">{failureTrace(failure)}</p>
-              ) : null}
-            </div>
-          ) : null}
-          {success ? (
-            <p className="text-sm" role="status">
-              {t("success")}
-            </p>
-          ) : null}
+            ) : null}
 
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button disabled={pending} type="button" variant="outline">
-                {t("cancel")}
-              </Button>
-            </DialogClose>
-            <Button
-              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-              disabled={!interactionReady || !matches || pending}
-              type="submit"
-              variant="destructive"
-            >
-              {pending ? t("deleting") : t("confirm")}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button disabled={pending} type="button" variant="outline">
+                  {t("cancel")}
+                </Button>
+              </DialogClose>
+              <LoadingButton
+                {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+                className="text-destructive-foreground bg-destructive hover:bg-destructive/90"
+                disabled={!interactionReady || !matches || pending}
+                loading={pending}
+                type="submit"
+                variant="destructive"
+              >
+                {pending ? t("deleting") : t("confirm")}
+              </LoadingButton>
+            </DialogFooter>
+          </FieldGroup>
         </form>
       </DialogContent>
     </Dialog>

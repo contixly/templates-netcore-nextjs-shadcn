@@ -6,7 +6,7 @@ import {
   SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
-import { ProfileForm } from "@/src/components/account/profile-form";
+import { ProfileForm } from "@/src/features/account/ui/profile-form";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";

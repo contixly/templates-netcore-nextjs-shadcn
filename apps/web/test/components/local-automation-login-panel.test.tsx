@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 
-import { LocalAutomationLoginPanel } from "@/src/components/authentication/local-automation-login-panel";
+import { LocalAutomationLoginPanel } from "@/src/features/authentication/ui/local-automation-login-panel";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
 import { createLocalAutomationBrowserSession } from "@/src/lib/api/auth/browser/create-local-automation-browser-session";
 import { renderWithMessages, withMessages } from "@/test/support/render";

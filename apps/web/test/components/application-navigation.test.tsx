@@ -39,7 +39,7 @@ jest.mock("@/src/components/organizations/organization-create-dialog", () => ({
     <button type="button">Create workspace</button>
   ),
 }));
-jest.mock("@/src/components/authentication/logout-button", () => ({
+jest.mock("@/src/features/authentication/ui/logout-button", () => ({
   LogoutButton: () => <button type="button">Log out</button>,
 }));
 

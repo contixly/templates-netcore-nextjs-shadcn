@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { IconUser } from "@tabler/icons-react";
 
-import { LogoutButton } from "@/src/components/authentication/logout-button";
+import { LogoutButton } from "@/src/features/authentication/ui/logout-button";
 import {
   Avatar,
   AvatarFallback,

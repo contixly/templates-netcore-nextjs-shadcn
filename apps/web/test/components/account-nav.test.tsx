@@ -5,7 +5,7 @@ import {
   AuthenticatedAccountShell,
   default as UserLayout,
 } from "@/src/app/(protected)/user/layout";
-import { AccountNav } from "@/src/components/account/account-nav";
+import { AccountNav } from "@/src/features/account/ui/account-nav";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import accountRu from "@/src/messages/account.ru.json";
 import { renderWithMessages, withMessages } from "@/test/support/render";
@@ -31,12 +31,12 @@ jest.mock("next/navigation", () => ({
 jest.mock("@/src/lib/api/auth/server/load-server-auth-session", () => ({
   loadServerAuthSession: jest.fn(),
 }));
-jest.mock("@/src/components/authentication/auth-api-failure", () => ({
+jest.mock("@/src/features/authentication/ui/auth-api-failure", () => ({
   AuthApiFailure: () => (
     <section role="alert">Authentication is unavailable</section>
   ),
 }));
-jest.mock("@/src/components/authentication/logout-button", () => ({
+jest.mock("@/src/features/authentication/ui/logout-button", () => ({
   LogoutButton: () => <button type="button">Log out</button>,
 }));
 

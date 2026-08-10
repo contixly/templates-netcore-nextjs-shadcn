@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import { SessionList } from "@/src/components/account/session-list";
+import { SessionList } from "@/src/features/account/ui/session-list";
 import {
   revokeBrowserAccountSession,
   revokeOtherBrowserAccountSessions,

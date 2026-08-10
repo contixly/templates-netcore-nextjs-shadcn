@@ -14,7 +14,7 @@ jest.mock("next-intl/server", () => ({
         "The application could not be loaded safely. Try again.",
     })[key] ?? key,
 }));
-jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
+jest.mock("@/src/features/authentication/ui/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
 jest.mock("@/src/features/application/ui/application-sidebar", () => ({

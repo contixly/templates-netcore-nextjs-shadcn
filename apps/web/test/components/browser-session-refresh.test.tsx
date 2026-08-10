@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
 
-import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
+import { BrowserSessionRefresh } from "@/src/features/authentication/ui/browser-session-refresh";
 import { refreshBrowserAuthSession } from "@/src/lib/api/auth/browser/refresh-browser-auth-session";
 
 const refreshRoute = jest.fn();

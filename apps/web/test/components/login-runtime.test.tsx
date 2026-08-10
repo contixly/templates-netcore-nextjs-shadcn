@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 
-import { LoginRuntime } from "@/src/components/authentication/login-runtime";
+import { LoginRuntime } from "@/src/features/authentication/ui/login-runtime";
 import { loadServerAuthState } from "@/src/lib/api/auth/server/load-server-auth-state";
 import { renderWithMessages } from "@/test/support/render";
 
@@ -26,7 +26,7 @@ jest.mock("next-intl/server", () => ({
 jest.mock("@/src/lib/api/auth/server/load-server-auth-state", () => ({
   loadServerAuthState: jest.fn(),
 }));
-jest.mock("@/src/components/authentication/auth-api-failure", () => ({
+jest.mock("@/src/features/authentication/ui/auth-api-failure", () => ({
   AuthApiFailure: ({ failure }: { failure: { traceId?: string } }) => (
     <section role="alert">
       <h2>Authentication is unavailable</h2>
@@ -36,7 +36,7 @@ jest.mock("@/src/components/authentication/auth-api-failure", () => ({
   ),
 }));
 jest.mock(
-  "@/src/components/authentication/local-automation-login-panel",
+  "@/src/features/authentication/ui/local-automation-login-panel",
   () => ({
     LocalAutomationLoginPanel: ({ redirectPath }: { redirectPath: string }) => (
       <div data-testid="local-panel">{redirectPath}</div>

@@ -2,8 +2,8 @@ import "server-only";
 
 import { connection } from "next/server";
 
-import { AccountHeaderNavigation } from "@/src/components/account/account-header-navigation";
-import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
+import { AccountHeaderNavigation } from "@/src/features/account/ui/account-header-navigation";
+import { BrowserSessionRefresh } from "@/src/features/authentication/ui/browser-session-refresh";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 
 export async function AuthenticatedAccountNavigation() {

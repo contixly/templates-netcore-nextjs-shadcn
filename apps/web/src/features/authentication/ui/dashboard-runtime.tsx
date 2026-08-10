@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 
-import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
-import { LogoutButton } from "@/src/components/authentication/logout-button";
+import { AuthApiFailure } from "@/src/features/authentication/ui/auth-api-failure";
+import { LogoutButton } from "@/src/features/authentication/ui/logout-button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
 import { authLoginUrl } from "@/src/features/authentication/sanitize-auth-redirect";
@@ -31,8 +31,8 @@ export async function DashboardRuntime() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-3xl space-y-6 px-4 py-12">
-      <div className="space-y-2">
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-12">
+      <div className="flex flex-col gap-2">
         <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
           {t("eyebrow")}
         </p>
@@ -40,7 +40,7 @@ export async function DashboardRuntime() {
         <p className="text-sm text-muted-foreground">{t("description")}</p>
       </div>
       <Card>
-        <CardContent className="space-y-4">
+        <CardContent className="flex flex-col gap-4">
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
             <dt className="text-muted-foreground">{t("name")}</dt>
             <dd>{result.data.user.name}</dd>

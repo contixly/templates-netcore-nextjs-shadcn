@@ -48,7 +48,7 @@ function AccountNavLinks({ pathname }: Readonly<{ pathname: string }>) {
   return (
     <nav
       aria-label={t("label")}
-      className="w-full shrink-0 border-b md:w-56 md:border-r md:border-b-0"
+      className="w-full shrink-0 border-b md:w-64 md:border-r md:border-b-0"
       data-slot="account-settings-nav"
     >
       <ul className="flex gap-1 overflow-x-auto p-2 md:flex-col md:overflow-visible">
@@ -60,7 +60,7 @@ function AccountNavLinks({ pathname }: Readonly<{ pathname: string }>) {
               <Link
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex min-h-10 items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground md:w-full",
+                  "flex min-h-9 items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground md:w-full",
                   active && "bg-accent text-accent-foreground",
                   item.destructive && !active && "text-destructive",
                 )}

@@ -31,26 +31,26 @@ jest.mock("@/src/lib/api/account/server/load-connections", () => ({
 jest.mock("@/src/lib/api/account/server/load-sessions", () => ({
   loadSessions: jest.fn(),
 }));
-jest.mock("@/src/components/account/profile-form", () => ({
+jest.mock("@/src/features/account/ui/profile-form", () => ({
   ProfileForm: ({ initialAccount }: { initialAccount: AccountResponse }) => (
     <p>
       profile projection {initialAccount.id} {initialAccount.primaryEmail}
     </p>
   ),
 }));
-jest.mock("@/src/components/account/connections-list", () => ({
+jest.mock("@/src/features/account/ui/connections-list", () => ({
   ConnectionsList: ({
     initialConnections,
   }: {
     initialConnections: AccountConnectionsResponse;
   }) => <p>connections projection {initialConnections.items.length}</p>,
 }));
-jest.mock("@/src/components/account/session-list", () => ({
+jest.mock("@/src/features/account/ui/session-list", () => ({
   SessionList: ({ initialPage }: { initialPage: AccountSessionsResponse }) => (
     <p>sessions projection {initialPage.items.length}</p>
   ),
 }));
-jest.mock("@/src/components/account/delete-account-dialog", () => ({
+jest.mock("@/src/features/account/ui/delete-account-dialog", () => ({
   DeleteAccountDialog: ({ primaryEmail }: { primaryEmail: string }) => (
     <p>delete projection {primaryEmail}</p>
   ),

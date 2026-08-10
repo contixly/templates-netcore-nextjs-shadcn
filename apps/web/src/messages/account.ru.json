@@ -61,6 +61,8 @@
   },
   "connections": {
     "connectionLabel": "Подключение {provider}",
+    "emptyTitle": "Нет подключений для входа",
+    "emptyDescription": "Для этого аккаунта нет доступных внешних провайдеров входа.",
     "connected": "Подключён",
     "notConnected": "Не подключён",
     "configurationUnavailable": "Конфигурация провайдера недоступна",

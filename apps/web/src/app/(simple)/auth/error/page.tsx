@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
+import { IconAlertTriangle } from "@tabler/icons-react";
 
 import { Button } from "@/src/components/ui/button";
 import { applicationRoutes } from "@/src/features/application/application-routes";
@@ -44,9 +45,10 @@ export default async function AuthErrorPage({
   const messageKey = errorMessageKey((await searchParams).code);
 
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-12">
-      <section className="w-full max-w-md space-y-6">
-        <div className="space-y-2">
+    <main className="flex min-h-screen items-center justify-center px-6 py-12">
+      <section className="flex w-full max-w-lg flex-col items-center gap-6 text-center">
+        <IconAlertTriangle aria-hidden="true" className="size-16" />
+        <div className="flex flex-col gap-2">
           <p className="text-xs font-medium tracking-[0.2em] text-muted-foreground uppercase">
             {t("eyebrow")}
           </p>
@@ -57,7 +59,7 @@ export default async function AuthErrorPage({
             {t(`codes.${messageKey}.description`)}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-4">
           <Button asChild>
             <Link href={authenticationRoutes.login}>{t("retry")}</Link>
           </Button>

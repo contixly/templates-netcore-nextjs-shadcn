@@ -7,10 +7,30 @@ import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
+import {
+  Avatar,
+  AvatarFallback,
+  AvatarImage,
+} from "@/src/components/ui/avatar";
 import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { LoadingButton } from "@/src/components/ui/custom/button-loading";
+import { FormErrorNotice } from "@/src/components/ui/custom/form-error-notice";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
+import {
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemDescription,
+  ItemGroup,
+  ItemTitle,
+} from "@/src/components/ui/item";
 import { Separator } from "@/src/components/ui/separator";
 import { updateBrowserAccountProfile } from "@/src/lib/api/account/browser/account-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -120,26 +140,24 @@ export function ProfileForm({
             {t("avatarDescription")}
           </p>
         </div>
-        <div
+        <Avatar
           aria-label={account.imageUrl ? t("avatar") : t("avatarFallback")}
-          className="relative flex size-20 items-center justify-center overflow-hidden rounded-full bg-muted text-xl font-semibold"
+          className="size-20"
           role="img"
         >
-          <span aria-hidden="true">{initials(account.displayName)}</span>
           {account.imageUrl ? (
             // The API accepts only HTTPS avatar URLs. Avoid sending a Referer to
             // the external provider while retaining reference-compatible avatars.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <AvatarImage
               alt=""
-              className="absolute inset-0 size-full object-cover"
-              height={80}
               referrerPolicy="no-referrer"
               src={account.imageUrl}
-              width={80}
             />
           ) : null}
-        </div>
+          <AvatarFallback className="text-lg">
+            {initials(account.displayName)}
+          </AvatarFallback>
+        </Avatar>
       </section>
 
       <Separator />
@@ -159,63 +177,66 @@ export function ProfileForm({
             {t("displayNameHint")}
           </p>
         </div>
-        <form className="flex flex-col gap-3" noValidate onSubmit={submit}>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-            <div className="flex flex-1 flex-col gap-2">
-              <Label htmlFor="account-display-name">{t("displayName")}</Label>
-              <Input
+        <form noValidate onSubmit={submit}>
+          <FieldGroup>
+            <Field
+              className="items-start sm:flex-row"
+              data-disabled={!interactionReady || pending}
+              data-invalid={Boolean(validationMessage)}
+            >
+              <div className="flex flex-1 flex-col gap-2">
+                <FieldLabel htmlFor="account-display-name">
+                  {t("displayName")}
+                </FieldLabel>
+                <Input
+                  {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+                  aria-describedby="account-display-name-message"
+                  aria-invalid={validationMessage ? true : undefined}
+                  autoComplete="name"
+                  disabled={!interactionReady || pending}
+                  id="account-display-name"
+                  maxLength={100}
+                  onChange={(event) => {
+                    setDisplayName(event.currentTarget.value);
+                    setValidationMessage(null);
+                    setFailure(null);
+                    setUpdated(false);
+                  }}
+                  value={displayName}
+                />
+                {validationMessage ? (
+                  <FieldError id="account-display-name-message">
+                    {validationMessage}
+                  </FieldError>
+                ) : (
+                  <FieldDescription id="account-display-name-message">
+                    {t("displayNameHint")}
+                  </FieldDescription>
+                )}
+              </div>
+              <LoadingButton
                 {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-                aria-describedby="account-display-name-message"
-                aria-invalid={validationMessage ? true : undefined}
-                autoComplete="name"
+                className="min-w-fit sm:mt-5"
                 disabled={!interactionReady || pending}
-                id="account-display-name"
-                maxLength={100}
-                onChange={(event) => {
-                  setDisplayName(event.currentTarget.value);
-                  setValidationMessage(null);
-                  setFailure(null);
-                  setUpdated(false);
-                }}
-                value={displayName}
-              />
-              <p
-                className={
-                  validationMessage
-                    ? "text-xs text-destructive"
-                    : "text-xs text-muted-foreground"
-                }
-                id="account-display-name-message"
-                role={validationMessage ? "alert" : undefined}
+                loading={pending}
+                type="submit"
               >
-                {validationMessage ?? t("displayNameHint")}
+                {pending ? t("saving") : t("save")}
+              </LoadingButton>
+            </Field>
+            {failure ? (
+              <FormErrorNotice title={t("updateFailure")}>
+                {failureTrace(failure) ? (
+                  <p className="font-mono text-xs">{failureTrace(failure)}</p>
+                ) : null}
+              </FormErrorNotice>
+            ) : null}
+            {updated ? (
+              <p className="text-sm" role="status">
+                {t("updated")}
               </p>
-            </div>
-            <Button
-              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-              className="sm:mt-5"
-              disabled={!interactionReady || pending}
-              type="submit"
-            >
-              {pending ? t("saving") : t("save")}
-            </Button>
-          </div>
-          {failure ? (
-            <div
-              className="flex flex-col gap-1 text-sm text-destructive"
-              role="alert"
-            >
-              <p>{t("updateFailure")}</p>
-              {failureTrace(failure) ? (
-                <p className="font-mono text-xs">{failureTrace(failure)}</p>
-              ) : null}
-            </div>
-          ) : null}
-          {updated ? (
-            <p className="text-sm" role="status">
-              {t("updated")}
-            </p>
-          ) : null}
+            ) : null}
+          </FieldGroup>
         </form>
       </section>
 
@@ -231,31 +252,35 @@ export function ProfileForm({
         >
           {t("emails")}
         </SectionHeading>
-        <dl className="divide-y border">
+        <ItemGroup>
           {verifiedEmails.map((verifiedEmail) => (
-            <div
-              className="flex flex-col gap-1 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            <Item
+              className="rounded-lg px-4 py-4 text-sm"
               key={verifiedEmail.email}
+              variant="outline"
             >
-              <div className="min-w-0">
-                <dt className="sr-only">
-                  {verifiedEmail.isPrimary ? t("primary") : t("secondary")}
-                </dt>
-                <dd className="text-sm break-all">{verifiedEmail.email}</dd>
+              <ItemContent className="min-w-0">
+                <ItemTitle className="text-sm break-all">
+                  {verifiedEmail.email}
+                </ItemTitle>
                 {verifiedEmail.providers.length > 0 ? (
-                  <dd className="text-xs text-muted-foreground">
+                  <ItemDescription>
                     {t("verifiedBy", {
                       providers: verifiedEmail.providers.join(", "),
                     })}
-                  </dd>
+                  </ItemDescription>
                 ) : null}
-              </div>
-              <Badge variant={verifiedEmail.isPrimary ? "default" : "outline"}>
-                {verifiedEmail.isPrimary ? t("primary") : t("secondary")}
-              </Badge>
-            </div>
+              </ItemContent>
+              <ItemActions className="ml-auto">
+                <Badge
+                  variant={verifiedEmail.isPrimary ? "default" : "outline"}
+                >
+                  {verifiedEmail.isPrimary ? t("primary") : t("secondary")}
+                </Badge>
+              </ItemActions>
+            </Item>
           ))}
-        </dl>
+        </ItemGroup>
       </section>
 
       <Separator />

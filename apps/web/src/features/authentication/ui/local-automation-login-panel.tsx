@@ -3,10 +3,11 @@
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
+import { IconRobot } from "@tabler/icons-react";
 import { useState } from "react";
 
 import { useInteractionReady } from "@/src/features/application/ui/interaction-readiness";
-import { Button } from "@/src/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import {
   Card,
   CardContent,
@@ -14,6 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
+import { LoadingButton } from "@/src/components/ui/custom/button-loading";
 import { createLocalAutomationBrowserSession } from "@/src/lib/api/auth/browser/create-local-automation-browser-session";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { ApiFailure } from "@/src/lib/api/result";
@@ -57,31 +59,39 @@ export function LocalAutomationLoginPanel({
   }
 
   return (
-    <Card>
+    <Card size="sm">
       <CardHeader>
-        <CardTitle>{t("title")}</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <IconRobot aria-hidden="true" className="size-4" />
+          {t("title")}
+        </CardTitle>
         <CardDescription>{t("description")}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="flex flex-col gap-3">
         {failure ? (
-          <div className="space-y-1 text-sm text-destructive" role="alert">
-            <p>{t(failureKey(failure))}</p>
-            {failure.kind === "problem" && failure.traceId ? (
-              <p className="font-mono text-xs">
-                {t("traceId", { traceId: failure.traceId })}
-              </p>
-            ) : null}
-          </div>
+          <Alert variant="destructive">
+            <AlertTitle>{t("failure")}</AlertTitle>
+            <AlertDescription>
+              <p>{t(failureKey(failure))}</p>
+              {failure.kind === "problem" && failure.traceId ? (
+                <p className="font-mono text-xs">
+                  {t("traceId", { traceId: failure.traceId })}
+                </p>
+              ) : null}
+            </AlertDescription>
+          </Alert>
         ) : null}
-        <Button
+        <LoadingButton
           className="w-full"
           data-interaction-ready={interactionReady ? "true" : undefined}
           disabled={!interactionReady || pending}
+          loading={pending}
           onClick={() => void createSession()}
           type="button"
         >
+          <IconRobot aria-hidden="true" data-icon="inline-start" />
           {pending ? t("pending") : t("button")}
-        </Button>
+        </LoadingButton>
       </CardContent>
     </Card>
   );

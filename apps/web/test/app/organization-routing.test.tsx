@@ -65,7 +65,7 @@ jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
 jest.mock("@/src/lib/api/organizations/server/load-organizations", () => ({
   loadOrganizations: jest.fn(),
 }));
-jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
+jest.mock("@/src/features/authentication/ui/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
 jest.mock("@/src/features/application/ui/site-header", () => ({

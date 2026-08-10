@@ -107,7 +107,7 @@ jest.mock("@/src/components/organizations/organization-switcher", () => ({
   },
 }));
 
-jest.mock("@/src/components/authentication/logout-button", () => ({
+jest.mock("@/src/features/authentication/ui/logout-button", () => ({
   LogoutButton: () => <button type="button">Log out</button>,
 }));
 jest.mock("@/src/components/organizations/organization-create-dialog", () => ({

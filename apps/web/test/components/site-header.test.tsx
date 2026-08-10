@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 
-import { AccountHeaderNavigation } from "@/src/components/account/account-header-navigation";
+import { AccountHeaderNavigation } from "@/src/features/account/ui/account-header-navigation";
 import { SiteHeader } from "@/src/features/application/ui/site-header";
 import { renderWithMessages } from "@/test/support/render";
 

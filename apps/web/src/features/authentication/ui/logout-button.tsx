@@ -8,7 +8,8 @@ import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
-import { Button } from "@/src/components/ui/button";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
+import { LoadingButton } from "@/src/components/ui/custom/button-loading";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
 import { logoutBrowserSession } from "@/src/lib/api/auth/browser/logout-browser-session";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -36,26 +37,29 @@ export function LogoutButton() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="flex flex-col gap-2">
       {failure ? (
-        <div className="text-sm text-destructive" role="alert">
-          <p>{t("failure")}</p>
-          {failure.kind === "problem" && failure.traceId ? (
-            <p className="font-mono text-xs">
-              {t("traceId", { traceId: failure.traceId })}
-            </p>
-          ) : null}
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            <p>{t("failure")}</p>
+            {failure.kind === "problem" && failure.traceId ? (
+              <p className="font-mono text-xs">
+                {t("traceId", { traceId: failure.traceId })}
+              </p>
+            ) : null}
+          </AlertDescription>
+        </Alert>
       ) : null}
-      <Button
+      <LoadingButton
         {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
         disabled={!interactionReady || pending}
+        loading={pending}
         onClick={() => void executeLogout()}
         type="button"
         variant="outline"
       >
         {pending ? t("pending") : t("button")}
-      </Button>
+      </LoadingButton>
     </div>
   );
 }
