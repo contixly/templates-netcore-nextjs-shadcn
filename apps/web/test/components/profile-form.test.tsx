@@ -75,6 +75,19 @@ it("shows immutable account identifiers, verified emails, and creation date", ()
   expect(screen.getAllByRole("textbox")).toHaveLength(1);
 });
 
+it("keeps the display-name field stacked on narrow cards and inline at the card breakpoint", () => {
+  renderWithMessages(<ProfileForm initialAccount={account} />);
+
+  const displayNameField = screen
+    .getByRole("textbox", { name: "Display name" })
+    .closest("[data-slot='field']");
+  expect(displayNameField).toHaveAttribute("data-orientation", "responsive");
+  expect(displayNameField).toHaveClass("@md/field-group:flex-row");
+  expect(screen.getByRole("button", { name: "Save profile" })).toHaveClass(
+    "min-w-fit",
+  );
+});
+
 it("renders the canonical primary email independently of secondary emails", () => {
   renderWithMessages(
     <ProfileForm

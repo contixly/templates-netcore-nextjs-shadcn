@@ -2,13 +2,11 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 9 — application shell, dashboard и frontend parity —
-fresh local acceptance завершена для implementation head
-`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`. Это UI-only изменение переиспользует
-существующий REST/OpenAPI contract. Observed PR #10 evidence относится только к
-этому source head: он был ready/non-draft, `MERGEABLE`, с пустым observed
-`statusCheckRollup`, clean connector review и 5/5 resolved threads. Текущий
-local unpushed documentation-only head не покрыт тем review и до окончательного
-завершения требует собственного fresh exact-head review.
+локальная reference-parity remediation acceptance обновлена 2026-08-10: 22
+direct routes, 4 desktop/mobile/light/dark projects и 5-route Russian overflow
+дают 108 проверенных baseline images. Это UI/E2E-only изменение переиспользует
+существующий REST/OpenAPI contract; review result для текущего local head здесь
+не заявляется.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -249,7 +247,7 @@ navigation/search/OG journey; content, OpenAPI, SDK и browser validation вхо
 controller и не self-asserted этим документом.
 **Reference:** `template/src/features/documents-system`, `template/src/app/(public)/(documents-system)/docs/**`.
 
-### Итерация 9 — Application shell, dashboard и frontend parity **(Завершена локальная acceptance; PR/review ожидаются)**
+### Итерация 9 — Application shell, dashboard и frontend parity **(Локальная visual-reference acceptance обновлена 2026-08-10; review не заявлен)**
 
 **Цель:** закончить общие UI composition patterns и удалить остаточные зависимости нового UI от reference assumptions.
 
@@ -327,7 +325,7 @@ claims or performs persistence. Chart value descriptions live outside the
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
-| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена; source PR head observed | Implementation head `ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply.bind` guards and dashboard interaction parity passed fresh local gates. Observed PR #10 evidence for that source head was ready/non-draft, `MERGEABLE`, empty `statusCheckRollup`, clean connector review and 5/5 resolved threads; current local unpushed documentation-only head still requires its own fresh exact-head review. |
+| 9 — application shell, dashboard и frontend parity | Локальная visual-reference acceptance обновлена | 2026-08-10 remediation добавила explicit 22-route catalog, 108 desktop/mobile/light/dark + RU baselines, dynamic API-created organization/invitation fixtures и safe single-main/non-disclosure assertions. Visual inspection обнаружил и test-first исправил только clipped desktop profile field; current-head reviewer result не заявляется. |
 | 10–12                                               | Не начаты | Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) не входят в итерацию 9. |
 
 ## Acceptance evidence: итерация 1
@@ -3069,6 +3067,116 @@ remain external PR/controller evidence; this tracked document does not
 self-assert that state.
 
 ## Acceptance evidence: итерация 9
+
+### Visual reference-parity remediation — 2026-08-10
+
+Эта remediation не добавляет product endpoint, OpenAPI operation, persistence,
+authorization rule или browser credential mechanism. Она фиксирует
+воспроизводимый route catalog и screenshot oracle для уже мигрированного UI.
+Current-head reviewer result не запрашивался и здесь не заявляется.
+
+#### Deterministic matrix и mapping
+
+| Reference family      | Direct target routes in catalog                                                                               | Stable visual evidence                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| public home/auth      | `/`, `/auth/login`, `/auth/error?code=external_auth_failed`                                                   | anonymous EN in all 4 projects                                                                      |
+| documents             | `/docs`, `/docs/api/api-v1`                                                                                   | EN in all 4 projects; `/docs` also RU overflow                                                      |
+| onboarding/workspaces | `/welcome`, `/workspaces`                                                                                     | authenticated API-created user; organization created only after the zero-organization welcome state |
+| dashboard             | `/dashboard`, `/w/{organizationKey}/dashboard`                                                                | canonical redirect plus direct organization dashboard, using the generated organization key         |
+| account               | `/user/profile`, `/user/connections`, `/user/security`, `/user/danger`, `/user/api-keys`, `/user/invitations` | EN in all 4 projects; profile also RU overflow                                                      |
+| workspace settings    | `/w/{organizationKey}/settings/workspace`, `/users`, `/roles`, `/teams`, `/invitations`, `/api-keys`          | EN in all 4 projects; workspace, invitations and API-key pages also RU overflow                     |
+| invitation decision   | `/invite/{invitationId}`                                                                                      | incoming invitation ID created through the E2E API, never hard-coded                                |
+
+The four exact projects are `desktop-light`, `desktop-dark`, `mobile-light` and
+`mobile-dark`. Desktop uses the Desktop Chrome descriptor; mobile uses the
+iPhone 13/WebKit descriptor. WebKit runs the mobile visual project against a
+temporary self-signed HTTPS loopback Next dev origin so the production-shaped
+`Secure` `__Host-` session cookie is exercised rather than weakened for HTTP.
+The local certificate is generated under the temporary test copy and is not a
+tracked or production trust decision. Non-visual E2E scenarios run once in
+`desktop-light`; the other three projects select only the visual matrix.
+
+There are 22 direct route entries. Every entry has four EN baselines (88), and
+the approved RU overflow set — docs, user profile, workspace settings,
+workspace invitations and workspace API keys — has four more each (20), for
+**108 committed PNG baselines**. Each protected capture asserts exactly one
+`main#main-content`, route-specific readiness and canonical pathname/search.
+Fixture passwords never enter page text; the screenshot guard rejects those
+credentials, internal API URLs and credential-shaped API values. Organization
+keys and invitation IDs come only from the E2E-created API projections.
+Volatile generated UUID/date cells are hidden before the screenshot, and the
+Next development portal is removed so compiler/error badges cannot be accepted
+as product UI.
+
+#### Personal reference inspection and the discovered defect
+
+All 108 images were inspected as four 27-state contact sheets, with original
+resolution checks for home, documentation, dashboard, account profile,
+workspace invitation/table and RU API-key overflow states. They were compared
+to the corresponding immutable `template/src/features/application`,
+`template/src/features/dashboard`, `template/src/features/documents-system`,
+`template/src/features/accounts`, `template/src/features/workspaces` and
+`template/src/features/api-keys` composition sources. The inspection covered
+shell hierarchy and rail widths, card/section spacing, table overflow,
+light/dark contrast, dialog triggers/shared card treatment and the desktop to
+mobile breakpoint change. Stable route screenshots intentionally keep mutation
+dialogs closed; existing focused component/E2E tests remain the behavioral
+evidence for their open/submit states.
+
+The first desktop profile baseline exposed a real mismatch rather than being
+accepted: the display-name input collapsed to a narrow strip and the Save
+button stretched across the remaining row. A focused rendered test first
+failed because the field still declared `data-orientation="vertical"` instead
+of the shadcn container-responsive orientation. The minimal production change
+sets `orientation="responsive"`: desktop now shows a normal flexing input plus
+min-width button, while mobile retains a stacked full-width input/button. The
+focused test then passed 12/12, and all EN/RU light/dark profile images were
+reinspected at original resolution. Profile mutation/auth/request behavior did
+not change.
+
+#### Fresh command evidence
+
+| Command                                                                                                                                                       | Exact observed result                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| initial `npm test -- --runInBand test/e2e/ui-reference-parity-routes.test.ts`                                                                                 | RED as required: the three-entry seed catalog failed the family-coverage assertion; after strengthening the same test file, all four coverage/order/dynamic-fixture/RU assertions were observed RED before implementation |
+| final catalog command above                                                                                                                                   | PASS; 1 suite, 4/4 tests                                                                                                                                                                                                  |
+| profile-focused RED then `npm test -- --runInBand test/components/profile-form.test.tsx`                                                                      | RED observed `vertical` instead of `responsive`; final PASS, 1 suite, 12/12 tests                                                                                                                                         |
+| focused four-project `npm run e2e -- ui-reference-parity.spec.ts --project=desktop-light --project=desktop-dark --project=mobile-light --project=mobile-dark` | PASS; 4/4 projects, 108 baselines, 0 failed                                                                                                                                                                               |
+| `npm run api:check`                                                                                                                                           | PASS; generated REST client deterministic/current                                                                                                                                                                         |
+| `npm run content:check`                                                                                                                                       | PASS; generated documentation content current                                                                                                                                                                             |
+| `npm run boundaries:check`                                                                                                                                    | PASS; 13/13 boundary tests and clean source scan                                                                                                                                                                          |
+| task-scoped ESLint with `--max-warnings=0`                                                                                                                    | PASS; 0 warnings/errors in the Task 9 catalog/spec/config, profile test and profile implementation                                                                                                                        |
+| `npm run lint -- --max-warnings=0`                                                                                                                            | Expected repository-known strict failure: 0 errors and exactly 17 `@typescript-eslint/no-unused-vars` warnings, all compile-time type probes in `test/contracts/generated-sdk.test.ts`                                    |
+| `npm run typecheck`                                                                                                                                           | PASS; Next route generation and `tsc --noEmit`                                                                                                                                                                            |
+| `npm test -- --runInBand`                                                                                                                                     | PASS; 114/114 suites, 875/875 tests, 0 snapshots                                                                                                                                                                          |
+| `npm run build`                                                                                                                                               | PASS; Next.js 16.2.11 production build, 144/144 static pages                                                                                                                                                              |
+| `npm run e2e`                                                                                                                                                 | PASS; 39 total, 34 passed, 5 opt-in live-provider smokes skipped, 0 failed; includes the 4-project visual matrix                                                                                                          |
+| `dotnet restore Template.sln`                                                                                                                                 | PASS; 2 projects restored and 5/7 current                                                                                                                                                                                 |
+| `dotnet build Template.sln --no-restore`                                                                                                                      | PASS; 0 warnings, 0 errors                                                                                                                                                                                                |
+| `dotnet test Template.sln --no-restore`                                                                                                                       | PASS; Application 343/343 and API 778/778, 1121/1121 total, 0 failed/skipped                                                                                                                                              |
+
+#### Intentional content/data differences and remaining diagnostics
+
+- Landing/docs text describes the ASP.NET Core 10 + REST target rather than the
+  reference Prisma/Better Auth/Server Action architecture.
+- Dashboard values remain the approved target-owned immutable demo fixture;
+  screenshots do not imply persistence.
+- User/workspace/team/email content is deterministic E2E data created against a
+  clean store, not copied reference database state. Generated IDs and timestamps
+  are not visual assertions.
+- Locale remains deployment-fixed. The RU pass uses a second temporary Next
+  deployment copy rather than a locale prefix or user switcher.
+- WebKit reports development-only hydration diagnostics where its localized
+  date punctuation differs from Node's server rendering. Those volatile date
+  cells are excluded from the baselines; no dev portal/badge appears in an
+  accepted image. A shared cross-runtime date projection remains a possible
+  later hardening item, not a changed REST/data/security contract.
+- No bearer/browser storage, API-key disclosure, cursor display, direct API URL,
+  Server Action, Prisma, Better Auth or database access was introduced.
+
+`template/` remained immutable, and this remediation creates no active
+OpenSpec change/spec. Iterations 10–12 retain their existing orchestration,
+production-topology and final parity-audit scope.
 
 ### Scope и implementation state
 

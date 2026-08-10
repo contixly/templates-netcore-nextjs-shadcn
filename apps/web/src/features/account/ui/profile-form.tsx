@@ -151,9 +151,9 @@ export function ProfileForm({
         <form noValidate onSubmit={submit}>
           <FieldGroup>
             <Field
-              className="items-start sm:flex-row"
               data-disabled={!interactionReady || pending}
               data-invalid={Boolean(validationMessage)}
+              orientation="responsive"
             >
               <div className="flex flex-1 flex-col gap-2">
                 <FieldLabel htmlFor="account-display-name">
