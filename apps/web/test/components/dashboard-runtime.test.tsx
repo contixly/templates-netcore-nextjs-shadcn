@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 
-import { DashboardRuntime } from "@/src/components/authentication/dashboard-runtime";
+import { DashboardRuntime } from "@/src/features/authentication/ui/dashboard-runtime";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 
 jest.mock("next/server", () => ({
@@ -31,7 +31,7 @@ jest.mock("next-intl/server", () => ({
 jest.mock("@/src/lib/api/auth/server/load-server-auth-session", () => ({
   loadServerAuthSession: jest.fn(),
 }));
-jest.mock("@/src/components/authentication/auth-api-failure", () => ({
+jest.mock("@/src/features/authentication/ui/auth-api-failure", () => ({
   AuthApiFailure: () => (
     <section role="alert">
       <h2>Authentication is unavailable</h2>
@@ -39,10 +39,10 @@ jest.mock("@/src/components/authentication/auth-api-failure", () => ({
     </section>
   ),
 }));
-jest.mock("@/src/components/authentication/logout-button", () => ({
+jest.mock("@/src/features/authentication/ui/logout-button", () => ({
   LogoutButton: () => <button type="button">Log out</button>,
 }));
-jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
+jest.mock("@/src/features/authentication/ui/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
 const loadSession = jest.mocked(loadServerAuthSession);

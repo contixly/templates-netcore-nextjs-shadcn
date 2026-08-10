@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 
-import { TeamDirectory } from "@/src/components/collaboration/team-directory";
+import { TeamDirectory } from "@/src/features/collaboration/ui/team-directory";
 import {
   addBrowserTeamMember,
   createBrowserTeam,
@@ -76,6 +76,23 @@ function renderManager() {
   );
 }
 
+function teamNameForm(value: string): HTMLFormElement {
+  const input = screen
+    .getAllByRole("textbox", { name: "Team name" })
+    .find((candidate) => (candidate as HTMLInputElement).value === value);
+  const form = input?.closest("form");
+  if (!form) throw new Error(`Missing inline team form for ${value}`);
+  return form;
+}
+
+function createTeamForm() {
+  return teamNameForm("");
+}
+
+function renameTeamForm(name = "Platform") {
+  return teamNameForm(name);
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((next) => {
@@ -83,6 +100,27 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+it("renders create and rename controls as reference-visible inline forms", () => {
+  renderManager();
+
+  const nameFields = screen.getAllByRole("textbox", { name: "Team name" });
+  expect(nameFields).toHaveLength(2);
+  expect(nameFields[0]).toHaveValue("");
+  expect(nameFields[1]).toHaveValue("Platform");
+  expect(
+    screen.queryByRole("dialog", { name: "Create team" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("dialog", { name: "Rename Platform" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Create team" }).closest("form"),
+  ).toContainElement(nameFields[0]!);
+  expect(
+    screen.getByRole("button", { name: "Rename team" }).closest("form"),
+  ).toContainElement(nameFields[1]!);
+});
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -112,8 +150,7 @@ it("lets administrators create, rename, and confirm deletion with duplicate subm
     .mockResolvedValue({ ok: true, data: { teamId: team.id } });
   renderManager();
 
-  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
-  const createDialog = screen.getByRole("dialog", { name: "Create team" });
+  const createDialog = createTeamForm();
   fireEvent.change(within(createDialog).getByLabelText("Team name"), {
     target: { value: "Design" },
   });
@@ -131,8 +168,7 @@ it("lets administrators create, rename, and confirm deletion with duplicate subm
   expect(createBrowserTeam).toHaveBeenCalledTimes(1);
   expect(screen.getByText("Design")).toBeVisible();
 
-  fireEvent.click(screen.getByRole("button", { name: "Rename Platform" }));
-  const renameDialog = screen.getByRole("dialog", { name: "Rename Platform" });
+  const renameDialog = renameTeamForm();
   fireEvent.change(within(renameDialog).getByLabelText("Team name"), {
     target: { value: "Product" },
   });
@@ -168,8 +204,7 @@ it("accepts exactly 50 supplementary-plane letters when creating and renaming te
   });
   renderManager();
 
-  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
-  let dialog = screen.getByRole("dialog", { name: "Create team" });
+  let dialog = createTeamForm();
   fireEvent.change(within(dialog).getByLabelText("Team name"), {
     target: { value: fiftyUnicodeScalars },
   });
@@ -181,8 +216,7 @@ it("accepts exactly 50 supplementary-plane letters when creating and renaming te
     }),
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Rename Platform" }));
-  dialog = screen.getByRole("dialog", { name: "Rename Platform" });
+  dialog = renameTeamForm();
   fireEvent.change(within(dialog).getByLabelText("Team name"), {
     target: { value: fiftyUnicodeScalars },
   });
@@ -210,14 +244,7 @@ it.each([
   async (action, name) => {
     renderManager();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: action === "create" ? "Create team" : "Rename Platform",
-      }),
-    );
-    const dialog = screen.getByRole("dialog", {
-      name: action === "create" ? "Create team" : "Rename Platform",
-    });
+    const dialog = action === "create" ? createTeamForm() : renameTeamForm();
     fireEvent.change(within(dialog).getByLabelText("Team name"), {
       target: { value: name },
     });
@@ -845,8 +872,7 @@ it("reconciles a successful team recovery page and its continuation cursor after
     } as unknown as Awaited<ReturnType<typeof getTeams>>);
   renderManager();
 
-  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
-  const dialog = screen.getByRole("dialog", { name: "Create team" });
+  const dialog = createTeamForm();
   fireEvent.change(within(dialog).getByLabelText("Team name"), {
     target: { value: "Design" },
   });
@@ -885,8 +911,7 @@ it("keeps a confirmed create over a stale RSC page when recovery fails", async (
     );
   const view = renderManager();
 
-  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
-  const dialog = screen.getByRole("dialog", { name: "Create team" });
+  const dialog = createTeamForm();
   fireEvent.change(within(dialog).getByLabelText("Team name"), {
     target: { value: created.name },
   });
@@ -934,8 +959,7 @@ it("keeps a confirmed rename over a stale RSC row until a newer raw team read ac
     );
   const view = renderManager();
 
-  fireEvent.click(screen.getByRole("button", { name: "Rename Platform" }));
-  const dialog = screen.getByRole("dialog", { name: "Rename Platform" });
+  const dialog = renameTeamForm();
   fireEvent.change(within(dialog).getByLabelText("Team name"), {
     target: { value: renamed.name },
   });
@@ -1003,8 +1027,7 @@ it("lets a causally newer continuation acknowledge an exact created team row", a
     .mockReturnValueOnce(continuation.promise as ReturnType<typeof getTeams>);
   renderManager();
 
-  fireEvent.click(screen.getByRole("button", { name: "Create team" }));
-  const dialog = screen.getByRole("dialog", { name: "Create team" });
+  const dialog = createTeamForm();
   fireEvent.change(within(dialog).getByLabelText("Team name"), {
     target: { value: created.name },
   });
@@ -1059,8 +1082,7 @@ it("lets an exact renamed team row on a continuation retire the overlay before l
     );
   renderManager();
 
-  fireEvent.click(screen.getByRole("button", { name: "Rename Platform" }));
-  const dialog = screen.getByRole("dialog", { name: "Rename Platform" });
+  const dialog = renameTeamForm();
   fireEvent.change(within(dialog).getByLabelText("Team name"), {
     target: { value: renamed.name },
   });
@@ -2076,8 +2098,7 @@ it.each(["constructor", "__proto__", "unknown_team_code"])(
       failure: { kind: "problem", code, status: 409 },
     });
     renderManager();
-    fireEvent.click(screen.getByRole("button", { name: "Create team" }));
-    const dialog = screen.getByRole("dialog", { name: "Create team" });
+    const dialog = createTeamForm();
     fireEvent.change(within(dialog).getByLabelText("Team name"), {
       target: { value: "Design" },
     });

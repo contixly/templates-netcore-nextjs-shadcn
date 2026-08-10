@@ -2,13 +2,13 @@
 
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 9 — application shell, dashboard и frontend parity —
-fresh local acceptance завершена для implementation head
-`ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`. Это UI-only изменение переиспользует
-существующий REST/OpenAPI contract. Observed PR #10 evidence относится только к
-этому source head: он был ready/non-draft, `MERGEABLE`, с пустым observed
-`statusCheckRollup`, clean connector review и 5/5 resolved threads. Текущий
-local unpushed documentation-only head не покрыт тем review и до окончательного
-завершения требует собственного fresh exact-head review.
+локальная reference-parity remediation acceptance обновлена 2026-08-10: 22
+direct routes, 4 desktop/mobile/light/dark projects, 5-route Russian overflow
+и 7 route-specific inner-scroll states дают 152 проверенных baseline images
+(108 сохранённых top states + 44 scroll states). Pixel comparison разрешён
+только в pinned canonical macOS/arm64/browser/font environment. Это UI/E2E-only
+изменение переиспользует существующий REST/OpenAPI contract; review result для
+текущего local head здесь не заявляется.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -249,7 +249,7 @@ navigation/search/OG journey; content, OpenAPI, SDK и browser validation вхо
 controller и не self-asserted этим документом.
 **Reference:** `template/src/features/documents-system`, `template/src/app/(public)/(documents-system)/docs/**`.
 
-### Итерация 9 — Application shell, dashboard и frontend parity **(Завершена локальная acceptance; PR/review ожидаются)**
+### Итерация 9 — Application shell, dashboard и frontend parity **(Локальная visual-reference acceptance обновлена 2026-08-10; review не заявлен)**
 
 **Цель:** закончить общие UI composition patterns и удалить остаточные зависимости нового UI от reference assumptions.
 
@@ -327,7 +327,7 @@ claims or performs persistence. Chart value descriptions live outside the
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
-| 9 — application shell, dashboard и frontend parity | Локальная acceptance завершена; source PR head observed | Implementation head `ffd7bf0b50a9a49af7dd976c5b514888b8d33c8e`: public landing, responsive protected shell, shared settings, static local dashboard, safe single-main boundaries, browser-storage `.apply.bind` guards and dashboard interaction parity passed fresh local gates. Observed PR #10 evidence for that source head was ready/non-draft, `MERGEABLE`, empty `statusCheckRollup`, clean connector review and 5/5 resolved threads; current local unpushed documentation-only head still requires its own fresh exact-head review. |
+| 9 — application shell, dashboard и frontend parity | Локальная visual-reference acceptance обновлена | 2026-08-10 final-review remediation сохраняет 108 top states, добавляет 44 actual inner-scroll states (152 PNG total), pins canonical macOS/arm64/browser/font comparison, заменяет POSIX server setup portable Node helper и восстанавливает actionable workspace switcher в collapsed sidebar по immutable reference. Dynamic API fixtures и safe single-main/non-disclosure assertions сохранены; current-head reviewer result не заявляется. |
 | 10–12                                               | Не начаты | Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) не входят в итерацию 9. |
 
 ## Acceptance evidence: итерация 1
@@ -3070,6 +3070,233 @@ self-assert that state.
 
 ## Acceptance evidence: итерация 9
 
+### Visual reference-parity remediation — 2026-08-10
+
+Эта remediation не добавляет product endpoint, OpenAPI operation, persistence,
+authorization rule или browser credential mechanism. Она фиксирует
+воспроизводимый route catalog и screenshot oracle для уже мигрированного UI.
+Current-head reviewer result не запрашивался и здесь не заявляется.
+
+#### Deterministic matrix и mapping
+
+| Reference family      | Direct target routes in catalog                                                                               | Stable visual evidence                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| public home/auth      | `/`, `/auth/login`, `/auth/error?code=external_auth_failed`                                                   | anonymous EN in all 4 projects                                                                      |
+| documents             | `/docs`, `/docs/api/api-v1`                                                                                   | EN in all 4 projects; `/docs` also RU overflow                                                      |
+| onboarding/workspaces | `/welcome`, `/workspaces`                                                                                     | owner's organization follows welcome; a separate inviter-owned seed organization exists first for the pending invitation |
+| dashboard             | `/dashboard`, `/w/{organizationKey}/dashboard`                                                                | canonical redirect plus direct organization dashboard, using the generated organization key         |
+| account               | `/user/profile`, `/user/connections`, `/user/security`, `/user/danger`, `/user/api-keys`, `/user/invitations` | EN in all 4 projects; profile also RU overflow                                                      |
+| workspace settings    | `/w/{organizationKey}/settings/workspace`, `/users`, `/roles`, `/teams`, `/invitations`, `/api-keys`          | EN in all 4 projects; workspace, invitations and API-key pages also RU overflow                     |
+| invitation decision   | `/invite/{invitationId}`                                                                                      | incoming invitation ID created through the E2E API, never hard-coded                                |
+
+The four exact projects are `desktop-light`, `desktop-dark`, `mobile-light` and
+`mobile-dark`. Desktop uses the Desktop Chrome descriptor; mobile uses the
+iPhone 13/WebKit descriptor. WebKit runs the mobile visual project against a
+temporary self-signed HTTPS loopback Next dev origin so the production-shaped
+`Secure` `__Host-` session cookie is exercised rather than weakened for HTTP.
+The local certificate is generated under the temporary test copy and is not a
+tracked or production trust decision. Non-visual E2E scenarios run once in
+`desktop-light`; the other three projects select only the visual matrix.
+
+There are 22 direct route entries. Every entry retains four EN top baselines
+(88), and the approved RU overflow set — docs, user profile, workspace
+settings, workspace invitations and workspace API keys — retains four more
+each (20), for **108 preserved top states**. Seven route-specific scroll
+anchors add 28 EN and 16 relevant RU captures, so the exact current oracle is
+**152 committed PNG baselines**. Each protected capture asserts exactly one
+`main#main-content`, route-specific readiness and canonical pathname/search.
+Fixture passwords never enter page text; the screenshot guard rejects those
+credentials, internal API URLs and credential-shaped API values. Organization
+keys and invitation IDs come only from the E2E-created API projections.
+Volatile generated UUID/date cells are hidden before the screenshot, and the
+Next development portal is removed so compiler/error badges cannot be accepted
+as product UI.
+
+The fixture creates the separate inviter-owned seed organization before the
+welcome capture solely to issue the owner's pending incoming invitation. The
+signed-in owner still has zero accessible organizations at welcome. The
+owner's primary organization is created only afterward; its visual directory
+contains enough API-created members, outgoing invitations and reveal-once-safe
+organization API keys to put the table surfaces below the inner viewport. A
+second owner organization is deliberately delayed until workspace settings so
+the primary `/dashboard` resolution remains stable while the delete-workspace
+surface can still be captured.
+
+#### Personal reference inspection and the discovered defect
+
+All 108 images were inspected as four 27-state contact sheets, with original
+resolution checks for home, documentation, dashboard, account profile,
+workspace invitation/table and RU API-key overflow states. They were compared
+to the corresponding immutable `template/src/features/application`,
+`template/src/features/dashboard`, `template/src/features/documents-system`,
+`template/src/features/accounts`, `template/src/features/workspaces` and
+`template/src/features/api-keys` composition sources. The inspection covered
+shell hierarchy and rail widths, card/section spacing, table overflow,
+light/dark contrast, dialog triggers/shared card treatment and the desktop to
+mobile breakpoint change. Stable route screenshots intentionally keep mutation
+dialogs closed; existing focused component/E2E tests remain the behavioral
+evidence for their open/submit states.
+
+The first desktop profile baseline exposed a real mismatch rather than being
+accepted: the display-name input collapsed to a narrow strip and the Save
+button stretched across the remaining row. A focused rendered test first
+failed because the field still declared `data-orientation="vertical"` instead
+of the shadcn container-responsive orientation. The minimal production change
+sets `orientation="responsive"`: desktop now shows a normal flexing input plus
+min-width button, while mobile retains a stacked full-width input/button. The
+focused test then passed 12/12, and all EN/RU light/dark profile images were
+reinspected at original resolution. Profile mutation/auth/request behavior did
+not change.
+
+#### Final-review remediation: canonical pixels, actual scroll states, collapsed switcher
+
+The final whole-branch review found three real acceptance gaps and they were
+corrected test-first without changing an API or persistence contract:
+
+1. The platform-neutral PNG names previously had only Darwin-produced bytes
+   but no execution guard. `npm run e2e:visual` now fails closed unless the
+   exact canonical contract matches: macOS 26.5.2 / Darwin 25.5.0, arm64,
+   Playwright 1.61.1, Chromium revision 1228 / 149.0.7827.55, WebKit revision
+   2311 / 26.5 and the macOS SF Pro `system-ui`/`-apple-system` font profile.
+   The visual spec pins that stack before capture. A noncanonical `npm run e2e`
+   keeps the ordinary `desktop-light` behavioral suite but excludes the pixel
+   spec and extra visual servers, so it cannot compare Darwin baselines.
+2. The former `fullPage` captures did not traverse the protected/documents
+   inner scrollers. The catalog now names and asserts actual nonzero
+   `scrollTop` states with the anchor intersecting its inner viewport for the
+   docs article Problem Details section, organization dashboard activity
+   table, lower user profile form, workspace form, member table, invitation
+   table and organization API-key table. All seven run in EN for all four
+   projects; the profile/workspace/invitation/API-key states also run in RU.
+   Stable names account for 44 new images (28 EN + 16 RU), while all 108 top
+   captures remain, for exactly 152.
+3. The collapsed desktop sidebar had replaced the reference workspace switcher
+   with a static `T` brand. As in immutable
+   `template/src/components/application/app-sidebar.tsx`, the switcher is now
+   the `SidebarHeader` action in expanded and collapsed states. Its compact
+   initials trigger stays visible, focusable and actionable; switching,
+   navigation, mobile close behavior and readiness/race protections are
+   unchanged. The desktop Playwright flow opens the switcher while collapsed
+   and observes the alternate workspace before expanding the rail.
+
+The RU and HTTPS temporary deployments are now prepared by
+`scripts/run-e2e-web-server.mjs` with Node filesystem/process APIs. This
+removes the former POSIX `cp`/`ln`/shell certificate pipeline while keeping
+certificates in the OS temporary directory and invoking Next with the current
+Node executable.
+
+The 44 scroll states were inspected as four 11-state contact sheets and at
+representative original resolution. The check covered lower document/article
+hierarchy, desktop/mobile table clipping and density, profile/settings form
+position, EN/RU content, light/dark contrast and the compact workspace trigger.
+The changed desktop top states were also inspected as a four-project shell
+matrix and compared with the immutable sidebar/switcher composition. No
+compiler/error portal, credential, internal API URL or reveal-once API key was
+accepted.
+
+Test-first observations for this remediation:
+
+- focused configuration/catalog tests were RED with 7 failures because the
+  runtime guard, portable helper and 44 named screenshots were absent;
+- the desktop browser scenario was RED because the collapsed workspace action
+  was not visible;
+- after the initial switcher correction, its standalone component suite caught
+  the new sidebar-context dependency (35/35 RED), then passed together with the
+  sidebar suite (44/44) after preserving the standalone fallback;
+- the visual scroll assertion initially caught zero `scrollTop` on short
+  workspace tables; API-created representative rows made the pages genuinely
+  scrollable instead of weakening the assertion.
+
+Current exact oracle audit: 152 PNG files, zero platform-suffixed files and no
+tracked browser/certificate/trace/test-result artifact. Current-head reviewer
+result is not claimed and no push is performed by this remediation. The
+verified implementation is committed as
+`e86f11efd7509f506a125017e397e35ada5724f7`; the following documentation-only
+commit is evidence, not a claim that implementation review occurred.
+
+#### Earlier Task 9 command evidence
+
+| Command                                                                                                                                                       | Exact observed result                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| initial `npm test -- --runInBand test/e2e/ui-reference-parity-routes.test.ts`                                                                                 | RED as required: the three-entry seed catalog failed the family-coverage assertion; after strengthening the same test file, all four coverage/order/dynamic-fixture/RU assertions were observed RED before implementation |
+| final catalog command above                                                                                                                                   | PASS; 1 suite, 4/4 tests                                                                                                                                                                                                  |
+| profile-focused RED then `npm test -- --runInBand test/components/profile-form.test.tsx`                                                                      | RED observed `vertical` instead of `responsive`; final PASS, 1 suite, 12/12 tests                                                                                                                                         |
+| focused four-project `npm run e2e -- ui-reference-parity.spec.ts --project=desktop-light --project=desktop-dark --project=mobile-light --project=mobile-dark` | PASS; 4/4 projects, 108 baselines, 0 failed                                                                                                                                                                               |
+| `npm run api:check`                                                                                                                                           | PASS; generated REST client deterministic/current                                                                                                                                                                         |
+| `npm run content:check`                                                                                                                                       | PASS; generated documentation content current                                                                                                                                                                             |
+| `npm run boundaries:check`                                                                                                                                    | PASS; 13/13 boundary tests and clean source scan                                                                                                                                                                          |
+| task-scoped ESLint with `--max-warnings=0`                                                                                                                    | PASS; 0 warnings/errors in the Task 9 catalog/spec/config, profile test and profile implementation                                                                                                                        |
+| pre-Task 10 `npm run lint -- --max-warnings=0`                                                                                                                | Historical strict failure before hygiene cleanup: 0 errors and exactly 17 `@typescript-eslint/no-unused-vars` warnings, all compile-time type probes in `test/contracts/generated-sdk.test.ts`                            |
+| `npm run typecheck`                                                                                                                                           | PASS; Next route generation and `tsc --noEmit`                                                                                                                                                                            |
+| `npm test -- --runInBand`                                                                                                                                     | PASS; 114/114 suites, 875/875 tests, 0 snapshots                                                                                                                                                                          |
+| `npm run build`                                                                                                                                               | PASS; Next.js 16.2.11 production build, 144/144 static pages                                                                                                                                                              |
+| `npm run e2e`                                                                                                                                                 | PASS; 39 total, 34 passed, 5 opt-in live-provider smokes skipped, 0 failed; includes the 4-project visual matrix                                                                                                          |
+| `dotnet restore Template.sln`                                                                                                                                 | PASS; 2 projects restored and 5/7 current                                                                                                                                                                                 |
+| `dotnet build Template.sln --no-restore`                                                                                                                      | PASS; 0 warnings, 0 errors                                                                                                                                                                                                |
+| `dotnet test Template.sln --no-restore`                                                                                                                       | PASS; Application 343/343 and API 778/778, 1121/1121 total, 0 failed/skipped                                                                                                                                              |
+
+#### Final-review remediation command evidence
+
+| Command | Exact observed result |
+| --- | --- |
+| focused Jest for configuration, route/scroll catalog, sidebar and switcher | PASS; 4/4 suites, 57/57 tests |
+| task-scoped ESLint with `--max-warnings=0` | PASS; 0 warnings/errors across all changed web source, E2E, helpers and tests |
+| `npm run typecheck` | PASS; route generation and `tsc --noEmit` |
+| `npm test -- --runInBand` | PASS; 115/115 suites, 883/883 tests, 0 snapshots |
+| `npm run api:check` | PASS; generated REST client deterministic/current |
+| `npm run content:check` | PASS; generated documentation content current |
+| `npm run boundaries:check` | PASS; 13/13 boundary tests and clean source scan |
+| `npm run build` | PASS; Next.js 16.2.11 production build and 144/144 static pages |
+| `npm run e2e:install -- --dry-run` | PASS; canonical Chromium 1228, Chromium headless shell, FFmpeg and WebKit 2311 resolved; no download |
+| focused desktop `application-shell.spec.ts` primary-navigation scenario | PASS; 1/1, including collapsed workspace switcher visible and alternate workspace menu action available before rail expansion |
+| `npm run e2e:visual` | PASS without snapshot update; 4/4 canonical projects, exact 152-image oracle matched, 0 failed |
+| PNG/name audit | PASS; 152 PNGs, zero `darwin`/`linux`/`win32` suffixes |
+| contact-sheet + representative original inspection | PASS; four 11-state scroll sheets plus changed shell/API-key originals inspected; stable volatile values hidden after leaf hydration and DOM quiet |
+| `git diff --check` / `git diff -- template/` | PASS / empty |
+
+#### Task 10 publication preflight status — 2026-08-10
+
+At exact source head `252121d76b04c6478f6d21bc44c5732266ed6949`,
+Task 10 replaced the 17 lint warnings above with a documented ESLint scope for
+the intentionally unused compile-time SDK assertions. Repository-wide
+`npm run lint -- --max-warnings=0` then passed with **0 warnings and 0 errors**.
+The same exact head also passed `npm run api:check`, `npm run content:check`,
+`npm run boundaries:check` (13/13), `npm run typecheck`, full Jest (115/115
+suites, 883/883 tests) and the Next.js production build (144/144 static pages).
+This documentation-only follow-up does not change the verified web tree.
+
+Publication remains externally blocked. During the final rerun, macOS stopped
+resolving local uid 501 and Docker/Testcontainers became unavailable. The
+ordinary exact .NET build therefore failed in app-host generation and full E2E
+could not start its PostgreSQL host; earlier green visual/.NET evidence is not
+misrepresented as a fresh post-fault exact-head run. GitHub CLI authentication
+was invalid, while the encrypted SSH key had neither a working agent nor
+Keychain access. No branch was pushed, no PR was created, and no status-check or
+automated-review loop occurred.
+
+#### Intentional content/data differences and remaining diagnostics
+
+- Landing/docs text describes the ASP.NET Core 10 + REST target rather than the
+  reference Prisma/Better Auth/Server Action architecture.
+- Dashboard values remain the approved target-owned immutable demo fixture;
+  screenshots do not imply persistence.
+- User/workspace/team/email content is deterministic E2E data created against a
+  clean store, not copied reference database state. Generated IDs and timestamps
+  are not visual assertions.
+- Locale remains deployment-fixed. The RU pass uses a second temporary Next
+  deployment copy rather than a locale prefix or user switcher.
+- WebKit reports development-only hydration diagnostics where its localized
+  date punctuation differs from Node's server rendering. Those volatile date
+  cells are excluded from the baselines; no dev portal/badge appears in an
+  accepted image. A shared cross-runtime date projection remains a possible
+  later hardening item, not a changed REST/data/security contract.
+- No bearer/browser storage, API-key disclosure, cursor display, direct API URL,
+  Server Action, Prisma, Better Auth or database access was introduced.
+
+`template/` remained immutable, and this remediation creates no active
+OpenSpec change/spec. Iterations 10–12 retain their existing orchestration,
+production-topology and final parity-audit scope.
+
 ### Scope и implementation state
 
 Fresh local acceptance выполнена 2026-08-04 для implementation head
@@ -3094,13 +3321,16 @@ collapsed brand link имеет accessible name. Их test-first fixes вошл�
 comment `IC_kwDOThDXX88AAAABNEKwzA` от 2026-08-03T21:10:43Z говорит “Didn't find
 any major issues” и указывает reviewed commit `ffd7bf0b50`; GraphQL показал
 5/5 resolved review threads и ноль unresolved actionable threads. Это
-наблюдаемое current-head evidence, а не self-assertion.
+историческое exact-head evidence только для `ffd7bf0` в PR #10 на момент
+наблюдения, а не evidence для текущей ветки.
 
-Этот documentation-only commit является текущим local unpushed docs head и
-изменил HEAD после review `ffd7bf0`; его нельзя считать покрытым тем review. До
-окончательного завершения он должен быть pushed и получить отдельный свежий
-review exact нового pushed head. В текущей задаче commit не pushится и review не
-запрашивается.
+Следующая историческая запись относилась к source-branch commit
+`8de93a27526578763ebe2991b1585352faac88c6` (`docs: record iteration 9 PR
+acceptance`): при её создании этот documentation-only commit был local unpushed
+docs head после review `ffd7bf0`, поэтому тем review не покрывался и требовал
+отдельного push/review. Это не описание текущего HEAD. Актуальный post-fault
+статус ветки за 2026-08-10 приведён выше в Task 10 publication preflight status:
+push и PR не состоялись, свежий review exact текущего head не выполнялся.
 
 Итерация разделяет `(public)/(home)`, простые authentication routes,
 `(documents)` и `(protected)` без изменения URL. Route-aware
@@ -3189,7 +3419,7 @@ acceptance, and nothing ran in immutable `template/`.
 | `npm run api:check` | PASS; four generated files in `168ms`, deterministic/current; `0.864s` total |
 | `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan; Node duration `10.881s`, shell `11.528s` total |
 | `npm run format:check` | PASS; all matched web files formatted; `3.700s` total |
-| `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes; `6.984s` total |
+| historical pre-Task 10 `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes at that head; `6.984s` total |
 | `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit`; `2.336s` total |
 | `npm run audit:prod` | PASS; 0 production vulnerabilities; `1.240s` total |
 | `npm test -- --runInBand` | PASS; 102/102 suites, 841/841 tests, 0 snapshots; Jest `28.606s`, shell `29.162s` total |
@@ -3212,8 +3442,10 @@ for funding; and one high-severity vulnerability in the complete development
 tree. Its install-script warning named `@parcel/watcher@2.6.0`,
 `fsevents@2.3.3`, `@swc/core@1.15.46`, `fsevents@2.3.2`, and
 `unrs-resolver@1.12.2`. The required production audit separately reported zero
-vulnerabilities. ESLint's 17 warnings are the existing unused compile-time type
-probes in `test/contracts/generated-sdk.test.ts`; there were zero errors.
+vulnerabilities. At that historical pre-Task 10 head, ESLint's 17 warnings were
+the unused compile-time type probes in `test/contracts/generated-sdk.test.ts`;
+there were zero errors. Task 10 subsequently scoped those intentional type-only
+assertions and verified strict repository lint with zero warnings/errors.
 Playwright repeatedly reported that `NO_COLOR` was ignored because `FORCE_COLOR`
 was set and emitted Next development cache-bypass diagnostics. No assertion was
 weakened and no new skip was added; the five skips are exactly the opt-in Google,
@@ -3273,9 +3505,11 @@ capability tokens and raw literal/template `/api/v1` paths wherever they occur
 in handwritten source, so alias, bind/call/apply, higher-order, spread, branch,
 recursive, destructured, computed-const, and shadowed-name forms do not require
 runtime emulation. Approved wrappers contain no reserved token. This closes the
-two reported examples by policy. The current exact-head PR/review/thread
-observation is recorded above; the current local unpushed documentation-only
-head deliberately requires its own fresh review before final completion.
+two reported examples by policy. The PR/review/thread observation above is
+historical evidence for reviewed head `ffd7bf0` in PR #10 only, not current
+exact-head evidence. Current status is deferred to the 2026-08-10 Task 10
+post-fault section above: no push or PR occurred and no fresh exact-head review
+was performed.
 
 ### Intentional differences and later exclusions
 

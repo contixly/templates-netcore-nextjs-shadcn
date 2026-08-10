@@ -31,6 +31,7 @@ test.describe("anonymous documentation", () => {
 
     const rootSidebar = page.getByRole("navigation", {
       name: "Documentation",
+      exact: true,
     });
     await expect(
       rootSidebar.getByRole("link", {
@@ -50,6 +51,7 @@ test.describe("anonymous documentation", () => {
 
     const deepSidebar = page.getByRole("navigation", {
       name: "Documentation",
+      exact: true,
     });
     await expect(
       deepSidebar.getByRole("link", {
@@ -114,7 +116,7 @@ test.describe("anonymous documentation", () => {
     ).not.toBeVisible();
 
     await page.keyboard.press("ControlOrMeta+K");
-    const search = page.getByRole("searchbox", { name: "Search docs" });
+    const search = page.getByRole("combobox", { name: "Search docs" });
     await expect(search).toBeFocused();
 
     const emptySearchResults = page.getByRole("listbox", {

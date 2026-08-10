@@ -2,12 +2,12 @@ import { forbidden, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { getLocale, getTranslations } from "next-intl/server";
 
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
-import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
+import { OrganizationOnboarding } from "@/src/features/organizations/ui/organization-onboarding";
 import {
   DashboardPage,
   type DashboardCopy,
-} from "@/src/components/dashboard/dashboard-page";
+} from "@/src/features/dashboard/ui/dashboard-page";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { dashboardRoutes } from "@/src/features/dashboard/dashboard-routes";
 import { dashboardRows } from "@/src/features/dashboard/dashboard-data";
@@ -95,10 +95,15 @@ export default async function OrganizationDashboardPage({
       sectionLabel: translated("cards.sectionLabel", "Dashboard metrics"),
       revenue: {
         label: translated("cards.revenue.label", "Total revenue"),
-        detail: translated("cards.revenue.detail", "Trending up this month"),
+        trend: translated("cards.revenue.trend", "Trending up this month"),
+        detail: translated(
+          "cards.revenue.detail",
+          "Visitors for the last 6 months",
+        ),
       },
       customers: {
         label: translated("cards.customers.label", "New customers"),
+        trend: translated("cards.customers.trend", "Down 20% this period"),
         detail: translated(
           "cards.customers.detail",
           "Acquisition needs attention",
@@ -106,14 +111,16 @@ export default async function OrganizationDashboardPage({
       },
       accounts: {
         label: translated("cards.accounts.label", "Active accounts"),
-        detail: translated("cards.accounts.detail", "Strong user retention"),
+        trend: translated("cards.accounts.trend", "Strong user retention"),
+        detail: translated(
+          "cards.accounts.detail",
+          "Engagement exceed targets",
+        ),
       },
       growth: {
         label: translated("cards.growth.label", "Growth rate"),
-        detail: translated(
-          "cards.growth.detail",
-          "Steady performance increase",
-        ),
+        trend: translated("cards.growth.trend", "Steady performance increase"),
+        detail: translated("cards.growth.detail", "Meets growth projections"),
       },
     },
     chart: {
@@ -133,6 +140,7 @@ export default async function OrganizationDashboardPage({
       title: translated("table.title", "Sections"),
       demoNotice: translated("table.demoNotice", "Demo changes are not saved."),
       search: translated("table.search", "Search sections"),
+      add: translated("table.add", "Add section"),
       empty: translated("table.empty", "No results."),
       columns: translated("table.columns", "Columns"),
       section: translated("table.section", "Section"),

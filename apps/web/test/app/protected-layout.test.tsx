@@ -23,7 +23,7 @@ jest.mock("next/headers", () => ({
     toString: (): string => "template.sidebar=open",
   }),
 }));
-jest.mock("@/src/components/application/protected-application-shell", () => ({
+jest.mock("@/src/features/application/ui/protected-application-shell", () => ({
   ProtectedApplicationShell: (props: {
     children: ReactNode;
     defaultSidebarOpen: boolean;

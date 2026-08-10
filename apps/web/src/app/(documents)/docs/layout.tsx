@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { DocumentsShell } from "@/src/components/documents/documents-shell";
+import { DocumentsShell } from "@/src/features/documents/ui/documents-shell";
 import {
   buildDocumentPageNavigation,
   buildDocumentsSidebarNavigation,

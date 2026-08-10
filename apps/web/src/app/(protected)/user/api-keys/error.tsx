@@ -1,3 +1,3 @@
 "use client";
 
-export { default } from "@/src/components/application/protected-route-error";
+export { default } from "@/src/features/application/ui/protected-route-error";

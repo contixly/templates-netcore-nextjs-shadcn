@@ -224,6 +224,22 @@ test("desktop landing and authenticated shell cover primary navigation", async (
   await expectDashboard(page);
   await exerciseDashboardInteractions(page);
   await expectRenewals(2);
+  const collapsedSwitcher = page.getByRole("button", {
+    name: "Current workspace: E2E Shell Alpha",
+  });
+  await expect(collapsedSwitcher).toBeVisible();
+  await waitForOrganizationControlInteraction(collapsedSwitcher);
+  await collapsedSwitcher.click();
+  await expect(
+    page.getByRole("menuitem", { name: "Switch to E2E Shell Beta" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await collapsedSwitcher.evaluate((element) =>
+    (element as HTMLElement).blur(),
+  );
+  await page
+    .getByRole("heading", { name: "Workspace dashboard" })
+    .hover();
   const expandSidebar = page
     .getByRole("banner")
     .getByRole("button", { name: "Open sidebar" });
@@ -258,7 +274,9 @@ test("desktop landing and authenticated shell cover primary navigation", async (
         "/api/v1/auth/session/active-organization"
     );
   });
-  await page.getByRole("button", { name: "Switch to E2E Shell Beta" }).click();
+  await page
+    .getByRole("menuitem", { name: "Switch to E2E Shell Beta" })
+    .click();
   expect((await switchResponse).status()).toBe(200);
   await waitForNavigationReady(
     page,
@@ -406,7 +424,9 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
   });
   await waitForOrganizationControlInteraction(switcher);
   await switcher.click();
-  await page.getByRole("button", { name: "Switch to E2E Mobile Beta" }).click();
+  await page
+    .getByRole("menuitem", { name: "Switch to E2E Mobile Beta" })
+    .click();
   await waitForNavigationReady(
     page,
     `/w/${second.canonicalKey}/dashboard`,
@@ -471,17 +491,30 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
     .getByRole("article", { name: "E2E Mobile Beta workspace" })
     .getByRole("link", { name: "Settings" })
     .click();
+  const openWorkspaceSettings = page.getByRole("button", {
+    name: "Open workspace settings",
+  });
   await waitForNavigationReady(
     page,
     `/w/${second.canonicalKey}/settings/workspace`,
-    page.getByRole("navigation", { name: "Workspace settings" }),
+    openWorkspaceSettings,
   );
   await waitForApplicationShell(page);
+  await openWorkspaceSettings.click();
+  const workspaceSettingsDrawer = page.getByRole("dialog", {
+    name: "Workspace settings",
+  });
+  await expect(workspaceSettingsDrawer).toBeVisible();
+  const workspaceSettingsNavigation = workspaceSettingsDrawer.getByRole(
+    "navigation",
+    { name: "Workspace settings" },
+  );
+  await expect(workspaceSettingsNavigation).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Workspace settings" }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Workspace", exact: true }),
+    workspaceSettingsNavigation.getByRole("link", {
+      name: "Workspace",
+      exact: true,
+    }),
   ).toHaveAttribute("aria-current", "page");
   await expectNoSensitiveShellText(page, mobileIdentity.password);
   expect(hydrationErrors).toEqual([]);

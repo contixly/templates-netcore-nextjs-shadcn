@@ -4,9 +4,9 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
-import { ConnectionsList } from "@/src/components/account/connections-list";
+import { ConnectionsList } from "@/src/features/account/ui/connections-list";
 import { loadConnections } from "@/src/lib/api/account/server/load-connections";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";
@@ -55,7 +55,7 @@ export default async function ConnectionsPage() {
   }
 
   return (
-    <SettingsPageSection mode="wide">
+    <SettingsPageSection mode="readable">
       <SettingsPageIntro
         description={page("description")}
         title={page("title")}

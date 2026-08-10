@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
 import "@/src/app/globals.css";
-import { AppHydrationMarker } from "@/src/components/application/app-hydration-marker";
-import { AppProviders } from "@/src/components/application/app-providers";
+import { AppHydrationMarker } from "@/src/features/application/ui/app-hydration-marker";
+import { AppProviders } from "@/src/features/application/ui/app-providers";
 import { loadI18nMessagesConfig } from "@/src/i18n/messages";
 import { resolvePublicOrigin } from "@/src/lib/public-origin";
 
@@ -23,7 +23,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body>
+      <body className="min-h-svh antialiased">
         <AppHydrationMarker />
         <AppProviders locale={locale} messages={messages} timeZone={timeZone}>
           {children}

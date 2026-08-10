@@ -1,7 +1,10 @@
 import { getTranslations } from "next-intl/server";
 import { Suspense } from "react";
 
-import { LoginRuntime } from "@/src/components/authentication/login-runtime";
+import {
+  LoginRuntime,
+  LoginRuntimeLoading,
+} from "@/src/features/authentication/ui/login-runtime";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";
 
 export function generateMetadata() {
@@ -15,8 +18,8 @@ export default async function LoginPage({
 }>) {
   const t = await getTranslations("auth.login");
   return (
-    <main className="grid min-h-screen place-items-center px-4 py-12">
-      <Suspense fallback={<p role="status">{t("loading")}</p>}>
+    <main className="flex min-h-screen items-center justify-center px-6 py-12 md:px-10">
+      <Suspense fallback={<LoginRuntimeLoading label={t("loading")} />}>
         <LoginRuntime searchParams={searchParams} />
       </Suspense>
     </main>

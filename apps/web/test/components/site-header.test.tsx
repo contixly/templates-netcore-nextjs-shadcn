@@ -1,10 +1,10 @@
 import { screen } from "@testing-library/react";
 
-import { AccountHeaderNavigation } from "@/src/components/account/account-header-navigation";
-import { SiteHeader } from "@/src/components/application/site-header";
+import { AccountHeaderNavigation } from "@/src/features/account/ui/account-header-navigation";
+import { SiteHeader } from "@/src/features/application/ui/site-header";
 import { renderWithMessages } from "@/test/support/render";
 
-jest.mock("@/src/components/application/theme-switcher", () => ({
+jest.mock("@/src/features/application/ui/theme-switcher", () => ({
   ThemeSwitcher: () => (
     <button aria-label="Toggle theme" disabled type="button" />
   ),

@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 
-import { ApiKeyEditDialog } from "@/src/components/api-keys/api-key-edit-dialog";
+import { ApiKeyEditDialog } from "@/src/features/api-keys/ui/api-key-edit-dialog";
 import { updateBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { Client } from "@/src/lib/api/generated/client";

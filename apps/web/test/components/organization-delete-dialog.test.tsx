@@ -1,7 +1,7 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Activity, StrictMode, useLayoutEffect } from "react";
 
-import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
+import { OrganizationDeleteDialog } from "@/src/features/organizations/ui/organization-delete-dialog";
 import { deleteBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 

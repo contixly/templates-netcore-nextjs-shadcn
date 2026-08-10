@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import { DocumentsShell } from "@/src/components/documents/documents-shell";
+import { DocumentsShell } from "@/src/features/documents/ui/documents-shell";
 import type {
   DocumentPageNavigation,
   DocumentsSidebarGroup,
@@ -8,10 +8,15 @@ import type {
 import { renderWithMessages, withMessages } from "@/test/support/render";
 
 let mockPathname = "/docs/api/api-v1";
+let mockIsMobile = false;
 
 jest.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
   useRouter: () => ({ push: jest.fn() }),
+}));
+
+jest.mock("@/src/hooks/use-mobile", () => ({
+  useIsMobile: () => mockIsMobile,
 }));
 
 const navigation = [
@@ -21,6 +26,12 @@ const navigation = [
       {
         label: "Getting started",
         items: [
+          {
+            canonicalUrl: "index",
+            href: "/docs",
+            label: "Documentation overview",
+            status: "published",
+          },
           {
             canonicalUrl: "general/quick-start",
             href: "/docs/general/quick-start",
@@ -79,6 +90,7 @@ function renderShell() {
 
 beforeEach(() => {
   mockPathname = "/docs/api/api-v1";
+  mockIsMobile = false;
 });
 
 it("provides the main-content target and marks the current document", () => {
@@ -88,12 +100,10 @@ it("provides the main-content target and marks the current document", () => {
   expect(screen.getByRole("main")).toHaveAttribute(
     "data-documents-scroll-container",
   );
+  const sidebar = screen.getByRole("navigation", { name: "Documentation" });
   expect(
-    screen.getByRole("link", { name: "API v1 reference" }),
+    within(sidebar).getByRole("link", { name: "API v1 reference" }),
   ).toHaveAttribute("aria-current", "page");
-  expect(
-    screen.getByRole("navigation", { name: "Documentation" }),
-  ).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
     "href",
     "/",
@@ -121,11 +131,45 @@ it("renders breadcrumb context and previous-document navigation", () => {
   expect(previousLinks[1]).toHaveAttribute("href", "/docs/api/api-keys");
 });
 
+it("suppresses root breadcrumb context while retaining nested context", () => {
+  mockPathname = "/docs";
+  const view = renderShell();
+  const rootBreadcrumb = document.querySelector("[data-slot='breadcrumb']");
+
+  expect(rootBreadcrumb).toHaveAttribute("aria-label", "Documentation");
+  expect(
+    rootBreadcrumb?.querySelector("[data-slot='breadcrumb-page']"),
+  ).not.toBeInTheDocument();
+
+  mockPathname = "/docs/general/quick-start";
+  view.rerender(
+    withMessages(
+      <DocumentsShell
+        navigation={navigation}
+        pageNavigationByHref={pageNavigationByHref}
+      >
+        <article>Quick start body</article>
+      </DocumentsShell>,
+    ),
+  );
+
+  const nestedBreadcrumb = document.querySelector("[data-slot='breadcrumb']");
+  expect(nestedBreadcrumb).toHaveAttribute(
+    "aria-label",
+    "Documentation: Quick start",
+  );
+  expect(nestedBreadcrumb).toHaveTextContent("General");
+  expect(nestedBreadcrumb).toHaveTextContent("Getting started");
+  expect(nestedBreadcrumb).toHaveTextContent("Quick start");
+});
+
 it("automatically opens the active parent after the pathname changes", () => {
   const view = renderShell();
-  const apiLink = screen.getByRole("link", { name: "API v1 reference" });
+  const sidebar = screen.getByRole("navigation", { name: "Documentation" });
 
-  expect(apiLink.closest("details")).toHaveAttribute("open");
+  expect(
+    within(sidebar).getByRole("button", { name: "API reference" }),
+  ).toHaveAttribute("aria-expanded", "true");
 
   mockPathname = "/docs/general/quick-start";
   view.rerender(
@@ -140,15 +184,22 @@ it("automatically opens the active parent after the pathname changes", () => {
   );
 
   expect(
-    screen.getByRole("link", { name: "Quick start" }).closest("details"),
-  ).toHaveAttribute("open");
+    within(screen.getByRole("navigation", { name: "Documentation" })).getByRole(
+      "button",
+      { name: "Getting started" },
+    ),
+  ).toHaveAttribute("aria-expanded", "true");
 });
 
 it("closes mobile navigation after a document is selected", async () => {
+  mockIsMobile = true;
   renderShell();
 
   fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
   const dialog = screen.getByRole("dialog", { name: "Documentation" });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Getting started" }),
+  );
   const link = within(dialog).getByRole("link", { name: "Quick start" });
   link.addEventListener("click", (event) => event.preventDefault());
   fireEvent.click(link);

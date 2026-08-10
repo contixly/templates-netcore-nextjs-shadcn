@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { DocumentsPage } from "@/src/components/documents/documents-page";
+import { DocumentsPage } from "@/src/features/documents/ui/documents-page";
 import {
   findPublishedDocument,
   importDocument,

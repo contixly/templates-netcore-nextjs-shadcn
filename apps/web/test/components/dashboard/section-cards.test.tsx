@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 
-import { SectionCards } from "@/src/components/dashboard/section-cards";
+import { SectionCards } from "@/src/features/dashboard/ui/section-cards";
 import { renderWithMessages } from "@/test/support/render";
 
 it("renders the four localized dashboard metrics", () => {
@@ -19,10 +19,22 @@ it("localizes the metric-section accessible name", () => {
     <SectionCards
       copy={{
         sectionLabel: "Показатели панели",
-        revenue: { label: "Выручка", detail: "Рост" },
-        customers: { label: "Клиенты", detail: "Привлечение" },
-        accounts: { label: "Аккаунты", detail: "Удержание" },
-        growth: { label: "Темп роста", detail: "Стабильный рост" },
+        revenue: { label: "Выручка", trend: "Рост", detail: "Посетители" },
+        customers: {
+          label: "Клиенты",
+          trend: "Снижение",
+          detail: "Привлечение",
+        },
+        accounts: {
+          label: "Аккаунты",
+          trend: "Удержание",
+          detail: "Вовлечение",
+        },
+        growth: {
+          label: "Темп роста",
+          trend: "Стабильный рост",
+          detail: "Соответствует прогнозу",
+        },
       }}
     />,
   );
@@ -30,4 +42,6 @@ it("localizes the metric-section accessible name", () => {
   expect(
     screen.getByRole("region", { name: "Показатели панели" }),
   ).toBeVisible();
+  expect(screen.getByText("Рост")).toHaveClass("font-medium");
+  expect(screen.getByText("Посетители")).toHaveClass("text-muted-foreground");
 });

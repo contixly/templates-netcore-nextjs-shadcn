@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 
-import { ActivityTable } from "@/src/components/dashboard/activity-table";
+import { ActivityTable } from "@/src/features/dashboard/ui/activity-table";
 import { dashboardRows } from "@/src/features/dashboard/dashboard-data";
 import { renderWithMessages } from "@/test/support/render";
 
@@ -151,10 +151,38 @@ it("switches between localized desktop tabs and exposes the mobile view selector
   expect(
     screen.getByRole("combobox", { name: "Select table view" }),
   ).toBeVisible();
-  fireEvent.click(screen.getByRole("tab", { name: "Past performance" }));
+  fireEvent.click(screen.getByRole("tab", { name: /Past performance/i }));
   expect(screen.queryByRole("table", { name: "Sections" })).toBeNull();
   expect(screen.getByRole("tabpanel")).toHaveTextContent(
     "No local demo content for this view.",
+  );
+});
+
+it("renders reference tab badges and adds a section only to local state", () => {
+  const initialRows = dashboardRows.slice(0, 2);
+  renderWithMessages(<ActivityTable initialRows={initialRows} />);
+
+  expect(
+    within(screen.getByRole("tab", { name: /Past performance/i })).getByText(
+      "3",
+    ),
+  ).toHaveAttribute("data-slot", "badge");
+  expect(
+    within(screen.getByRole("tab", { name: /Key personnel/i })).getByText("2"),
+  ).toHaveAttribute("data-slot", "badge");
+
+  fireEvent.click(screen.getByRole("button", { name: "Add section" }));
+  expect(screen.getByRole("dialog", { name: "Edit section" })).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Section title"), {
+    target: { value: "Local-only section" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+  expect(screen.getByText("Local-only section")).toBeVisible();
+  expect(screen.getByText(/changes are not saved/i)).toBeVisible();
+  expect(initialRows).toHaveLength(2);
+  expect(initialRows.some((row) => row.header === "Local-only section")).toBe(
+    false,
   );
 });
 
@@ -192,6 +220,7 @@ it("uses localized copy for every interactive table control", () => {
         title: "Разделы",
         demoNotice: "Изменения не сохраняются.",
         search: "Поиск",
+        add: "Добавить раздел",
         empty: "Пусто",
         columns: "Столбцы",
         section: "Раздел",
@@ -243,6 +272,7 @@ it("uses localized copy for every interactive table control", () => {
   expect(
     screen.getByRole("button", { name: "Сортировать разделы" }),
   ).toBeVisible();
+  expect(screen.getByRole("button", { name: "Добавить раздел" })).toBeVisible();
   expect(
     screen.getByRole("checkbox", { name: "Выбрать Введение" }),
   ).toBeVisible();

@@ -6,12 +6,11 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
-import { OrganizationDeleteDialog } from "@/src/components/organizations/organization-delete-dialog";
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
-import { OrganizationSettingsForm } from "@/src/components/organizations/organization-settings-form";
-import { Card, CardContent } from "@/src/components/ui/card";
+import { OrganizationDeleteDialog } from "@/src/features/organizations/ui/organization-delete-dialog";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
+import { OrganizationSettingsForm } from "@/src/features/organizations/ui/organization-settings-form";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganization } from "@/src/lib/api/organizations/server/load-organization";
@@ -81,24 +80,20 @@ export default async function OrganizationWorkspaceSettingsPage({
         description={t("workspace.identityDescription")}
         title={t("workspace.identityTitle")}
       >
-        <Card>
-          <CardContent>
-            <OrganizationSettingsForm
-              key={organization.data.id}
-              initialOrganization={{
-                id: organization.data.id,
-                name: organization.data.name,
-                slug: organization.data.slug,
-                canonicalKey: organization.data.canonicalKey,
-                allowedEmailDomains: organization.data.allowedEmailDomains,
-                capabilities: {
-                  canUpdateOrganization:
-                    organization.data.capabilities.canUpdateOrganization,
-                },
-              }}
-            />
-          </CardContent>
-        </Card>
+        <OrganizationSettingsForm
+          key={organization.data.id}
+          initialOrganization={{
+            id: organization.data.id,
+            name: organization.data.name,
+            slug: organization.data.slug,
+            canonicalKey: organization.data.canonicalKey,
+            allowedEmailDomains: organization.data.allowedEmailDomains,
+            capabilities: {
+              canUpdateOrganization:
+                organization.data.capabilities.canUpdateOrganization,
+            },
+          }}
+        />
       </SettingsSection>
       {canDelete ? (
         <SettingsSection
@@ -106,18 +101,14 @@ export default async function OrganizationWorkspaceSettingsPage({
           title={t("workspace.dangerTitle")}
           variant="destructive"
         >
-          <Card className="ring-destructive/40">
-            <CardContent>
-              <OrganizationDeleteDialog
-                key={organization.data.id}
-                canDelete
-                organization={{
-                  id: organization.data.id,
-                  name: organization.data.name,
-                }}
-              />
-            </CardContent>
-          </Card>
+          <OrganizationDeleteDialog
+            key={organization.data.id}
+            canDelete
+            organization={{
+              id: organization.data.id,
+              name: organization.data.name,
+            }}
+          />
         </SettingsSection>
       ) : null}
     </SettingsPageSection>

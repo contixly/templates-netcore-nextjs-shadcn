@@ -1,7 +1,7 @@
 import {
   parseSidebarPreference,
   serializeSidebarPreference,
-} from "@/src/components/application/sidebar-state";
+} from "@/src/features/application/ui/sidebar-state";
 
 describe("sidebar preference", () => {
   it("defaults missing and invalid values to closed", () => {

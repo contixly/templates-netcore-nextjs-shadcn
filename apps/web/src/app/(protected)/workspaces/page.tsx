@@ -1,11 +1,10 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { getTranslations } from "next-intl/server";
 
 import {
   OrganizationFailure,
   OrganizationList,
-} from "@/src/components/organizations/organization-list";
+} from "@/src/features/organizations/ui/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { loadOrganizations } from "@/src/lib/api/organizations/server/load-organizations";
@@ -51,9 +50,8 @@ export default async function WorkspacesPage({
   if (cursor !== undefined) {
     redirect(organizationRoutes.workspaces);
   }
-  const [session, t, firstPage] = await Promise.all([
+  const [session, firstPage] = await Promise.all([
     loadProtectedSession(organizationRoutes.workspaces),
-    getTranslations("organizations.pages.workspaces"),
     loadOrganizations(),
   ]);
 
@@ -79,11 +77,7 @@ export default async function WorkspacesPage({
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-12">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{t("title")}</h1>
-        <p className="text-muted-foreground">{t("description")}</p>
-      </div>
+    <section className="mx-auto flex w-full max-w-[1360px] flex-col px-4 py-8 lg:px-6">
       {!firstPage || !firstPage.ok ? (
         <OrganizationFailure
           failure={

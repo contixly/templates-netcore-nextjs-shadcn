@@ -31,26 +31,26 @@ jest.mock("@/src/lib/api/account/server/load-connections", () => ({
 jest.mock("@/src/lib/api/account/server/load-sessions", () => ({
   loadSessions: jest.fn(),
 }));
-jest.mock("@/src/components/account/profile-form", () => ({
+jest.mock("@/src/features/account/ui/profile-form", () => ({
   ProfileForm: ({ initialAccount }: { initialAccount: AccountResponse }) => (
     <p>
       profile projection {initialAccount.id} {initialAccount.primaryEmail}
     </p>
   ),
 }));
-jest.mock("@/src/components/account/connections-list", () => ({
+jest.mock("@/src/features/account/ui/connections-list", () => ({
   ConnectionsList: ({
     initialConnections,
   }: {
     initialConnections: AccountConnectionsResponse;
   }) => <p>connections projection {initialConnections.items.length}</p>,
 }));
-jest.mock("@/src/components/account/session-list", () => ({
+jest.mock("@/src/features/account/ui/session-list", () => ({
   SessionList: ({ initialPage }: { initialPage: AccountSessionsResponse }) => (
     <p>sessions projection {initialPage.items.length}</p>
   ),
 }));
-jest.mock("@/src/components/account/delete-account-dialog", () => ({
+jest.mock("@/src/features/account/ui/delete-account-dialog", () => ({
   DeleteAccountDialog: ({ primaryEmail }: { primaryEmail: string }) => (
     <p>delete projection {primaryEmail}</p>
   ),
@@ -126,22 +126,26 @@ it("loads each projection through its Task 12 server adapter", async () => {
   expect(
     screen.getByRole("heading", { level: 1, name: "Profile settings" }),
   ).toBeVisible();
-  expect(screen.getByText(/profile projection/).closest("article")).toHaveClass(
-    "max-w-3xl",
-  );
+  expect(
+    screen
+      .getByText(/profile projection/)
+      .closest('[data-slot="settings-page-section"]'),
+  ).toHaveClass("max-w-3xl");
   expect(
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
       heading.textContent?.trim(),
     ),
-  ).toEqual(["Profile settings", "Profile details"]);
+  ).toEqual(["Profile settings"]);
   expect(loadAccountMock).toHaveBeenCalledTimes(1);
   view.unmount();
 
   view = render(await ConnectionsPage());
   expect(screen.getByText("connections projection 0")).toBeInTheDocument();
   expect(
-    screen.getByText("connections projection 0").closest("article"),
-  ).toHaveAttribute("data-mode", "wide");
+    screen
+      .getByText("connections projection 0")
+      .closest('[data-slot="settings-page-section"]'),
+  ).toHaveClass("max-w-3xl");
   expect(
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
       heading.textContent?.trim(),
@@ -153,7 +157,9 @@ it("loads each projection through its Task 12 server adapter", async () => {
   view = render(await SecurityPage());
   expect(screen.getByText("sessions projection 0")).toBeInTheDocument();
   expect(
-    screen.getByText("sessions projection 0").closest("article"),
+    screen
+      .getByText("sessions projection 0")
+      .closest('[data-slot="settings-page-section"]'),
   ).toHaveClass("max-w-3xl");
   expect(
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
@@ -213,6 +219,14 @@ it("renders all four localized loading states", async () => {
     expect(screen.getByRole("status")).toHaveTextContent(label);
     unmount();
   }
+});
+
+it("keeps the connections loading state on the readable content rail", async () => {
+  const view = render(await ConnectionsLoading());
+
+  expect(
+    view.container.querySelector('[data-slot="settings-page-section"]'),
+  ).toHaveClass("max-w-3xl");
 });
 
 it("renders all four safe error boundaries and retries", () => {

@@ -1,18 +1,34 @@
 import { getTranslations } from "next-intl/server";
 
 import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  SettingsPageIntro,
+  SettingsPageSection,
+  SettingsSection,
+} from "@/src/features/application/ui/settings/settings-shell";
 
 export default async function DangerLoading() {
-  const t = await getTranslations("account.pages.danger");
+  const [page, danger] = await Promise.all([
+    getTranslations("account.pages.danger"),
+    getTranslations("account.danger"),
+  ]);
 
   return (
-    <div aria-busy="true" className="flex flex-col gap-8" role="status">
-      <span className="sr-only">{t("loading")}</span>
-      <div className="flex flex-col gap-2">
-        <Skeleton className="h-7 w-48" />
-        <Skeleton className="h-4 w-full max-w-md" />
-      </div>
-      <Skeleton className="h-40 w-full" />
-    </div>
+    <SettingsPageSection mode="readable">
+      <SettingsPageIntro
+        description={page("description")}
+        title={page("title")}
+      />
+      <SettingsSection
+        description={danger("description")}
+        title={danger("title")}
+        variant="destructive"
+      >
+        <div aria-busy="true" className="flex flex-col gap-4" role="status">
+          <span className="sr-only">{page("loading")}</span>
+          <Skeleton className="h-28 w-full" />
+        </div>
+      </SettingsSection>
+    </SettingsPageSection>
   );
 }

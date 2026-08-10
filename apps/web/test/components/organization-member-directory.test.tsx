@@ -8,7 +8,7 @@ import {
 import { Activity } from "react";
 import { renderToString } from "react-dom/server";
 
-import { OrganizationMemberDirectory } from "@/src/components/organizations/organization-member-directory";
+import { OrganizationMemberDirectory } from "@/src/features/organizations/ui/organization-member-directory";
 import {
   addBrowserOrganizationMember,
   updateBrowserOrganizationMemberRole,
@@ -75,6 +75,7 @@ const currentActor = {
   name: currentMember.name,
   email: currentMember.email,
   role: currentMember.role,
+  joinedAt: currentMember.joinedAt,
   isOutsideAllowedEmailDomains: currentMember.isOutsideAllowedEmailDomains,
 };
 const otherMember = {
@@ -138,6 +139,35 @@ it("subordinates membership headings beneath a settings section heading", () => 
   expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
 });
 
+it("uses reference membership sections with joined details and a contained directory table", () => {
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={currentActor}
+      initialPage={{ items: [currentMember, otherMember], nextCursor: null }}
+      organization={organization}
+    />,
+  );
+
+  const ownAccess = screen.getByRole("region", { name: "Your access" });
+  expect(within(ownAccess).getByText("Joined")).toBeVisible();
+  expect(within(ownAccess).getByText("Jul 29, 2026")).toBeVisible();
+
+  const others = screen.getByRole("region", { name: "Other members" });
+  expect(
+    within(others)
+      .getAllByRole("columnheader")
+      .map((heading) => heading.textContent),
+  ).toEqual(["User", "Email", "Roles", "Joined"]);
+  expect(
+    within(others).getByRole("row", {
+      name: "Other User workspace member",
+    }),
+  ).toHaveTextContent("Jul 30, 2026");
+  expect(within(others).getByRole("table").parentElement).toHaveClass(
+    "overflow-x-auto",
+  );
+});
+
 it("separates the current actor, preserves returned order, and never renders member removal", () => {
   const laterMember = {
     ...otherMember,
@@ -163,7 +193,7 @@ it("separates the current actor, preserves returned order, and never renders mem
   expect(within(ownAccess).queryByRole("combobox")).not.toBeInTheDocument();
 
   const others = screen.getByRole("region", { name: "Other members" });
-  const rows = within(others).getAllByRole("article");
+  const rows = within(others).getAllByRole("row").slice(1);
   expect(rows[0]).toHaveTextContent("Other User");
   expect(rows[1]).toHaveTextContent("Later User");
   expect(within(others).queryByText("Current User")).not.toBeInTheDocument();
@@ -266,7 +296,7 @@ it("loads the next opaque cursor, appends members, and deduplicates ids", async 
     });
   });
   await waitFor(() => {
-    expect(screen.getAllByRole("article")).toHaveLength(2);
+    expect(screen.getAllByRole("row").slice(1)).toHaveLength(2);
   });
   expect(screen.getByText("Next User")).toBeVisible();
   expect(
@@ -346,7 +376,9 @@ it("reconciles a refreshed first page while preserving an active continuation an
 
   const refreshedRows = within(
     screen.getByRole("region", { name: "Other members" }),
-  ).getAllByRole("article");
+  )
+    .getAllByRole("row")
+    .slice(1);
   expect(refreshedRows[0]).toHaveTextContent("Fresh First User");
   expect(refreshedRows[1]).toHaveTextContent("Refreshed Other User");
   expect(refreshedRows[2]).toHaveTextContent("Tail User");
@@ -354,7 +386,7 @@ it("reconciles a refreshed first page while preserving an active continuation an
     screen.getByRole("combobox", { name: "Role for Refreshed Other User" }),
   ).toHaveTextContent("Administrator");
   expect(
-    screen.queryByRole("article", { name: "Other User workspace member" }),
+    screen.queryByRole("row", { name: "Other User workspace member" }),
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "Loading members" }),
@@ -648,7 +680,9 @@ it("keeps a confirmed role overlay and active mutation refresh across later serv
 
   const staleProjectionRows = within(
     screen.getByRole("region", { name: "Other members" }),
-  ).getAllByRole("article");
+  )
+    .getAllByRole("row")
+    .slice(1);
   expect(staleProjectionRows[0]).toHaveTextContent("Fresh Server User");
   expect(staleProjectionRows[1]).toHaveTextContent("Other User");
   expect(screen.queryByText("Stale Server User")).not.toBeInTheDocument();
@@ -674,7 +708,9 @@ it("keeps a confirmed role overlay and active mutation refresh across later serv
 
   const overlayRows = within(
     screen.getByRole("region", { name: "Other members" }),
-  ).getAllByRole("article");
+  )
+    .getAllByRole("row")
+    .slice(1);
   expect(overlayRows[0]).toHaveTextContent("Fresh Server User");
   expect(overlayRows[1]).toHaveTextContent("Other User");
   expect(
@@ -738,9 +774,9 @@ it("replaces the refreshed first page order, preserves loaded progress, and over
   fireEvent.click(screen.getByRole("option", { name: "Administrator" }));
 
   await waitFor(() => {
-    const rows = within(
-      screen.getByRole("region", { name: "Other members" }),
-    ).getAllByRole("article");
+    const rows = within(screen.getByRole("region", { name: "Other members" }))
+      .getAllByRole("row")
+      .slice(1);
     expect(rows[0]).toHaveTextContent("Next User");
     expect(rows[1]).toHaveTextContent("Other User");
   });
@@ -881,7 +917,7 @@ it("keeps an added overlay until a later authoritative page contains it, then ex
   ).toHaveTextContent("Owner");
   expect(
     within(
-      screen.getByRole("article", {
+      screen.getByRole("row", {
         name: "Authoritative Later User workspace member",
       }),
     ).getByText("Outside domain policy"),

@@ -1,6 +1,8 @@
 {
   "navigation": {
     "label": "Account settings",
+    "open": "Open account settings",
+    "description": "Choose an account settings page.",
     "profile": "Profile",
     "connections": "Connections",
     "security": "Security",
@@ -61,6 +63,8 @@
   },
   "connections": {
     "connectionLabel": "{provider} connection",
+    "emptyTitle": "No sign-in connections",
+    "emptyDescription": "No external sign-in providers are available for this account.",
     "connected": "Connected",
     "notConnected": "Not connected",
     "configurationUnavailable": "Provider configuration is unavailable",
@@ -129,6 +133,11 @@
   "deleteAccount": {
     "title": "Delete account?",
     "description": "Your account, verified emails, provider connections, and sessions will be permanently deleted.",
+    "warningTitle": "Warning",
+    "warningData": "All your data will be permanently deleted",
+    "warningProviders": "Your connected accounts will be unlinked",
+    "warningSessions": "Your active sessions will be terminated",
+    "warningIrreversible": "This action cannot be reversed",
     "confirmationLabel": "Type {email} to confirm",
     "confirmationHint": "The email must match exactly.",
     "cancel": "Cancel",

@@ -31,7 +31,21 @@
     "loadMore": "Load more workspaces",
     "loadingMore": "Loading more workspaces",
     "partialFailureTitle": "Some workspaces could not be loaded.",
-    "partialFailureDescription": "The workspaces already shown are still available. Try loading more again later."
+    "partialFailureDescription": "The workspaces already shown are still available. Try loading more again later.",
+    "steps": {
+      "create": {
+        "title": "Create a Workspace",
+        "description": "Start with a workspace for a separate product, project, or team context."
+      },
+      "domain": {
+        "title": "Configure Email Policy",
+        "description": "Choose the exact email domains that are allowed to join this workspace."
+      },
+      "switch": {
+        "title": "Switch Between Workspaces",
+        "description": "Use the workspace switcher in the sidebar to move between contexts without losing your place."
+      }
+    }
   },
   "roles": {
     "owner": "Owner",
@@ -43,7 +57,8 @@
     "slugLabel": "Slug",
     "roleLabel": "Role: {role}",
     "settings": "Settings",
-    "open": "Open workspace"
+    "open": "Open workspace",
+    "summary": "Open this workspace to access its dashboard and manage its settings."
   },
   "switcher": {
     "current": "Current workspace: {name}",
@@ -65,6 +80,8 @@
       "teams": "Teams",
       "invitations": "Invitations",
       "apiKeys": "API keys",
+      "open": "Open workspace settings",
+      "description": "Choose a workspace settings page.",
       "loading": "Loading workspace settings"
     },
     "pages": {
@@ -192,6 +209,13 @@
         "notFound": "This member is no longer available.",
         "concurrency": "Workspace membership changed elsewhere. Try again.",
         "generic": "The member role could not be updated."
+      },
+      "joinedUnavailable": "Not available",
+      "columns": {
+        "user": "User",
+        "email": "Email",
+        "roles": "Roles",
+        "joined": "Joined"
       }
     },
     "roles": {

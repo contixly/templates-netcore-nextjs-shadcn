@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
-import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
+import { OrganizationOnboarding } from "@/src/features/organizations/ui/organization-onboarding";
 import { applicationRoutes } from "@/src/features/application/application-routes";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";

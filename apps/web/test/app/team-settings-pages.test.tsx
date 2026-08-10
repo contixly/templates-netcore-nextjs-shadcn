@@ -3,7 +3,7 @@ import { isValidElement, type ReactElement, type ReactNode } from "react";
 
 import TeamsSwitcherSlot from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/teams/page";
 import TeamsPage from "@/src/app/(protected)/w/[organizationKey]/settings/teams/page";
-import { TeamDirectory } from "@/src/components/collaboration/team-directory";
+import { TeamDirectory } from "@/src/features/collaboration/ui/team-directory";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import type {
   OrganizationDetailResponse,
@@ -147,10 +147,9 @@ it("loads the first REST page for SSR and keys the directory by immutable organi
   expect(
     screen.getByRole("heading", { level: 1, name: "Workspace teams" }),
   ).toBeVisible();
-  expect(screen.getByText("Platform").closest("article")).toHaveAttribute(
-    "data-mode",
-    "wide",
-  );
+  expect(
+    screen.getByText("Platform").closest('[data-slot="settings-page-section"]'),
+  ).toHaveAttribute("data-mode", "wide");
   const headings = Array.from(
     view.container.querySelectorAll("h1, h2"),
     (heading) => heading.textContent?.trim(),

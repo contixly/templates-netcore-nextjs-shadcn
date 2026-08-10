@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
-import { LogoutButton } from "@/src/components/authentication/logout-button";
+import { LogoutButton } from "@/src/features/authentication/ui/logout-button";
 import { logoutBrowserSession } from "@/src/lib/api/auth/browser/logout-browser-session";
 import { renderWithMessages } from "@/test/support/render";
 

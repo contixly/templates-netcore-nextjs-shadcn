@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import { ApiKeyRotateDialog } from "@/src/components/api-keys/api-key-rotate-dialog";
+import { ApiKeyRotateDialog } from "@/src/features/api-keys/ui/api-key-rotate-dialog";
 import { rotateBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { Client } from "@/src/lib/api/generated/client";

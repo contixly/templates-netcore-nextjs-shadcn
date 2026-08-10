@@ -10,7 +10,7 @@ import { renderToString } from "react-dom/server";
 import {
   OrganizationSwitcher,
   type OrganizationSwitcherItem,
-} from "@/src/components/organizations/organization-switcher";
+} from "@/src/features/organizations/ui/organization-switcher";
 import { setActiveBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 
@@ -37,20 +37,23 @@ const organizations = [
   {
     id: "old-id",
     name: "Old",
+    slug: "old-slug",
     canonicalKey: "old",
     canManageInvitations: true,
   },
   {
     id: "new-id",
     name: "New",
+    slug: "new-slug",
     canonicalKey: "new",
     canManageInvitations: false,
   },
-] satisfies OrganizationSwitcherItem[];
+] satisfies (OrganizationSwitcherItem & { slug: string })[];
 
 const offPageCurrent = {
   id: "off-page-id",
   name: "Workspace Fifty One",
+  slug: "workspace-fifty-one-slug",
   canonicalKey: "workspace-fifty-one",
   canManageInvitations: false,
 };
@@ -113,11 +116,20 @@ it("keeps the switcher trigger unavailable in server HTML until its client handl
     expect(trigger).toHaveAttribute(organizationControlReadyAttribute, "true");
   });
   expect(trigger).toBeEnabled();
+  expect(trigger).toHaveTextContent("old-slug");
 
   fireEvent.click(trigger);
+  const option = await screen.findByRole("menuitem", { name: "Switch to New" });
+  expect(option).toBeVisible();
+  expect(option).toHaveTextContent("New");
+  expect(option).toHaveTextContent("new-slug");
+  expect(screen.getByRole("menu")).toHaveClass(
+    "w-(--radix-dropdown-menu-trigger-width)",
+    "min-w-64",
+  );
   expect(
-    await screen.findByRole("button", { name: "Switch to New" }),
-  ).toBeVisible();
+    screen.getByRole("menuitem", { name: "Manage workspaces" }),
+  ).toHaveAttribute("href", "/workspaces");
 });
 
 it.each([
@@ -159,10 +171,10 @@ it.each([null, "active-id-beyond-first-page"])(
     );
 
     expect(
-      await screen.findByRole("button", { name: "Switch to Old" }),
+      await screen.findByRole("menuitem", { name: "Switch to Old" }),
     ).not.toHaveAttribute("aria-current");
     expect(
-      screen.getByRole("button", { name: "Switch to New" }),
+      screen.getByRole("menuitem", { name: "Switch to New" }),
     ).not.toHaveAttribute("aria-current");
   },
 );
@@ -183,7 +195,9 @@ it("selects a workspace from an unresolved global active state", async () => {
   );
 
   fireEvent.click(screen.getByRole("button", { name: "No active workspace" }));
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
 
   await waitFor(() => {
     expect(setActive).toHaveBeenCalledWith(
@@ -213,7 +227,9 @@ it("switches a global route to the selected workspace dashboard and closes mobil
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
 
   await waitFor(() => {
     expect(push).toHaveBeenCalledWith("/w/new/dashboard");
@@ -237,7 +253,7 @@ it("uses the explicit current context when it is not in the first page", async (
   );
 
   expect(
-    await screen.findByRole("button", {
+    await screen.findByRole("menuitem", {
       name: "Switch to Workspace Fifty One",
     }),
   ).toHaveAttribute("aria-current", "true");
@@ -249,6 +265,7 @@ it("replaces a stale same-id list entry with the authoritative current detail", 
       currentOrganization={{
         id: "old-id",
         name: "Renamed Workspace",
+        slug: "renamed-workspace",
         canonicalKey: "old",
         canManageInvitations: true,
       }}
@@ -266,14 +283,16 @@ it("replaces a stale same-id list entry with the authoritative current detail", 
   fireEvent.click(trigger);
 
   expect(
-    await screen.findByRole("button", {
+    await screen.findByRole("menuitem", {
       name: "Switch to Renamed Workspace",
     }),
   ).toHaveAttribute("aria-current", "true");
   expect(
-    screen.queryByRole("button", { name: "Switch to Old" }),
+    screen.queryByRole("menuitem", { name: "Switch to Old" }),
   ).not.toBeInTheDocument();
-  expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  expect(screen.getAllByRole("menuitem", { name: /^Switch to / })).toHaveLength(
+    2,
+  );
 });
 
 it("preserves the full accessible name while constraining long labels", () => {
@@ -284,6 +303,7 @@ it("preserves the full accessible name while constraining long labels", () => {
       currentOrganization={{
         id: "long-id",
         name: longName,
+        slug: "long-workspace",
         canonicalKey: "long",
         canManageInvitations: false,
       }}
@@ -291,6 +311,7 @@ it("preserves the full accessible name while constraining long labels", () => {
         {
           id: "long-id",
           name: longName,
+          slug: "long-workspace",
           canonicalKey: "long",
           canManageInvitations: false,
         },
@@ -330,7 +351,9 @@ it("sets active context before preserving a registered route and refreshing once
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
 
   await waitFor(() => {
     expect(setActive).toHaveBeenCalledWith(
@@ -358,7 +381,9 @@ it("notifies the shell when workspace-list navigation starts", async () => {
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  const link = await screen.findByRole("link", { name: "Manage workspaces" });
+  const link = await screen.findByRole("menuitem", {
+    name: "Manage workspaces",
+  });
   link.addEventListener("click", (event) => event.preventDefault());
   fireEvent.click(link);
 
@@ -391,7 +416,7 @@ it.each([
       screen.getByRole("button", { name: "Current workspace: Old" }),
     );
     fireEvent.click(
-      await screen.findByRole("button", { name: "Switch to New" }),
+      await screen.findByRole("menuitem", { name: "Switch to New" }),
     );
 
     await waitFor(() => {
@@ -411,7 +436,9 @@ it("makes a successful continuation inert after permanent deletion", async () =>
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => expect(setActive).toHaveBeenCalledTimes(1));
 
   view.unmount();
@@ -445,7 +472,9 @@ it("settles an Activity-hidden switch and refreshes once without replaying stale
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => expect(setActive).toHaveBeenCalledTimes(1));
 
   view.rerender(withMessages(<Activity mode="hidden">{switcher}</Activity>));
@@ -491,7 +520,9 @@ it("discards a queued hidden refresh on permanent deletion", async () => {
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => expect(setActive).toHaveBeenCalledTimes(1));
   view.rerender(withMessages(<Activity mode="hidden">{switcher}</Activity>));
   expect(hidden).toHaveBeenCalledTimes(1);
@@ -545,7 +576,9 @@ it("discards a queued Activity-hidden refresh after the mounted pathname changes
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => expect(setActive).toHaveBeenCalledTimes(1));
 
   view.rerender(renderActivity("hidden", originalPathname));
@@ -575,7 +608,9 @@ it("discards a queued Activity-hidden refresh after the mounted pathname changes
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => {
     expect(setActive).toHaveBeenCalledTimes(2);
     expect(push).toHaveBeenCalledWith("/w/new/settings/users");
@@ -605,7 +640,9 @@ it("reconciles a safe Activity-hidden failure and unlocks a visible retry", asyn
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => expect(setActive).toHaveBeenCalledTimes(1));
   view.rerender(withMessages(<Activity mode="hidden">{switcher}</Activity>));
   expect(hidden).toHaveBeenCalledTimes(1);
@@ -631,7 +668,7 @@ it("reconciles a safe Activity-hidden failure and unlocks a visible retry", asyn
   expect(
     screen.queryByText("organization_permission_denied"),
   ).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Switch to New" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Switch to New" }));
   await waitFor(() => {
     expect(setActive).toHaveBeenCalledTimes(2);
     expect(push).toHaveBeenCalledWith("/w/new/settings/users");
@@ -656,15 +693,16 @@ it("permanently suppresses an old switch after the mounted pathname changes away
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => expect(setActive).toHaveBeenCalledTimes(1));
 
   pathname.mockReturnValue("/w/new/settings/roles");
   view.rerender(renderSwitcher());
-  expect(screen.getByRole("button", { name: "Switch to New" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  expect(
+    screen.getByRole("menuitem", { name: "Switch to New" }),
+  ).toHaveAttribute("aria-current", "true");
   pathname.mockReturnValue("/w/old/settings/users");
   view.rerender(renderSwitcher());
 
@@ -681,7 +719,9 @@ it("permanently suppresses an old switch after the mounted pathname changes away
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => {
     expect(setActive).toHaveBeenCalledTimes(2);
     expect(push).toHaveBeenCalledWith("/w/new/settings/users");
@@ -704,7 +744,9 @@ it("settles a route-exited failure safely and allows the current route to retry"
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
   await waitFor(() => expect(setActive).toHaveBeenCalledTimes(1));
 
   pathname.mockReturnValue("/w/new/settings/roles");
@@ -729,7 +771,7 @@ it("settles a route-exited failure safely and allows the current route to retry"
     screen.queryByText("organization_permission_denied"),
   ).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Switch to Old" }));
+  fireEvent.click(screen.getByRole("menuitem", { name: "Switch to Old" }));
   await waitFor(() => {
     expect(setActive).toHaveBeenCalledTimes(2);
     expect(push).toHaveBeenCalledWith("/w/old/settings/roles");
@@ -753,7 +795,9 @@ it("persists an explicitly selected routed organization when the session prefere
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to Old" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to Old" }),
+  );
 
   await waitFor(() => {
     expect(setActive).toHaveBeenCalledWith(
@@ -779,7 +823,9 @@ it("closes without transport only when the routed and active organizations both 
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to Old" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to Old" }),
+  );
 
   await waitFor(() => {
     expect(
@@ -802,7 +848,9 @@ it("falls back unknown deep paths to the selected dashboard", async () => {
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
 
   await waitFor(() => {
     expect(push).toHaveBeenCalledWith("/w/new/dashboard");
@@ -821,7 +869,7 @@ it("routes truncated switcher results to the canonical client-paged workspace li
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
   expect(
-    await screen.findByRole("link", { name: "Load more workspaces" }),
+    await screen.findByRole("menuitem", { name: "Load more workspaces" }),
   ).toHaveAttribute("href", "/workspaces");
 });
 
@@ -841,7 +889,7 @@ it.each([
     fireEvent.click(
       screen.getByRole("button", { name: "Current workspace: Old" }),
     );
-    const link = await screen.findByRole("link", { name: linkName });
+    const link = await screen.findByRole("menuitem", { name: linkName });
     link.addEventListener("click", (event) => event.preventDefault());
     fireEvent.click(link);
 
@@ -868,7 +916,9 @@ it("keeps navigation blocked and shows safe failure copy when switching fails", 
   fireEvent.click(
     screen.getByRole("button", { name: "Current workspace: Old" }),
   );
-  fireEvent.click(await screen.findByRole("button", { name: "Switch to New" }));
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Switch to New" }),
+  );
 
   expect(await screen.findByRole("alert")).toHaveTextContent(
     "Unable to switch workspaces right now.",

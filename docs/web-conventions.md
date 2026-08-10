@@ -287,11 +287,36 @@ npm test -- --runInBand
 npm run build
 npm run e2e:install
 npm run e2e
+npm run e2e:visual
 test -f .next/standalone/server.js
 ```
 
-E2E starts ASP.NET Core on `127.0.0.1:5297` and Next.js on
-`127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.
+`npm run e2e:install` installs both Chromium and WebKit. The desktop projects
+use Chromium; the mobile visual projects use the iPhone 13 WebKit descriptor.
+E2E starts ASP.NET Core on `127.0.0.1:5297` and the primary Next.js deployment
+on `127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.
+
+`npm run e2e` remains the portable developer/CI suite. Outside the canonical
+pixel-baseline environment it keeps the normal `desktop-light` behavioral E2E
+coverage, excludes `ui-reference-parity.spec.ts`, and does not start the extra
+RU/mobile visual deployments. Live-provider discovery remains independently
+limited to its five `desktop-light` opt-in smokes.
+
+Pixel comparison and baseline updates are deliberately separate. Run
+`npm run e2e:visual` only in the canonical environment: macOS 26.5.2 / Darwin
+25.5.0 on arm64, Playwright 1.61.1, Chromium revision 1228
+(149.0.7827.55), WebKit revision 2311 (26.5), and the macOS SF Pro system font
+profile selected through `system-ui`/`-apple-system`. The command asserts this
+contract before Playwright starts and fails closed on any mismatch; a
+noncanonical runtime never compares or updates the canonical PNGs. The visual
+spec also injects the fixed system-font stack before every capture.
+
+The additional RU and secure mobile Next.js deployments are prepared by
+`scripts/run-e2e-web-server.mjs`. It uses Node filesystem/process APIs instead
+of POSIX shell copy/link commands, creates one-day loopback certificates only
+inside the OS temporary directory, and launches the installed Next.js binary
+with the current Node executable. No certificate, browser download, trace, or
+test-result artifact is tracked.
 
 ## Organization-aware UI (iteration 5)
 

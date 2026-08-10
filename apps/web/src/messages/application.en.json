@@ -9,6 +9,10 @@
     "description": "Start with a secure application foundation that keeps the API and web UI cleanly separated.",
     "primaryAction": "Get started",
     "secondaryAction": "Read the documentation",
+    "sourceTitle": "Inspect the implementation",
+    "sourceDescription": "Review the Next.js UI and ASP.NET Core 10 REST boundary in the public source repository.",
+    "sourceAction": "Open GitHub",
+    "securityNote": "Same-origin HttpOnly sessions and CSRF validation keep browser credentials out of client storage.",
     "featuresTitle": "A clear boundary from browser to business logic",
     "featuresDescription": "ASP.NET Core owns the API while Next.js stays focused on the product experience.",
     "features": {
@@ -32,6 +36,7 @@
     "valueEyebrow": "Reusable by design",
     "valueTitle": "Keep the foundation. Make the product yours.",
     "valueDescription": "Use the shared shell and documented boundaries, then add only the domain behavior your product needs.",
+    "valueAction": "Start building",
     "footer": "© 2026 Application Template",
     "footerDescription": "A target-architecture starter for ASP.NET Core and Next.js."
   },

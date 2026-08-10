@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 
-import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
+import { AuthApiFailure } from "@/src/features/authentication/ui/auth-api-failure";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { renderWithMessages } from "@/test/support/render";
 

@@ -3,13 +3,13 @@ import { connection } from "next/server";
 import { getTranslations } from "next-intl/server";
 import { Suspense, type ReactNode } from "react";
 
-import { AccountNav } from "@/src/components/account/account-nav";
+import { AccountNav } from "@/src/features/account/ui/account-nav";
 import {
   SettingsContentRail,
   SettingsPageShell,
-} from "@/src/components/application/settings/settings-shell";
-import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
-import { LogoutButton } from "@/src/components/authentication/logout-button";
+} from "@/src/features/application/ui/settings/settings-shell";
+import { AuthApiFailure } from "@/src/features/authentication/ui/auth-api-failure";
+import { LogoutButton } from "@/src/features/authentication/ui/logout-button";
 import { accountRoutes } from "@/src/features/account/account-routes";
 import { authLoginUrl } from "@/src/features/authentication/sanitize-auth-redirect";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
@@ -46,7 +46,7 @@ export async function AuthenticatedAccountShell({
 
   return (
     <SettingsPageShell>
-      <div className="w-full shrink-0 md:w-56">
+      <div className="w-full shrink-0 md:w-64">
         <AccountNav />
         <div className="border-b p-2 md:border-r">
           <LogoutButton />

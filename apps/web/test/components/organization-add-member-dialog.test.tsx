@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 
-import { OrganizationAddMemberDialog } from "@/src/components/organizations/organization-add-member-dialog";
+import { OrganizationAddMemberDialog } from "@/src/features/organizations/ui/organization-add-member-dialog";
 import { addBrowserOrganizationMember } from "@/src/lib/api/organizations/browser/organization-mutations";
 import type { OrganizationMemberResponse } from "@/src/lib/api/generated/types.gen";
 import type { ApiResult } from "@/src/lib/api/result";

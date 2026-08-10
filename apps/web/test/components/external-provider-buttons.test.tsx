@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
-import { ExternalProviderButtons } from "@/src/components/authentication/external-provider-buttons";
+import { ExternalProviderButtons } from "@/src/features/authentication/ui/external-provider-buttons";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import type { AuthProviderResponse } from "@/src/lib/api/generated";

@@ -4,9 +4,9 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
-import { SessionList } from "@/src/components/account/session-list";
+import { SessionList } from "@/src/features/account/ui/session-list";
 import { loadSessions } from "@/src/lib/api/account/server/load-sessions";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";

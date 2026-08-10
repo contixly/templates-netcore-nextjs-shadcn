@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 
+import { SimpleApplicationShell } from "@/src/features/application/ui/simple-application-shell";
+
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
   alternates: { canonical: null },
@@ -10,5 +12,5 @@ export const metadata: Metadata = {
 export default function SimpleLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  return children;
+  return <SimpleApplicationShell>{children}</SimpleApplicationShell>;
 }

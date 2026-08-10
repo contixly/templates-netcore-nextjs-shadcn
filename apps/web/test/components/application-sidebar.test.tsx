@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { ApplicationSidebar } from "@/src/components/application/application-sidebar";
+import { ApplicationSidebar } from "@/src/features/application/ui/application-sidebar";
 import { SidebarProvider, useSidebar } from "@/src/components/ui/sidebar";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import type { ApplicationShellData } from "@/src/features/application/application-shell-model";
@@ -81,7 +81,7 @@ jest.mock("@/src/hooks/use-mobile", () => ({
   useIsMobile: () => mockIsMobile,
 }));
 
-jest.mock("@/src/components/organizations/organization-switcher", () => ({
+jest.mock("@/src/features/organizations/ui/organization-switcher", () => ({
   OrganizationSwitcher: ({
     activeOrganizationId,
     currentOrganization,
@@ -107,10 +107,10 @@ jest.mock("@/src/components/organizations/organization-switcher", () => ({
   },
 }));
 
-jest.mock("@/src/components/authentication/logout-button", () => ({
+jest.mock("@/src/features/authentication/ui/logout-button", () => ({
   LogoutButton: () => <button type="button">Log out</button>,
 }));
-jest.mock("@/src/components/organizations/organization-create-dialog", () => ({
+jest.mock("@/src/features/organizations/ui/organization-create-dialog", () => ({
   OrganizationCreateDialog: ({ onNavigate }: { onNavigate?: () => void }) => (
     <div>
       <button type="button">Create workspace</button>
@@ -175,7 +175,7 @@ it("labels the desktop rail from the current collapsed state", () => {
   ).toBeInTheDocument();
 });
 
-it("keeps the collapsed brand link accessible through a localized name", () => {
+it("keeps the workspace action rendered in the collapsed sidebar header", () => {
   render(
     <TooltipProvider>
       <SidebarProvider defaultOpen={false}>
@@ -184,14 +184,10 @@ it("keeps the collapsed brand link accessible through a localized name", () => {
     </TooltipProvider>,
   );
 
-  const brandLink = screen.getByRole("link", {
-    name: "Application Template home",
-  });
-  expect(brandLink).toHaveAttribute("href", "/w/acme/dashboard");
-  expect(brandLink).toHaveAccessibleName("Application Template home");
   expect(
-    screen.queryByText("Application Template home"),
-  ).not.toBeInTheDocument();
+    screen.getByRole("button", { name: "Current workspace: Acme" }),
+  ).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Open sidebar" })).toBeEnabled();
 });
 
 it("provides a focusable localized close action inside the mobile sheet", () => {
@@ -236,7 +232,6 @@ it("provides a focusable localized close action inside the mobile sheet", () => 
 });
 
 it.each([
-  ["Template", "link"],
   ["Complete workspace navigation", "button"],
   ["Complete workspace creation", "button"],
 ] as const)(

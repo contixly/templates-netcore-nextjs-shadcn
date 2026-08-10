@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
-import { BrowserSystemStatus } from "@/src/components/system/browser-system-status";
+import { BrowserSystemStatus } from "@/src/features/application/ui/system/browser-system-status";
 import { loadBrowserSystemStatus } from "@/src/lib/api/browser/load-browser-system-status";
 import type { SystemStatusResult } from "@/src/lib/api/result";
 import { renderWithMessages } from "@/test/support/render";

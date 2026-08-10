@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import { AccountNavigation } from "@/src/components/application/account-navigation";
-import { PrimaryNavigation } from "@/src/components/application/primary-navigation";
+import { AccountNavigation } from "@/src/features/application/ui/account-navigation";
+import { PrimaryNavigation } from "@/src/features/application/ui/primary-navigation";
 import { useMobileSidebarClose } from "@/src/hooks/use-mobile-sidebar-close";
 
 const setOpenMobile = jest.fn();
@@ -34,12 +34,12 @@ jest.mock("next-intl", () => ({
       documentation: "Documentation",
     })[key] ?? key,
 }));
-jest.mock("@/src/components/organizations/organization-create-dialog", () => ({
+jest.mock("@/src/features/organizations/ui/organization-create-dialog", () => ({
   OrganizationCreateDialog: () => (
     <button type="button">Create workspace</button>
   ),
 }));
-jest.mock("@/src/components/authentication/logout-button", () => ({
+jest.mock("@/src/features/authentication/ui/logout-button", () => ({
   LogoutButton: () => <button type="button">Log out</button>,
 }));
 

@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import { TeamDirectory } from "@/src/components/collaboration/team-directory";
+import { TeamDirectory } from "@/src/features/collaboration/ui/team-directory";
 import { getTeamMembers, getTeams } from "@/src/lib/api/generated/sdk.gen";
 import type { TeamResponse } from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages, withMessages } from "@/test/support/render";

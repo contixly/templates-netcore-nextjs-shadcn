@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 
-import { ActivityChart } from "@/src/components/dashboard/activity-chart";
+import { ActivityChart } from "@/src/features/dashboard/ui/activity-chart";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { renderWithMessages } from "@/test/support/render";
 import { mockDashboardGeometry } from "@/test/support/dashboard-geometry";

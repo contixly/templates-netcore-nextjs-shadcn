@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import { connection } from "next/server";
 
-import { AuthenticatedAccountNavigation } from "@/src/components/account/authenticated-account-navigation";
+import { AuthenticatedAccountNavigation } from "@/src/features/account/ui/authenticated-account-navigation";
 import { loadServerAuthSession } from "@/src/lib/api/auth/server/load-server-auth-session";
 import { renderWithMessages } from "@/test/support/render";
 
@@ -11,7 +11,7 @@ jest.mock("next/server", () => ({
 jest.mock("@/src/lib/api/auth/server/load-server-auth-session", () => ({
   loadServerAuthSession: jest.fn(),
 }));
-jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
+jest.mock("@/src/features/authentication/ui/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
 

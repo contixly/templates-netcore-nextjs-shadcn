@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 
-import { DocumentsHeader } from "@/src/components/documents/documents-header";
+import { DocumentsHeader } from "@/src/features/documents/ui/documents-header";
 import { searchDocuments } from "@/src/lib/api/documents/browser/search-documents";
 import type { DocumentSearchResponse } from "@/src/lib/api/generated/types.gen";
 import type { ApiResult } from "@/src/lib/api/result";
@@ -95,7 +95,7 @@ it.each(["ctrl", "meta"] as const)(
     openSearch(modifier);
 
     expect(screen.getByRole("dialog", { name: "Search docs" })).toBeVisible();
-    const input = screen.getByRole("searchbox", { name: "Search docs" });
+    const input = screen.getByRole("combobox", { name: "Search docs" });
     expect(input).toHaveAttribute("maxLength", "120");
     expect(screen.getByRole("status")).toHaveTextContent(
       "Loading search results",
@@ -147,15 +147,32 @@ it("groups page and heading results and navigates to their canonical hrefs", asy
   ).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Search docs" }));
-  expect(screen.getByRole("searchbox", { name: "Search docs" })).toHaveValue(
-    "",
-  );
+  expect(screen.getByRole("combobox", { name: "Search docs" })).toHaveValue("");
   await runDebounce();
   fireEvent.click(
     screen.getByRole("option", { name: /Create a key.*API keys/ }),
   );
 
   expect(push).toHaveBeenLastCalledWith("/docs/api/api-keys#create-a-key");
+});
+
+it("selects a result with ArrowDown and Enter", async () => {
+  mockedSearchDocuments.mockResolvedValue({
+    ok: true,
+    data: resultsResponse,
+  });
+  renderHeader();
+  openSearch();
+  await runDebounce();
+
+  const input = screen.getByRole("combobox", { name: "Search docs" });
+  fireEvent.keyDown(input, { key: "ArrowDown" });
+  fireEvent.keyDown(input, { key: "Enter" });
+
+  expect(push).toHaveBeenCalledWith("/docs/api/api-keys#create-a-key");
+  expect(
+    screen.queryByRole("dialog", { name: "Search docs" }),
+  ).not.toBeInTheDocument();
 });
 
 it("loads the empty query and distinguishes it from an empty filtered result", async () => {
@@ -171,7 +188,7 @@ it("loads the empty query and distinguishes it from an empty filtered result", a
     "No documents found",
   );
 
-  fireEvent.change(screen.getByRole("searchbox", { name: "Search docs" }), {
+  fireEvent.change(screen.getByRole("combobox", { name: "Search docs" }), {
     target: { value: "missing" },
   });
   await runDebounce();
@@ -211,7 +228,7 @@ it("aborts a replaced request and ignores its stale older success", async () => 
     .mockReturnValueOnce(newer.promise);
   renderHeader();
   openSearch();
-  const input = screen.getByRole("searchbox", { name: "Search docs" });
+  const input = screen.getByRole("combobox", { name: "Search docs" });
   fireEvent.change(input, { target: { value: "older" } });
   await runDebounce();
 
@@ -262,11 +279,11 @@ it("blocks old results during replacement and Escape closes and resets", async (
   openSearch();
   await runDebounce();
 
-  const input = screen.getByRole("searchbox", { name: "Search docs" });
+  const input = screen.getByRole("combobox", { name: "Search docs" });
   fireEvent.change(input, { target: { value: "replacement" } });
   expect(screen.getAllByRole("option")).not.toHaveLength(0);
   for (const option of screen.getAllByRole("option")) {
-    expect(option).toBeDisabled();
+    expect(option).toHaveAttribute("aria-disabled", "true");
   }
   await runDebounce();
   const replacementSignal = mockedSearchDocuments.mock.calls[1]?.[0].signal;
@@ -281,9 +298,7 @@ it("blocks old results during replacement and Escape closes and resets", async (
   expect(replacementSignal?.aborted).toBe(true);
 
   openSearch();
-  expect(screen.getByRole("searchbox", { name: "Search docs" })).toHaveValue(
-    "",
-  );
+  expect(screen.getByRole("combobox", { name: "Search docs" })).toHaveValue("");
   expect(screen.queryByText("API keys")).not.toBeInTheDocument();
 
   await act(async () => {

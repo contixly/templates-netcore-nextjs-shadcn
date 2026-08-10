@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 
-import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
+import { ApiKeyManagement } from "@/src/features/api-keys/ui/api-key-management";
 import {
   listBrowserApiKeys,
   revokeBrowserApiKey,
@@ -45,6 +45,25 @@ const listKeys = jest.mocked(listBrowserApiKeys);
 const revokeKey = jest.mocked(revokeBrowserApiKey);
 const rotateKey = jest.mocked(rotateBrowserApiKey);
 const updateKey = jest.mocked(updateBrowserApiKey);
+
+async function openApiKeyAction(
+  name: string,
+  action: "Edit" | "Disable" | "Enable" | "Rotate" | "Revoke",
+  scope: ReturnType<typeof within> | typeof screen = screen,
+) {
+  fireEvent.click(
+    scope.getByRole("button", { name: `Actions for ${name}`, exact: true }),
+  );
+  return screen.findByRole("menuitem", { name: action });
+}
+
+async function selectApiKeyAction(
+  name: string,
+  action: "Edit" | "Disable" | "Enable" | "Rotate" | "Revoke",
+  scope: ReturnType<typeof within> | typeof screen = screen,
+) {
+  fireEvent.click(await openApiKeyAction(name, action, scope));
+}
 
 beforeEach(() => {
   listKeys.mockReset();
@@ -129,14 +148,7 @@ it("keeps every server-rendered interaction unavailable until hydration", () => 
     ),
   );
   const document = new DOMParser().parseFromString(markup, "text/html");
-  const labels = [
-    "Create API key",
-    "Edit",
-    "Disable",
-    "Rotate",
-    "Revoke",
-    "Load more API keys",
-  ];
+  const labels = ["Create API key", "Load more API keys"];
 
   for (const label of labels) {
     const button = [...document.querySelectorAll("button")].find(
@@ -146,6 +158,13 @@ it("keeps every server-rendered interaction unavailable until hydration", () => 
     expect(button?.hasAttribute("disabled")).toBe(true);
     expect(button?.getAttribute("data-interaction-ready")).toBe("false");
   }
+
+  const actions = document.querySelector(
+    'button[aria-label="Actions for CLI integration"]',
+  );
+  expect(actions).not.toBeNull();
+  expect(actions?.hasAttribute("disabled")).toBe(true);
+  expect(actions?.getAttribute("data-interaction-ready")).toBe("false");
 });
 
 it("appends continuation pages without overwriting an authoritative first-page row", async () => {
@@ -227,7 +246,7 @@ it("rejects stale GET completion and keeps a confirmed mutation over an older re
   );
 
   fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
-  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await selectApiKeyAction("CLI integration", "Disable");
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
 
   const freshSecond = {
@@ -270,10 +289,10 @@ it("removes a confirmed revoke immediately", async () => {
     <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+  await selectApiKeyAction("CLI integration", "Revoke");
   fireEvent.click(
     within(
-      screen.getByRole("dialog", { name: "Revoke CLI integration?" }),
+      screen.getByRole("alertdialog", { name: "Revoke CLI integration?" }),
     ).getByRole("button", { name: "Revoke key" }),
   );
   await waitFor(() => {
@@ -298,7 +317,7 @@ it("keeps a rotate secret through failed refresh and retries only the safe GET",
     <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Rotate" }));
+  await selectApiKeyAction("CLI integration", "Rotate");
   fireEvent.click(
     within(
       screen.getByRole("dialog", { name: "Rotate CLI integration?" }),
@@ -336,7 +355,7 @@ it("serializes a mutation refresh against tail reads and retains an update overl
     />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await selectApiKeyAction("CLI integration", "Disable");
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(1));
   const loadMore = screen.getByRole("button", { name: "Load more API keys" });
   expect(loadMore).toBeDisabled();
@@ -378,7 +397,7 @@ it("keeps a tail read from committing after a confirmed mutation starts first-pa
   );
 
   fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
-  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await selectApiKeyAction("CLI integration", "Disable");
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
   await act(async () => {
     tail.resolve({
@@ -449,7 +468,7 @@ it.each([
     const tailRow = await screen.findByRole("row", {
       name: /Tail deployment key/,
     });
-    fireEvent.click(within(tailRow).getByRole("button", { name: "Disable" }));
+    await selectApiKeyAction(tail.name, "Disable", within(tailRow));
     await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
     expect(within(tailRow).getByText("Disabled")).toBeVisible();
 
@@ -511,7 +530,7 @@ it.each([
     const tailRow = await screen.findByRole("row", {
       name: /Tail precise key/,
     });
-    fireEvent.click(within(tailRow).getByRole("button", { name: "Disable" }));
+    await selectApiKeyAction(tail.name, "Disable", within(tailRow));
     await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
     await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(3));
@@ -561,10 +580,10 @@ it("keeps a tail revoke hidden through stale continuations and terminal traversa
 
   fireEvent.click(screen.getByRole("button", { name: "Load more API keys" }));
   const tailRow = await screen.findByRole("row", { name: /Tail revoked key/ });
-  fireEvent.click(within(tailRow).getByRole("button", { name: "Revoke" }));
+  await selectApiKeyAction(tail.name, "Revoke", within(tailRow));
   fireEvent.click(
     within(
-      screen.getByRole("dialog", { name: "Revoke Tail revoked key?" }),
+      screen.getByRole("alertdialog", { name: "Revoke Tail revoked key?" }),
     ).getByRole("button", { name: "Revoke key" }),
   );
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
@@ -632,10 +651,10 @@ it("clears a revoke overlay only after a terminal traversal confirms absence", a
   const tailRow = await screen.findByRole("row", {
     name: /Tail terminal revoke/,
   });
-  fireEvent.click(within(tailRow).getByRole("button", { name: "Revoke" }));
+  await selectApiKeyAction(tail.name, "Revoke", within(tailRow));
   fireEvent.click(
     within(
-      screen.getByRole("dialog", { name: "Revoke Tail terminal revoke?" }),
+      screen.getByRole("alertdialog", { name: "Revoke Tail terminal revoke?" }),
     ).getByRole("button", { name: "Revoke key" }),
   );
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
@@ -643,7 +662,7 @@ it("clears a revoke overlay only after a terminal traversal confirms absence", a
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(3));
   expect(screen.queryByText("Tail terminal revoke")).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await selectApiKeyAction("CLI integration", "Disable");
 
   expect(
     await screen.findByText("Tail returned after completed traversal"),
@@ -667,7 +686,7 @@ it("renders toggle Problem Details separately from pagination and never offers a
     />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await selectApiKeyAction("CLI integration", "Disable");
 
   expect(await screen.findByText(/do not have permission/)).toBeVisible();
   expect(screen.getByText("trace-toggle")).toBeVisible();
@@ -694,7 +713,7 @@ it("rejects a mismatched toggle response without adding or reconciling the wrong
     <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+  await selectApiKeyAction("CLI integration", "Disable");
 
   expect(
     await screen.findByText("The request could not be completed."),
@@ -713,10 +732,10 @@ it("rejects a mismatched revoke response without removing the requested row", as
     <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+  await selectApiKeyAction("CLI integration", "Revoke");
   fireEvent.click(
     within(
-      screen.getByRole("dialog", { name: "Revoke CLI integration?" }),
+      screen.getByRole("alertdialog", { name: "Revoke CLI integration?" }),
     ).getByRole("button", { name: "Revoke key" }),
   );
 
@@ -728,7 +747,7 @@ it("rejects a mismatched revoke response without removing the requested row", as
   expect(listKeys).not.toHaveBeenCalled();
 });
 
-it("leases a key to toggle before an already-open revoke and permits revoke only after the matching release", async () => {
+it("disables the action menu while a toggle owns the key lease and permits revoke after release", async () => {
   const togglePending = deferred<ApiResult<ApiKeyResponse>>();
   const disabled = {
     ...apiKey,
@@ -754,40 +773,25 @@ it("leases a key to toggle before an already-open revoke and permits revoke only
     <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
   );
 
-  const edit = screen.getByRole("button", { name: "Edit" });
-  const toggle = screen.getByRole("button", { name: "Disable" });
-  const rotate = screen.getByRole("button", { name: "Rotate" });
-  const revoke = screen.getByRole("button", { name: "Revoke" });
-  fireEvent.click(revoke);
-  const revokeSubmit = within(
-    screen.getByRole("dialog", { name: "Revoke CLI integration?" }),
-  ).getByRole("button", { name: "Revoke key" });
-
-  act(() => {
-    toggle.dispatchEvent(
-      new MouseEvent("click", { bubbles: true, cancelable: true }),
-    );
-    revokeSubmit.dispatchEvent(
-      new MouseEvent("click", { bubbles: true, cancelable: true }),
-    );
+  const actions = screen.getByRole("button", {
+    name: "Actions for CLI integration",
   });
+  await selectApiKeyAction("CLI integration", "Disable");
 
   expect(updateKey).toHaveBeenCalledTimes(1);
   expect(revokeKey).not.toHaveBeenCalled();
-  expect(
-    screen.getByText("Another action is already in progress for this API key."),
-  ).toBeVisible();
-  expect(edit).toBeDisabled();
-  expect(toggle).toBeDisabled();
-  expect(rotate).toBeDisabled();
-  expect(revoke).toBeDisabled();
+  expect(actions).toBeDisabled();
 
   await act(async () => {
     togglePending.resolve({ ok: true, data: disabled });
   });
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(1));
-  await waitFor(() => expect(revokeSubmit).toBeEnabled());
+  await waitFor(() => expect(actions).toBeEnabled());
 
+  await selectApiKeyAction("CLI integration", "Revoke");
+  const revokeSubmit = within(
+    screen.getByRole("alertdialog", { name: "Revoke CLI integration?" }),
+  ).getByRole("button", { name: "Revoke key" });
   fireEvent.click(revokeSubmit);
   await waitFor(() => expect(revokeKey).toHaveBeenCalledTimes(1));
   await waitFor(() => expect(listKeys).toHaveBeenCalledTimes(2));
@@ -796,11 +800,9 @@ it("leases a key to toggle before an already-open revoke and permits revoke only
   ).not.toBeInTheDocument();
 });
 
-it("leases a key to rotate before toggle and prevents the blocked action from overwriting rotation", async () => {
+it("disables row actions while rotation owns the key lease", async () => {
   const rotatePending =
     deferred<Awaited<ReturnType<typeof rotateBrowserApiKey>>>();
-  const blockedToggle =
-    deferred<Awaited<ReturnType<typeof updateBrowserApiKey>>>();
   const rotatedSecret = {
     ...apiKeySecret,
     start: "tmpl_live_rotated",
@@ -810,7 +812,6 @@ it("leases a key to rotate before toggle and prevents the blocked action from ov
   const { key: _raw, ...rotated } = rotatedSecret;
   void _raw;
   rotateKey.mockReturnValue(rotatePending.promise);
-  updateKey.mockReturnValue(blockedToggle.promise);
   listKeys.mockResolvedValue({
     ok: true,
     data: { items: [rotated], nextCursor: null },
@@ -819,33 +820,19 @@ it("leases a key to rotate before toggle and prevents the blocked action from ov
     <ApiKeyManagement initialPage={apiKeyPage} owner={{ kind: "personal" }} />,
   );
 
-  const edit = screen.getByRole("button", { name: "Edit" });
-  const toggle = screen.getByRole("button", { name: "Disable" });
-  const rotate = screen.getByRole("button", { name: "Rotate" });
-  const revoke = screen.getByRole("button", { name: "Revoke" });
-  fireEvent.click(rotate);
+  const actions = screen.getByRole("button", {
+    name: "Actions for CLI integration",
+  });
+  await selectApiKeyAction("CLI integration", "Rotate");
   const rotateSubmit = within(
     screen.getByRole("dialog", { name: "Rotate CLI integration?" }),
   ).getByRole("button", { name: "Rotate key" });
 
-  act(() => {
-    rotateSubmit.dispatchEvent(
-      new MouseEvent("click", { bubbles: true, cancelable: true }),
-    );
-    toggle.dispatchEvent(
-      new MouseEvent("click", { bubbles: true, cancelable: true }),
-    );
-  });
+  fireEvent.click(rotateSubmit);
 
   expect(rotateKey).toHaveBeenCalledTimes(1);
   expect(updateKey).not.toHaveBeenCalled();
-  expect(
-    screen.getByText("Another action is already in progress for this API key."),
-  ).toBeVisible();
-  expect(edit).toBeDisabled();
-  expect(toggle).toBeDisabled();
-  expect(rotate).toBeDisabled();
-  expect(revoke).toBeDisabled();
+  expect(actions).toBeDisabled();
 
   await act(async () => {
     rotatePending.resolve({ ok: true, data: rotatedSecret });

@@ -65,10 +65,10 @@ jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
 jest.mock("@/src/lib/api/organizations/server/load-organizations", () => ({
   loadOrganizations: jest.fn(),
 }));
-jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
+jest.mock("@/src/features/authentication/ui/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
-jest.mock("@/src/components/application/site-header", () => ({
+jest.mock("@/src/features/application/ui/site-header", () => ({
   OrganizationSwitcherRuntime: () => null,
 }));
 
@@ -436,6 +436,12 @@ it("renders only the authoritative first page at the canonical workspace URL", a
   expect(loadList).toHaveBeenCalledTimes(1);
   expect(loadList).toHaveBeenCalledWith();
   expect(screen.getAllByRole("article")).toHaveLength(1);
+  expect(
+    screen.queryByRole("heading", { name: "Workspaces" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Create and open your workspaces."),
+  ).not.toBeInTheDocument();
 });
 
 it("redirects stale cursor bookmarks to the canonical first-page workspace URL", async () => {

@@ -242,20 +242,22 @@ test.describe("collaboration full-stack workflows", () => {
     ).toBeVisible();
     const createTeamButton = page.getByRole("button", { name: "Create team" });
     await expect(createTeamButton).toBeEnabled();
-    await createTeamButton.click();
-    await page.getByLabel("Team name").fill("E2E Platform Team");
-    await page
+    const createTeamForm = createTeamButton.locator("xpath=ancestor::form");
+    await createTeamForm.getByLabel("Team name").fill("E2E Platform Team");
+    await createTeamForm
       .getByRole("button", { name: "Create team", exact: true })
       .click();
     await expect(
       page.getByText("Team created.", { exact: true }),
     ).toBeVisible();
 
-    await page
-      .getByRole("button", { name: "Rename E2E Platform Team" })
-      .click();
-    await page.getByLabel("Team name").fill("E2E Core Team");
-    await page
+    const renameTeamButton = page.getByRole("button", {
+      name: "Rename team",
+      exact: true,
+    });
+    const renameTeamForm = renameTeamButton.locator("xpath=ancestor::form");
+    await renameTeamForm.getByLabel("Team name").fill("E2E Core Team");
+    await renameTeamForm
       .getByRole("button", { name: "Rename team", exact: true })
       .click();
     await expect(
@@ -303,7 +305,7 @@ test.describe("collaboration full-stack workflows", () => {
     ).toBeVisible();
     for (const name of [
       "Create team",
-      "Rename E2E Core Team",
+      "Rename team",
       "Delete E2E Core Team",
       "Add member to E2E Core Team",
       "Remove E2E Team Member",
@@ -769,7 +771,7 @@ test.describe("collaboration full-stack workflows", () => {
     await page.goto(
       `/w/${encodeURIComponent(organization.canonicalKey)}/settings/users`,
     );
-    const invitedOwnerArticle = page.getByRole("article", {
+    const invitedOwnerArticle = page.getByRole("row", {
       name: "E2E Invited Owner workspace member",
     });
     await expect(invitedOwnerArticle).toContainText(

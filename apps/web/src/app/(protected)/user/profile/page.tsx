@@ -3,10 +3,9 @@ import { getTranslations } from "next-intl/server";
 import {
   SettingsPageIntro,
   SettingsPageSection,
-  SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
-import { ProfileForm } from "@/src/components/account/profile-form";
+import { ProfileForm } from "@/src/features/account/ui/profile-form";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";
@@ -60,9 +59,7 @@ export default async function ProfilePage() {
         description={page("description")}
         title={page("title")}
       />
-      <SettingsSection title={page("sectionTitle")}>
-        <ProfileForm headingLevel={3} initialAccount={result.data} />
-      </SettingsSection>
+      <ProfileForm initialAccount={result.data} />
     </SettingsPageSection>
   );
 }

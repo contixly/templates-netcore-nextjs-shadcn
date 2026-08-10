@@ -120,6 +120,7 @@ type Equal<Left, Right> =
   (<T>() => T extends Left ? 1 : 2) extends <T>() => T extends Right ? 1 : 2
     ? true
     : false;
+/* eslint-disable @typescript-eslint/no-unused-vars -- Type aliases below are compile-time SDK contract assertions. */
 type _CreateInvitationBodyIsRequired = Assert<
   Equal<undefined extends CreateInvitationData["body"] ? true : false, false>
 >;
@@ -470,6 +471,7 @@ type _OrganizationPrincipalNarrowing = [
     Equal<MachineOrganizationOwner["capabilities"]["canManageApiKeys"], false>
   >,
 ];
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 describe("generated system status SDK", () => {
   it("tracks the committed GetSystemStatus operation", () => {

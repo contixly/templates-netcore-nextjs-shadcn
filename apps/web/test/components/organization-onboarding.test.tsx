@@ -2,8 +2,8 @@ import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { Activity, StrictMode } from "react";
 import { renderToString } from "react-dom/server";
 
-import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
-import { OrganizationCreateDialog } from "@/src/components/organizations/organization-create-dialog";
+import { OrganizationOnboarding } from "@/src/features/organizations/ui/organization-onboarding";
+import { OrganizationCreateDialog } from "@/src/features/organizations/ui/organization-create-dialog";
 import { createBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 
@@ -84,7 +84,7 @@ it("keeps the create trigger unavailable in server HTML until its client handler
   expect(await screen.findByRole("dialog")).toBeVisible();
 });
 
-it("offers first-workspace creation, account settings, and invitation review", () => {
+it("offers first-workspace creation and invitation review without a target-only account action", () => {
   renderWithMessages(
     <main id="main-content">
       <OrganizationOnboarding />
@@ -95,8 +95,8 @@ it("offers first-workspace creation, account settings, and invitation review", (
     screen.getByRole("heading", { name: "Create your first workspace" }),
   ).toBeVisible();
   expect(
-    screen.getByRole("link", { name: "Account settings" }),
-  ).toHaveAttribute("href", "/user/profile");
+    screen.queryByRole("link", { name: "Account settings" }),
+  ).not.toBeInTheDocument();
   expect(
     screen.getByRole("link", { name: "Review Invitations" }),
   ).toHaveAttribute("href", "/user/invitations");

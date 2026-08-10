@@ -17,6 +17,8 @@ const allowedRouteHandlers = new Set([
 ]);
 const handwrittenTransportTypePattern =
   /(?:interface|type)\s+(?:SystemStatusResponse|ProblemDetails|HttpValidationProblemDetails|ApiResponseOfSystemStatusResponse|AuthCapabilitiesResponse|AuthSessionResponse|AuthUserResponse|AuthSessionMetadataResponse|AuthCsrfResponse|LocalAutomationScenarioResponse|LocalAutomationCleanupResponse|CreateLocalAutomationScenarioRequest|LocalAutomationSignInRequest|AcceptedInvitationResponse|AccountInvitationPageResponse|AddTeamMemberRequest|CreateInvitationRequest|InvitationDecisionResponse|InvitationResponse|OrganizationInvitationPageResponse|TeamCandidatePageResponse|TeamCandidateResponse|TeamDeletionResponse|TeamMemberPageResponse|TeamMemberRemovalResponse|TeamMemberResponse|TeamNameRequest|TeamPageResponse|TeamResponse|DocumentSearchHeadingResponse|DocumentSearchPageResponse|DocumentSearchResponse)\b/;
+const legacyPresentationImportPattern =
+  /["'`]@\/src\/components\/(?:application|account|authentication|api-keys|organizations|collaboration|dashboard|documents|system)(?:\/[^"'`]*)?["'`]/;
 
 const forbiddenPackages = [
   "@better-auth/prisma-adapter",
@@ -53,10 +55,25 @@ async function sourceFiles(directory) {
   return files;
 }
 
+for (const directory of [resolve(webRoot, "test"), resolve(webRoot, "e2e")]) {
+  for (const path of await sourceFiles(directory)) {
+    const localPath = relative(webRoot, path).split(sep).join("/");
+    const content = await readFile(path, "utf8");
+
+    if (legacyPresentationImportPattern.test(content)) {
+      violations.push(`legacy domain presentation import: ${localPath}`);
+    }
+  }
+}
+
 for (const path of await sourceFiles(sourceRoot)) {
   const localPath = relative(webRoot, path).split(sep).join("/");
   const content = await readFile(path, "utf8");
   const isGenerated = path.startsWith(`${generatedRoot}${sep}`);
+
+  if (legacyPresentationImportPattern.test(content)) {
+    violations.push(`legacy domain presentation import: ${localPath}`);
+  }
 
   if (isGenerated) {
     if (

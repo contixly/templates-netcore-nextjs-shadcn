@@ -6,10 +6,10 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
-import { TeamDirectory } from "@/src/components/collaboration/team-directory";
-import { OrganizationFailure } from "@/src/components/organizations/organization-list";
+import { TeamDirectory } from "@/src/features/collaboration/ui/team-directory";
+import { OrganizationFailure } from "@/src/features/organizations/ui/organization-list";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { collaborationRoutes } from "@/src/features/collaboration/collaboration-routes";
 import { loadTeams } from "@/src/lib/api/collaboration/server/load-teams";

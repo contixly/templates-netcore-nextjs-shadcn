@@ -3,7 +3,7 @@ import { fireEvent, screen } from "@testing-library/react";
 import {
   StatusCard,
   StatusCardSkeleton,
-} from "@/src/components/system/status-card";
+} from "@/src/features/application/ui/system/status-card";
 import { renderWithMessages } from "@/test/support/render";
 
 const success = {

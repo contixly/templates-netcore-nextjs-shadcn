@@ -1,5 +1,5 @@
-import { ApplicationNavigationSlot } from "@/src/components/application/application-navigation-slot";
-import { organizationRoutes } from "@/src/features/organizations/organization-routes";
+import { ApplicationNavigationSlot } from "@/src/features/application/ui/application-navigation-slot";
+import { dashboardRoutes } from "@/src/features/dashboard/dashboard-routes";
 
 export default async function OrganizationDashboardApplicationNavigation({
   params,
@@ -8,7 +8,7 @@ export default async function OrganizationDashboardApplicationNavigation({
 
   return (
     <ApplicationNavigationSlot
-      redirectPath={organizationRoutes.dashboard(organizationKey)}
+      redirectPath={dashboardRoutes.organization(organizationKey)}
       organizationKey={organizationKey}
     />
   );
