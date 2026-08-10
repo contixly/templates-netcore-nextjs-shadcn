@@ -55,7 +55,7 @@ export default async function ConnectionsPage() {
   }
 
   return (
-    <SettingsPageSection mode="wide">
+    <SettingsPageSection mode="readable">
       <SettingsPageIntro
         description={page("description")}
         title={page("title")}

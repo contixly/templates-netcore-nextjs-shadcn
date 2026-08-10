@@ -174,6 +174,36 @@ it("removes a session only after a successful revoke", async () => {
   ).not.toBeInTheDocument();
 });
 
+it("shows visible and accessible feedback while one session revoke is pending", async () => {
+  const request =
+    deferred<Awaited<ReturnType<typeof revokeBrowserAccountSession>>>();
+  revokeSession.mockReturnValue(request.promise);
+  renderWithMessages(
+    <SessionList initialPage={{ ...initialPage, nextCursor: null }} />,
+  );
+  const other = screen.getByRole("article", { name: "Safari on iOS" });
+
+  fireEvent.click(
+    within(other).getByRole("button", { name: "Revoke session" }),
+  );
+
+  const pendingButton = await within(other).findByRole("button", {
+    name: "Revoking session",
+  });
+  expect(pendingButton).toBeDisabled();
+  expect(pendingButton).toHaveAttribute("aria-busy", "true");
+  expect(pendingButton).toHaveTextContent("Revoking session");
+  expect(pendingButton.querySelector(".animate-spin")).not.toBeNull();
+
+  request.resolve({
+    ok: true,
+    data: { sessionId: otherSession.id },
+  });
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    "Session revoked.",
+  );
+});
+
 it("revokes all other sessions while preserving the current session", async () => {
   revokeOthers.mockResolvedValue({
     ok: true,

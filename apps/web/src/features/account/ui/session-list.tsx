@@ -344,6 +344,7 @@ export function SessionList({
       ) : sessions.length > 0 ? (
         <div className="grid gap-3">
           {sessions.map((session) => {
+            const isRevoking = pendingAction === session.id;
             const presentation = presentUserAgent(session.userAgent, {
               browser: t("unknownBrowser"),
               isMobile: false,
@@ -440,19 +441,25 @@ export function SessionList({
                 {!session.isCurrent ? (
                   <Button
                     {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-                    aria-label={t("revoke")}
+                    aria-busy={isRevoking ? true : undefined}
+                    aria-label={isRevoking ? t("revoking") : t("revoke")}
                     disabled={!interactionReady || pendingAction !== null}
                     onClick={() => void revoke(session)}
-                    size="icon"
+                    size={isRevoking ? "default" : "icon"}
                     type="button"
                     variant="ghost"
                   >
-                    <IconX aria-hidden="true" />
-                    <span className="sr-only">
-                      {pendingAction === session.id
-                        ? t("revoking")
-                        : t("revoke")}
-                    </span>
+                    {isRevoking ? (
+                      <>
+                        <Spinner data-icon="inline-start" />
+                        <span>{t("revoking")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <IconX aria-hidden="true" />
+                        <span className="sr-only">{t("revoke")}</span>
+                      </>
+                    )}
                   </Button>
                 ) : null}
               </article>

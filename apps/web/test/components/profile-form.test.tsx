@@ -38,17 +38,28 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-it("subordinates its internal sections beneath a settings section heading", () => {
+it("renders each profile concern as its own settings card", () => {
   renderWithMessages(<ProfileForm headingLevel={3} initialAccount={account} />);
 
-  for (const name of [
+  const sectionNames = [
     "Profile avatar",
     "Display name",
     "Verified email addresses",
-  ]) {
-    expect(screen.getByRole("heading", { level: 3, name })).toBeVisible();
+    "User ID",
+    "Member since",
+  ];
+
+  expect(screen.getAllByRole("region")).toHaveLength(sectionNames.length);
+  for (const name of sectionNames) {
+    expect(screen.getByRole("region", { name })).toHaveAttribute(
+      "data-slot",
+      "settings-section",
+    );
+    expect(screen.getByRole("heading", { level: 2, name })).toBeVisible();
   }
-  expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("region", { name: "Profile details" }),
+  ).not.toBeInTheDocument();
 });
 
 it("shows immutable account identifiers, verified emails, and creation date", () => {

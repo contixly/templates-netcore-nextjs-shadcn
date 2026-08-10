@@ -1,5 +1,5 @@
 import { NextIntlClientProvider } from "next-intl";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 
 import {
   AuthenticatedAccountShell,
@@ -48,6 +48,19 @@ const usePathname = jest.mocked(
 
 beforeEach(() => {
   jest.clearAllMocks();
+  Object.defineProperty(window, "matchMedia", {
+    configurable: true,
+    value: jest.fn().mockImplementation((query: string) => ({
+      addEventListener: jest.fn(),
+      addListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+      matches: false,
+      media: query,
+      onchange: null,
+      removeEventListener: jest.fn(),
+      removeListener: jest.fn(),
+    })),
+  });
 });
 
 it("renders the collaboration invitation destination in account settings", () => {
@@ -55,9 +68,9 @@ it("renders the collaboration invitation destination in account settings", () =>
 
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
     "Profile",
+    "Invitations",
     "Connections",
     "Security",
-    "Invitations",
     "API keys",
     "Danger",
   ]);
@@ -65,9 +78,9 @@ it("renders the collaboration invitation destination in account settings", () =>
     screen.getAllByRole("link").map((link) => link.getAttribute("href")),
   ).toEqual([
     "/user/profile",
+    "/user/invitations",
     "/user/connections",
     "/user/security",
-    "/user/invitations",
     "/user/api-keys",
     "/user/danger",
   ]);
@@ -98,13 +111,38 @@ it("marks exact and nested destinations active without prefix collisions", () =>
   }
 });
 
-it("keeps the account navigation responsive", () => {
+it("uses sidebar menu links on desktop and an icon-led drawer on mobile", async () => {
   renderWithMessages(<AccountNav pathname="/user/connections" />);
 
-  expect(screen.getByRole("list")).toHaveClass(
-    "overflow-x-auto",
-    "md:flex-col",
+  const desktopNavigation = screen.getByRole("navigation", {
+    name: "Account settings",
+  });
+  expect(
+    desktopNavigation.querySelectorAll('[data-slot="sidebar-menu-button"]'),
+  ).toHaveLength(6);
+  for (const link of within(desktopNavigation).getAllByRole("link")) {
+    expect(link.querySelector("svg")).not.toBeNull();
+  }
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Open account settings" }),
   );
+  const drawer = await screen.findByRole("dialog");
+  expect(
+    within(drawer)
+      .getAllByRole("link")
+      .map((link) => link.textContent),
+  ).toEqual([
+    "Profile",
+    "Invitations",
+    "Connections",
+    "Security",
+    "API keys",
+    "Danger",
+  ]);
+  for (const link of within(drawer).getAllByRole("link")) {
+    expect(link.querySelector("svg")).not.toBeNull();
+  }
 });
 
 it("uses the fixed Russian deployment locale for account navigation", () => {
@@ -120,9 +158,9 @@ it("uses the fixed Russian deployment locale for account navigation", () => {
 
   expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual([
     "Профиль",
+    "Приглашения",
     "Подключения",
     "Безопасность",
-    "Приглашения",
     "API-ключи",
     "Опасная зона",
   ]);

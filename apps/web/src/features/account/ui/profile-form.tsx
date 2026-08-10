@@ -31,7 +31,7 @@ import {
   ItemGroup,
   ItemTitle,
 } from "@/src/components/ui/item";
-import { Separator } from "@/src/components/ui/separator";
+import { SettingsSection } from "@/src/features/application/ui/settings/settings-shell";
 import { updateBrowserAccountProfile } from "@/src/lib/api/account/browser/account-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { AccountResponse } from "@/src/lib/api/generated";
@@ -63,7 +63,6 @@ function failureTrace(failure: ApiFailure): string | undefined {
 }
 
 export function ProfileForm({
-  headingLevel = 2,
   initialAccount,
 }: Readonly<{ headingLevel?: 2 | 3; initialAccount: AccountResponse }>) {
   const t = useTranslations("account.profile");
@@ -77,7 +76,6 @@ export function ProfileForm({
   const [failure, setFailure] = useState<ApiFailure | null>(null);
   const [updated, setUpdated] = useState(false);
   const [pending, setPending] = useState(false);
-  const SectionHeading = headingLevel === 3 ? "h3" : "h2";
   const primaryEmailProjection = account.verifiedEmails.find(
     (email) => email.isPrimary,
   );
@@ -124,22 +122,8 @@ export function ProfileForm({
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <section
-        className="flex flex-col gap-3"
-        aria-labelledby="profile-avatar-heading"
-      >
-        <div className="flex flex-col gap-1">
-          <SectionHeading
-            className="text-sm font-semibold"
-            id="profile-avatar-heading"
-          >
-            {t("avatar")}
-          </SectionHeading>
-          <p className="text-xs text-muted-foreground">
-            {t("avatarDescription")}
-          </p>
-        </div>
+    <div className="flex flex-col gap-4">
+      <SettingsSection description={t("avatarDescription")} title={t("avatar")}>
         <Avatar
           aria-label={account.imageUrl ? t("avatar") : t("avatarFallback")}
           className="size-20"
@@ -158,25 +142,12 @@ export function ProfileForm({
             {initials(account.displayName)}
           </AvatarFallback>
         </Avatar>
-      </section>
+      </SettingsSection>
 
-      <Separator />
-
-      <section
-        className="flex flex-col gap-3"
-        aria-labelledby="profile-name-heading"
+      <SettingsSection
+        description={t("displayNameHint")}
+        title={t("displayName")}
       >
-        <div className="flex flex-col gap-1">
-          <SectionHeading
-            className="text-sm font-semibold"
-            id="profile-name-heading"
-          >
-            {t("displayName")}
-          </SectionHeading>
-          <p className="text-xs text-muted-foreground">
-            {t("displayNameHint")}
-          </p>
-        </div>
         <form noValidate onSubmit={submit}>
           <FieldGroup>
             <Field
@@ -238,20 +209,9 @@ export function ProfileForm({
             ) : null}
           </FieldGroup>
         </form>
-      </section>
+      </SettingsSection>
 
-      <Separator />
-
-      <section
-        className="flex flex-col gap-3"
-        aria-labelledby="profile-emails-heading"
-      >
-        <SectionHeading
-          className="text-sm font-semibold"
-          id="profile-emails-heading"
-        >
-          {t("emails")}
-        </SectionHeading>
+      <SettingsSection title={t("emails")}>
         <ItemGroup>
           {verifiedEmails.map((verifiedEmail) => (
             <Item
@@ -281,28 +241,19 @@ export function ProfileForm({
             </Item>
           ))}
         </ItemGroup>
-      </section>
+      </SettingsSection>
 
-      <Separator />
+      <SettingsSection title={t("userId")}>
+        <p className="font-mono text-sm break-all">{account.id}</p>
+      </SettingsSection>
 
-      <dl className="grid gap-5 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <dt className="text-xs font-medium text-muted-foreground">
-            {t("userId")}
-          </dt>
-          <dd className="font-mono text-sm break-all">{account.id}</dd>
-        </div>
-        <div className="flex flex-col gap-1">
-          <dt className="text-xs font-medium text-muted-foreground">
-            {t("memberSince")}
-          </dt>
-          <dd className="text-sm">
-            <time dateTime={account.createdAt}>
-              {formattedDate(account.createdAt, locale)}
-            </time>
-          </dd>
-        </div>
-      </dl>
+      <SettingsSection title={t("memberSince")}>
+        <p className="text-sm">
+          <time dateTime={account.createdAt}>
+            {formattedDate(account.createdAt, locale)}
+          </time>
+        </p>
+      </SettingsSection>
     </div>
   );
 }

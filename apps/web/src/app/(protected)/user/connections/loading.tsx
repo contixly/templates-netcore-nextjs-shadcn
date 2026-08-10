@@ -11,7 +11,7 @@ export default async function ConnectionsLoading() {
   const t = await getTranslations("account.pages.connections");
 
   return (
-    <SettingsPageSection mode="wide">
+    <SettingsPageSection mode="readable">
       <SettingsPageIntro description={t("description")} title={t("title")} />
       <SettingsSection title={t("sectionTitle")}>
         <div aria-busy="true" className="flex flex-col gap-4" role="status">

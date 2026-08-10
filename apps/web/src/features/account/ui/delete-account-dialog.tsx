@@ -150,9 +150,14 @@ export function DeleteAccountDialog({
             />
             <div className="flex flex-col gap-1 text-sm">
               <p className="font-medium text-destructive">
-                {danger("warning")}
+                {t("warningTitle")}
               </p>
-              <p className="text-muted-foreground">{t("description")}</p>
+              <ul className="list-inside list-disc text-muted-foreground">
+                <li>{t("warningData")}</li>
+                <li>{t("warningProviders")}</li>
+                <li>{t("warningSessions")}</li>
+                <li>{t("warningIrreversible")}</li>
+              </ul>
             </div>
           </div>
         </div>

@@ -135,7 +135,7 @@ it("loads each projection through its Task 12 server adapter", async () => {
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
       heading.textContent?.trim(),
     ),
-  ).toEqual(["Profile settings", "Profile details"]);
+  ).toEqual(["Profile settings"]);
   expect(loadAccountMock).toHaveBeenCalledTimes(1);
   view.unmount();
 
@@ -145,7 +145,7 @@ it("loads each projection through its Task 12 server adapter", async () => {
     screen
       .getByText("connections projection 0")
       .closest('[data-slot="settings-page-section"]'),
-  ).toHaveAttribute("data-mode", "wide");
+  ).toHaveClass("max-w-3xl");
   expect(
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
       heading.textContent?.trim(),
@@ -219,6 +219,14 @@ it("renders all four localized loading states", async () => {
     expect(screen.getByRole("status")).toHaveTextContent(label);
     unmount();
   }
+});
+
+it("keeps the connections loading state on the readable content rail", async () => {
+  const view = render(await ConnectionsLoading());
+
+  expect(
+    view.container.querySelector('[data-slot="settings-page-section"]'),
+  ).toHaveClass("max-w-3xl");
 });
 
 it("renders all four safe error boundaries and retries", () => {

@@ -3,7 +3,6 @@ import { getTranslations } from "next-intl/server";
 import {
   SettingsPageIntro,
   SettingsPageSection,
-  SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
 import { ProfileForm } from "@/src/features/account/ui/profile-form";
@@ -60,9 +59,7 @@ export default async function ProfilePage() {
         description={page("description")}
         title={page("title")}
       />
-      <SettingsSection title={page("sectionTitle")}>
-        <ProfileForm headingLevel={3} initialAccount={result.data} />
-      </SettingsSection>
+      <ProfileForm initialAccount={result.data} />
     </SettingsPageSection>
   );
 }
