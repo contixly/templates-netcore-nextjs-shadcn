@@ -8,6 +8,7 @@ import { findDocumentBreadcrumbContext } from "@/src/features/documents/ui/docum
 import { DocumentsHeader } from "@/src/features/documents/ui/documents-header";
 import { DocumentsPageNavigation } from "@/src/features/documents/ui/documents-page-navigation";
 import { DocumentsSidebar } from "@/src/features/documents/ui/documents-sidebar";
+import { documentsRoutes } from "@/src/features/documents/documents-routes";
 import type {
   DocumentPageNavigation,
   DocumentsSidebarGroup,
@@ -27,7 +28,10 @@ export function DocumentsShell({
   pageNavigationByHref: Record<string, DocumentPageNavigation>;
 }>) {
   const pathname = usePathname();
-  const current = findDocumentBreadcrumbContext(navigation, pathname);
+  const current =
+    pathname === documentsRoutes.root
+      ? undefined
+      : findDocumentBreadcrumbContext(navigation, pathname);
   const pageNavigation = pageNavigationByHref[pathname];
 
   return (

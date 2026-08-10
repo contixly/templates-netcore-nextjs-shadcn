@@ -152,3 +152,87 @@ Result: exit 0 with 0 errors and the repository's same 17 pre-existing unused ty
 1. Non-blocking/pre-existing: repository-wide strict zero-warning lint would still exit non-zero because unchanged `test/contracts/generated-sdk.test.ts` has 17 `@typescript-eslint/no-unused-vars` warnings. Task-scoped strict lint passes.
 2. Non-blocking/tooling: Playwright emits repeated `NO_COLOR`/`FORCE_COLOR` warnings; all three requested journeys pass.
 3. Resolved/tooling: the initial E2E Testcontainer failure was Docker builder-cache exhaustion rather than a repository defect; pruning the cache restored the environment and subsequent E2E runs completed.
+
+## Review fix — Command keyboard selection and root breadcrumb
+
+Review-fix base: `80fc885e895879b41ff6a390eb0a0152a7570c03` (`refactor(web): align documentation UI`)
+
+Review-fix commit: this section's containing follow-up commit; the exact SHA is recorded in the task handoff.
+
+### RED
+
+Added a focused `ArrowDown` + `Enter` search interaction regression and a root-versus-nested breadcrumb contract, then ran:
+
+```bash
+npm test -- --runInBand test/components/documents/documents-search.test.tsx test/components/documents/documents-shell.test.tsx
+```
+
+```text
+FAIL test/components/documents/documents-search.test.tsx
+  selects a result with ArrowDown and Enter
+  Expected router.push("/docs/api/api-keys"); received 0 calls
+
+FAIL test/components/documents/documents-shell.test.tsx
+  suppresses root breadcrumb context while retaining nested context
+  Expected aria-label="Documentation"
+  Received aria-label="Documentation: Documentation overview"
+
+Test Suites: 2 failed, 2 total
+Tests:       2 failed, 11 passed, 13 total
+```
+
+The failures reproduced both Important review findings before source changes.
+
+### Fix
+
+- Replaced the plain search input/list/group/button structure with the shared cmdk-backed `CommandInput`, `CommandList`, `CommandGroup`, `CommandItem`, `CommandSeparator`, and `CommandShortcut` composition.
+- Kept `shouldFilter={false}` so the generated search response remains authoritative, retained debouncing, cancellation, generation arbitration, stale-result rejection, localized loading/empty/error states, disabled replacement results, and `router.push` navigation.
+- Added a command label so the combobox retains the localized `Search docs` accessible name; updated unit/E2E locators from the old native searchbox role to the actual cmdk combobox role.
+- Suppressed breadcrumb descendant context only when `usePathname()` equals `documentsRoutes.root`; nested routes continue to resolve their group, parent, and current document.
+
+### GREEN and verification
+
+Focused review regression run:
+
+```text
+Test Suites: 2 passed, 2 total
+Tests:       13 passed, 13 total
+```
+
+Full Task 6 focused run:
+
+```text
+Test Suites: 6 passed, 6 total
+Tests:       36 passed, 36 total
+Snapshots:   0 total
+```
+
+Full Jest run:
+
+```text
+Test Suites: 111 passed, 111 total
+Tests:       864 passed, 864 total
+Snapshots:   0 total
+```
+
+Documentation E2E:
+
+```text
+Running 3 tests using 1 worker
+3 passed (27.2s)
+```
+
+Additional commands:
+
+```bash
+npm run typecheck
+npm run boundaries:check
+npm run content:check
+APP_PUBLIC_ORIGIN=http://localhost:3000 npm run build
+npx eslint src/features/documents/ui/documents-search.tsx src/features/documents/ui/documents-search-results.tsx src/features/documents/ui/documents-shell.tsx test/components/documents/documents-search.test.tsx test/components/documents/documents-shell.test.tsx e2e/documents.spec.ts --max-warnings=0
+npx prettier --check ...
+```
+
+Result: PASS. All 8 boundary tests passed and the production build generated 144 pages. Repository-wide `npm run lint` still exits 0 with only the same 17 pre-existing warnings documented above.
+
+The review fix does not modify the document registry, locales, generated search SDK or request adapter, routes, metadata, OG output, authentication/API behavior, or `template/`.

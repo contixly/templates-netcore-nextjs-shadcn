@@ -11,7 +11,7 @@ import {
   type DocumentsSearchStatus,
 } from "@/src/features/documents/ui/documents-search-results";
 import { Button } from "@/src/components/ui/button";
-import { Command } from "@/src/components/ui/command";
+import { Command, CommandInput } from "@/src/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -20,12 +20,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { Input } from "@/src/components/ui/input";
 import { Kbd, KbdGroup } from "@/src/components/ui/kbd";
 import { resolveAppLocale } from "@/src/i18n/config";
 import { searchDocuments } from "@/src/lib/api/documents/browser/search-documents";
 import type { DocumentSearchResponse } from "@/src/lib/api/generated/types.gen";
-import { cn } from "@/src/lib/utils";
 
 const SEARCH_DEBOUNCE_MS = 250;
 const emptyResults: DocumentSearchResponse = { pages: [], headings: [] };
@@ -195,35 +193,23 @@ export function DocumentsSearch() {
           <DialogDescription>{t("description")}</DialogDescription>
         </DialogHeader>
 
-        <Command loop shouldFilter={false}>
-          <div className="flex items-center gap-2 border-b bg-input/30 p-3">
-            <IconSearch
-              aria-hidden="true"
-              className="size-4 shrink-0 opacity-50"
-            />
-            <Input
-              aria-label={t("open")}
-              autoComplete="off"
-              autoFocus
-              className="h-auto border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
-              maxLength={120}
-              onChange={(event) => handleQueryChange(event.currentTarget.value)}
-              placeholder={t("placeholder")}
-              type="search"
-              value={query}
-            />
-          </div>
+        <Command label={t("open")} loop shouldFilter={false}>
+          <CommandInput
+            aria-label={t("open")}
+            autoFocus
+            className="h-12 px-3 text-sm"
+            maxLength={120}
+            onValueChange={handleQueryChange}
+            placeholder={t("placeholder")}
+            value={query}
+          />
 
-          <div
-            className={cn(searchState.status === "loading" && "cursor-wait")}
-          >
-            <DocumentsSearchResults
-              onSelect={handleSelect}
-              query={query}
-              results={searchState.results}
-              status={searchState.status}
-            />
-          </div>
+          <DocumentsSearchResults
+            onSelect={handleSelect}
+            query={query}
+            results={searchState.results}
+            status={searchState.status}
+          />
         </Command>
       </DialogContent>
     </Dialog>

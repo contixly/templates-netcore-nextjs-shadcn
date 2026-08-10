@@ -27,6 +27,12 @@ const navigation = [
         label: "Getting started",
         items: [
           {
+            canonicalUrl: "index",
+            href: "/docs",
+            label: "Documentation overview",
+            status: "published",
+          },
+          {
             canonicalUrl: "general/quick-start",
             href: "/docs/general/quick-start",
             label: "Quick start",
@@ -123,6 +129,38 @@ it("renders breadcrumb context and previous-document navigation", () => {
   expect(previousLinks).toHaveLength(2);
   expect(previousLinks[0]).toHaveAttribute("href", "/docs/api/api-keys");
   expect(previousLinks[1]).toHaveAttribute("href", "/docs/api/api-keys");
+});
+
+it("suppresses root breadcrumb context while retaining nested context", () => {
+  mockPathname = "/docs";
+  const view = renderShell();
+  const rootBreadcrumb = document.querySelector("[data-slot='breadcrumb']");
+
+  expect(rootBreadcrumb).toHaveAttribute("aria-label", "Documentation");
+  expect(
+    rootBreadcrumb?.querySelector("[data-slot='breadcrumb-page']"),
+  ).not.toBeInTheDocument();
+
+  mockPathname = "/docs/general/quick-start";
+  view.rerender(
+    withMessages(
+      <DocumentsShell
+        navigation={navigation}
+        pageNavigationByHref={pageNavigationByHref}
+      >
+        <article>Quick start body</article>
+      </DocumentsShell>,
+    ),
+  );
+
+  const nestedBreadcrumb = document.querySelector("[data-slot='breadcrumb']");
+  expect(nestedBreadcrumb).toHaveAttribute(
+    "aria-label",
+    "Documentation: Quick start",
+  );
+  expect(nestedBreadcrumb).toHaveTextContent("General");
+  expect(nestedBreadcrumb).toHaveTextContent("Getting started");
+  expect(nestedBreadcrumb).toHaveTextContent("Quick start");
 });
 
 it("automatically opens the active parent after the pathname changes", () => {
