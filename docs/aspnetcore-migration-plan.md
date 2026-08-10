@@ -3280,13 +3280,17 @@ reviews, review threads or status checks, and the PR was mergeable and not a
 draft. The bounded fresh review/check wait continues against the current remote
 head.
 
-The host gate limitation remains current and separate from publication. During
-the final rerun, macOS stopped resolving local uid 501 and
-Docker/Testcontainers became unavailable. The ordinary exact .NET build
-therefore failed in app-host generation and full E2E could not start its
-PostgreSQL host; earlier green visual/.NET evidence is not misrepresented as a
-fresh post-fault exact-head run. No OS security or system configuration was
-changed.
+The host gate limitation remains current and separate from publication, but a
+fresh recheck after publication found that macOS uid-501 lookup had recovered.
+At documentation-only local head
+`2552775b2dac96c471fe1f338a08d5d53f295886`, exact
+`dotnet build Template.sln --no-restore` therefore passed all seven projects
+with 0 warnings/errors. Docker remains unavailable at both Testcontainers
+sockets: exact full `dotnet test Template.sln --no-restore --no-build` passes
+Application 343/343 but all 774 API cases fail at their shared PostgreSQL
+fixture, and `npm run e2e` reaches the E2E host but cannot create its PostgreSQL
+container. No OS security or system configuration was changed, and neither
+container-dependent gate is represented as passing.
 
 #### Intentional content/data differences and remaining diagnostics
 
