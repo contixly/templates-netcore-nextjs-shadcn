@@ -3254,7 +3254,7 @@ commit is evidence, not a claim that implementation review occurred.
 | contact-sheet + representative original inspection | PASS; four 11-state scroll sheets plus changed shell/API-key originals inspected; stable volatile values hidden after leaf hydration and DOM quiet |
 | `git diff --check` / `git diff -- template/` | PASS / empty |
 
-#### Task 10 publication preflight status — 2026-08-10
+#### Task 10 publication status — 2026-08-10
 
 At exact source head `252121d76b04c6478f6d21bc44c5732266ed6949`,
 Task 10 replaced the 17 lint warnings above with a documented ESLint scope for
@@ -3265,14 +3265,28 @@ The same exact head also passed `npm run api:check`, `npm run content:check`,
 suites, 883/883 tests) and the Next.js production build (144/144 static pages).
 This documentation-only follow-up does not change the verified web tree.
 
-Publication remains externally blocked. During the final rerun, macOS stopped
-resolving local uid 501 and Docker/Testcontainers became unavailable. The
-ordinary exact .NET build therefore failed in app-host generation and full E2E
-could not start its PostgreSQL host; earlier green visual/.NET evidence is not
-misrepresented as a fresh post-fault exact-head run. GitHub CLI authentication
-was invalid, while the encrypted SSH key had neither a working agent nor
-Keychain access. No branch was pushed, no PR was created, and no status-check or
-automated-review loop occurred.
+Publication is active in ready-for-review
+[PR #11](https://github.com/contixly/templates-netcore-nextjs-shadcn/pull/11).
+The available IntelliJ OAuth credential authenticated as the repository admin
+but organization OAuth-app restrictions denied both Git smart-HTTP and Git Data
+writes. Rather than weakening that security policy, the approved GitHub
+connector published a single remote commit at
+`80a024f1cb2cf205778101109f6bc0afa4cb5f53`. Its tree
+`362a1386ee45170c9787ec5e26406537e0487e0f` was asserted identical to the
+unchanged local 26-commit source head
+`c2d47560d8020cdc25f305fa9b6102b063b61c98`; the local history was not
+rewritten. The initial CLI and connector review queries found no comments,
+reviews, review threads or status checks, and the PR was mergeable and not a
+draft. The bounded fresh review/check wait continues against the current remote
+head.
+
+The host gate limitation remains current and separate from publication. During
+the final rerun, macOS stopped resolving local uid 501 and
+Docker/Testcontainers became unavailable. The ordinary exact .NET build
+therefore failed in app-host generation and full E2E could not start its
+PostgreSQL host; earlier green visual/.NET evidence is not misrepresented as a
+fresh post-fault exact-head run. No OS security or system configuration was
+changed.
 
 #### Intentional content/data differences and remaining diagnostics
 
