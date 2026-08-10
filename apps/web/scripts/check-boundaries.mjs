@@ -55,10 +55,25 @@ async function sourceFiles(directory) {
   return files;
 }
 
+for (const directory of [resolve(webRoot, "test"), resolve(webRoot, "e2e")]) {
+  for (const path of await sourceFiles(directory)) {
+    const localPath = relative(webRoot, path).split(sep).join("/");
+    const content = await readFile(path, "utf8");
+
+    if (legacyPresentationImportPattern.test(content)) {
+      violations.push(`legacy domain presentation import: ${localPath}`);
+    }
+  }
+}
+
 for (const path of await sourceFiles(sourceRoot)) {
   const localPath = relative(webRoot, path).split(sep).join("/");
   const content = await readFile(path, "utf8");
   const isGenerated = path.startsWith(`${generatedRoot}${sep}`);
+
+  if (legacyPresentationImportPattern.test(content)) {
+    violations.push(`legacy domain presentation import: ${localPath}`);
+  }
 
   if (isGenerated) {
     if (
@@ -79,9 +94,6 @@ for (const path of await sourceFiles(sourceRoot)) {
   }
   if (/(?:@prisma|better-auth)/i.test(content)) {
     violations.push(`forbidden full-stack import: ${localPath}`);
-  }
-  if (legacyPresentationImportPattern.test(content)) {
-    violations.push(`legacy domain presentation import: ${localPath}`);
   }
   if (/NEXT_PUBLIC_[A-Z0-9_]*API/.test(content)) {
     violations.push(`public API origin variable: ${localPath}`);
