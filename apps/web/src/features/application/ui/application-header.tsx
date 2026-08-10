@@ -19,7 +19,7 @@ export function ApplicationHeader() {
 
   return (
     <header
-      className="sticky top-0 z-20 flex h-(--header-height) shrink-0 items-center border-b bg-background transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)"
+      className="z-20 flex h-(--header-height) shrink-0 items-center border-b bg-background transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height) md:sticky md:top-0"
       data-slot="application-header"
     >
       <div className="flex w-full min-w-0 items-center gap-1 pr-2 pl-1 md:pl-4 lg:gap-2 lg:pl-4">

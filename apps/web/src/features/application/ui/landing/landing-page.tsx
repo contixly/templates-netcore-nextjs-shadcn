@@ -34,7 +34,7 @@ export async function LandingPage() {
 
   return (
     <div className="flex min-h-svh min-w-0 flex-col bg-background">
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <header className="z-20 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:sticky md:top-0">
         <div className="flex h-12 w-full items-center justify-between gap-3 px-3 md:px-4">
           <Link
             aria-label={t("brandHomeLabel")}
