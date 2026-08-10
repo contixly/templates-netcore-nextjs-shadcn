@@ -174,7 +174,7 @@ Create `apps/web/test/features/application/reference-shell-contract.test.tsx`:
 
 ```tsx
 import { render, screen } from "@testing-library/react";
-import { SettingsSection } from "@/src/features/application/ui/settings/settings-shell";
+import { SettingsSection } from "@/src/components/application/settings/settings-shell";
 
 test("settings sections use the reference card/header/content composition", () => {
   render(<SettingsSection title="Profile" description="Manage profile">body</SettingsSection>);
@@ -194,7 +194,7 @@ Expected: FAIL because the feature-owned module does not exist and the present s
 
 - [ ] **Step 3: Move application presentation and update every import atomically**
 
-Use `git mv` for each listed file. Update imports in `src/app`, `src/features`, `src/hooks`, `test`, and `e2e`; no compatibility re-export remains in `src/components/application`. Keep `src/app` restricted to route params, metadata, data loaders, redirects, and feature component composition.
+Use `git mv` for each listed file. Update imports in `src/app`, `src/features`, `src/hooks`, `test`, and `e2e`, including the new contract test import; no compatibility re-export remains in `src/components/application`. Keep `src/app` restricted to route params, metadata, data loaders, redirects, and feature component composition.
 
 Port reference geometry into the relocated components:
 
@@ -247,18 +247,17 @@ git commit -m "refactor(web): move application UI to feature slices"
 Create `apps/web/test/features/account/reference-account-surfaces.test.tsx`:
 
 ```tsx
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { fireEvent, screen } from "@testing-library/react";
+import { DeleteAccountDialog } from "@/src/components/account/delete-account-dialog";
+import { renderWithMessages } from "@/test/support/render";
 
-const component = readFileSync(
-  resolve(process.cwd(), "src/features/account/ui/delete-account-dialog.tsx"),
-  "utf8",
-);
-
-test("dangerous account dialog preserves reference destructive actions and compact dialog width", () => {
-  expect(component).toContain('variant="destructive"');
-  expect(component).toContain('className="sm:max-w-lg"');
-  expect(component).toContain('showCloseButton={false}');
+test("dangerous account dialog exposes the reference destructive action hierarchy", async () => {
+  renderWithMessages(<DeleteAccountDialog primaryEmail="account@example.test" />);
+  fireEvent.click(screen.getByRole("button", { name: "Delete account" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toHaveClass("min-w-md");
+  expect(screen.getByRole("button", { name: "Permanently delete account" })).toHaveClass("bg-destructive");
+  expect(screen.getByRole("button", { name: "Cancel" })).toHaveClass("border");
 });
 ```
 
@@ -272,7 +271,7 @@ Expected: FAIL because `src/features/account/ui/delete-account-dialog.tsx` does 
 
 - [ ] **Step 3: Move components and port reference account/auth states**
 
-Use `git mv`; replace imports throughout pages, test helpers and E2E support. Match reference forms, provider buttons, session rows, connections items, user navigation, local automation panel, failure notices, empty/loading states and dialog geometry using Task 1 primitives. Keep target-only provider capability and real REST/CSRF handlers unchanged.
+Use `git mv`; replace imports throughout pages, test helpers and E2E support, including the new contract test import. Match reference forms, provider buttons, session rows, connections items, user navigation, local automation panel, failure notices, empty/loading states and dialog geometry using Task 1 primitives. Keep target-only provider capability and real REST/CSRF handlers unchanged.
 
 - [ ] **Step 4: Run focused tests and account E2E suites**
 
@@ -310,18 +309,17 @@ git commit -m "refactor(web): align account and authentication UI"
 Create `apps/web/test/features/organizations/reference-workspace-surfaces.test.tsx`:
 
 ```tsx
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-
-const component = readFileSync(
-  resolve(process.cwd(), "src/features/organizations/ui/organization-settings-nav.tsx"),
-  "utf8",
-);
+import { screen } from "@testing-library/react";
+import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";
+import { renderWithMessages } from "@/test/support/render";
 
 test("workspace settings navigation uses the reference 16-rem desktop sidebar rail", () => {
-  expect(component).toContain("md:w-64");
-  expect(component).toContain("SidebarMenuButton");
-  expect(component).toContain('aria-current={active ? "page" : undefined}');
+  renderWithMessages(
+    <OrganizationSettingsNav canManageApiKeys canManageInvitations organizationKey="acme" pathname="/w/acme/settings/workspace" />,
+  );
+  const navigation = screen.getByRole("navigation", { name: "Workspace settings" });
+  expect(navigation).toHaveClass("md:w-64");
+  expect(screen.getByRole("link", { name: "Workspace" })).toHaveAttribute("aria-current", "page");
 });
 ```
 
@@ -335,7 +333,7 @@ Expected: FAIL because `src/features/organizations/ui/organization-settings-nav.
 
 - [ ] **Step 3: Move and restyle organization/collaboration UI**
 
-Use `git mv` and update app/test/E2E imports. Mirror reference workspace cards, empty states, forms, member and team tables, role badges, invitations, switchers and settings navigation. Preserve all capability conditions, cursor values, mutation arbiter ordering, request/response waits and current handling of 401/403/404 failures.
+Use `git mv` and update app/test/E2E imports, including the new contract test import. Mirror reference workspace cards, empty states, forms, member and team tables, role badges, invitations, switchers and settings navigation. Preserve all capability conditions, cursor values, mutation arbiter ordering, request/response waits and current handling of 401/403/404 failures.
 
 - [ ] **Step 4: Run focused tests and collaboration/organization E2E**
 
@@ -371,19 +369,17 @@ git commit -m "refactor(web): align workspace collaboration UI"
 Create `apps/web/test/features/api-keys/reference-api-key-table.test.tsx`:
 
 ```tsx
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { screen } from "@testing-library/react";
+import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
+import { renderWithMessages } from "@/test/support/render";
 
-const component = readFileSync(
-  resolve(process.cwd(), "src/features/api-keys/ui/api-key-table.tsx"),
-  "utf8",
-);
-
-test("API key table preserves reference dense actions and safe secret boundary", () => {
-  expect(component).toContain("ApiKeyEditDialog");
-  expect(component).toContain("ApiKeyRotateDialog");
-  expect(component).toContain("ApiKeyRevokeDialog");
-  expect(component).toContain('variant="outline"');
+test("API-key empty state uses the reference card/empty composition", () => {
+  renderWithMessages(
+    <ApiKeyManagement initialPage={{ items: [], nextCursor: null }} owner={{ kind: "personal" }} />,
+  );
+  expect(screen.getByRole("heading", { name: "API keys" })).toHaveClass("text-sm");
+  expect(screen.getByText("No API keys yet")).toBeVisible();
+  expect(document.querySelector("[data-slot='empty']")).not.toBeNull();
 });
 ```
 
@@ -399,7 +395,7 @@ Expected: FAIL because the feature-owned UI import does not exist.
 
 - [ ] **Step 3: Move and align API-key surfaces**
 
-Use `git mv`, update page/test imports, and port reference card/table/menu/dialog/permission preview/education/secret styling. Do not expose the secret after the current acknowledgement boundary and do not change API-key scope/permission data.
+Use `git mv`, update page/test imports including the new contract test import, and port reference card/table/menu/dialog/permission preview/education/secret styling. Do not expose the secret after the current acknowledgement boundary and do not change API-key scope/permission data.
 
 - [ ] **Step 4: Run focused API-key verification**
 
@@ -437,18 +433,18 @@ git commit -m "refactor(web): align API key management UI"
 Create `apps/web/test/features/documents/reference-documents-shell.test.tsx`:
 
 ```tsx
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { screen } from "@testing-library/react";
+import { DocumentsShell } from "@/src/components/documents/documents-shell";
+import { renderWithMessages } from "@/test/support/render";
 
-const component = readFileSync(
-  resolve(process.cwd(), "src/features/documents/ui/documents-shell.tsx"),
-  "utf8",
-);
+jest.mock("next/navigation", () => ({ usePathname: () => "/docs/general/quick-start" }));
 
 test("documentation shell uses the reference sidebar width and scroll container", () => {
-  expect(component).toContain('"--sidebar-width": "24rem"');
-  expect(component).toContain("SidebarProvider");
-  expect(component).toContain("DOCUMENTS_SYSTEM_SCROLL_CONTAINER_ATTRIBUTE");
+  renderWithMessages(
+    <DocumentsShell navigation={[]} pageNavigationByHref={{}}><article>Article</article></DocumentsShell>,
+  );
+  expect(document.querySelector("[data-slot='sidebar-wrapper']")).toHaveStyle({ "--sidebar-width": "24rem" });
+  expect(screen.getByRole("main")).toHaveAttribute("data-documents-scroll-container");
 });
 ```
 
@@ -464,7 +460,7 @@ Expected: FAIL because the feature-owned shell does not exist or lacks reference
 
 - [ ] **Step 3: Move docs UI and apply the reference documentation composition**
 
-Use `git mv`; update imports. Port the reference sidebar width, desktop/mobile sidebar, header/breadcrumb/search command palette, Kbd shortcuts, scroll container, article rail, page actions, TOC and MDX component spacing. Keep the content registry, locale resolution, search request, metadata and OG output unchanged.
+Use `git mv`; update imports including the new contract test import. Port the reference sidebar width, desktop/mobile sidebar, header/breadcrumb/search command palette, Kbd shortcuts, scroll container, article rail, page actions, TOC and MDX component spacing. Keep the content registry, locale resolution, search request, metadata and OG output unchanged.
 
 - [ ] **Step 4: Run focused docs tests and document E2E**
 
@@ -502,16 +498,15 @@ Create `apps/web/test/features/dashboard/reference-dashboard-contract.test.tsx`:
 
 ```tsx
 import { render, screen } from "@testing-library/react";
-import { SectionCards } from "@/src/features/dashboard/ui/section-cards";
+import { SectionCards } from "@/src/components/dashboard/section-cards";
 
 test("dashboard metrics retain the reference card grid region", () => {
   render(<SectionCards />);
-  expect(screen.getByRole("region", { name: /dashboard metrics/i })).toHaveClass("grid");
+  expect(screen.getByRole("region", { name: /dashboard metrics/i })).toHaveClass("*:data-[slot=card]:bg-gradient-to-t");
   expect(screen.getByRole("article")).toHaveAttribute("data-slot", "card");
 });
 ```
 
-Adapt the fixture to the exact existing `SectionCards` prop type while retaining a single card assertion.
 
 - [ ] **Step 2: Run it and verify it fails**
 
@@ -523,7 +518,7 @@ Expected: FAIL because the feature-owned dashboard module does not exist.
 
 - [ ] **Step 3: Move dashboard/status UI and port reference visual details**
 
-Use `git mv`; update all app/test/E2E imports. Port reference dashboard cards, chart wrapper, table toolbar, density, badges, dialogs/drawer, loading skeleton and mobile containment classes. Preserve table editing/reordering state in-memory and continue to state clearly that demo changes are not saved. Move system presentation under the application feature without changing its server/browser data requests.
+Use `git mv`; update all app/test/E2E imports including the new contract test import. Port reference dashboard cards, chart wrapper, table toolbar, density, badges, dialogs/drawer, loading skeleton and mobile containment classes. Preserve table editing/reordering state in-memory and continue to state clearly that demo changes are not saved. Move system presentation under the application feature without changing its server/browser data requests.
 
 - [ ] **Step 4: Run dashboard and status checks**
 
