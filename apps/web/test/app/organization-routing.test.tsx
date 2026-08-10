@@ -436,6 +436,12 @@ it("renders only the authoritative first page at the canonical workspace URL", a
   expect(loadList).toHaveBeenCalledTimes(1);
   expect(loadList).toHaveBeenCalledWith();
   expect(screen.getAllByRole("article")).toHaveLength(1);
+  expect(
+    screen.queryByRole("heading", { name: "Workspaces" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText("Create and open your workspaces."),
+  ).not.toBeInTheDocument();
 });
 
 it("redirects stale cursor bookmarks to the canonical first-page workspace URL", async () => {

@@ -114,6 +114,7 @@ export function SettingsSection({
   contentClassName,
   description,
   footer,
+  headingLevel = 2,
   title,
   variant = "default",
 }: PropsWithChildren<{
@@ -122,11 +123,13 @@ export function SettingsSection({
   contentClassName?: string;
   description?: ReactNode;
   footer?: ReactNode;
+  headingLevel?: 2 | 3;
   title: ReactNode;
   variant?: SettingsSectionVariant;
 }>) {
   const titleId = useId();
   const isDestructive = variant === "destructive";
+  const Heading = headingLevel === 3 ? "h3" : "h2";
 
   return (
     <Card
@@ -142,7 +145,7 @@ export function SettingsSection({
     >
       <CardHeader className="border-b px-5 py-4 sm:px-6">
         <CardTitle>
-          <h2
+          <Heading
             className={cn(
               "text-sm font-medium",
               isDestructive && "text-destructive",
@@ -150,7 +153,7 @@ export function SettingsSection({
             id={titleId}
           >
             {title}
-          </h2>
+          </Heading>
         </CardTitle>
         {description ? (
           <CardDescription

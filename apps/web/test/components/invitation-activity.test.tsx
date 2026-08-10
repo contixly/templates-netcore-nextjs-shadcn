@@ -88,7 +88,22 @@ it("renders manager activity including team and expired display states", () => {
   );
 
   const activity = screen.getByRole("region", { name: "Invitation activity" });
+  expect(
+    within(activity)
+      .getAllByRole("columnheader")
+      .map((heading) => heading.textContent),
+  ).toEqual([
+    "Email",
+    "Role",
+    "Team",
+    "Invited by",
+    "Created",
+    "Expires",
+    "Status",
+    "Actions",
+  ]);
   expect(activity).toHaveTextContent("member@example.test");
+  expect(activity).toHaveTextContent("Aug 1, 2026, 12:00 PM");
   expect(activity).toHaveTextContent("expired@example.test");
   expect(activity).toHaveTextContent("Expired");
   expect(activity).toHaveTextContent("Platform");

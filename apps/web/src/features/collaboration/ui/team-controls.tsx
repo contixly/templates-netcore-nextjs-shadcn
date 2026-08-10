@@ -1,7 +1,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { useInsertionEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useInsertionEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
@@ -90,7 +96,7 @@ function validateName(name: string, message: string): string | null {
     : null;
 }
 
-export function TeamCreateDialog({
+export function TeamCreateForm({
   organizationId,
   onConfirmed,
 }: Readonly<{
@@ -100,7 +106,6 @@ export function TeamCreateDialog({
   const t = useTranslations("collaboration.teams");
   const attached = useAttachedRef();
   const inFlight = useRef(false);
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
   const [validation, setValidation] = useState<string | null>(null);
@@ -131,68 +136,41 @@ export function TeamCreateDialog({
       setFailure(result.failure);
       return;
     }
-    setOpen(false);
     setName("");
+    setValidation(null);
     await onConfirmed(result.data);
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!inFlight.current) {
-          setOpen(next);
-          if (!next) {
-            setName("");
-            setValidation(null);
-            setFailure(null);
-          }
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button type="button">{t("actions.create")}</Button>
-      </DialogTrigger>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>{t("actions.create")}</DialogTitle>
-          <DialogDescription>{t("form.nameHint")}</DialogDescription>
-        </DialogHeader>
-        <form className="flex flex-col gap-4" noValidate onSubmit={submit}>
-          <Field data-invalid={validation ? true : undefined}>
-            <FieldLabel htmlFor="create-team-name">{t("form.name")}</FieldLabel>
-            <Input
-              autoComplete="off"
-              disabled={pending}
-              id="create-team-name"
-              onChange={(event) => {
-                setName(event.currentTarget.value);
-                setValidation(null);
-                setFailure(null);
-              }}
-              value={name}
-            />
-            <FieldDescription>{t("form.nameHint")}</FieldDescription>
-            <FieldError>{validation}</FieldError>
-          </Field>
-          <FailureNotice failure={failure} />
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button disabled={pending} type="button" variant="outline">
-                {t("form.cancel")}
-              </Button>
-            </DialogClose>
-            <Button disabled={pending} type="submit">
-              {pending ? t("actions.creating") : t("actions.create")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form className="flex flex-col gap-3" noValidate onSubmit={submit}>
+      <Field data-invalid={validation ? true : undefined}>
+        <FieldLabel htmlFor="create-team-name">{t("form.name")}</FieldLabel>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            autoComplete="off"
+            className="sm:max-w-md"
+            disabled={pending}
+            id="create-team-name"
+            onChange={(event) => {
+              setName(event.currentTarget.value);
+              setValidation(null);
+              setFailure(null);
+            }}
+            value={name}
+          />
+          <Button className="sm:shrink-0" disabled={pending} type="submit">
+            {pending ? t("actions.creating") : t("actions.create")}
+          </Button>
+        </div>
+        <FieldDescription>{t("form.nameHint")}</FieldDescription>
+        <FieldError>{validation}</FieldError>
+      </Field>
+      <FailureNotice failure={failure} />
+    </form>
   );
 }
 
-export function TeamRenameDialog({
+export function TeamRenameForm({
   organizationId,
   team,
   onConfirmed,
@@ -204,11 +182,18 @@ export function TeamRenameDialog({
   const t = useTranslations("collaboration.teams");
   const attached = useAttachedRef();
   const inFlight = useRef(false);
-  const [open, setOpen] = useState(false);
   const [name, setName] = useState(team.name);
   const [pending, setPending] = useState(false);
   const [validation, setValidation] = useState<string | null>(null);
   const [failure, setFailure] = useState<ApiFailure | null>(null);
+
+  useEffect(() => {
+    if (!inFlight.current) {
+      setName(team.name);
+      setValidation(null);
+      setFailure(null);
+    }
+  }, [team.name]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -238,71 +223,43 @@ export function TeamRenameDialog({
       setFailure(result.failure);
       return;
     }
-    setOpen(false);
+    setName(result.data.name);
+    setValidation(null);
     await onConfirmed(result.data);
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!inFlight.current) {
-          setOpen(next);
-          setName(team.name);
-          setValidation(null);
-          setFailure(null);
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button
-          aria-label={t("actions.renameNamed", { team: team.name })}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
-          {t("actions.rename")}
-        </Button>
-      </DialogTrigger>
-      <DialogContent showCloseButton={false}>
-        <DialogHeader>
-          <DialogTitle>
-            {t("actions.renameNamed", { team: team.name })}
-          </DialogTitle>
-          <DialogDescription>{t("form.nameHint")}</DialogDescription>
-        </DialogHeader>
-        <form className="flex flex-col gap-4" noValidate onSubmit={submit}>
-          <Field data-invalid={validation ? true : undefined}>
-            <FieldLabel htmlFor={`rename-team-${team.id}`}>
-              {t("form.name")}
-            </FieldLabel>
-            <Input
-              autoComplete="off"
-              disabled={pending}
-              id={`rename-team-${team.id}`}
-              onChange={(event) => {
-                setName(event.currentTarget.value);
-                setValidation(null);
-                setFailure(null);
-              }}
-              value={name}
-            />
-            <FieldError>{validation}</FieldError>
-          </Field>
-          <FailureNotice failure={failure} />
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button disabled={pending} type="button" variant="outline">
-                {t("form.cancel")}
-              </Button>
-            </DialogClose>
-            <Button disabled={pending} type="submit">
-              {pending ? t("actions.renaming") : t("actions.rename")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <form className="flex flex-col gap-3" noValidate onSubmit={submit}>
+      <Field data-invalid={validation ? true : undefined}>
+        <FieldLabel htmlFor={`rename-team-${team.id}`}>
+          {t("form.name")}
+        </FieldLabel>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            autoComplete="off"
+            className="sm:max-w-md"
+            disabled={pending}
+            id={`rename-team-${team.id}`}
+            onChange={(event) => {
+              setName(event.currentTarget.value);
+              setValidation(null);
+              setFailure(null);
+            }}
+            value={name}
+          />
+          <Button
+            className="sm:shrink-0"
+            disabled={pending}
+            type="submit"
+            variant="outline"
+          >
+            {pending ? t("actions.renaming") : t("actions.rename")}
+          </Button>
+        </div>
+        <FieldError>{validation}</FieldError>
+      </Field>
+      <FailureNotice failure={failure} />
+    </form>
   );
 }
 

@@ -5,15 +5,12 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
 
 import { OrganizationList } from "@/src/features/organizations/ui/organization-list";
 import { deleteBrowserOrganization } from "@/src/lib/api/organizations/browser/organization-mutations";
 import { getOrganizations } from "@/src/lib/api/generated/sdk.gen";
 import type { OrganizationSummaryResponse } from "@/src/lib/api/generated/types.gen";
 import { renderWithMessages, withMessages } from "@/test/support/render";
-import { render } from "@testing-library/react";
-import organizationsRu from "@/src/messages/organizations.ru.json";
 
 jest.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -98,8 +95,20 @@ it("renders canonical dashboard/settings links without delete controls", () => {
   expect(
     screen.getByRole("button", { name: "Create New Workspace" }),
   ).toBeVisible();
+  for (const step of [
+    "Create a Workspace",
+    "Configure Email Policy",
+    "Switch Between Workspaces",
+  ]) {
+    expect(screen.getByText(step)).toBeVisible();
+  }
   const card = screen.getByRole("article", { name: "Acme workspace" });
   expect(within(card).getByText("acme")).toBeVisible();
+  expect(
+    within(card).getByText(
+      "Open this workspace to access its dashboard and manage its settings.",
+    ),
+  ).toBeVisible();
   expect(
     within(card).getByRole("link", { name: "Open workspace" }),
   ).toHaveAttribute("href", "/w/acme/dashboard");
@@ -107,6 +116,12 @@ it("renders canonical dashboard/settings links without delete controls", () => {
     "href",
     "/w/acme/settings/workspace",
   );
+  expect(
+    within(card)
+      .getByRole("link", { name: "Settings" })
+      .closest('[data-slot="card-header"]'),
+  ).not.toBeNull();
+  expect(within(card).queryByText("Role: Owner")).not.toBeInTheDocument();
   expect(
     within(card).queryByRole("button", { name: /delete/i }),
   ).not.toBeInTheDocument();
@@ -186,23 +201,15 @@ it("removes a confirmed deletion immediately and cannot resurrect it from stale 
   ).not.toBeInTheDocument();
 });
 
-it("localizes fixed organization roles instead of exposing API values", () => {
-  render(
-    <NextIntlClientProvider
-      locale="ru"
-      messages={{ organizations: organizationsRu }}
-      timeZone="UTC"
-    >
-      <OrganizationList
-        initialPage={{ items: [acme, beta], nextCursor: null }}
-      />
-    </NextIntlClientProvider>,
+it("keeps target-only role badges out of reference workspace cards", () => {
+  renderWithMessages(
+    <OrganizationList
+      initialPage={{ items: [acme, beta], nextCursor: null }}
+    />,
   );
 
-  expect(screen.getByText("Роль: Владелец")).toBeVisible();
-  expect(screen.getByText("Роль: Участник")).toBeVisible();
-  expect(screen.queryByText("Роль: owner")).not.toBeInTheDocument();
-  expect(screen.queryByText("Роль: member")).not.toBeInTheDocument();
+  expect(screen.queryByText("Role: Owner")).not.toBeInTheDocument();
+  expect(screen.queryByText("Role: Member")).not.toBeInTheDocument();
 });
 
 it("appends generated pages and lets each incoming duplicate replace its older entry", async () => {
@@ -436,7 +443,7 @@ it("lets refreshed entries replace identity, role, and permission controls while
   const refreshed = screen.getByRole("article", {
     name: "Acme Renamed workspace",
   });
-  expect(within(refreshed).getByText("Role: Member")).toBeVisible();
+  expect(within(refreshed).queryByText("Role: Member")).not.toBeInTheDocument();
   expect(within(refreshed).getByText("acme-renamed")).toBeVisible();
   expect(
     within(refreshed).queryByRole("button", { name: "Delete workspace" }),

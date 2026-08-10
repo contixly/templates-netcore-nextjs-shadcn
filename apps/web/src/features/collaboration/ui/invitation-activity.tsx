@@ -360,13 +360,16 @@ export function InvitationActivity({
           <Table className="min-w-[52rem]">
             <TableHeader>
               <TableRow>
-                <TableHead>{t("create.email")}</TableHead>
-                <TableHead>{t("create.role")}</TableHead>
-                <TableHead>{t("create.team")}</TableHead>
-                <TableHead>{t("item.inviter", { name: "" })}</TableHead>
-                <TableHead>{t("item.expires", { date: "" })}</TableHead>
-                <TableHead>{t("filters.status")}</TableHead>
-                <TableHead className="text-right">{t("create.copy")}</TableHead>
+                <TableHead>{t("activity.columns.email")}</TableHead>
+                <TableHead>{t("activity.columns.role")}</TableHead>
+                <TableHead>{t("activity.columns.team")}</TableHead>
+                <TableHead>{t("activity.columns.inviter")}</TableHead>
+                <TableHead>{t("activity.columns.created")}</TableHead>
+                <TableHead>{t("activity.columns.expires")}</TableHead>
+                <TableHead>{t("activity.columns.status")}</TableHead>
+                <TableHead className="text-right">
+                  {t("activity.columns.actions")}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -390,6 +393,9 @@ export function InvitationActivity({
                     )}
                   </TableCell>
                   <TableCell>{invitation.inviterName}</TableCell>
+                  <TableCell>
+                    {formattedDate(invitation.createdAt, locale)}
+                  </TableCell>
                   <TableCell>
                     {formattedDate(invitation.expiresAt, locale)}
                   </TableCell>

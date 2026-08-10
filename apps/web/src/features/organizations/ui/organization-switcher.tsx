@@ -4,19 +4,25 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useInsertionEffect, useLayoutEffect, useRef, useState } from "react";
-import { IconCheck, IconSelector } from "@tabler/icons-react";
+import { IconCheck, IconSelector, IconSettings } from "@tabler/icons-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { useOrganizationControlInteractionReady } from "@/src/features/organizations/ui/organization-control-readiness";
 import { Button } from "@/src/components/ui/button";
+import { useOrganizationControlInteractionReady } from "@/src/features/organizations/ui/organization-control-readiness";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import {
+  SidebarMenu,
+  SidebarMenuItem,
+  useOptionalSidebar,
+} from "@/src/components/ui/sidebar";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { resolveOrganizationSwitchHref } from "@/src/features/organizations/organization-switch-navigation";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
@@ -29,6 +35,7 @@ export type OrganizationSwitcherItem = Readonly<{
   canonicalKey: string;
   id: string;
   name: string;
+  slug: string;
 }>;
 
 type RouteLifetime = Readonly<{
@@ -75,6 +82,7 @@ export function OrganizationSwitcher({
   const pathname = usePathname();
   const router = useRouter();
   const interactionReady = useOrganizationControlInteractionReady();
+  const sidebar = useOptionalSidebar();
   const attached = useRef(true);
   const visible = useRef(true);
   const routeLifetime = useRef<RouteLifetime>({ generation: 0, pathname });
@@ -211,131 +219,148 @@ export function OrganizationSwitcher({
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        if (!requestInFlight.current) {
-          setOpen(nextOpen);
-          if (!nextOpen) {
-            setFailure(null);
-          }
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button
-          aria-label={currentLabel}
-          className="h-auto w-full max-w-full min-w-0 justify-start border-0 bg-transparent p-2 shadow-none hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          data-organization-control-interaction-ready={
-            interactionReady ? "true" : undefined
-          }
-          disabled={!interactionReady}
-          type="button"
-          variant="ghost"
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu
+          onOpenChange={(nextOpen) => {
+            if (!requestInFlight.current) {
+              setOpen(nextOpen);
+              if (!nextOpen) setFailure(null);
+            }
+          }}
+          open={open}
         >
-          <span className="sr-only">{currentLabel}</span>
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
-            {initials || "WS"}
-          </span>
-          <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
-            <span className="truncate font-medium">
-              {current?.name ?? t("unselected")}
-            </span>
-            <span className="truncate text-xs text-muted-foreground">
-              {t("manage")}
-            </span>
-          </span>
-          <IconSelector className="ml-auto" data-icon="inline-end" />
-        </Button>
-      </DialogTrigger>
-      <DialogContent
-        onEscapeKeyDown={(event) => {
-          if (pending) {
-            event.preventDefault();
-          }
-        }}
-        onInteractOutside={(event) => {
-          if (pending) {
-            event.preventDefault();
-          }
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle>{t("title")}</DialogTitle>
-          <DialogDescription>{t("description")}</DialogDescription>
-        </DialogHeader>
-        <div
-          className="flex max-h-72 flex-col gap-1 overflow-y-auto"
-          role="list"
-        >
-          {options.map((organization) => (
-            <div key={organization.id} role="listitem">
-              <Button
-                aria-current={
-                  organization.id === current?.id ? "true" : undefined
-                }
-                aria-label={t("switchTo", { name: organization.name })}
-                className="w-full min-w-0 justify-start"
-                disabled={pending}
-                onClick={() => selectOrganization(organization)}
-                type="button"
-                variant="ghost"
-              >
-                <IconCheck
-                  className={cn(
-                    "shrink-0",
-                    organization.id === current?.id
-                      ? "opacity-100"
-                      : "opacity-0",
-                  )}
-                  data-icon="inline-start"
-                />
-                <span className="min-w-0 flex-1 truncate text-left">
-                  {organization.name}
-                </span>
-              </Button>
-            </div>
-          ))}
-        </div>
-        {failure ? (
-          <Alert>
-            <AlertTitle>{t("failure")}</AlertTitle>
-            {failure.kind === "problem" && failure.traceId ? (
-              <AlertDescription className="font-mono text-xs">
-                {failure.traceId}
-              </AlertDescription>
-            ) : null}
-          </Alert>
-        ) : null}
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Button asChild className="sm:flex-1" variant="outline">
-            <Link
-              href={organizationRoutes.workspaces}
-              onClick={() => {
-                setOpen(false);
-                onNavigate?.();
+          <DropdownMenuTrigger asChild>
+            <Button
+              aria-label={currentLabel}
+              className="h-12 max-w-full justify-start gap-2 px-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              data-organization-control-interaction-ready={
+                interactionReady ? "true" : undefined
+              }
+              disabled={!interactionReady}
+              onClick={(event) => {
+                if (event.detail === 0) setOpen(true);
               }}
-              onNavigate={() => setOpen(false)}
+              variant="ghost"
             >
-              {t("manage")}
-            </Link>
-          </Button>
-          {nextCursor ? (
-            <Button asChild className="sm:flex-1" variant="outline">
-              <Link
-                href={organizationRoutes.workspaces}
-                onClick={() => {
-                  setOpen(false);
-                  onNavigate?.();
-                }}
-                onNavigate={() => setOpen(false)}
-              >
-                {t("loadMore")}
-              </Link>
+              <span className="sr-only">{currentLabel}</span>
+              <span className="flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-semibold text-sidebar-primary-foreground">
+                {initials || "WS"}
+              </span>
+              <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">
+                  {current?.name ?? t("unselected")}
+                </span>
+                <span className="truncate text-xs text-muted-foreground">
+                  {current?.slug ?? t("unselected")}
+                </span>
+              </span>
+              <IconSelector aria-hidden="true" className="ml-auto" />
             </Button>
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg"
+            onEscapeKeyDown={(event) => pending && event.preventDefault()}
+            onInteractOutside={(event) => pending && event.preventDefault()}
+            side={sidebar?.isMobile ? "bottom" : "right"}
+            sideOffset={4}
+          >
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {t("title")}
+            </DropdownMenuLabel>
+            <DropdownMenuGroup>
+              {options.map((organization) => {
+                const organizationInitials = organization.name
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((segment) => segment[0]?.toUpperCase() ?? "")
+                  .join("");
+                return (
+                  <DropdownMenuItem
+                    aria-current={
+                      organization.id === current?.id ? "true" : undefined
+                    }
+                    aria-label={t("switchTo", { name: organization.name })}
+                    className="gap-2 p-2"
+                    disabled={pending}
+                    key={organization.id}
+                    onSelect={() => void selectOrganization(organization)}
+                  >
+                    <span className="flex size-6 items-center justify-center rounded-md border text-[11px] font-semibold">
+                      {organizationInitials || "WS"}
+                    </span>
+                    <span className="grid min-w-0 flex-1 text-left text-sm leading-tight">
+                      <span className="truncate">{organization.name}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {organization.slug}
+                      </span>
+                    </span>
+                    <IconCheck
+                      aria-hidden="true"
+                      className={cn(
+                        organization.id === current?.id
+                          ? "opacity-100"
+                          : "opacity-0",
+                      )}
+                    />
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuGroup>
+            {failure ? (
+              <DropdownMenuLabel>
+                <Alert>
+                  <AlertTitle>{t("failure")}</AlertTitle>
+                  {failure.kind === "problem" && failure.traceId ? (
+                    <AlertDescription className="font-mono text-xs">
+                      {failure.traceId}
+                    </AlertDescription>
+                  ) : null}
+                </Alert>
+              </DropdownMenuLabel>
+            ) : null}
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem asChild className="gap-2 p-2">
+                <Link
+                  aria-label={t("manage")}
+                  href={organizationRoutes.workspaces}
+                  onClick={() => {
+                    setOpen(false);
+                    onNavigate?.();
+                  }}
+                  onNavigate={() => setOpen(false)}
+                >
+                  <span className="flex size-6 items-center justify-center rounded-md border">
+                    <IconSettings aria-hidden="true" />
+                  </span>
+                  <span>{t("manage")}</span>
+                </Link>
+              </DropdownMenuItem>
+              {nextCursor ? (
+                <DropdownMenuItem asChild className="gap-2 p-2">
+                  <Link
+                    aria-label={t("loadMore")}
+                    href={organizationRoutes.workspaces}
+                    onClick={() => {
+                      setOpen(false);
+                      onNavigate?.();
+                    }}
+                    onNavigate={() => setOpen(false)}
+                  >
+                    <span className="flex size-6 items-center justify-center rounded-md border">
+                      <IconSettings aria-hidden="true" />
+                    </span>
+                    <span>{t("loadMore")}</span>
+                  </Link>
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }

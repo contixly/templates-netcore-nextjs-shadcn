@@ -258,7 +258,9 @@ test("desktop landing and authenticated shell cover primary navigation", async (
         "/api/v1/auth/session/active-organization"
     );
   });
-  await page.getByRole("button", { name: "Switch to E2E Shell Beta" }).click();
+  await page
+    .getByRole("menuitem", { name: "Switch to E2E Shell Beta" })
+    .click();
   expect((await switchResponse).status()).toBe(200);
   await waitForNavigationReady(
     page,
@@ -406,7 +408,9 @@ test("mobile shell drawer, dashboard, theme, and settings stay responsive", asyn
   });
   await waitForOrganizationControlInteraction(switcher);
   await switcher.click();
-  await page.getByRole("button", { name: "Switch to E2E Mobile Beta" }).click();
+  await page
+    .getByRole("menuitem", { name: "Switch to E2E Mobile Beta" })
+    .click();
   await waitForNavigationReady(
     page,
     `/w/${second.canonicalKey}/dashboard`,

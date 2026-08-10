@@ -116,7 +116,17 @@
       "loadMore": "Load more invitations",
       "loadingMore": "Loading more invitations",
       "retry": "Retry invitation filter",
-      "partialFailure": "Some invitations could not be loaded. The invitations already shown are still available."
+      "partialFailure": "Some invitations could not be loaded. The invitations already shown are still available.",
+      "columns": {
+        "email": "Email",
+        "role": "Role",
+        "team": "Team",
+        "inviter": "Invited by",
+        "created": "Created",
+        "expires": "Expires",
+        "status": "Status",
+        "actions": "Actions"
+      }
     },
     "create": {
       "open": "Create invitation",
@@ -201,6 +211,7 @@
       "team": "Team",
       "noTeam": "Workspace only",
       "inviter": "Invited by",
+      "created": "Created",
       "expires": "Expires"
     },
     "localConfirmation": {
@@ -213,6 +224,17 @@
       "rejected": "Invitation rejected.",
       "refreshFailure": "Your response was saved, but the invitation could not be refreshed.",
       "reconciliationFailure": "The latest invitation state could not be loaded. Response actions remain disabled."
+    },
+    "labels": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "rejected": "Rejected",
+      "canceled": "Canceled",
+      "expired": "Expired",
+      "recipientMismatch": "Recipient mismatch",
+      "emailVerificationRequired": "Email verification required",
+      "domainRestricted": "Domain restricted",
+      "alreadyMember": "Already a member"
     }
   },
   "failures": {

@@ -15,20 +15,21 @@ import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/src/components/ui/card";
-import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
 } from "@/src/components/ui/empty";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/src/components/ui/table";
+import { SettingsSection } from "@/src/features/application/ui/settings/settings-shell";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import { normalizeApiFailure } from "@/src/lib/api/failures/normalize-api-failure";
 import { getOrganizationMembers } from "@/src/lib/api/generated/sdk.gen";
@@ -59,6 +60,7 @@ export type OrganizationCurrentActorView = Readonly<{
   name: string;
   email: string;
   role: OrganizationRole;
+  joinedAt: string | null;
   isOutsideAllowedEmailDomains: boolean;
 }>;
 
@@ -618,6 +620,7 @@ export function OrganizationMemberDirectory({
       OrganizationMemberView,
       "email" | "isOutsideAllowedEmailDomains" | "name" | "role"
     >,
+    options: Readonly<{ showEmail?: boolean; showRole?: boolean }> = {},
   ) {
     const displayName = memberDisplayName(member);
     const initials = displayName
@@ -634,11 +637,15 @@ export function OrganizationMemberDirectory({
         </Avatar>
         <div className="flex min-w-0 flex-col gap-1">
           <p className="truncate text-sm font-medium">{displayName}</p>
-          <p className="truncate text-xs text-muted-foreground">
-            {member.email}
-          </p>
+          {options.showEmail === false ? null : (
+            <p className="truncate text-xs text-muted-foreground">
+              {member.email}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">{roles(member.role)}</Badge>
+            {options.showRole === false ? null : (
+              <Badge variant="outline">{roles(member.role)}</Badge>
+            )}
             {member.isOutsideAllowedEmailDomains ? (
               <Badge variant="outline">{t("outsidePolicy")}</Badge>
             ) : null}
@@ -699,63 +706,42 @@ export function OrganizationMemberDirectory({
         </Alert>
       ) : null}
 
-      <Card
-        aria-labelledby="organization-current-member-heading"
-        className="gap-0 py-0"
-        role="region"
+      <SettingsSection
+        action={<Badge variant="secondary">{t("you")}</Badge>}
+        description={t("currentDescription")}
+        headingLevel={headingLevel}
+        title={t("currentTitle")}
       >
-        <CardHeader className="border-b px-5 py-4 sm:px-6">
-          <CardTitle>
-            {headingLevel === 3 ? (
-              <h3 id="organization-current-member-heading">
-                {t("currentTitle")}
-              </h3>
-            ) : (
-              <h2 id="organization-current-member-heading">
-                {t("currentTitle")}
-              </h2>
-            )}
-          </CardTitle>
-          <CardDescription>{t("currentDescription")}</CardDescription>
-          <CardAction>
-            <Badge variant="secondary">{t("you")}</Badge>
-          </CardAction>
-        </CardHeader>
-        <CardContent className="px-5 py-5 sm:px-6">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           {memberIdentity(currentActor)}
-        </CardContent>
-      </Card>
+          <dl className="shrink-0 text-sm">
+            <dt className="text-muted-foreground">{t("columns.joined")}</dt>
+            <dd className="font-medium">
+              {currentActor.joinedAt
+                ? formattedDate(currentActor.joinedAt, locale)
+                : t("joinedUnavailable")}
+            </dd>
+          </dl>
+        </div>
+      </SettingsSection>
 
-      <Card
-        aria-labelledby="organization-other-members-heading"
-        className="gap-0 py-0"
-        role="region"
-      >
-        <CardHeader className="border-b px-5 py-4 sm:px-6">
-          <CardTitle>
-            {headingLevel === 3 ? (
-              <h3 id="organization-other-members-heading">
-                {t("othersTitle")}
-              </h3>
-            ) : (
-              <h2 id="organization-other-members-heading">
-                {t("othersTitle")}
-              </h2>
-            )}
-          </CardTitle>
-          <CardDescription>{t("othersDescription")}</CardDescription>
-          {organization.capabilities.canAddMembers &&
+      <SettingsSection
+        action={
+          organization.capabilities.canAddMembers &&
           actorAssignableRoles.length > 0 ? (
-            <CardAction>
-              <OrganizationAddMemberDialog
-                assignableRoles={actorAssignableRoles}
-                onMemberConfirmed={(member) => confirmMember(member, "add")}
-                organizationId={organization.id}
-              />
-            </CardAction>
-          ) : null}
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+            <OrganizationAddMemberDialog
+              assignableRoles={actorAssignableRoles}
+              onMemberConfirmed={(member) => confirmMember(member, "add")}
+              organizationId={organization.id}
+            />
+          ) : null
+        }
+        contentClassName="flex flex-col gap-4"
+        description={t("othersDescription")}
+        headingLevel={headingLevel}
+        title={t("othersTitle")}
+      >
+        <div className="flex flex-col gap-4">
           {!organization.capabilities.canAddMembers ? (
             <p className="text-sm text-muted-foreground">{t("readOnly")}</p>
           ) : null}
@@ -770,38 +756,59 @@ export function OrganizationMemberDirectory({
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="overflow-x-auto border">
-              {otherMembers.map((member) => {
-                const assignableRoles = roleOptions(member);
-                return (
-                  <article
-                    aria-label={t("memberLabel", {
-                      name: memberDisplayName(member),
-                    })}
-                    className="flex min-w-[36rem] items-start justify-between gap-6 border-b p-4 last:border-b-0"
-                    key={member.id}
-                  >
-                    <div className="flex min-w-0 flex-1 flex-col gap-3">
-                      {memberIdentity(member)}
-                      <p className="text-xs text-muted-foreground">
-                        {t("joined", {
-                          date: formattedDate(member.joinedAt, locale),
+            <div className="overflow-x-auto rounded-md border">
+              <Table className="min-w-[48rem]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t("columns.user")}</TableHead>
+                    <TableHead>{t("columns.email")}</TableHead>
+                    <TableHead>{t("columns.roles")}</TableHead>
+                    <TableHead>{t("columns.joined")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {otherMembers.map((member) => {
+                    const assignableRoles = roleOptions(member);
+                    return (
+                      <TableRow
+                        aria-label={t("memberLabel", {
+                          name: memberDisplayName(member),
                         })}
-                      </p>
-                    </div>
-                    {assignableRoles.length > 0 ? (
-                      <OrganizationMemberRoleControl
-                        assignableRoles={assignableRoles}
-                        member={member}
-                        onMemberConfirmed={(confirmed) =>
-                          confirmMember(confirmed, "role")
-                        }
-                        organizationId={organization.id}
-                      />
-                    ) : null}
-                  </article>
-                );
-              })}
+                        key={member.id}
+                      >
+                        <TableCell>
+                          {memberIdentity(member, {
+                            showEmail: false,
+                            showRole: false,
+                          })}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {member.email}
+                        </TableCell>
+                        <TableCell>
+                          {assignableRoles.length > 0 ? (
+                            <OrganizationMemberRoleControl
+                              assignableRoles={assignableRoles}
+                              member={member}
+                              onMemberConfirmed={(confirmed) =>
+                                confirmMember(confirmed, "role")
+                              }
+                              organizationId={organization.id}
+                            />
+                          ) : (
+                            <Badge variant="outline">
+                              {roles(member.role)}
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formattedDate(member.joinedAt, locale)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
           )}
           {nextCursor ? (
@@ -819,8 +826,8 @@ export function OrganizationMemberDirectory({
               </Button>
             </div>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </SettingsSection>
     </div>
   );
 }

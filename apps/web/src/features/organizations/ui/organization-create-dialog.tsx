@@ -47,7 +47,7 @@ export function OrganizationCreateDialog({
   presentation = "default",
 }: Readonly<{
   onNavigate?: () => void;
-  presentation?: "default" | "onboarding";
+  presentation?: "default" | "list" | "onboarding";
 }>) {
   const t = useTranslations("organizations.createDialog");
   const onboarding = useTranslations("organizations.onboarding");
@@ -164,6 +164,19 @@ export function OrganizationCreateDialog({
           >
             <IconPlus data-icon="inline-start" />
             {onboarding("createAction")}
+          </Button>
+        ) : presentation === "list" ? (
+          <Button
+            className="h-auto min-h-12 py-2 whitespace-normal"
+            data-organization-control-interaction-ready={
+              interactionReady ? "true" : undefined
+            }
+            disabled={!interactionReady}
+            size="lg"
+            type="button"
+          >
+            <IconPlus data-icon="inline-start" />
+            {t("trigger")}
           </Button>
         ) : (
           <Button

@@ -12,9 +12,9 @@ import {
 import { IconUsers } from "@tabler/icons-react";
 
 import {
-  TeamCreateDialog,
+  TeamCreateForm,
   TeamDeleteDialog,
-  TeamRenameDialog,
+  TeamRenameForm,
 } from "@/src/features/collaboration/ui/team-controls";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/src/components/ui/avatar";
@@ -1168,12 +1168,12 @@ export function TeamDirectory({
       className="flex flex-col gap-5"
       role="region"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-col gap-3">
         {showListHeading ? (
           <h2 className="text-lg font-medium">{t("list.label")}</h2>
         ) : null}
         {organization.canManageTeams ? (
-          <TeamCreateDialog
+          <TeamCreateForm
             onConfirmed={created}
             organizationId={organization.id}
           />
@@ -1230,13 +1230,7 @@ export function TeamDirectory({
                   {t("members.label", { team: team.name })}
                 </CardDescription>
                 {organization.canManageTeams ? (
-                  <CardAction className="flex flex-wrap justify-end gap-2">
-                    <TeamRenameDialog
-                      key={`rename-${team.id}`}
-                      onConfirmed={renamed}
-                      organizationId={organization.id}
-                      team={team}
-                    />
+                  <CardAction>
                     <TeamDeleteDialog
                       key={`delete-${team.id}`}
                       onConfirmed={deleted}
@@ -1247,6 +1241,14 @@ export function TeamDirectory({
                 ) : null}
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
+                {organization.canManageTeams ? (
+                  <TeamRenameForm
+                    key={`rename-${team.id}`}
+                    onConfirmed={renamed}
+                    organizationId={organization.id}
+                    team={team}
+                  />
+                ) : null}
                 <TeamMemberDirectory
                   key={`${organization.id}:${team.id}`}
                   onMemberCountChange={changeMemberCount}

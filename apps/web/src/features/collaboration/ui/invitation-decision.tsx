@@ -158,7 +158,6 @@ export function InvitationDecision({
 }>) {
   const t = useTranslations("collaboration.decision");
   const roles = useTranslations("collaboration.invitations.roles");
-  const statuses = useTranslations("collaboration.invitations.status");
   const locale = useLocale();
   const router = useRouter();
   const safeServerDecision = sanitizeInvitationDecision(serverDecision);
@@ -479,6 +478,17 @@ export function InvitationDecision({
     "domain-restricted": "states.domainRestricted",
     "already-member": "states.alreadyMember",
   }[projectedDecision.state] as Parameters<typeof t>[0];
+  const stateLabelKey = {
+    pending: "labels.pending",
+    accepted: "labels.accepted",
+    rejected: "labels.rejected",
+    canceled: "labels.canceled",
+    expired: "labels.expired",
+    "recipient-mismatch": "labels.recipientMismatch",
+    "email-verification-required": "labels.emailVerificationRequired",
+    "domain-restricted": "labels.domainRestricted",
+    "already-member": "labels.alreadyMember",
+  }[projectedDecision.state] as Parameters<typeof t>[0];
 
   return (
     <Card className="w-full">
@@ -487,7 +497,7 @@ export function InvitationDecision({
           <span>{t("page.title")}</span>
           {invitation ? (
             <Badge variant={actionable ? "default" : "outline"}>
-              {statuses(invitation.displayState)}
+              {t(stateLabelKey)}
             </Badge>
           ) : null}
         </CardTitle>
@@ -537,6 +547,14 @@ export function InvitationDecision({
               </dt>
               <dd className="mt-1 text-sm font-medium">
                 {invitation.inviterName}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm text-muted-foreground">
+                {t("details.created")}
+              </dt>
+              <dd className="mt-1 text-sm font-medium">
+                {formattedDate(invitation.createdAt, locale)}
               </dd>
             </div>
             <div>

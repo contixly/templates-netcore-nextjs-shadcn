@@ -157,7 +157,7 @@ test.describe.serial("organization full-stack workflows", () => {
     await page.goto("/workspaces");
     await expect(
       page.getByRole("heading", { name: "Workspaces", exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       page.getByRole("heading", { name: "No workspaces yet" }),
     ).toBeVisible();
@@ -206,11 +206,11 @@ test.describe.serial("organization full-stack workflows", () => {
     });
     await waitForOrganizationControlInteraction(switcher);
     await switcher.click();
-    await page.getByRole("link", { name: "Manage workspaces" }).click();
+    await page.getByRole("menuitem", { name: "Manage workspaces" }).click();
     await expect(page).toHaveURL("/workspaces");
     await expect(
       page.getByRole("heading", { name: "Workspaces", exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       page.getByRole("button", {
         name: "Current workspace: E2E Organization",
@@ -224,7 +224,7 @@ test.describe.serial("organization full-stack workflows", () => {
       .click();
     await expect(page).toHaveURL("/w/e2e-organization/settings/workspace");
     await expect(
-      page.getByRole("heading", { name: "Workspace settings" }),
+      page.getByRole("heading", { level: 1, name: "Workspace settings" }),
     ).toBeVisible();
     await expect(page.getByRole("main")).toHaveCount(1);
     await expect(page.getByRole("main")).toHaveAttribute("id", "main-content");
@@ -446,7 +446,7 @@ test.describe.serial("organization full-stack workflows", () => {
     ).toBeVisible();
     await page.getByRole("button", { name: "Confirm add" }).click();
 
-    const memberArticle = page.getByRole("article", {
+    const memberArticle = page.getByRole("row", {
       name: "E2E Organization Member workspace member",
     });
     await expect(memberArticle).toContainText("Outside domain policy");
@@ -738,7 +738,7 @@ test.describe.serial("organization full-stack workflows", () => {
     });
     await waitForOrganizationControlInteraction(workspaceSwitcher);
     await workspaceSwitcher.click();
-    await page.getByRole("link", { name: "Manage workspaces" }).click();
+    await page.getByRole("menuitem", { name: "Manage workspaces" }).click();
     await expect(page).toHaveURL("/workspaces");
     await page
       .getByRole("article", { name: "E2E Slug workspace" })
@@ -764,7 +764,7 @@ test.describe.serial("organization full-stack workflows", () => {
           "/api/v1/auth/session/active-organization"
       );
     });
-    await page.getByRole("button", { name: "Switch to E2E Slug" }).click();
+    await page.getByRole("menuitem", { name: "Switch to E2E Slug" }).click();
     expect((await persistCurrentResponse).status()).toBe(200);
     await expect(page).toHaveURL("/w/e2e-slug/dashboard");
     await page.goto("/dashboard");
@@ -776,7 +776,7 @@ test.describe.serial("organization full-stack workflows", () => {
     });
     await waitForOrganizationControlInteraction(reopenedSwitcher);
     await reopenedSwitcher.click();
-    await page.getByRole("button", { name: "Switch to E2E-Slug" }).click();
+    await page.getByRole("menuitem", { name: "Switch to E2E-Slug" }).click();
     await expect(page).toHaveURL("/w/e2e-slug-2/settings/users");
 
     await page.goto(`/w/${second.id}`);
@@ -805,7 +805,7 @@ test.describe.serial("organization full-stack workflows", () => {
     expect((await slugUpdateResponse).status()).toBe(200);
     await expect(page).toHaveURL("/w/e2e-slug-final/settings/workspace");
     await expect(
-      page.getByRole("heading", { name: "Workspace settings" }),
+      page.getByRole("heading", { level: 1, name: "Workspace settings" }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Delete workspace" }),

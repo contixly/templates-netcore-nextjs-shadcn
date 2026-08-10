@@ -43,10 +43,12 @@ export function OrganizationDeleteDialog({
   canDelete,
   onDeleted,
   organization,
+  triggerClassName,
 }: Readonly<{
   canDelete: boolean;
   onDeleted?: (organizationId: string) => void | Promise<void>;
   organization: DeletableOrganization;
+  triggerClassName?: string;
 }>) {
   const t = useTranslations("organizations.settings.deleteDialog");
   const router = useRouter();
@@ -157,6 +159,7 @@ export function OrganizationDeleteDialog({
       <DialogTrigger asChild>
         <Button
           {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+          className={triggerClassName}
           disabled={!interactionReady}
           type="button"
           variant="destructive"

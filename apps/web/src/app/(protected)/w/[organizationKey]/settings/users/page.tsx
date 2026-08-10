@@ -80,9 +80,13 @@ export default async function OrganizationUsersSettingsPage({
   if (!members.ok) {
     return <OrganizationFailure failure={members.failure} />;
   }
+  const currentUser = session.data.user;
   const actorEligibility = evaluateOrganizationEmailDomainEligibility(
-    session.data.user.email,
+    currentUser.email,
     organization.data.allowedEmailDomains,
+  );
+  const currentMembership = members.data.items.find(
+    (member) => member.userId === currentUser.id,
   );
 
   return (
@@ -91,10 +95,11 @@ export default async function OrganizationUsersSettingsPage({
       <OrganizationMemberDirectory
         key={organization.data.id}
         currentActor={{
-          userId: session.data.user.id,
-          name: session.data.user.name,
-          email: session.data.user.email,
+          userId: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email,
           role: organization.data.currentRole,
+          joinedAt: currentMembership?.joinedAt ?? null,
           isOutsideAllowedEmailDomains: !actorEligibility.isAllowed,
         }}
         initialPage={{

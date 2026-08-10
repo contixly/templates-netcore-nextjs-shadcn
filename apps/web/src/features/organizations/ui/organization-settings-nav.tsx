@@ -120,7 +120,7 @@ function OrganizationSettingsNavContent(props: NavigationProps) {
 
   return (
     <>
-      <div className="border-b p-2 md:hidden">
+      <div className="flex justify-end border-b px-3 py-2 md:hidden">
         <Drawer
           direction="right"
           onOpenChange={setMobileOpen}
@@ -128,19 +128,20 @@ function OrganizationSettingsNavContent(props: NavigationProps) {
         >
           <DrawerTrigger asChild>
             <Button
-              aria-label={t("label")}
-              className="w-full justify-start"
+              aria-label={t("open")}
+              size="icon"
               type="button"
               variant="outline"
             >
-              <IconMenu2 aria-hidden="true" data-icon="inline-start" />
-              {t("label")}
+              <IconMenu2 aria-hidden="true" />
             </Button>
           </DrawerTrigger>
           <DrawerContent>
             <DrawerHeader>
               <DrawerTitle>{t("label")}</DrawerTitle>
-              <DrawerDescription>{t("loading")}</DrawerDescription>
+              <DrawerDescription className="sr-only">
+                {t("description")}
+              </DrawerDescription>
             </DrawerHeader>
             <nav aria-label={t("label")} className="px-2 pb-4">
               <OrganizationSettingsMenu
@@ -152,13 +153,21 @@ function OrganizationSettingsNavContent(props: NavigationProps) {
         </Drawer>
       </div>
 
-      <nav
-        aria-label={t("label")}
-        className="hidden w-full shrink-0 border-r p-2 md:block md:w-64"
-        data-slot="organization-settings-nav"
+      <aside
+        className="hidden h-full w-full shrink-0 flex-col border-r bg-background md:flex md:w-64"
+        data-slot="organization-settings-sidebar"
       >
-        <OrganizationSettingsMenu {...props} />
-      </nav>
+        <div className="flex min-h-12 items-center border-b px-3 py-2">
+          <h2 className="text-sm font-semibold">{t("label")}</h2>
+        </div>
+        <nav
+          aria-label={t("label")}
+          className="min-h-0 w-full flex-1 p-2 md:w-64"
+          data-slot="organization-settings-nav"
+        >
+          <OrganizationSettingsMenu {...props} />
+        </nav>
+      </aside>
     </>
   );
 }

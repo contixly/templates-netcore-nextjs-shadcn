@@ -109,6 +109,44 @@ it.each([
 );
 
 it.each([
+  ["email-verification-required", "Email verification required"],
+  ["domain-restricted", "Domain restricted"],
+  ["already-member", "Already a member"],
+] as const)("labels the special terminal %s projection", (state, label) => {
+  renderWithMessages(
+    <InvitationDecision
+      decision={{ ...pending, state, canRespond: false }}
+      emailVerified={state !== "email-verification-required"}
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+
+  expect(screen.getByText(label)).toBeVisible();
+  expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+});
+
+it("renders the dedicated created detail before expiry", () => {
+  renderWithMessages(
+    <InvitationDecision
+      decision={pending}
+      emailVerified
+      localEmailConfirmationAvailable={false}
+    />,
+  );
+
+  const created = screen.getByText("Created").closest("div");
+  const expires = screen.getByText("Expires").closest("div");
+  expect(created).not.toBeNull();
+  expect(expires).not.toBeNull();
+  expect(created).toHaveTextContent("Aug 1, 2026, 12:00 PM");
+  expect(expires).toHaveTextContent("Aug 3, 2026, 12:00 PM");
+  expect(
+    created!.compareDocumentPosition(expires!) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+
+it.each([
   ["accept", acceptInvitation, "Accept invitation"],
   ["reject", rejectInvitation, "Reject invitation"],
 ] as const)(

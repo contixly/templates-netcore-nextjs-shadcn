@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { IconArrowRight, IconSettings } from "@tabler/icons-react";
+import { IconSettings } from "@tabler/icons-react";
 
 import { OrganizationDeleteDialog } from "@/src/features/organizations/ui/organization-delete-dialog";
-import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,
@@ -39,7 +38,6 @@ export function OrganizationCard({
   organization: OrganizationCardView;
 }>) {
   const t = useTranslations("organizations.card");
-  const roles = useTranslations("organizations.roles");
 
   return (
     <Card
@@ -50,41 +48,42 @@ export function OrganizationCard({
       <CardHeader className="min-w-0">
         <CardTitle className="min-w-0 truncate">{organization.name}</CardTitle>
         <CardAction>
-          <Badge variant="outline">
-            {t("roleLabel", { role: roles(organization.currentRole) })}
-          </Badge>
+          <Button asChild size="icon" variant="ghost">
+            <Link
+              aria-label={t("settings")}
+              href={organizationRoutes.settingsWorkspace(
+                organization.canonicalKey,
+              )}
+            >
+              <IconSettings aria-hidden="true" />
+              <span className="sr-only">{t("settings")}</span>
+            </Link>
+          </Button>
         </CardAction>
       </CardHeader>
-      <CardContent className="flex flex-1 items-center justify-between gap-3 text-sm">
-        <span className="text-muted-foreground">{t("slugLabel")}</span>
-        <code className="max-w-[70%] truncate bg-muted px-2 py-1 text-xs">
-          {organization.slug}
-        </code>
+      <CardContent className="flex flex-1 flex-col gap-4 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">{t("slugLabel")}</span>
+          <code className="max-w-[70%] truncate bg-muted px-2 py-1 text-xs">
+            {organization.slug}
+          </code>
+        </div>
+        <p className="text-muted-foreground">{t("summary")}</p>
       </CardContent>
-      <CardFooter className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+      <CardFooter className="flex flex-col gap-2">
+        <Button asChild className="w-full" variant="outline">
+          <Link href={organizationRoutes.dashboard(organization.canonicalKey)}>
+            {t("open")}
+          </Link>
+        </Button>
         {canDelete ? (
           <OrganizationDeleteDialog
             canDelete
             onDeleted={onDeleted}
             organization={{ id: organization.id, name: organization.name }}
+            triggerClassName="w-full"
           />
         ) : null}
-        <Button asChild className="w-full sm:flex-1" variant="outline">
-          <Link
-            href={organizationRoutes.settingsWorkspace(
-              organization.canonicalKey,
-            )}
-          >
-            <IconSettings data-icon="inline-start" />
-            {t("settings")}
-          </Link>
-        </Button>
-        <Button asChild className="w-full sm:flex-1">
-          <Link href={organizationRoutes.dashboard(organization.canonicalKey)}>
-            {t("open")}
-            <IconArrowRight data-icon="inline-end" />
-          </Link>
-        </Button>
       </CardFooter>
     </Card>
   );

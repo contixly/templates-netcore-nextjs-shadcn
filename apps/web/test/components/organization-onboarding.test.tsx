@@ -84,7 +84,7 @@ it("keeps the create trigger unavailable in server HTML until its client handler
   expect(await screen.findByRole("dialog")).toBeVisible();
 });
 
-it("offers first-workspace creation, account settings, and invitation review", () => {
+it("offers first-workspace creation and invitation review without a target-only account action", () => {
   renderWithMessages(
     <main id="main-content">
       <OrganizationOnboarding />
@@ -95,8 +95,8 @@ it("offers first-workspace creation, account settings, and invitation review", (
     screen.getByRole("heading", { name: "Create your first workspace" }),
   ).toBeVisible();
   expect(
-    screen.getByRole("link", { name: "Account settings" }),
-  ).toHaveAttribute("href", "/user/profile");
+    screen.queryByRole("link", { name: "Account settings" }),
+  ).not.toBeInTheDocument();
   expect(
     screen.getByRole("link", { name: "Review Invitations" }),
   ).toHaveAttribute("href", "/user/invitations");

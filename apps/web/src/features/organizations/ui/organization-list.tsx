@@ -296,8 +296,23 @@ export function OrganizationList({
           </>
         ) : null}
       </EmptyHeader>
-      <EmptyContent>
-        <OrganizationCreateDialog />
+      <EmptyContent className="flex max-w-2xl flex-col items-center justify-center gap-8 px-1 text-center">
+        <OrganizationCreateDialog presentation="list" />
+        <div className="grid w-fit gap-4 text-sm text-muted-foreground">
+          {(["create", "domain", "switch"] as const).map((step, index) => (
+            <div className="flex items-start gap-3 text-left" key={step}>
+              <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <span className="font-semibold text-primary">{index + 1}</span>
+              </div>
+              <div>
+                <p className="font-medium text-foreground">
+                  {t(`steps.${step}.title`)}
+                </p>
+                <p>{t(`steps.${step}.description`)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </EmptyContent>
     </Empty>
   );

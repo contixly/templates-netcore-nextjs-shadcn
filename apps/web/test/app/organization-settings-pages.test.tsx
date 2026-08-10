@@ -569,6 +569,7 @@ it("serializes compact actor, organization, and member views into the users clie
     name: "Current User",
     email: "current@example.com",
     role: "owner",
+    joinedAt: currentMember.joinedAt,
     isOutsideAllowedEmailDomains: false,
   });
   expect(directory.props.organization).toEqual({
@@ -644,6 +645,7 @@ it.each([
       name: "Current User",
       email,
       role: "owner",
+      joinedAt: currentMember.joinedAt,
       isOutsideAllowedEmailDomains: expectedOutsidePolicy,
     });
     expect(directory.props.currentActor).not.toHaveProperty("emailDomain");

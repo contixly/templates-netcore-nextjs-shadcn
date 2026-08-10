@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { IconMail, IconUserCog } from "@tabler/icons-react";
+import { IconMail } from "@tabler/icons-react";
 
 import { AccountInvitationList } from "@/src/features/collaboration/ui/account-invitation-list";
 import { OrganizationCreateDialog } from "@/src/features/organizations/ui/organization-create-dialog";
@@ -36,17 +36,6 @@ export function OrganizationOnboarding({
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
             <OrganizationCreateDialog presentation="onboarding" />
-            <Button
-              asChild
-              className="h-auto min-h-9 py-2 whitespace-normal"
-              size="lg"
-              variant="outline"
-            >
-              <Link href={accountRoutes.profile}>
-                <IconUserCog data-icon="inline-start" />
-                {t("accountAction")}
-              </Link>
-            </Button>
             <Button
               asChild
               className="h-auto min-h-9 py-2 whitespace-normal"
