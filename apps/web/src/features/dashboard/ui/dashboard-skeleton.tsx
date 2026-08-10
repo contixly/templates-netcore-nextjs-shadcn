@@ -19,7 +19,7 @@ import {
 
 function DashboardCardSkeleton() {
   return (
-    <Card className="@container/card" data-slot="dashboard-card-skeleton">
+    <Card className="@container/card" data-testid="dashboard-card-skeleton">
       <CardHeader>
         <CardDescription>
           <Skeleton className="h-4 w-24" />
@@ -95,7 +95,10 @@ export function DashboardSkeleton({ label }: Readonly<{ label: string }>) {
         ))}
       </div>
       <div className="min-w-0 px-4 lg:px-6">
-        <Card className="@container/card" data-slot="dashboard-chart-skeleton">
+        <Card
+          className="@container/card"
+          data-testid="dashboard-chart-skeleton"
+        >
           <CardHeader>
             <CardTitle>
               <Skeleton className="h-5 w-40" />

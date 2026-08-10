@@ -12,21 +12,34 @@ import {
 
 export type SectionCardsCopy = Readonly<{
   sectionLabel: string;
-  revenue: Readonly<{ label: string; detail: string }>;
-  customers: Readonly<{ label: string; detail: string }>;
-  accounts: Readonly<{ label: string; detail: string }>;
-  growth: Readonly<{ label: string; detail: string }>;
+  revenue: Readonly<{ label: string; trend: string; detail: string }>;
+  customers: Readonly<{ label: string; trend: string; detail: string }>;
+  accounts: Readonly<{ label: string; trend: string; detail: string }>;
+  growth: Readonly<{ label: string; trend: string; detail: string }>;
 }>;
 
 const defaultCopy: SectionCardsCopy = {
   sectionLabel: "Dashboard metrics",
-  revenue: { label: "Total revenue", detail: "Trending up this month" },
+  revenue: {
+    label: "Total revenue",
+    trend: "Trending up this month",
+    detail: "Visitors for the last 6 months",
+  },
   customers: {
     label: "New customers",
+    trend: "Down 20% this period",
     detail: "Acquisition needs attention",
   },
-  accounts: { label: "Active accounts", detail: "Strong user retention" },
-  growth: { label: "Growth rate", detail: "Steady performance increase" },
+  accounts: {
+    label: "Active accounts",
+    trend: "Strong user retention",
+    detail: "Engagement exceed targets",
+  },
+  growth: {
+    label: "Growth rate",
+    trend: "Steady performance increase",
+    detail: "Meets growth projections",
+  },
 };
 
 const metrics = [
@@ -69,9 +82,10 @@ export function SectionCards({
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1.5 text-sm">
               <div className="line-clamp-1 flex items-center gap-2 font-medium">
-                {itemCopy.detail}
+                {itemCopy.trend}
                 <Icon aria-hidden="true" className="size-4" />
               </div>
+              <div className="text-muted-foreground">{itemCopy.detail}</div>
             </CardFooter>
           </Card>
         );

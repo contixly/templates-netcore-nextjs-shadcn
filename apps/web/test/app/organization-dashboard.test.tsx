@@ -103,8 +103,21 @@ it("passes only RSC-serializable dashboard props into the client boundary", asyn
   });
 
   expect(isValidElement(page)).toBe(true);
-  const copy = (page as React.ReactElement<{ copy: unknown }>).props.copy;
+  const copy = (
+    page as React.ReactElement<{
+      copy: {
+        cards: { revenue: { detail: string; trend?: string } };
+        table: { add?: string };
+      };
+    }>
+  ).props.copy;
   expect(JSON.parse(JSON.stringify(copy))).toEqual(copy);
+  expect(copy.cards.revenue).toEqual({
+    detail: "Visitors for the last 6 months",
+    label: "Total revenue",
+    trend: "Trending up this month",
+  });
+  expect(copy.table.add).toBe("Add section");
 });
 
 it("replaces only canonical organization dashboard presentation", async () => {
@@ -132,10 +145,10 @@ it("mirrors the dashboard regions in its accessible loading skeleton", async () 
   expect(status).toHaveAttribute("aria-busy", "true");
   expect(status).toHaveClass("@container/main");
   expect(
-    status.querySelectorAll('[data-slot="dashboard-card-skeleton"]'),
+    status.querySelectorAll('[data-testid="dashboard-card-skeleton"]'),
   ).toHaveLength(4);
   expect(
-    status.querySelector('[data-slot="dashboard-chart-skeleton"]'),
+    status.querySelector('[data-testid="dashboard-chart-skeleton"]'),
   ).not.toBeNull();
   expect(
     status.querySelector('[data-slot="dashboard-table-skeleton"]'),

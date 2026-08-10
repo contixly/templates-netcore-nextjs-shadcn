@@ -12,19 +12,23 @@
   "cards": {
     "revenue": {
       "label": "Total revenue",
-      "detail": "Trending up this month"
+      "trend": "Trending up this month",
+      "detail": "Visitors for the last 6 months"
     },
     "customers": {
       "label": "New customers",
+      "trend": "Down 20% this period",
       "detail": "Acquisition needs attention"
     },
     "accounts": {
       "label": "Active accounts",
-      "detail": "Strong user retention"
+      "trend": "Strong user retention",
+      "detail": "Engagement exceed targets"
     },
     "growth": {
       "label": "Growth rate",
-      "detail": "Steady performance increase"
+      "trend": "Steady performance increase",
+      "detail": "Meets growth projections"
     },
     "sectionLabel": "Dashboard metrics"
   },

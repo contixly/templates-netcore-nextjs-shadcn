@@ -41,8 +41,9 @@ import {
   IconGripVertical,
   IconLayoutColumns,
   IconLoader,
+  IconPlus,
 } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/src/components/ui/badge";
@@ -95,6 +96,7 @@ export type ActivityTableCopy = Readonly<{
   title: string;
   demoNotice: string;
   search: string;
+  add: string;
   empty: string;
   columns: string;
   section: string;
@@ -138,6 +140,7 @@ const defaultCopy: ActivityTableCopy = {
   title: "Sections",
   demoNotice: "Demo changes are not saved.",
   search: "Search sections",
+  add: "Add section",
   empty: "No results.",
   columns: "Columns",
   section: "Section",
@@ -352,6 +355,9 @@ export function ActivityTable({
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [editing, setEditing] = useState<EditableDashboardRow | null>(null);
   const [view, setView] = useState("outline");
+  const nextLocalRowId = useRef(
+    Math.max(0, ...initialRows.map((row) => row.id)) + 1,
+  );
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -503,12 +509,28 @@ export function ActivityTable({
     setEditing(null);
     toast.success(copy.localApplied);
   };
+  const addSection = () => {
+    const section = Object.freeze<EditableDashboardRow>({
+      id: nextLocalRowId.current++,
+      header: copy.add,
+      type: copy.typeLabels.Narrative ?? "Narrative",
+      status: copy.statusLabels["In Process"] ?? "In Process",
+      statusKind: "In Process",
+      target: "0",
+      limit: "0",
+      reviewer: copy.assignReviewer,
+    });
+
+    setRows((current) => [section, ...current]);
+    table.setPageIndex(0);
+    setEditing(section);
+  };
   const pageCount = Math.max(table.getPageCount(), 1);
   const viewOptions = [
-    { value: "outline", label: copy.outline },
-    { value: "past-performance", label: copy.pastPerformance },
-    { value: "key-personnel", label: copy.keyPersonnel },
-    { value: "focus-documents", label: copy.focusDocuments },
+    { value: "outline", label: copy.outline, badge: null },
+    { value: "past-performance", label: copy.pastPerformance, badge: 3 },
+    { value: "key-personnel", label: copy.keyPersonnel, badge: 2 },
+    { value: "focus-documents", label: copy.focusDocuments, badge: null },
   ] as const;
 
   return (
@@ -547,7 +569,7 @@ export function ActivityTable({
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <TabsList className="hidden @4xl/main:flex">
+            <TabsList className="hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:px-1 @4xl/main:flex">
               {viewOptions.map((option) => (
                 <TabsTrigger
                   key={option.value}
@@ -555,6 +577,9 @@ export function ActivityTable({
                   value={option.value}
                 >
                   {option.label}
+                  {option.badge === null ? null : (
+                    <Badge variant="secondary">{option.badge}</Badge>
+                  )}
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -608,6 +633,16 @@ export function ActivityTable({
                   </DropdownMenuGroup>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Button
+                aria-label={copy.add}
+                onClick={addSection}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <IconPlus aria-hidden="true" />
+                <span className="hidden lg:inline">{copy.add}</span>
+              </Button>
             </div>
           </div>
         </div>
