@@ -13,6 +13,10 @@ const visualEnvironmentHelper = path.join(
   appRoot,
   "scripts/visual-baseline-environment.mjs",
 );
+const runtimeSelectionHelper = path.join(
+  appRoot,
+  "scripts/playwright-runtime-selection.mjs",
+);
 const webServerHelper = path.join(appRoot, "scripts/run-e2e-web-server.mjs");
 
 function helperJson(
@@ -257,12 +261,75 @@ test("live-provider discovery is isolated from the visual matrix", () => {
   );
 });
 
-test("normal discovery retains the four-project visual matrix", () => {
-  const visualTests = listedTests(false).filter((line) =>
-    line.includes("ui-reference-parity"),
+test("runtime selection explicitly separates canonical pixels from portable behavior", () => {
+  const configSource = readFileSync(
+    path.join(appRoot, "playwright.config.ts"),
+    "utf8",
   );
-  expect(visualTests).toHaveLength(4);
-  expect(
-    visualTests.map((line) => line.match(/^\[([^\]]+)\]/u)?.[1]).sort(),
-  ).toEqual(["desktop-dark", "desktop-light", "mobile-dark", "mobile-light"]);
+  expect(configSource).toContain("selectPlaywrightRuntime");
+  expect(configSource).toContain(
+    'runtimeSelection.visualServerIds.includes("russian")',
+  );
+  expect(configSource).toContain(
+    'runtimeSelection.visualServerIds.includes("mobile")',
+  );
+  expect(configSource).toContain(
+    'runtimeSelection.visualServerIds.includes("mobile-russian")',
+  );
+
+  const canonical = helperJson(runtimeSelectionHelper, [
+    "--evaluate",
+    JSON.stringify({ canonical: true, live: false }),
+  ]);
+  expect(canonical).toEqual({
+    behavioralProjectNames: ["desktop-light"],
+    mode: "canonical",
+    projects: [
+      { colorScheme: "light", device: "desktop", name: "desktop-light" },
+      {
+        colorScheme: "dark",
+        device: "desktop",
+        name: "desktop-dark",
+        testMatch: "ui-reference-parity.spec.ts",
+      },
+      {
+        colorScheme: "light",
+        device: "mobile",
+        name: "mobile-light",
+        testMatch: "ui-reference-parity.spec.ts",
+      },
+      {
+        colorScheme: "dark",
+        device: "mobile",
+        name: "mobile-dark",
+        testMatch: "ui-reference-parity.spec.ts",
+      },
+    ],
+    visualParityProjectNames: [
+      "desktop-light",
+      "desktop-dark",
+      "mobile-light",
+      "mobile-dark",
+    ],
+    visualServerIds: ["russian", "mobile", "mobile-russian"],
+  });
+
+  const noncanonical = helperJson(runtimeSelectionHelper, [
+    "--evaluate",
+    JSON.stringify({ canonical: false, live: false }),
+  ]);
+  expect(noncanonical).toEqual({
+    behavioralProjectNames: ["desktop-light"],
+    mode: "portable",
+    projects: [
+      {
+        colorScheme: "light",
+        device: "desktop",
+        name: "desktop-light",
+        testIgnore: "ui-reference-parity.spec.ts",
+      },
+    ],
+    visualParityProjectNames: [],
+    visualServerIds: [],
+  });
 });

@@ -5,16 +5,33 @@ import {
   currentVisualBaselineEnvironment,
   isCanonicalVisualBaselineEnvironment,
 } from "./scripts/visual-baseline-environment.mjs";
+import { selectPlaywrightRuntime } from "./scripts/playwright-runtime-selection.mjs";
 
 const apiOrigin = "http://127.0.0.1:5297";
 const webOrigin = "http://127.0.0.1:3127";
 const russianWebOrigin = "http://127.0.0.1:3128";
 const mobileWebOrigin = "https://127.0.0.1:3129";
 const mobileRussianWebOrigin = "https://127.0.0.1:3130";
+type RuntimeProject = Readonly<{
+  colorScheme: "dark" | "light";
+  device: "desktop" | "mobile";
+  name: string;
+  testIgnore?: string;
+  testMatch?: string;
+}>;
+type RuntimeSelection = Readonly<{
+  mode: "canonical" | "live-provider" | "portable";
+  projects: readonly RuntimeProject[];
+  visualServerIds: readonly string[];
+}>;
 const liveProviderSmokeEnabled = process.env.E2E_LIVE_PROVIDER_SMOKE === "1";
 const canonicalVisualBaselineEnabled = isCanonicalVisualBaselineEnvironment(
   currentVisualBaselineEnvironment(),
 );
+const runtimeSelection = selectPlaywrightRuntime({
+  canonical: canonicalVisualBaselineEnabled,
+  live: liveProviderSmokeEnabled,
+}) as RuntimeSelection;
 const canonicalVisualBaselineMetadata = {
   visualBaselineOperatingSystem:
     canonicalVisualBaselineEnvironment.operatingSystem,
@@ -67,82 +84,44 @@ function externalAuthenticationEnvironment(): Record<string, string> {
   return environment;
 }
 
+function playwrightProject(
+  project: (typeof runtimeSelection.projects)[number],
+) {
+  const mobile = project.device === "mobile";
+  return {
+    name: project.name,
+    metadata: {
+      ...(runtimeSelection.mode === "canonical"
+        ? canonicalVisualBaselineMetadata
+        : {}),
+      russianBaseURL: mobile ? mobileRussianWebOrigin : russianWebOrigin,
+    },
+    ...(project.testMatch ? { testMatch: project.testMatch } : {}),
+    ...(project.testIgnore ? { testIgnore: project.testIgnore } : {}),
+    use: mobile
+      ? {
+          ...devices["iPhone 13"],
+          baseURL: mobileWebOrigin,
+          colorScheme: project.colorScheme,
+          ignoreHTTPSErrors: true,
+        }
+      : {
+          ...devices["Desktop Chrome"],
+          colorScheme: project.colorScheme,
+        },
+  };
+}
+
 export default defineConfig({
   testDir: "./e2e",
   snapshotPathTemplate:
     "{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-projectName}{ext}",
-  ...(liveProviderSmokeEnabled
-    ? { testMatch: "external-provider-smoke.spec.ts" }
-    : {}),
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
-  projects: liveProviderSmokeEnabled
-    ? [
-        {
-          name: "desktop-light",
-          metadata: { russianBaseURL: russianWebOrigin },
-          use: { ...devices["Desktop Chrome"], colorScheme: "light" },
-        },
-      ]
-    : canonicalVisualBaselineEnabled
-      ? [
-          {
-            name: "desktop-light",
-            metadata: {
-              ...canonicalVisualBaselineMetadata,
-              russianBaseURL: russianWebOrigin,
-            },
-            use: { ...devices["Desktop Chrome"], colorScheme: "light" },
-          },
-          {
-            name: "desktop-dark",
-            metadata: {
-              ...canonicalVisualBaselineMetadata,
-              russianBaseURL: russianWebOrigin,
-            },
-            testMatch: "ui-reference-parity.spec.ts",
-            use: { ...devices["Desktop Chrome"], colorScheme: "dark" },
-          },
-          {
-            name: "mobile-light",
-            metadata: {
-              ...canonicalVisualBaselineMetadata,
-              russianBaseURL: mobileRussianWebOrigin,
-            },
-            testMatch: "ui-reference-parity.spec.ts",
-            use: {
-              ...devices["iPhone 13"],
-              baseURL: mobileWebOrigin,
-              colorScheme: "light",
-              ignoreHTTPSErrors: true,
-            },
-          },
-          {
-            name: "mobile-dark",
-            metadata: {
-              ...canonicalVisualBaselineMetadata,
-              russianBaseURL: mobileRussianWebOrigin,
-            },
-            testMatch: "ui-reference-parity.spec.ts",
-            use: {
-              ...devices["iPhone 13"],
-              baseURL: mobileWebOrigin,
-              colorScheme: "dark",
-              ignoreHTTPSErrors: true,
-            },
-          },
-        ]
-      : [
-          {
-            name: "desktop-light",
-            metadata: { russianBaseURL: russianWebOrigin },
-            testIgnore: "ui-reference-parity.spec.ts",
-            use: { ...devices["Desktop Chrome"], colorScheme: "light" },
-          },
-        ],
+  projects: runtimeSelection.projects.map(playwrightProject),
   use: {
     ...devices["Desktop Chrome"],
     baseURL: webOrigin,
@@ -179,7 +158,7 @@ export default defineConfig({
       timeout: 120_000,
       url: webOrigin,
     },
-    ...(!liveProviderSmokeEnabled && canonicalVisualBaselineEnabled
+    ...(runtimeSelection.visualServerIds.includes("russian")
       ? [
           {
             command:
@@ -194,6 +173,10 @@ export default defineConfig({
             timeout: 120_000,
             url: russianWebOrigin,
           },
+        ]
+      : []),
+    ...(runtimeSelection.visualServerIds.includes("mobile")
+      ? [
           {
             command:
               "node ./scripts/run-e2e-web-server.mjs --port 3129 --locale en --https",
@@ -208,6 +191,10 @@ export default defineConfig({
             url: mobileWebOrigin,
             ignoreHTTPSErrors: true,
           },
+        ]
+      : []),
+    ...(runtimeSelection.visualServerIds.includes("mobile-russian")
+      ? [
           {
             command:
               "node ./scripts/run-e2e-web-server.mjs --port 3130 --locale ru --https",
