@@ -428,6 +428,9 @@ export function OrganizationMemberDirectory({
     ? { ...state, pages: replaceFirstPage(state.pages, initialPage) }
     : state;
   const members = orderedVisibleMembers(visibleState);
+  const currentActorJoinedAt =
+    members.find((member) => member.userId === currentActor.userId)?.joinedAt ??
+    currentActor.joinedAt;
   const otherMembers = members.filter(
     (member) => member.userId !== currentActor.userId,
   );
@@ -717,8 +720,8 @@ export function OrganizationMemberDirectory({
           <dl className="shrink-0 text-sm">
             <dt className="text-muted-foreground">{t("columns.joined")}</dt>
             <dd className="font-medium">
-              {currentActor.joinedAt
-                ? formattedDate(currentActor.joinedAt, locale)
+              {currentActorJoinedAt
+                ? formattedDate(currentActorJoinedAt, locale)
                 : t("joinedUnavailable")}
             </dd>
           </dl>

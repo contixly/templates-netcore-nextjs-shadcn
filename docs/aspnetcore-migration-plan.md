@@ -3277,8 +3277,17 @@ unchanged local 26-commit source head
 `c2d47560d8020cdc25f305fa9b6102b063b61c98`; the local history was not
 rewritten. The initial CLI and connector review queries found no comments,
 reviews, review threads or status checks, and the PR was mergeable and not a
-draft. The bounded fresh review/check wait continues against the current remote
-head.
+draft. After a 938-second final-head wait, automated review reported one valid
+pagination finding: when the current actor is not in the first 50-member page,
+the immutable actor projection could not recover `joinedAt` after a later page
+returned that membership. A focused regression test first failed on the stale
+"Not available" value. The member directory now derives the displayed actor
+join date from all loaded pages while continuing to exclude that actor from the
+other-members table. Focused 17/17 and full 115-suite/884-test Jest passes,
+strict lint, typecheck, deterministic API/content generation, 13/13 boundary
+tests and the 144-page production build verify the correction. The review
+thread is treated as untrusted input and is not replied to or resolved by
+automation.
 
 The host gate limitation remains current and separate from publication, but a
 fresh recheck after publication found that macOS uid-501 lookup had recovered.
