@@ -60,7 +60,9 @@ api.StartInfo.Environment["ASPNETCORE_ENVIRONMENT"] = "Test";
 api.StartInfo.Environment["ConnectionStrings__Postgres"] = connectionString;
 api.StartInfo.Environment["LocalAutomationAuth__Enabled"] = "true";
 api.StartInfo.Environment["Testing__AssumeHttpsBoundary"] = "true";
-CopyExternalAuthenticationEnvironment(api.StartInfo.Environment);
+Template.E2EHost.ExternalAuthenticationEnvironment.CopyConfiguredValues(
+    api.StartInfo.Environment,
+    Environment.GetEnvironmentVariable);
 
 if (!api.Start())
 {
@@ -106,54 +108,4 @@ static string FindRepositoryRoot()
 
     throw new DirectoryNotFoundException(
         "Could not locate Template.sln for the E2E API process.");
-}
-
-static void CopyExternalAuthenticationEnvironment(
-    IDictionary<string, string?> target)
-{
-    const string section = "ExternalAuthentication";
-    const string publicOrigin = $"{section}__PublicOrigin";
-    var providerNames = new[] { "Google", "GitHub", "GitLab", "Vk", "Yandex" };
-
-    foreach (var name in target.Keys
-                 .Where(name => name.StartsWith(
-                     $"{section}__",
-                     StringComparison.OrdinalIgnoreCase))
-                 .ToArray())
-    {
-        target.Remove(name);
-    }
-
-    CopyConfiguredValue(publicOrigin);
-    foreach (var provider in providerNames)
-    {
-        var prefix = $"{section}__Providers__{provider}";
-        var clientIdName = $"{prefix}__ClientId";
-        var clientSecretName = $"{prefix}__ClientSecret";
-        var clientId = ReadConfiguredValue(clientIdName);
-        var clientSecret = ReadConfiguredValue(clientSecretName);
-        if (clientId is not null && clientSecret is not null)
-        {
-            target[clientIdName] = clientId;
-            target[clientSecretName] = clientSecret;
-        }
-    }
-
-    void CopyConfiguredValue(string name)
-    {
-        var value = ReadConfiguredValue(name);
-        if (value is not null)
-        {
-            target[name] = value;
-        }
-    }
-
-    static string? ReadConfiguredValue(string name)
-    {
-        var value = Environment.GetEnvironmentVariable(name);
-        return !string.IsNullOrWhiteSpace(value)
-            && string.Equals(value, value.Trim(), StringComparison.Ordinal)
-                ? value
-                : null;
-    }
 }

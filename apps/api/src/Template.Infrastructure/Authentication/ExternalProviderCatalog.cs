@@ -31,7 +31,9 @@ internal sealed class ExternalProviderCatalog
             .Select(provider => new ExternalProviderDescriptor(
                 provider,
                 ExternalProviderMetadata.GetDisplayName(provider),
-                hasOrigin && value.TryGetCompleteCredentials(provider, out _)))
+                hasOrigin && (provider == ExternalProvider.Vk
+                    ? value.TryGetClientId(provider, out _)
+                    : value.TryGetCompleteCredentials(provider, out _))))
             .ToArray();
         _configured = Known.ToDictionary(
             descriptor => descriptor.Provider.Value,

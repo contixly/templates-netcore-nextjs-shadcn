@@ -130,10 +130,11 @@ enabled.
 
 ASP.NET Core uses OpenIddict Client, not OpenIddict Server, for the five closed
 provider ids `google`, `github`, `gitlab`, `vk`, and `yandex`. A provider is
-advertised and challengeable only when a valid public origin and its complete
-client-id/client-secret pair are configured. Zero providers is valid; an
-unknown or partial provider block fails option validation without logging its
-values.
+advertised and challengeable only when a valid public origin is configured and
+its credentials are valid: Google, GitHub, GitLab, and Yandex require a
+complete client-id/client-secret pair, while VK requires only a canonical
+non-empty client ID. Zero providers is valid; an unknown or partial
+secret-bearing provider block fails option validation without logging values.
 
 `POST /api/v1/auth/external/{provider}/challenge` is the only versioned REST
 OAuth operation. Its strict JSON body selects `signIn` or `connect` and may

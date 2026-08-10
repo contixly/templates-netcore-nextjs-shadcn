@@ -85,7 +85,15 @@ public sealed class ExternalProviderConfigurationTests
                 registration.Scopes.Order(StringComparer.Ordinal));
             Assert.DoesNotContain(Scopes.OfflineAccess, registration.Scopes);
             Assert.False(string.IsNullOrWhiteSpace(registration.ClientId));
-            Assert.False(string.IsNullOrWhiteSpace(registration.ClientSecret));
+            if (provider == "vk")
+            {
+                Assert.Null(registration.ClientSecret);
+                Assert.Equal(ClientTypes.Public, registration.ClientType);
+            }
+            else
+            {
+                Assert.False(string.IsNullOrWhiteSpace(registration.ClientSecret));
+            }
         }
 
         Assert.Contains(
@@ -129,6 +137,75 @@ public sealed class ExternalProviderConfigurationTests
                 assembly.GetName().Name,
                 "OpenIddict.Server",
                 StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void VkClientIdOnlyRegistersPublicPkceClientWithoutSecret()
+    {
+        using var services = BuildServices(new Dictionary<string, string?>
+        {
+            ["ExternalAuthentication:PublicOrigin"] =
+                "https://accounts.example.test",
+            ["ExternalAuthentication:Providers:Vk:ClientId"] = "vk-id",
+            ["ExternalAuthentication:Providers:Vk:ClientSecret"] = ""
+        });
+
+        var configured = services
+            .GetRequiredService<IOptions<ExternalAuthenticationOptions>>()
+            .Value;
+        var catalog = services.GetRequiredService<IExternalProviderCatalog>();
+        var registration = Assert.Single(services
+            .GetRequiredService<IOptions<OpenIddictClientOptions>>()
+            .Value
+            .Registrations);
+
+        Assert.NotNull(configured);
+        Assert.True(catalog.Known.Single(provider =>
+            provider.Provider == ExternalProvider.Vk).Configured);
+        Assert.Equal("vk", registration.ProviderName);
+        Assert.Equal("vk-id", registration.ClientId);
+        Assert.Null(registration.ClientSecret);
+        Assert.Equal(ClientTypes.Public, registration.ClientType);
+        Assert.Contains(
+            CodeChallengeMethods.Sha256,
+            registration.Configuration!.CodeChallengeMethodsSupported);
+    }
+
+    [Fact]
+    public void VkLegacyClientSecretIsIgnoredByPublicRegistration()
+    {
+        using var services = BuildServices(new Dictionary<string, string?>
+        {
+            ["ExternalAuthentication:PublicOrigin"] =
+                "https://accounts.example.test",
+            ["ExternalAuthentication:Providers:Vk:ClientId"] = "vk-id",
+            ["ExternalAuthentication:Providers:Vk:ClientSecret"] =
+                "legacy-vk-secret"
+        });
+
+        var registration = Assert.Single(services
+            .GetRequiredService<IOptions<OpenIddictClientOptions>>()
+            .Value
+            .Registrations);
+
+        Assert.Equal("vk-id", registration.ClientId);
+        Assert.Null(registration.ClientSecret);
+        Assert.Equal(ClientTypes.Public, registration.ClientType);
+    }
+
+    [Fact]
+    public void VkProviderBlockWithoutClientIdFailsClosed()
+    {
+        using var services = BuildServices(new Dictionary<string, string?>
+        {
+            ["ExternalAuthentication:PublicOrigin"] =
+                "https://accounts.example.test",
+            ["ExternalAuthentication:Providers:Vk:ClientSecret"] = "unused"
+        });
+
+        Assert.Throws<OptionsValidationException>(() => services
+            .GetRequiredService<IOptions<ExternalAuthenticationOptions>>()
+            .Value);
     }
 
     [Fact]
@@ -227,7 +304,6 @@ public sealed class ExternalProviderConfigurationTests
             ["ExternalAuthentication:Providers:GitLab:ClientSecret"] =
                 "gitlab-secret",
             ["ExternalAuthentication:Providers:Vk:ClientId"] = "vk-id",
-            ["ExternalAuthentication:Providers:Vk:ClientSecret"] = "vk-secret",
             ["ExternalAuthentication:Providers:Yandex:ClientId"] = "yandex-id",
             ["ExternalAuthentication:Providers:Yandex:ClientSecret"] =
                 "yandex-secret"

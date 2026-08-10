@@ -22,6 +22,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Template.Api\Template.Api.csproj" />
     <ProjectReference Include="..\..\src\Template.Infrastructure\Template.Infrastructure.csproj" />
+    <ProjectReference Include="..\Template.E2EHost\Template.E2EHost.csproj"
+                      Aliases="E2EHost" />
   </ItemGroup>
 
 </Project>

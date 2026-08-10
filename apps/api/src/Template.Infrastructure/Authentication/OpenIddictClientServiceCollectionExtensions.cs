@@ -229,9 +229,9 @@ public static class OpenIddictClientServiceCollectionExtensions
         ExternalAuthenticationOptions options,
         Uri publicOrigin)
     {
-        if (!options.TryGetCompleteCredentials(
+        if (!options.TryGetClientId(
                 Template.Domain.Accounts.ExternalProvider.Vk,
-                out var credentials))
+                out var clientId))
         {
             return;
         }
@@ -241,8 +241,8 @@ public static class OpenIddictClientServiceCollectionExtensions
                 .SetRegistrationId("vk")
                 .SetProviderName("vk")
                 .SetProviderDisplayName("VK")
-                .SetClientId(credentials!.ClientId!)
-                .SetClientSecret(credentials.ClientSecret!)
+                .SetClientId(clientId!)
+                .SetClientType(ClientTypes.Public)
                 .SetRedirectUri(CallbackUri(
                     publicOrigin,
                     Template.Domain.Accounts.ExternalProvider.Vk))

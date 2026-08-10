@@ -30,15 +30,19 @@ External OAuth uses:
 
 - `ExternalAuthentication__PublicOrigin`;
 - `ExternalAuthentication__Providers__Google__ClientId` and `ClientSecret`;
-- the equivalent `GitHub`, `GitLab`, `Vk`, and `Yandex` provider pairs;
+- the equivalent `GitHub`, `GitLab`, and `Yandex` provider pairs;
+- `ExternalAuthentication__Providers__Vk__ClientId`;
 - `ExternalOAuthSecurity__ChallengePermitLimitPerMinute` (default `20`);
 - `ExternalOAuthSecurity__CallbackPermitLimitPerFiveMinutes` (default `60`);
 - `ExternalOAuthSecurity__CallbackConcurrencyLimit` (default `10`, no queue).
 
 The public origin must be HTTPS, except that HTTP loopback is allowed for local
-development. A provider is active only when both canonical non-empty credential
-values are present. A partial or unknown provider block fails validation
-without logging values; an absent block is simply not advertised.
+development. Google, GitHub, GitLab, and Yandex are active only when both
+canonical non-empty client ID and secret values are present. VK is active with
+only a canonical non-empty client ID, and its OpenIddict registration never
+sends a client secret. Partial pairs for secret-bearing providers and unknown
+provider blocks fail validation without logging values; an absent block is
+simply not advertised.
 
 For local development only, ignored
 `apps/api/src/Template.Api/appsettings.Local.json` is loaded as the final

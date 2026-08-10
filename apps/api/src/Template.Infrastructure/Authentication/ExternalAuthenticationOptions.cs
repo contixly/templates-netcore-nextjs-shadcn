@@ -44,6 +44,15 @@ public sealed class ExternalAuthenticationOptions
         return credentials is not null && credentials.IsComplete;
     }
 
+    internal bool TryGetClientId(
+        ExternalProvider provider,
+        out string? clientId)
+    {
+        var credentials = FindCredentials(provider);
+        clientId = credentials?.ClientId;
+        return credentials is not null && credentials.HasConfiguredClientId;
+    }
+
     internal ExternalProviderCredentials? FindCredentials(
         ExternalProvider provider)
     {
@@ -72,8 +81,10 @@ public sealed class ExternalProviderCredentials
     internal bool IsComplete =>
         IsConfiguredValue(ClientId) && IsConfiguredValue(ClientSecret);
 
-    internal bool IsEntirelyAbsent =>
-        ClientId is null && ClientSecret is null;
+    internal bool HasConfiguredClientId => IsConfiguredValue(ClientId);
+
+    internal bool IsValidFor(ExternalProvider provider) =>
+        provider == ExternalProvider.Vk ? HasConfiguredClientId : IsComplete;
 
     private static bool IsConfiguredValue(string? value) =>
         !string.IsNullOrWhiteSpace(value)
@@ -108,10 +119,9 @@ internal sealed class ExternalAuthenticationOptionsValidator
         {
             if (!ExternalProviderMetadata.TryFromConfigurationName(
                     configurationName,
-                    out _)
+                    out var provider)
                 || credentials is null
-                || credentials.IsEntirelyAbsent
-                || !credentials.IsComplete)
+                || !credentials.IsValidFor(provider!))
             {
                 return ValidateOptionsResult.Fail(InvalidProviderMessage);
             }
