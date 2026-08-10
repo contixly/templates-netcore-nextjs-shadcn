@@ -110,7 +110,7 @@ export const ApiKeySecretView = forwardRef<ApiKeySecretViewHandle>(
         open={credential !== null}
         onOpenChange={(open) => !open && clear()}
       >
-        <DialogContent showCloseButton={false}>
+        <DialogContent className="sm:max-w-xl" showCloseButton={false}>
           <DialogHeader>
             <DialogTitle>{t("title")}</DialogTitle>
             <DialogDescription>{t("warning")}</DialogDescription>
@@ -122,7 +122,7 @@ export const ApiKeySecretView = forwardRef<ApiKeySecretViewHandle>(
                   {t("label")}
                 </span>
                 <code
-                  className="border bg-muted p-3 text-xs break-all"
+                  className="max-h-32 overflow-y-auto rounded-none border bg-muted p-3 text-xs break-all select-all"
                   tabIndex={0}
                 >
                   {credential}
@@ -142,21 +142,21 @@ export const ApiKeySecretView = forwardRef<ApiKeySecretViewHandle>(
           <DialogFooter>
             <Button
               {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-              disabled={!interactionReady}
-              onClick={clear}
-              type="button"
-              variant="outline"
-            >
-              {t("close")}
-            </Button>
-            <Button
-              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
               disabled={!interactionReady || credential === null}
               onClick={() => void copyCredential()}
               type="button"
+              variant="outline"
             >
               <IconCopy data-icon="inline-start" />
               {t("copy")}
+            </Button>
+            <Button
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+              disabled={!interactionReady}
+              onClick={clear}
+              type="button"
+            >
+              {t("close")}
             </Button>
           </DialogFooter>
         </DialogContent>

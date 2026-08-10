@@ -8,7 +8,7 @@ import OrganizationSwitcherSlot from "@/src/app/(protected)/@applicationNavigati
 import OrganizationApiKeysError from "@/src/app/(protected)/w/[organizationKey]/settings/api-keys/error";
 import OrganizationApiKeysLoading from "@/src/app/(protected)/w/[organizationKey]/settings/api-keys/loading";
 import OrganizationApiKeysPage from "@/src/app/(protected)/w/[organizationKey]/settings/api-keys/page";
-import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
+import { ApiKeyManagement } from "@/src/features/api-keys/ui/api-key-management";
 import { loadProtectedSession } from "@/src/features/authentication/load-protected-session";
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";
 import type { OrganizationDetailResponse } from "@/src/lib/api/generated/types.gen";
@@ -49,7 +49,7 @@ jest.mock("@/src/features/authentication/load-protected-session", () => ({
 jest.mock("@/src/lib/api/organizations/server/load-organization", () => ({
   loadOrganization: jest.fn(),
 }));
-jest.mock("@/src/components/api-keys/api-key-management", () => ({
+jest.mock("@/src/features/api-keys/ui/api-key-management", () => ({
   ApiKeyManagement: ({
     initialPage,
     owner,
@@ -164,7 +164,7 @@ it("loads exactly the first personal page on the server", async () => {
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
       heading.textContent?.trim(),
     ),
-  ).toEqual(["API keys", "Personal API keys"]);
+  ).toEqual(["API keys"]);
 });
 
 it("renders a localized safe failure without exposing backend detail", async () => {
@@ -229,7 +229,6 @@ it.each(["owner", "admin"] as const)(
     );
     expect(management?.key).toBe(organizationId);
     expect(management?.props).toEqual({
-      headingLevel: 3,
       initialPage: apiKeyPage,
       owner: {
         kind: "organization",
@@ -237,7 +236,6 @@ it.each(["owner", "admin"] as const)(
         organizationKey: "acme",
         capabilities: { canManageApiKeys: true },
       },
-      showListHeading: false,
     });
 
     const view = renderWithMessages(page);
@@ -251,7 +249,7 @@ it.each(["owner", "admin"] as const)(
       Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
         heading.textContent?.trim(),
       ),
-    ).toEqual(["API keys", "Organization API keys"]);
+    ).toEqual(["API keys"]);
   },
 );
 

@@ -4,7 +4,7 @@ import { useRef } from "react";
 import {
   ApiKeySecretView,
   type ApiKeySecretViewHandle,
-} from "@/src/components/api-keys/api-key-secret-view";
+} from "@/src/features/api-keys/ui/api-key-secret-view";
 import { deferred } from "@/test/components/api-keys/fixtures";
 import { renderWithMessages } from "@/test/support/render";
 

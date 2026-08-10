@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useTranslations } from "next-intl";
-import { IconPlus } from "@tabler/icons-react";
+import { IconKey } from "@tabler/icons-react";
 
 import { apiKeyFailureMessage } from "@/src/features/api-keys/api-key-failures";
 import {
@@ -12,7 +12,7 @@ import {
 import {
   ApiKeySecretView,
   type ApiKeySecretViewHandle,
-} from "@/src/components/api-keys/api-key-secret-view";
+} from "@/src/features/api-keys/ui/api-key-secret-view";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
@@ -31,6 +31,8 @@ import {
   FieldError,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/src/components/ui/field";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -49,10 +51,12 @@ import {
   API_KEY_RATE_LIMIT_WINDOW_OPTIONS,
   ORGANIZATION_API_KEY_DEFAULTS,
   PERSONAL_API_KEY_DEFAULTS,
+  apiKeyScopesForPresetIds,
   type ApiKeyExpiry,
   type ApiKeyPresetId,
   type ApiKeyRateLimitWindow,
 } from "@/src/features/api-keys/api-key-options";
+import { ApiKeyPermissionsPreview } from "@/src/features/api-keys/ui/api-key-permissions-preview";
 import { createBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { ApiKeyResponse } from "@/src/lib/api/generated/types.gen";
@@ -219,13 +223,18 @@ export function ApiKeyCreateDialog({
           <Button
             {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
             disabled={!interactionReady}
+            size="sm"
             type="button"
+            variant="outline"
           >
-            <IconPlus data-icon="inline-start" />
+            <IconKey data-icon="inline-start" />
             {t("actions.create")}
           </Button>
         </DialogTrigger>
-        <DialogContent showCloseButton={false}>
+        <DialogContent
+          className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
+          showCloseButton={false}
+        >
           <DialogHeader>
             <DialogTitle>{t("create.title")}</DialogTitle>
             <DialogDescription>{t("create.description")}</DialogDescription>
@@ -253,16 +262,9 @@ export function ApiKeyCreateDialog({
                 ) : null}
               </Field>
 
-              <fieldset
-                className="flex flex-col gap-3"
-                data-invalid={Boolean(validation.presets)}
-              >
-                <legend className="text-xs font-medium">
-                  {t("presets.label")}
-                </legend>
-                <p className="text-xs text-muted-foreground">
-                  {t("presets.description")}
-                </p>
+              <FieldSet data-invalid={Boolean(validation.presets)}>
+                <FieldLegend variant="label">{t("presets.label")}</FieldLegend>
+                <FieldDescription>{t("presets.description")}</FieldDescription>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {API_KEY_PRESET_OPTIONS.map((option) => {
                     const id = `api-key-create-preset-${option.id}`;
@@ -288,38 +290,105 @@ export function ApiKeyCreateDialog({
                     {t(`validation.${validation.presets}`)}
                   </FieldError>
                 ) : null}
-              </fieldset>
+                <div className="rounded-none border p-3">
+                  <p className="mb-2 text-xs font-medium">
+                    {t("presets.previewTitle")}
+                  </p>
+                  <ApiKeyPermissionsPreview
+                    emptyLabel={t("presets.noScopes")}
+                    scopes={apiKeyScopesForPresetIds(presetIds)}
+                  />
+                </div>
+              </FieldSet>
 
-              <Field>
-                <FieldLabel htmlFor="api-key-create-expiry">
-                  {t("expiry.label")}
-                </FieldLabel>
-                <Select
-                  value={expiresIn}
-                  onValueChange={(value) => setExpiresIn(value as ApiKeyExpiry)}
-                >
-                  <SelectTrigger
-                    aria-label={t("expiry.label")}
-                    id="api-key-create-expiry"
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field>
+                  <FieldLabel htmlFor="api-key-create-expiry">
+                    {t("expiry.label")}
+                  </FieldLabel>
+                  <Select
+                    value={expiresIn}
+                    onValueChange={(value) =>
+                      setExpiresIn(value as ApiKeyExpiry)
+                    }
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {API_KEY_EXPIRY_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {t(`expiry.${option}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
+                    <SelectTrigger
+                      aria-label={t("expiry.label")}
+                      className="w-full"
+                      id="api-key-create-expiry"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {API_KEY_EXPIRY_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {t(`expiry.${option}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field
+                  data-disabled={!rateLimitEnabled}
+                  data-invalid={Boolean(validation.rateLimit)}
+                >
+                  <FieldLabel htmlFor="api-key-create-rate-max">
+                    {t("fields.rateLimitMax")}
+                  </FieldLabel>
+                  <Input
+                    aria-invalid={Boolean(validation.rateLimit)}
+                    disabled={!rateLimitEnabled}
+                    id="api-key-create-rate-max"
+                    max={1_000_000}
+                    min={1}
+                    onChange={(event) =>
+                      setRateLimitMax(event.target.valueAsNumber)
+                    }
+                    type="number"
+                    value={Number.isNaN(rateLimitMax) ? "" : rateLimitMax}
+                  />
+                  {validation.rateLimit ? (
+                    <FieldError>
+                      {t(`validation.${validation.rateLimit}`)}
+                    </FieldError>
+                  ) : null}
+                </Field>
+
+                <Field data-disabled={!rateLimitEnabled}>
+                  <FieldLabel htmlFor="api-key-create-rate-window">
+                    {t("rateWindow.label")}
+                  </FieldLabel>
+                  <Select
+                    disabled={!rateLimitEnabled}
+                    value={rateLimitWindow}
+                    onValueChange={(value) =>
+                      setRateLimitWindow(value as ApiKeyRateLimitWindow)
+                    }
+                  >
+                    <SelectTrigger
+                      aria-label={t("rateWindow.label")}
+                      className="w-full"
+                      id="api-key-create-rate-window"
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {API_KEY_RATE_LIMIT_WINDOW_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {t(`rateWindow.${option}`)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
 
               <Field orientation="horizontal">
-                <FieldLabel htmlFor="api-key-create-rate-enabled">
-                  {t("fields.rateLimitEnabled")}
-                </FieldLabel>
                 <Switch
                   checked={rateLimitEnabled}
                   id="api-key-create-rate-enabled"
@@ -330,61 +399,9 @@ export function ApiKeyCreateDialog({
                     setRateLimitEnabled(checked);
                   }}
                 />
-              </Field>
-
-              <Field
-                data-disabled={!rateLimitEnabled}
-                data-invalid={Boolean(validation.rateLimit)}
-              >
-                <FieldLabel htmlFor="api-key-create-rate-max">
-                  {t("fields.rateLimitMax")}
+                <FieldLabel htmlFor="api-key-create-rate-enabled">
+                  {t("fields.rateLimitEnabled")}
                 </FieldLabel>
-                <Input
-                  aria-invalid={Boolean(validation.rateLimit)}
-                  disabled={!rateLimitEnabled}
-                  id="api-key-create-rate-max"
-                  max={1_000_000}
-                  min={1}
-                  onChange={(event) =>
-                    setRateLimitMax(event.target.valueAsNumber)
-                  }
-                  type="number"
-                  value={Number.isNaN(rateLimitMax) ? "" : rateLimitMax}
-                />
-                {validation.rateLimit ? (
-                  <FieldError>
-                    {t(`validation.${validation.rateLimit}`)}
-                  </FieldError>
-                ) : null}
-              </Field>
-
-              <Field data-disabled={!rateLimitEnabled}>
-                <FieldLabel htmlFor="api-key-create-rate-window">
-                  {t("rateWindow.label")}
-                </FieldLabel>
-                <Select
-                  disabled={!rateLimitEnabled}
-                  value={rateLimitWindow}
-                  onValueChange={(value) =>
-                    setRateLimitWindow(value as ApiKeyRateLimitWindow)
-                  }
-                >
-                  <SelectTrigger
-                    aria-label={t("rateWindow.label")}
-                    id="api-key-create-rate-window"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {API_KEY_RATE_LIMIT_WINDOW_OPTIONS.map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {t(`rateWindow.${option}`)}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
               </Field>
             </FieldGroup>
 

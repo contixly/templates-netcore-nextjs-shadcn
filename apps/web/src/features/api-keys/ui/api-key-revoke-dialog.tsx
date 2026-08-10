@@ -1,27 +1,24 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { useTranslations } from "next-intl";
 
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
-import {
-  ApiKeySecretView,
-  type ApiKeySecretViewHandle,
-} from "@/src/components/api-keys/api-key-secret-view";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
-import { Button } from "@/src/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/src/components/ui/alert-dialog";
+import { Button } from "@/src/components/ui/button";
 import {
   apiKeyFailureMessage,
   apiKeyIdentityMismatchFailure,
@@ -32,30 +29,30 @@ import type {
   ApiKeyMutationLease,
 } from "@/src/features/api-keys/api-key-mutation-arbiter";
 import type { ApiKeyOwner } from "@/src/features/api-keys/api-key-routes";
-import { rotateBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
+import { revokeBrowserApiKey } from "@/src/lib/api/api-keys/browser/api-key-mutations";
 import { createBrowserApiClient } from "@/src/lib/api/browser/client";
 import type { ApiKeyResponse } from "@/src/lib/api/generated/types.gen";
 import type { ApiFailure } from "@/src/lib/api/result";
 
-export function ApiKeyRotateDialog({
+export function ApiKeyRevokeDialog({
   apiKey,
   mutationArbiter,
   mutationBusy = false,
+  onClosed,
   onConfirmed,
   owner,
-  secretViewRef,
+  trigger,
 }: Readonly<{
   apiKey: ApiKeyResponse;
   mutationArbiter?: ApiKeyMutationArbiter;
   mutationBusy?: boolean;
-  onConfirmed: (apiKey: ApiKeyResponse) => void;
+  onClosed?: () => void;
+  onConfirmed: (apiKeyId: string) => void;
   owner: ApiKeyOwner;
-  secretViewRef?: RefObject<ApiKeySecretViewHandle | null>;
+  trigger?: ReactElement;
 }>) {
   const t = useTranslations("apiKeys");
   const interactionReady = useInteractionReady();
-  const localSecretView = useRef<ApiKeySecretViewHandle>(null);
-  const secretView = secretViewRef ?? localSecretView;
   const mounted = useRef(true);
   const actionGeneration = useRef(0);
   const requestInFlight = useRef(false);
@@ -76,9 +73,10 @@ export function ApiKeyRotateDialog({
     if (requestInFlight.current) return;
     setOpen(nextOpen);
     if (nextOpen) setFailure(null);
+    else onClosed?.();
   }
 
-  async function rotate() {
+  async function revoke() {
     if (requestInFlight.current) return;
     const lease: ApiKeyMutationLease | undefined =
       mutationArbiter?.acquire(apiKey.id) ?? undefined;
@@ -91,7 +89,7 @@ export function ApiKeyRotateDialog({
     setPending(true);
     setFailure(null);
     try {
-      const result = await rotateBrowserApiKey(
+      const result = await revokeBrowserApiKey(
         createBrowserApiClient(),
         owner,
         apiKey.id,
@@ -101,31 +99,27 @@ export function ApiKeyRotateDialog({
         generation !== actionGeneration.current ||
         (lease && !mutationArbiter?.isCurrent(lease))
       ) {
-        if (result.ok) result.data.key = "";
         return;
       }
       requestInFlight.current = false;
       setPending(false);
       if (!result.ok) return setFailure(result.failure);
       if (result.data.id !== apiKey.id) {
-        result.data.key = "";
         setFailure(apiKeyIdentityMismatchFailure());
         return;
       }
-
-      const { key, ...safeApiKey } = result.data;
       setOpen(false);
-      secretView.current?.reveal(key);
-      onConfirmed(safeApiKey);
+      onClosed?.();
+      onConfirmed(result.data.id);
     } finally {
       if (lease) mutationArbiter?.release(lease);
     }
   }
 
   return (
-    <>
-      <Dialog open={open} onOpenChange={changeOpen}>
-        <DialogTrigger asChild>
+    <AlertDialog open={open} onOpenChange={changeOpen}>
+      <AlertDialogTrigger asChild>
+        {trigger ?? (
           <Button
             {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
             disabled={!interactionReady || mutationBusy}
@@ -133,48 +127,44 @@ export function ApiKeyRotateDialog({
             type="button"
             variant="outline"
           >
-            {t("actions.rotate")}
+            {t("actions.revoke")}
           </Button>
-        </DialogTrigger>
-        <DialogContent showCloseButton={false}>
-          <DialogHeader>
-            <DialogTitle>
-              {t("rotate.title", { name: apiKey.name })}
-            </DialogTitle>
-            <DialogDescription>{t("rotate.description")}</DialogDescription>
-          </DialogHeader>
-          {failure ? (
-            <Alert variant="destructive">
-              <AlertTitle>{t("failures.rotate")}</AlertTitle>
-              <AlertDescription>
-                <p>{t(`failures.codes.${apiKeyFailureMessage(failure)}`)}</p>
-                {failure.kind === "problem" && failure.traceId ? (
-                  <p className="font-mono">{failure.traceId}</p>
-                ) : null}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <DialogFooter>
-            <Button
-              disabled={pending}
-              onClick={() => changeOpen(false)}
-              type="button"
-              variant="outline"
-            >
-              {t("actions.cancel")}
-            </Button>
-            <Button
-              disabled={pending || mutationBusy}
-              onClick={() => void rotate()}
-              type="button"
-              variant="destructive"
-            >
-              {pending ? t("rotate.submitting") : t("rotate.confirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      {secretViewRef ? null : <ApiKeySecretView ref={localSecretView} />}
-    </>
+        )}
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("revoke.title", { name: apiKey.name })}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("revoke.description")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {failure ? (
+          <Alert variant="destructive">
+            <AlertTitle>{t("failures.revoke")}</AlertTitle>
+            <AlertDescription>
+              <p>{t(`failures.codes.${apiKeyFailureMessage(failure)}`)}</p>
+              {failure.kind === "problem" && failure.traceId ? (
+                <p className="font-mono">{failure.traceId}</p>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>
+            {t("actions.cancel")}
+          </AlertDialogCancel>
+          <Button
+            disabled={pending || mutationBusy}
+            onClick={() => void revoke()}
+            type="button"
+            variant="destructive"
+          >
+            {pending ? t("revoke.submitting") : t("revoke.confirm")}
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

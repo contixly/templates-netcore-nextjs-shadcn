@@ -11,16 +11,23 @@
   },
   "education": {
     "title": "Choose the right owner",
+    "description": "Choose the key type that matches how your integration should act.",
     "personalTitle": "Personal keys",
     "personalDescription": "Act as your user account and lose organization access when your membership ends.",
     "personalAction": "Manage personal keys",
     "organizationTitle": "Organization keys",
     "organizationDescription": "Belong to one organization and are managed from that organization’s settings.",
     "securityTitle": "Store secrets safely",
-    "securityDescription": "Each credential is shown once. Use a secret manager and rotate or revoke it immediately if exposed."
+    "securityDescription": "Each credential is shown once. Use a secret manager and rotate or revoke it immediately if exposed.",
+    "scopesTitle": "Scopes still apply",
+    "scopesDescription": "Both key types are limited by the read-only API scopes selected on the key.",
+    "managementTitle": "Organization key management",
+    "managementDescription": "Only organization owners and admins with API-key capability can create or change organization keys."
   },
   "list": {
     "label": "API keys",
+    "personalDescription": "Create and manage keys that act as your user account.",
+    "organizationDescription": "Create and manage keys that act for this organization.",
     "emptyTitle": "No API keys yet",
     "emptyDescription": "Create a least-privilege key when an integration needs API access.",
     "partialFailure": "More API keys could not be loaded.",
@@ -30,6 +37,7 @@
     "retry": "Retry list refresh",
     "retrying": "Refreshing API keys",
     "columns": {
+      "name": "Name",
       "key": "Key",
       "status": "Status",
       "access": "Access",
@@ -61,6 +69,8 @@
   "presets": {
     "label": "Access presets",
     "description": "Select one or more closed presets. Raw scopes cannot be entered.",
+    "previewTitle": "Permissions preview",
+    "noScopes": "No permissions selected",
     "basic-read": "Basic read",
     "organization-read": "Organization read",
     "organization-members-read": "Organization members read",

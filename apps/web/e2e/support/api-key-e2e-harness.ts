@@ -435,6 +435,23 @@ function apiKeyRow(page: Page, name: string): Locator {
     .filter({ has: page.getByText(name, { exact: true }) });
 }
 
+async function apiKeyRowAction(
+  page: Page,
+  row: Locator,
+  apiKeyName: string,
+  action: "Edit" | "Disable" | "Enable" | "Rotate" | "Revoke",
+) {
+  const actions = row.getByRole("button", {
+    name: `Actions for ${apiKeyName}`,
+    exact: true,
+  });
+  await waitForInteraction(actions);
+  await actions.click();
+  const item = page.getByRole("menuitem", { name: action, exact: true });
+  await expect(item).toBeVisible();
+  return item;
+}
+
 export async function expectApiKeyRow(
   page: Page,
   name: string,
@@ -562,8 +579,7 @@ export async function editApiKeyNameThroughUi(
   nextName: string,
 ) {
   const row = await expectApiKeyRow(page, currentName, "Active");
-  const open = row.getByRole("button", { name: "Edit", exact: true });
-  await waitForInteraction(open);
+  const open = await apiKeyRowAction(page, row, currentName, "Edit");
   await open.click();
   const dialog = page.getByRole("dialog", { name: `Edit ${currentName}` });
   await expect(dialog).toBeVisible();
@@ -593,8 +609,7 @@ export async function toggleApiKeyThroughUi(
 ) {
   const row = apiKeyRow(page, name);
   await expect(row).toHaveCount(1);
-  const toggle = row.getByRole("button", { name: action, exact: true });
-  await waitForInteraction(toggle);
+  const toggle = await apiKeyRowAction(page, row, name, action);
   const response = page.waitForResponse((candidate) => {
     const request = candidate.request();
     const url = new URL(candidate.url());
@@ -617,8 +632,7 @@ export async function rotateApiKeyThroughUi(
 ): Promise<string> {
   const row = apiKeyRow(page, name);
   await expect(row).toHaveCount(1);
-  const open = row.getByRole("button", { name: "Rotate", exact: true });
-  await waitForInteraction(open);
+  const open = await apiKeyRowAction(page, row, name, "Rotate");
   await open.click();
   const dialog = page.getByRole("dialog", { name: `Rotate ${name}?` });
   await expect(dialog).toBeVisible();
@@ -649,10 +663,9 @@ export async function rotateApiKeyThroughUi(
 export async function revokeApiKeyThroughUi(page: Page, name: string) {
   const row = apiKeyRow(page, name);
   await expect(row).toHaveCount(1);
-  const open = row.getByRole("button", { name: "Revoke", exact: true });
-  await waitForInteraction(open);
+  const open = await apiKeyRowAction(page, row, name, "Revoke");
   await open.click();
-  const dialog = page.getByRole("dialog", { name: `Revoke ${name}?` });
+  const dialog = page.getByRole("alertdialog", { name: `Revoke ${name}?` });
   await expect(dialog).toBeVisible();
   const confirm = dialog.getByRole("button", { name: "Revoke key" });
   await expect(confirm).toBeEnabled();

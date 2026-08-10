@@ -3,10 +3,9 @@ import { getTranslations } from "next-intl/server";
 import {
   SettingsPageIntro,
   SettingsPageSection,
-  SettingsSection,
 } from "@/src/features/application/ui/settings/settings-shell";
 
-import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
+import { ApiKeyManagement } from "@/src/features/api-keys/ui/api-key-management";
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";
@@ -51,14 +50,10 @@ export default async function PersonalApiKeysPage() {
   return (
     <SettingsPageSection mode="wide">
       <SettingsPageIntro description={t("description")} title={t("title")} />
-      <SettingsSection title={t("personalSectionTitle")}>
-        <ApiKeyManagement
-          headingLevel={3}
-          initialPage={result.data}
-          owner={{ kind: "personal" }}
-          showListHeading={false}
-        />
-      </SettingsSection>
+      <ApiKeyManagement
+        initialPage={result.data}
+        owner={{ kind: "personal" }}
+      />
     </SettingsPageSection>
   );
 }

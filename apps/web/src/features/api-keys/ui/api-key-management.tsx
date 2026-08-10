@@ -4,17 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { IconKey } from "@tabler/icons-react";
 
-import { ApiKeyCreateDialog } from "@/src/components/api-keys/api-key-create-dialog";
-import { ApiKeyEducation } from "@/src/components/api-keys/api-key-education";
+import { ApiKeyCreateDialog } from "@/src/features/api-keys/ui/api-key-create-dialog";
+import { ApiKeyEducation } from "@/src/features/api-keys/ui/api-key-education";
 import {
   ApiKeySecretView,
   type ApiKeySecretViewHandle,
-} from "@/src/components/api-keys/api-key-secret-view";
-import { ApiKeyTable } from "@/src/components/api-keys/api-key-table";
+} from "@/src/features/api-keys/ui/api-key-secret-view";
+import { ApiKeyTable } from "@/src/features/api-keys/ui/api-key-table";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
 } from "@/src/features/application/ui/interaction-readiness";
+import { SettingsSection } from "@/src/features/application/ui/settings/settings-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -215,7 +216,6 @@ export function ApiKeyManagement({
     failure: ApiFailure;
   } | null>(null);
   const [feedback, setFeedback] = useState<ConfirmedAction | null>(null);
-  const ListHeading = headingLevel === 3 ? "h3" : "h2";
 
   useEffect(() => {
     const mutationLeases = activeMutationLeases.current;
@@ -389,128 +389,138 @@ export function ApiKeyManagement({
     }
   }
 
-  return (
-    <div className="flex flex-col gap-8">
-      <ApiKeyEducation headingLevel={headingLevel} owner={owner} />
-      <section
-        aria-label={showListHeading ? undefined : t("list.label")}
-        aria-labelledby={showListHeading ? "api-key-list-title" : undefined}
-        className="flex flex-col gap-4"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {showListHeading ? (
-            <ListHeading
-              className="text-lg font-medium"
-              id="api-key-list-title"
+  const createDialog = (
+    <ApiKeyCreateDialog
+      onConfirmed={(apiKey) => confirmed(apiKey, "created")}
+      owner={owner}
+      secretViewRef={secretView}
+    />
+  );
+  const listContent = (
+    <div className="flex min-w-0 flex-col gap-4">
+      {feedback && !refreshFailure ? (
+        <Alert>
+          <AlertTitle>{t(`feedback.${feedback}`)}</AlertTitle>
+        </Alert>
+      ) : null}
+      {mutationFailure ? (
+        <Alert variant="destructive">
+          <AlertTitle>{t("failures.update")}</AlertTitle>
+          <AlertDescription>
+            <p>
+              {t(`failures.codes.${apiKeyFailureMessage(mutationFailure)}`)}
+            </p>
+            {traceId(mutationFailure) ? (
+              <p className="font-mono">{traceId(mutationFailure)}</p>
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {refreshFailure ? (
+        <Alert variant="destructive">
+          <AlertTitle>{t("list.refreshFailure")}</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-2">
+            {traceId(refreshFailure.failure) ? (
+              <p className="font-mono">{traceId(refreshFailure.failure)}</p>
+            ) : null}
+            <Button
+              {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+              disabled={!interactionReady || refreshing}
+              onClick={() =>
+                void read(undefined, "refresh", refreshFailure.action)
+              }
+              size="sm"
+              type="button"
+              variant="outline"
             >
-              {t("list.label")}
-            </ListHeading>
-          ) : null}
-          <ApiKeyCreateDialog
-            onConfirmed={(apiKey) => confirmed(apiKey, "created")}
-            owner={owner}
-            secretViewRef={secretView}
-          />
-        </div>
+              {refreshing ? t("list.retrying") : t("list.retry")}
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-        {feedback && !refreshFailure ? (
-          <Alert>
-            <AlertTitle>{t(`feedback.${feedback}`)}</AlertTitle>
-          </Alert>
-        ) : null}
-        {mutationFailure ? (
-          <Alert variant="destructive">
-            <AlertTitle>{t("failures.update")}</AlertTitle>
-            <AlertDescription>
-              <p>
-                {t(`failures.codes.${apiKeyFailureMessage(mutationFailure)}`)}
-              </p>
-              {traceId(mutationFailure) ? (
-                <p className="font-mono">{traceId(mutationFailure)}</p>
-              ) : null}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {refreshFailure ? (
-          <Alert variant="destructive">
-            <AlertTitle>{t("list.refreshFailure")}</AlertTitle>
-            <AlertDescription className="flex flex-col items-start gap-2">
-              {traceId(refreshFailure.failure) ? (
-                <p className="font-mono">{traceId(refreshFailure.failure)}</p>
-              ) : null}
+      {apiKeys.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <IconKey />
+            </EmptyMedia>
+            <EmptyTitle>{t("list.emptyTitle")}</EmptyTitle>
+            <EmptyDescription>{t("list.emptyDescription")}</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
+      ) : (
+        <ApiKeyTable
+          apiKeys={apiKeys}
+          busyKeyIds={busyKeyIds}
+          mutationArbiter={mutationArbiter}
+          onConfirmed={(apiKey, action) => confirmed(apiKey, action)}
+          onRevoked={revoked}
+          onToggle={(apiKey) => void toggle(apiKey)}
+          owner={owner}
+          secretViewRef={secretView}
+        />
+      )}
+
+      {partialFailure ? (
+        <Alert variant="destructive">
+          <AlertTitle>{t("list.partialFailure")}</AlertTitle>
+          <AlertDescription className="flex flex-col items-start gap-2">
+            {traceId(partialFailure) ? (
+              <p className="font-mono">{traceId(partialFailure)}</p>
+            ) : null}
+            {nextCursor ? (
               <Button
                 {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-                disabled={!interactionReady || refreshing}
-                onClick={() =>
-                  void read(undefined, "refresh", refreshFailure.action)
-                }
+                disabled={!interactionReady || loadingMore || refreshing}
+                onClick={() => void read(nextCursor, "loadMore")}
                 size="sm"
                 type="button"
                 variant="outline"
               >
-                {refreshing ? t("list.retrying") : t("list.retry")}
+                {loadingMore ? t("list.retrying") : t("list.retry")}
               </Button>
-            </AlertDescription>
-          </Alert>
-        ) : null}
+            ) : null}
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {nextCursor && !partialFailure ? (
+        <Button
+          {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
+          className="self-start"
+          disabled={!interactionReady || loadingMore || refreshing}
+          onClick={() => void read(nextCursor, "loadMore")}
+          type="button"
+          variant="outline"
+        >
+          {loadingMore ? t("list.loadingMore") : t("list.loadMore")}
+        </Button>
+      ) : null}
+    </div>
+  );
+  const description =
+    owner.kind === "organization"
+      ? t("list.organizationDescription")
+      : t("list.personalDescription");
 
-        {apiKeys.length === 0 ? (
-          <Empty>
-            <EmptyHeader>
-              <EmptyMedia variant="icon">
-                <IconKey />
-              </EmptyMedia>
-              <EmptyTitle>{t("list.emptyTitle")}</EmptyTitle>
-              <EmptyDescription>{t("list.emptyDescription")}</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        ) : (
-          <ApiKeyTable
-            apiKeys={apiKeys}
-            onConfirmed={(apiKey, action) => confirmed(apiKey, action)}
-            onRevoked={revoked}
-            onToggle={(apiKey) => void toggle(apiKey)}
-            owner={owner}
-            busyKeyIds={busyKeyIds}
-            mutationArbiter={mutationArbiter}
-            secretViewRef={secretView}
-          />
-        )}
-
-        {partialFailure ? (
-          <Alert variant="destructive">
-            <AlertTitle>{t("list.partialFailure")}</AlertTitle>
-            <AlertDescription>
-              {traceId(partialFailure) ? (
-                <p className="font-mono">{traceId(partialFailure)}</p>
-              ) : null}
-              {nextCursor ? (
-                <Button
-                  {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-                  disabled={!interactionReady || loadingMore || refreshing}
-                  onClick={() => void read(nextCursor, "loadMore")}
-                  size="sm"
-                  type="button"
-                  variant="outline"
-                >
-                  {loadingMore ? t("list.retrying") : t("list.retry")}
-                </Button>
-              ) : null}
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {nextCursor && !partialFailure ? (
-          <Button
-            {...{ [INTERACTION_READY_ATTRIBUTE]: interactionReady }}
-            disabled={!interactionReady || loadingMore || refreshing}
-            onClick={() => void read(nextCursor, "loadMore")}
-            type="button"
-            variant="outline"
-          >
-            {loadingMore ? t("list.loadingMore") : t("list.loadMore")}
-          </Button>
-        ) : null}
-      </section>
+  return (
+    <div className="flex flex-col gap-4">
+      <ApiKeyEducation headingLevel={headingLevel} owner={owner} />
+      {showListHeading ? (
+        <SettingsSection
+          action={createDialog}
+          description={description}
+          headingLevel={headingLevel}
+          title={t("list.label")}
+        >
+          {listContent}
+        </SettingsSection>
+      ) : (
+        <section aria-label={t("list.label")} className="flex flex-col gap-4">
+          <div className="flex justify-end">{createDialog}</div>
+          {listContent}
+        </section>
+      )}
       <ApiKeySecretView ref={secretView} />
     </div>
   );
