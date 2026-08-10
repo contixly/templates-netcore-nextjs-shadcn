@@ -3,10 +3,12 @@
 **Статус:** активная дорожная карта.
 **Текущая итерация:** 9 — application shell, dashboard и frontend parity —
 локальная reference-parity remediation acceptance обновлена 2026-08-10: 22
-direct routes, 4 desktop/mobile/light/dark projects и 5-route Russian overflow
-дают 108 проверенных baseline images. Это UI/E2E-only изменение переиспользует
-существующий REST/OpenAPI contract; review result для текущего local head здесь
-не заявляется.
+direct routes, 4 desktop/mobile/light/dark projects, 5-route Russian overflow
+и 7 route-specific inner-scroll states дают 152 проверенных baseline images
+(108 сохранённых top states + 44 scroll states). Pixel comparison разрешён
+только в pinned canonical macOS/arm64/browser/font environment. Это UI/E2E-only
+изменение переиспользует существующий REST/OpenAPI contract; review result для
+текущего local head здесь не заявляется.
 **Принцип:** это план серии независимых итераций, а не задача на единоразовый перенос всего приложения.
 
 ## 1. Границы и зафиксированные решения
@@ -325,7 +327,7 @@ claims or performs persistence. Chart value descriptions live outside the
 | 6 — teams и invitations                           | Принята для implementation head | Reviewed implementation head `6f17d7708e0ddf8942905ee79ad7e5b8f6dde66d`: clean automatic review, 11/11 threads resolved, PR #7 ready and mergeable. The documentation-only evidence commit remains pending push and its own fresh automatic review. |
 | 7 — API keys и public `/api/v1`                    | Принята для reviewed PR head | Final-fix implementation head `d7ea69c988474e81768aaf49b472c3fd95503594`; fresh local .NET/EF/NuGet/OpenAPI/web/E2E/repository acceptance is recorded below. Ready PR #8 (base `main`) was mergeable at observation on reviewed head `8bdf31f828c29f7fff75058b7261404718cec47f`; its first GitHub Codex review found no major issues, with 0 review threads and 0 unresolved. This durable document records that clean review head only; subsequent documentation-only commits do not self-assert their own review result, and exact-current-head review state remains PR metadata/controller evidence. |
 | 8 — public documentation system                     | Локальная acceptance завершена; ready PR | 108 `en`/`ru` variants, 54 canonical routes, deterministic registry/neutral index, anonymous ASP.NET Core search, generated SDK, public docs UI/OG/sitemap and full local gates are recorded below. Ready PR #9 exists and automatic-review findings were processed test-first; exact-current-head fresh clean review and zero unresolved actionable threads remain external PR/controller evidence and are not self-asserted here. |
-| 9 — application shell, dashboard и frontend parity | Локальная visual-reference acceptance обновлена | 2026-08-10 remediation добавила explicit 22-route catalog, 108 desktop/mobile/light/dark + RU baselines, dynamic API-created organization/invitation fixtures и safe single-main/non-disclosure assertions. Visual inspection обнаружил и test-first исправил только clipped desktop profile field; current-head reviewer result не заявляется. |
+| 9 — application shell, dashboard и frontend parity | Локальная visual-reference acceptance обновлена | 2026-08-10 final-review remediation сохраняет 108 top states, добавляет 44 actual inner-scroll states (152 PNG total), pins canonical macOS/arm64/browser/font comparison, заменяет POSIX server setup portable Node helper и восстанавливает actionable workspace switcher в collapsed sidebar по immutable reference. Dynamic API fixtures и safe single-main/non-disclosure assertions сохранены; current-head reviewer result не заявляется. |
 | 10–12                                               | Не начаты | Aspire/local orchestration (10), production proxy/container topology (11), and final parity/hardening/reference-archive decision (12) не входят в итерацию 9. |
 
 ## Acceptance evidence: итерация 1
@@ -3096,10 +3098,12 @@ The local certificate is generated under the temporary test copy and is not a
 tracked or production trust decision. Non-visual E2E scenarios run once in
 `desktop-light`; the other three projects select only the visual matrix.
 
-There are 22 direct route entries. Every entry has four EN baselines (88), and
-the approved RU overflow set — docs, user profile, workspace settings,
-workspace invitations and workspace API keys — has four more each (20), for
-**108 committed PNG baselines**. Each protected capture asserts exactly one
+There are 22 direct route entries. Every entry retains four EN top baselines
+(88), and the approved RU overflow set — docs, user profile, workspace
+settings, workspace invitations and workspace API keys — retains four more
+each (20), for **108 preserved top states**. Seven route-specific scroll
+anchors add 28 EN and 16 relevant RU captures, so the exact current oracle is
+**152 committed PNG baselines**. Each protected capture asserts exactly one
 `main#main-content`, route-specific readiness and canonical pathname/search.
 Fixture passwords never enter page text; the screenshot guard rejects those
 credentials, internal API URLs and credential-shaped API values. Organization
@@ -3110,8 +3114,13 @@ as product UI.
 
 The fixture creates the separate inviter-owned seed organization before the
 welcome capture solely to issue the owner's pending incoming invitation. The
-signed-in owner still has zero accessible organizations at welcome; the owner's
-organization, team and outgoing invitation are created only afterward.
+signed-in owner still has zero accessible organizations at welcome. The
+owner's primary organization is created only afterward; its visual directory
+contains enough API-created members, outgoing invitations and reveal-once-safe
+organization API keys to put the table surfaces below the inner viewport. A
+second owner organization is deliberately delayed until workspace settings so
+the primary `/dashboard` resolution remains stable while the delete-workspace
+surface can still be captured.
 
 #### Personal reference inspection and the discovered defect
 
@@ -3139,7 +3148,73 @@ focused test then passed 12/12, and all EN/RU light/dark profile images were
 reinspected at original resolution. Profile mutation/auth/request behavior did
 not change.
 
-#### Fresh command evidence
+#### Final-review remediation: canonical pixels, actual scroll states, collapsed switcher
+
+The final whole-branch review found three real acceptance gaps and they were
+corrected test-first without changing an API or persistence contract:
+
+1. The platform-neutral PNG names previously had only Darwin-produced bytes
+   but no execution guard. `npm run e2e:visual` now fails closed unless the
+   exact canonical contract matches: macOS 26.5.2 / Darwin 25.5.0, arm64,
+   Playwright 1.61.1, Chromium revision 1228 / 149.0.7827.55, WebKit revision
+   2311 / 26.5 and the macOS SF Pro `system-ui`/`-apple-system` font profile.
+   The visual spec pins that stack before capture. A noncanonical `npm run e2e`
+   keeps the ordinary `desktop-light` behavioral suite but excludes the pixel
+   spec and extra visual servers, so it cannot compare Darwin baselines.
+2. The former `fullPage` captures did not traverse the protected/documents
+   inner scrollers. The catalog now names and asserts actual nonzero
+   `scrollTop` states with the anchor intersecting its inner viewport for the
+   docs article Problem Details section, organization dashboard activity
+   table, lower user profile form, workspace form, member table, invitation
+   table and organization API-key table. All seven run in EN for all four
+   projects; the profile/workspace/invitation/API-key states also run in RU.
+   Stable names account for 44 new images (28 EN + 16 RU), while all 108 top
+   captures remain, for exactly 152.
+3. The collapsed desktop sidebar had replaced the reference workspace switcher
+   with a static `T` brand. As in immutable
+   `template/src/components/application/app-sidebar.tsx`, the switcher is now
+   the `SidebarHeader` action in expanded and collapsed states. Its compact
+   initials trigger stays visible, focusable and actionable; switching,
+   navigation, mobile close behavior and readiness/race protections are
+   unchanged. The desktop Playwright flow opens the switcher while collapsed
+   and observes the alternate workspace before expanding the rail.
+
+The RU and HTTPS temporary deployments are now prepared by
+`scripts/run-e2e-web-server.mjs` with Node filesystem/process APIs. This
+removes the former POSIX `cp`/`ln`/shell certificate pipeline while keeping
+certificates in the OS temporary directory and invoking Next with the current
+Node executable.
+
+The 44 scroll states were inspected as four 11-state contact sheets and at
+representative original resolution. The check covered lower document/article
+hierarchy, desktop/mobile table clipping and density, profile/settings form
+position, EN/RU content, light/dark contrast and the compact workspace trigger.
+The changed desktop top states were also inspected as a four-project shell
+matrix and compared with the immutable sidebar/switcher composition. No
+compiler/error portal, credential, internal API URL or reveal-once API key was
+accepted.
+
+Test-first observations for this remediation:
+
+- focused configuration/catalog tests were RED with 7 failures because the
+  runtime guard, portable helper and 44 named screenshots were absent;
+- the desktop browser scenario was RED because the collapsed workspace action
+  was not visible;
+- after the initial switcher correction, its standalone component suite caught
+  the new sidebar-context dependency (35/35 RED), then passed together with the
+  sidebar suite (44/44) after preserving the standalone fallback;
+- the visual scroll assertion initially caught zero `scrollTop` on short
+  workspace tables; API-created representative rows made the pages genuinely
+  scrollable instead of weakening the assertion.
+
+Current exact oracle audit: 152 PNG files, zero platform-suffixed files and no
+tracked browser/certificate/trace/test-result artifact. Current-head reviewer
+result is not claimed and no push is performed by this remediation. The
+verified implementation is committed as
+`e86f11efd7509f506a125017e397e35ada5724f7`; the following documentation-only
+commit is evidence, not a claim that implementation review occurred.
+
+#### Earlier Task 9 command evidence
 
 | Command                                                                                                                                                       | Exact observed result                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -3159,6 +3234,25 @@ not change.
 | `dotnet restore Template.sln`                                                                                                                                 | PASS; 2 projects restored and 5/7 current                                                                                                                                                                                 |
 | `dotnet build Template.sln --no-restore`                                                                                                                      | PASS; 0 warnings, 0 errors                                                                                                                                                                                                |
 | `dotnet test Template.sln --no-restore`                                                                                                                       | PASS; Application 343/343 and API 778/778, 1121/1121 total, 0 failed/skipped                                                                                                                                              |
+
+#### Final-review remediation command evidence
+
+| Command | Exact observed result |
+| --- | --- |
+| focused Jest for configuration, route/scroll catalog, sidebar and switcher | PASS; 4/4 suites, 57/57 tests |
+| task-scoped ESLint with `--max-warnings=0` | PASS; 0 warnings/errors across all changed web source, E2E, helpers and tests |
+| `npm run typecheck` | PASS; route generation and `tsc --noEmit` |
+| `npm test -- --runInBand` | PASS; 115/115 suites, 883/883 tests, 0 snapshots |
+| `npm run api:check` | PASS; generated REST client deterministic/current |
+| `npm run content:check` | PASS; generated documentation content current |
+| `npm run boundaries:check` | PASS; 13/13 boundary tests and clean source scan |
+| `npm run build` | PASS; Next.js 16.2.11 production build and 144/144 static pages |
+| `npm run e2e:install -- --dry-run` | PASS; canonical Chromium 1228, Chromium headless shell, FFmpeg and WebKit 2311 resolved; no download |
+| focused desktop `application-shell.spec.ts` primary-navigation scenario | PASS; 1/1, including collapsed workspace switcher visible and alternate workspace menu action available before rail expansion |
+| `npm run e2e:visual` | PASS without snapshot update; 4/4 canonical projects, exact 152-image oracle matched, 0 failed |
+| PNG/name audit | PASS; 152 PNGs, zero `darwin`/`linux`/`win32` suffixes |
+| contact-sheet + representative original inspection | PASS; four 11-state scroll sheets plus changed shell/API-key originals inspected; stable volatile values hidden after leaf hydration and DOM quiet |
+| `git diff --check` / `git diff -- template/` | PASS / empty |
 
 #### Intentional content/data differences and remaining diagnostics
 
