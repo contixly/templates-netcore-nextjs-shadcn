@@ -224,6 +224,36 @@ it("shows the compact current actor even when the actor is beyond the first memb
   ).toBeVisible();
 });
 
+it("recovers the current actor join date when a later member page contains the actor", async () => {
+  const laterCurrentMember = {
+    ...currentMember,
+    joinedAt: "2026-08-02T10:00:00Z",
+  };
+  getMembers.mockResolvedValue(
+    memberPageResult([laterCurrentMember], null),
+  );
+  renderWithMessages(
+    <OrganizationMemberDirectory
+      currentActor={{ ...currentActor, joinedAt: null }}
+      initialPage={{ items: [otherMember], nextCursor: "cursor-next" }}
+      organization={organization}
+    />,
+  );
+
+  const ownAccess = screen.getByRole("region", { name: "Your access" });
+  expect(within(ownAccess).getByText("Not available")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Load more members" }));
+
+  expect(await within(ownAccess).findByText("Aug 2, 2026")).toBeVisible();
+  expect(within(ownAccess).queryByText("Not available")).not.toBeInTheDocument();
+  expect(
+    within(screen.getByRole("region", { name: "Other members" })).queryByText(
+      "Current User",
+    ),
+  ).not.toBeInTheDocument();
+});
+
 it("does not offer owner assignment or owner mutation to an admin", () => {
   renderWithMessages(
     <OrganizationMemberDirectory
