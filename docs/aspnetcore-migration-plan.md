@@ -3321,13 +3321,16 @@ collapsed brand link имеет accessible name. Их test-first fixes вошл�
 comment `IC_kwDOThDXX88AAAABNEKwzA` от 2026-08-03T21:10:43Z говорит “Didn't find
 any major issues” и указывает reviewed commit `ffd7bf0b50`; GraphQL показал
 5/5 resolved review threads и ноль unresolved actionable threads. Это
-наблюдаемое current-head evidence, а не self-assertion.
+историческое exact-head evidence только для `ffd7bf0` в PR #10 на момент
+наблюдения, а не evidence для текущей ветки.
 
-Этот documentation-only commit является текущим local unpushed docs head и
-изменил HEAD после review `ffd7bf0`; его нельзя считать покрытым тем review. До
-окончательного завершения он должен быть pushed и получить отдельный свежий
-review exact нового pushed head. В текущей задаче commit не pushится и review не
-запрашивается.
+Следующая историческая запись относилась к source-branch commit
+`8de93a27526578763ebe2991b1585352faac88c6` (`docs: record iteration 9 PR
+acceptance`): при её создании этот documentation-only commit был local unpushed
+docs head после review `ffd7bf0`, поэтому тем review не покрывался и требовал
+отдельного push/review. Это не описание текущего HEAD. Актуальный post-fault
+статус ветки за 2026-08-10 приведён выше в Task 10 publication preflight status:
+push и PR не состоялись, свежий review exact текущего head не выполнялся.
 
 Итерация разделяет `(public)/(home)`, простые authentication routes,
 `(documents)` и `(protected)` без изменения URL. Route-aware
@@ -3502,9 +3505,11 @@ capability tokens and raw literal/template `/api/v1` paths wherever they occur
 in handwritten source, so alias, bind/call/apply, higher-order, spread, branch,
 recursive, destructured, computed-const, and shadowed-name forms do not require
 runtime emulation. Approved wrappers contain no reserved token. This closes the
-two reported examples by policy. The current exact-head PR/review/thread
-observation is recorded above; the current local unpushed documentation-only
-head deliberately requires its own fresh review before final completion.
+two reported examples by policy. The PR/review/thread observation above is
+historical evidence for reviewed head `ffd7bf0` in PR #10 only, not current
+exact-head evidence. Current status is deferred to the 2026-08-10 Task 10
+post-fault section above: no push or PR occurred and no fresh exact-head review
+was performed.
 
 ### Intentional differences and later exclusions
 
