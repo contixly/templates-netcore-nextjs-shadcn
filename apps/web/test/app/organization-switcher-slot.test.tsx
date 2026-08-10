@@ -12,7 +12,7 @@ import OrganizationTeamsNavigation from "@/src/app/(protected)/@applicationNavig
 import OrganizationUsersNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/users/page";
 import OrganizationWorkspaceNavigation from "@/src/app/(protected)/@applicationNavigation/w/[organizationKey]/settings/workspace/page";
 import WorkspacesNavigation from "@/src/app/(protected)/@applicationNavigation/workspaces/page";
-import type { ApplicationNavigationSlotProps } from "@/src/components/application/application-navigation-slot";
+import type { ApplicationNavigationSlotProps } from "@/src/features/application/ui/application-navigation-slot";
 
 jest.mock("next/server", () => ({
   connection: jest.fn().mockResolvedValue(undefined),

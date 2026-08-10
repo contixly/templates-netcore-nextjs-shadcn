@@ -155,7 +155,9 @@ it("loads exactly the first personal page on the server", async () => {
     screen.getByRole("heading", { level: 1, name: "API keys" }),
   ).toBeVisible();
   expect(
-    screen.getByTestId("api-key-management").closest("article"),
+    screen
+      .getByTestId("api-key-management")
+      .closest('[data-slot="settings-page-section"]'),
   ).toHaveAttribute("data-mode", "wide");
   expect(screen.getByTestId("api-key-management")).toHaveTextContent("1");
   expect(

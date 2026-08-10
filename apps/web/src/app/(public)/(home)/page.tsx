@@ -1,1 +1,1 @@
-export { LandingPage as default } from "@/src/components/application/landing/landing-page";
+export { LandingPage as default } from "@/src/features/application/ui/landing/landing-page";

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 
-import { ApplicationNavigationSlot } from "@/src/components/application/application-navigation-slot";
+import { ApplicationNavigationSlot } from "@/src/features/application/ui/application-navigation-slot";
 import { loadApplicationShell } from "@/src/lib/api/application/server/load-application-shell";
 
 jest.mock("next/server", () => ({
@@ -17,7 +17,7 @@ jest.mock("next-intl/server", () => ({
 jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
-jest.mock("@/src/components/application/application-sidebar", () => ({
+jest.mock("@/src/features/application/ui/application-sidebar", () => ({
   ApplicationSidebar: () => (
     <nav aria-label="Workspace" data-slot="application-navigation" />
   ),

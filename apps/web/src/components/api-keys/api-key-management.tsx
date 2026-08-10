@@ -14,7 +14,7 @@ import { ApiKeyTable } from "@/src/components/api-keys/api-key-table";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
-} from "@/src/components/application/interaction-readiness";
+} from "@/src/features/application/ui/interaction-readiness";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { Button } from "@/src/components/ui/button";
 import {

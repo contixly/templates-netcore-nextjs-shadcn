@@ -1,1 +1,1 @@
-export { ProtectedUnauthorized as default } from "@/src/components/application/protected-safe-boundaries";
+export { ProtectedUnauthorized as default } from "@/src/features/application/ui/protected-safe-boundaries";

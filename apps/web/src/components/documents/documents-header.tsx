@@ -4,7 +4,7 @@ import { IconHome, IconMenu2 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 
-import { ThemeSwitcher } from "@/src/components/application/theme-switcher";
+import { ThemeSwitcher } from "@/src/features/application/ui/theme-switcher";
 import { DocumentsSearch } from "@/src/components/documents/documents-search";
 import { Button } from "@/src/components/ui/button";
 import { applicationRoutes } from "@/src/features/application/application-routes";

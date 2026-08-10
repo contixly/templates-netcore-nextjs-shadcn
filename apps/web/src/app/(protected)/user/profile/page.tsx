@@ -4,7 +4,7 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
 import { ProfileForm } from "@/src/components/account/profile-form";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";

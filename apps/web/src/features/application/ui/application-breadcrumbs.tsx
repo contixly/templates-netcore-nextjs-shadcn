@@ -61,16 +61,20 @@ export function ApplicationBreadcrumbs() {
       : t(`breadcrumbs.${current}`);
 
   return (
-    <Breadcrumb>
-      <BreadcrumbList>
-        <BreadcrumbItem className="hidden sm:inline-flex">
+    <Breadcrumb className="w-full min-w-0">
+      <BreadcrumbList className="min-w-0 flex-nowrap">
+        <BreadcrumbItem className="hidden md:inline-flex">
           <BreadcrumbLink asChild>
-            <Link href={homeHref}>{t("breadcrumbs.home")}</Link>
+            <Link className="text-foreground hover:underline" href={homeHref}>
+              {t("breadcrumbs.home")}
+            </Link>
           </BreadcrumbLink>
         </BreadcrumbItem>
-        <BreadcrumbSeparator className="hidden sm:list-item" />
-        <BreadcrumbItem>
-          <BreadcrumbPage>{currentLabel}</BreadcrumbPage>
+        <BreadcrumbSeparator className="hidden md:list-item" />
+        <BreadcrumbItem className="max-w-2/3 min-w-0 md:max-w-none">
+          <BreadcrumbPage className="block truncate">
+            {currentLabel}
+          </BreadcrumbPage>
         </BreadcrumbItem>
       </BreadcrumbList>
     </Breadcrumb>

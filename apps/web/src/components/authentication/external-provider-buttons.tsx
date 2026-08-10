@@ -7,7 +7,7 @@ import { useId, useRef, useState } from "react";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
-} from "@/src/components/application/interaction-readiness";
+} from "@/src/features/application/ui/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import { startExternalAuth } from "@/src/lib/api/auth/browser/start-external-auth";
 import type { AuthProviderResponse } from "@/src/lib/api/generated";

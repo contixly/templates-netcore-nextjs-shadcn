@@ -6,7 +6,7 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
 import { TeamDirectory } from "@/src/components/collaboration/team-directory";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";

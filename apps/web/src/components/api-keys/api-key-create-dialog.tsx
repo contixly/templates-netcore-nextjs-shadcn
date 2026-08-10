@@ -8,7 +8,7 @@ import { apiKeyFailureMessage } from "@/src/features/api-keys/api-key-failures";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
-} from "@/src/components/application/interaction-readiness";
+} from "@/src/features/application/ui/interaction-readiness";
 import {
   ApiKeySecretView,
   type ApiKeySecretViewHandle,

@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { connection } from "next/server";
 
 import { BrowserSessionRefresh } from "@/src/components/authentication/browser-session-refresh";
-import { ApplicationSidebar } from "@/src/components/application/application-sidebar";
+import { ApplicationSidebar } from "@/src/features/application/ui/application-sidebar";
 import { loadApplicationShell } from "@/src/lib/api/application/server/load-application-shell";
 
 export type ApplicationNavigationSlotProps = Readonly<{

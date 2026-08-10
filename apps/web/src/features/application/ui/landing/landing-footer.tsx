@@ -5,8 +5,8 @@ type LandingFooterProps = Readonly<{
 
 export function LandingFooter({ description, text }: LandingFooterProps) {
   return (
-    <footer className="px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mx-auto flex max-w-5xl flex-col gap-2 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+    <footer className="border-t px-4 py-8 md:px-6">
+      <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 text-xs text-muted-foreground md:flex-row">
         <span>{text}</span>
         <span>{description}</span>
       </div>

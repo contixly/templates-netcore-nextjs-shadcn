@@ -4,7 +4,7 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
 import { ConnectionsList } from "@/src/components/account/connections-list";
 import { loadConnections } from "@/src/lib/api/account/server/load-connections";

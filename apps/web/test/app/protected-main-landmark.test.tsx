@@ -9,17 +9,17 @@ import InvitationLoading from "@/src/app/(protected)/invite/[invitationId]/loadi
 import SettingsLoading from "@/src/app/(protected)/w/[organizationKey]/settings/loading";
 import WorkspacesLoading from "@/src/app/(protected)/workspaces/loading";
 import RouteError from "@/src/app/error";
-import { ProtectedApplicationShell } from "@/src/components/application/protected-application-shell";
-import ProtectedRouteError from "@/src/components/application/protected-route-error";
+import { ProtectedApplicationShell } from "@/src/features/application/ui/protected-application-shell";
+import ProtectedRouteError from "@/src/features/application/ui/protected-route-error";
 import {
   ProtectedForbidden,
   ProtectedNotFound,
   ProtectedUnauthorized,
-} from "@/src/components/application/protected-safe-boundaries";
+} from "@/src/features/application/ui/protected-safe-boundaries";
 
 const webRoot = process.cwd();
 
-jest.mock("@/src/components/application/application-header", () => ({
+jest.mock("@/src/features/application/ui/application-header", () => ({
   ApplicationHeader: () => <header>Application header</header>,
 }));
 jest.mock("next-intl", () => ({
@@ -64,9 +64,9 @@ it("reserves main for standalone route surfaces and shared top-level shells", ()
     "src/app/loading.tsx",
     "src/app/not-found.tsx",
     "src/app/unauthorized.tsx",
-    "src/components/application/landing/landing-page.tsx",
-    "src/components/application/protected-application-shell.tsx",
     "src/components/documents/documents-shell.tsx",
+    "src/features/application/ui/landing/landing-page.tsx",
+    "src/features/application/ui/protected-application-shell.tsx",
   ]);
 });
 
@@ -83,7 +83,7 @@ it("keeps every protected error boundary nested inside the shell landmark", () =
     expect(errorFile).toEqual({
       localPath: errorFile.localPath,
       source: expect.stringContaining(
-        "@/src/components/application/protected-route-error",
+        "@/src/features/application/ui/protected-route-error",
       ),
     });
     expect(errorFile.source).not.toContain('from "@/src/app/error"');
@@ -98,7 +98,7 @@ it("provides protected not-found and access fallbacks that do not reuse standalo
     expect({ file, source }).toEqual({
       file,
       source: expect.stringContaining(
-        "@/src/components/application/protected-safe-boundaries",
+        "@/src/features/application/ui/protected-safe-boundaries",
       ),
     });
   }

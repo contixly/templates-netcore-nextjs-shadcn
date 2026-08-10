@@ -10,5 +10,5 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function HomeLayout({ children }: { children: ReactNode }) {
-  return <div className="min-h-screen bg-background">{children}</div>;
+  return <div className="min-h-svh bg-background">{children}</div>;
 }

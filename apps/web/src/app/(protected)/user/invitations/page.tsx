@@ -4,7 +4,7 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
 import { AccountInvitationList } from "@/src/components/collaboration/account-invitation-list";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";

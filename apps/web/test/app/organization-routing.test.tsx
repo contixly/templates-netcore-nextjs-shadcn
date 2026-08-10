@@ -68,7 +68,7 @@ jest.mock("@/src/lib/api/organizations/server/load-organizations", () => ({
 jest.mock("@/src/components/authentication/browser-session-refresh", () => ({
   BrowserSessionRefresh: () => <i data-testid="browser-session-refresh" />,
 }));
-jest.mock("@/src/components/application/site-header", () => ({
+jest.mock("@/src/features/application/ui/site-header", () => ({
   OrganizationSwitcherRuntime: () => null,
 }));
 

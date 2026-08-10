@@ -1,7 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-import { ThemeSwitcher } from "@/src/components/application/theme-switcher";
+import { ThemeSwitcher } from "@/src/features/application/ui/theme-switcher";
 import { renderWithMessages, withMessages } from "@/test/support/render";
 
 const mockSetTheme = jest.fn();

@@ -6,7 +6,7 @@ import { Suspense, type ReactNode } from "react";
 import {
   SettingsContentRail,
   SettingsPageShell,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 import { OrganizationFailure } from "@/src/components/organizations/organization-list";
 import { OrganizationOnboarding } from "@/src/components/organizations/organization-onboarding";
 import { OrganizationSettingsNav } from "@/src/components/organizations/organization-settings-nav";

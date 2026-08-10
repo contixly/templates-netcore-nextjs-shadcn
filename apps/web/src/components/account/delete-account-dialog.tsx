@@ -6,7 +6,7 @@ import { useRef, useState, type FormEvent } from "react";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
-} from "@/src/components/application/interaction-readiness";
+} from "@/src/features/application/ui/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,

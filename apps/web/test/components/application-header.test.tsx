@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { ApplicationHeader } from "@/src/components/application/application-header";
+import { ApplicationHeader } from "@/src/features/application/ui/application-header";
 import { SidebarProvider } from "@/src/components/ui/sidebar";
 
 let mockIsMobile = false;
@@ -23,7 +23,7 @@ jest.mock("next-intl", () => ({
     })[key] ?? key,
 }));
 
-jest.mock("@/src/components/application/theme-switcher", () => ({
+jest.mock("@/src/features/application/ui/theme-switcher", () => ({
   ThemeSwitcher: () => <button type="button">Toggle theme</button>,
 }));
 

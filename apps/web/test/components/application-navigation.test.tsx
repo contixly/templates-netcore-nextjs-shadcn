@@ -1,8 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import { AccountNavigation } from "@/src/components/application/account-navigation";
-import { PrimaryNavigation } from "@/src/components/application/primary-navigation";
+import { AccountNavigation } from "@/src/features/application/ui/account-navigation";
+import { PrimaryNavigation } from "@/src/features/application/ui/primary-navigation";
 import { useMobileSidebarClose } from "@/src/hooks/use-mobile-sidebar-close";
 
 const setOpenMobile = jest.fn();

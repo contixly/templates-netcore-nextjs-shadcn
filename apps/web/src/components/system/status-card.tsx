@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 
-import { INTERACTION_READY_ATTRIBUTE } from "@/src/components/application/interaction-readiness";
+import { INTERACTION_READY_ATTRIBUTE } from "@/src/features/application/ui/interaction-readiness";
 import { Badge } from "@/src/components/ui/badge";
 import { Button } from "@/src/components/ui/button";
 import {

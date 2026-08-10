@@ -1,6 +1,6 @@
 import { render, waitFor } from "@testing-library/react";
 
-import { AppHydrationMarker } from "@/src/components/application/app-hydration-marker";
+import { AppHydrationMarker } from "@/src/features/application/ui/app-hydration-marker";
 
 afterEach(() => {
   delete document.documentElement.dataset.appHydrated;

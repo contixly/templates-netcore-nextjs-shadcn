@@ -482,9 +482,11 @@ it("renders role-aware workspace, users, and fixed-role explanation pages", asyn
   expect(
     screen.getByRole("heading", { level: 1, name: "Workspace settings" }),
   ).toBeVisible();
-  expect(screen.getByText("Workspace Name").closest("article")).toHaveClass(
-    "max-w-3xl",
-  );
+  expect(
+    screen
+      .getByText("Workspace Name")
+      .closest('[data-slot="settings-page-section"]'),
+  ).toHaveClass("max-w-3xl");
   const workspaceHeadings = Array.from(
     view.container.querySelectorAll("h1, h2"),
     (heading) => heading.textContent?.trim(),
@@ -502,10 +504,11 @@ it("renders role-aware workspace, users, and fixed-role explanation pages", asyn
   expect(
     screen.getByRole("heading", { level: 1, name: "Workspace users" }),
   ).toBeVisible();
-  expect(screen.getByText("Current User").closest("article")).toHaveAttribute(
-    "data-mode",
-    "wide",
-  );
+  expect(
+    screen
+      .getByText("Current User")
+      .closest('[data-slot="settings-page-section"]'),
+  ).toHaveAttribute("data-mode", "wide");
   const userHeadings = Array.from(
     view.container.querySelectorAll("h1, h2"),
     (heading) => heading.textContent?.trim(),
@@ -528,7 +531,9 @@ it("renders role-aware workspace, users, and fixed-role explanation pages", asyn
     screen.getByRole("heading", { level: 3, name: "Owner" }),
   ).toBeVisible();
   expect(
-    screen.getByRole("heading", { level: 3, name: "Owner" }).closest("article"),
+    screen
+      .getByRole("heading", { level: 3, name: "Owner" })
+      .closest('[data-slot="settings-page-section"]'),
   ).toHaveClass("max-w-3xl");
   expect(
     screen.getByRole("heading", { level: 3, name: "Administrator" }),

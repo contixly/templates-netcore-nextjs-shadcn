@@ -24,7 +24,7 @@ import {
 } from "@/src/components/ui/tooltip";
 import { IconLayoutSidebar } from "@tabler/icons-react";
 
-import { serializeSidebarPreference } from "@/src/components/application/sidebar-state";
+import { serializeSidebarPreference } from "@/src/features/application/ui/sidebar-state";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";

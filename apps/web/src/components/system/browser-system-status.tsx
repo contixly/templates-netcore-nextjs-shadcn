@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-import { useInteractionReady } from "@/src/components/application/interaction-readiness";
+import { useInteractionReady } from "@/src/features/application/ui/interaction-readiness";
 import {
   StatusCard,
   type StatusCardState,

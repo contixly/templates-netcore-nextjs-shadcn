@@ -50,7 +50,7 @@ jest.mock("next-intl/server", () => ({
   },
 }));
 
-jest.mock("@/src/components/application/theme-switcher", () => ({
+jest.mock("@/src/features/application/ui/theme-switcher", () => ({
   ThemeSwitcher: () => <button aria-label="Toggle theme" type="button" />,
 }));
 

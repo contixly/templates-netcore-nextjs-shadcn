@@ -5,7 +5,7 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 import { loadAccount } from "@/src/lib/api/account/server/load-account";
 import type { ApiFailure } from "@/src/lib/api/result";
 import { buildApplicationPageMetadata } from "@/src/lib/metadata";

@@ -4,7 +4,7 @@ import {
   SettingsPageIntro,
   SettingsPageSection,
   SettingsSection,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 
 import { ApiKeyManagement } from "@/src/components/api-keys/api-key-management";
 import { loadApiKeys } from "@/src/lib/api/api-keys/server/load-api-keys";

@@ -7,7 +7,7 @@ import { AccountNav } from "@/src/components/account/account-nav";
 import {
   SettingsContentRail,
   SettingsPageShell,
-} from "@/src/components/application/settings/settings-shell";
+} from "@/src/features/application/ui/settings/settings-shell";
 import { AuthApiFailure } from "@/src/components/authentication/auth-api-failure";
 import { LogoutButton } from "@/src/components/authentication/logout-button";
 import { accountRoutes } from "@/src/features/account/account-routes";

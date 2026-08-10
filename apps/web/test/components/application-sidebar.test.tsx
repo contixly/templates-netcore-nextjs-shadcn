@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
-import { ApplicationSidebar } from "@/src/components/application/application-sidebar";
+import { ApplicationSidebar } from "@/src/features/application/ui/application-sidebar";
 import { SidebarProvider, useSidebar } from "@/src/components/ui/sidebar";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import type { ApplicationShellData } from "@/src/features/application/application-shell-model";

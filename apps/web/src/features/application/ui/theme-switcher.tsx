@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 
-import { INTERACTION_READY_ATTRIBUTE } from "@/src/components/application/interaction-readiness";
+import { INTERACTION_READY_ATTRIBUTE } from "@/src/features/application/ui/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 
 export function ThemeSwitcher() {
@@ -27,7 +27,14 @@ export function ThemeSwitcher() {
         title={t("toggle")}
         variant="outline"
       >
-        <IconSun aria-hidden="true" />
+        <IconSun
+          aria-hidden="true"
+          className="size-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
+        />
+        <IconMoon
+          aria-hidden="true"
+          className="absolute size-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
+        />
       </Button>
     );
   }
@@ -45,11 +52,14 @@ export function ThemeSwitcher() {
       title={nextThemeLabel}
       variant="outline"
     >
-      {nextTheme === "dark" ? (
-        <IconMoon aria-hidden="true" />
-      ) : (
-        <IconSun aria-hidden="true" />
-      )}
+      <IconSun
+        aria-hidden="true"
+        className="size-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90"
+      />
+      <IconMoon
+        aria-hidden="true"
+        className="absolute size-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0"
+      />
     </Button>
   );
 }

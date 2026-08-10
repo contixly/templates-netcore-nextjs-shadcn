@@ -126,9 +126,11 @@ it("loads each projection through its Task 12 server adapter", async () => {
   expect(
     screen.getByRole("heading", { level: 1, name: "Profile settings" }),
   ).toBeVisible();
-  expect(screen.getByText(/profile projection/).closest("article")).toHaveClass(
-    "max-w-3xl",
-  );
+  expect(
+    screen
+      .getByText(/profile projection/)
+      .closest('[data-slot="settings-page-section"]'),
+  ).toHaveClass("max-w-3xl");
   expect(
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
       heading.textContent?.trim(),
@@ -140,7 +142,9 @@ it("loads each projection through its Task 12 server adapter", async () => {
   view = render(await ConnectionsPage());
   expect(screen.getByText("connections projection 0")).toBeInTheDocument();
   expect(
-    screen.getByText("connections projection 0").closest("article"),
+    screen
+      .getByText("connections projection 0")
+      .closest('[data-slot="settings-page-section"]'),
   ).toHaveAttribute("data-mode", "wide");
   expect(
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>
@@ -153,7 +157,9 @@ it("loads each projection through its Task 12 server adapter", async () => {
   view = render(await SecurityPage());
   expect(screen.getByText("sessions projection 0")).toBeInTheDocument();
   expect(
-    screen.getByText("sessions projection 0").closest("article"),
+    screen
+      .getByText("sessions projection 0")
+      .closest('[data-slot="settings-page-section"]'),
   ).toHaveClass("max-w-3xl");
   expect(
     Array.from(view.container.querySelectorAll("h1, h2"), (heading) =>

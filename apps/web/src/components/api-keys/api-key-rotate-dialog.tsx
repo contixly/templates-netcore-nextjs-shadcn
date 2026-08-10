@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
-} from "@/src/components/application/interaction-readiness";
+} from "@/src/features/application/ui/interaction-readiness";
 import {
   ApiKeySecretView,
   type ApiKeySecretViewHandle,

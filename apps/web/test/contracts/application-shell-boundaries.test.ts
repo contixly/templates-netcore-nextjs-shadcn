@@ -187,7 +187,7 @@ it("allows approved wrappers and unrelated browser or string syntax", () => {
   const allowed = [
     [
       "generated SDK and approved preference wrappers",
-      'import { getAccount } from "@/src/lib/api/generated";\nimport { serializeSidebarPreference } from "@/src/components/application/sidebar-state";\nimport { useTheme } from "next-themes";\nvoid getAccount;\nvoid useTheme;\ndocument.cookie = serializeSidebarPreference(true);\n',
+      'import { getAccount } from "@/src/lib/api/generated";\nimport { serializeSidebarPreference } from "@/src/features/application/ui/sidebar-state";\nimport { useTheme } from "next-themes";\nvoid getAccount;\nvoid useTheme;\ndocument.cookie = serializeSidebarPreference(true);\n',
     ],
     ["unrelated browser location", 'window.location.assign("/docs");\n'],
     [

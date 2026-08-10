@@ -147,10 +147,9 @@ it("loads the first REST page for SSR and keys the directory by immutable organi
   expect(
     screen.getByRole("heading", { level: 1, name: "Workspace teams" }),
   ).toBeVisible();
-  expect(screen.getByText("Platform").closest("article")).toHaveAttribute(
-    "data-mode",
-    "wide",
-  );
+  expect(
+    screen.getByText("Platform").closest('[data-slot="settings-page-section"]'),
+  ).toHaveAttribute("data-mode", "wide");
   const headings = Array.from(
     view.container.querySelectorAll("h1, h2"),
     (heading) => heading.textContent?.trim(),

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { useInteractionReady } from "@/src/components/application/interaction-readiness";
+import { useInteractionReady } from "@/src/features/application/ui/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import {
   Card,

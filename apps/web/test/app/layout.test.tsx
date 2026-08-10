@@ -6,10 +6,10 @@ import { metadata as simpleMetadata } from "@/src/app/(simple)/layout";
 import RootLayout, { generateMetadata } from "@/src/app/layout";
 import type { I18nMessages } from "@/src/i18n/messages";
 
-jest.mock("@/src/components/application/app-providers", () => ({
+jest.mock("@/src/features/application/ui/app-providers", () => ({
   AppProviders: "app-providers",
 }));
-jest.mock("@/src/components/application/app-hydration-marker", () => ({
+jest.mock("@/src/features/application/ui/app-hydration-marker", () => ({
   AppHydrationMarker: "app-hydration-marker",
 }));
 

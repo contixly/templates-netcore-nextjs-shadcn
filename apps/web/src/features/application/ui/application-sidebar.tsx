@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { IconX } from "@tabler/icons-react";
 
-import { AccountNavigation } from "@/src/components/application/account-navigation";
-import { PrimaryNavigation } from "@/src/components/application/primary-navigation";
+import { AccountNavigation } from "@/src/features/application/ui/account-navigation";
+import { PrimaryNavigation } from "@/src/features/application/ui/primary-navigation";
 import { OrganizationSwitcher } from "@/src/components/organizations/organization-switcher";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import { applicationRoutes } from "@/src/features/application/application-routes
 import type { ApplicationShellData } from "@/src/features/application/application-shell-model";
 import { organizationRoutes } from "@/src/features/organizations/organization-routes";
 import { useMobileSidebarClose } from "@/src/hooks/use-mobile-sidebar-close";
+import type { CSSProperties } from "react";
 
 function MobileSidebarClose({ label }: Readonly<{ label: string }>) {
   const { isMobile, setOpenMobile } = useSidebar();
@@ -157,7 +158,16 @@ export function ApplicationSidebar({
     content
   ) : (
     <TooltipProvider>
-      <SidebarProvider>{content}</SidebarProvider>
+      <SidebarProvider
+        style={
+          {
+            "--header-height": "calc(var(--spacing) * 12)",
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+          } as CSSProperties
+        }
+      >
+        {content}
+      </SidebarProvider>
     </TooltipProvider>
   );
 }

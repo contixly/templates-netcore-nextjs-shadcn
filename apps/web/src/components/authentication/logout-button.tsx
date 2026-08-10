@@ -7,7 +7,7 @@ import { useState } from "react";
 import {
   INTERACTION_READY_ATTRIBUTE,
   useInteractionReady,
-} from "@/src/components/application/interaction-readiness";
+} from "@/src/features/application/ui/interaction-readiness";
 import { Button } from "@/src/components/ui/button";
 import { authenticationRoutes } from "@/src/features/authentication/authentication-routes";
 import { logoutBrowserSession } from "@/src/lib/api/auth/browser/logout-browser-session";
