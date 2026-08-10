@@ -80,9 +80,11 @@ describe("RootLayout", () => {
   it("wires the Russian fixed-locale config into html and the provider", async () => {
     process.env.PUBLIC_DEFAULT_LOCALE = "ru";
 
-    const html = asElement<{ children: ReactNode; lang: string }>(
-      await RootLayout({ children: <span>Content</span> }),
-    );
+    const html = asElement<{
+      children: ReactNode;
+      lang: string;
+      suppressHydrationWarning: boolean;
+    }>(await RootLayout({ children: <span>Content</span> }));
     const body = asElement<{ children: ReactNode }>(html.props.children);
     const [markerNode, providerNode] = body.props.children as ReactNode[];
     const marker = asElement(markerNode);
@@ -95,6 +97,7 @@ describe("RootLayout", () => {
 
     expect(html.type).toBe("html");
     expect(html.props.lang).toBe("ru");
+    expect(html.props.suppressHydrationWarning).toBe(true);
     expect(body.type).toBe("body");
     expect(marker.type).toBe("app-hydration-marker");
     expect(provider.type).toBe("app-providers");

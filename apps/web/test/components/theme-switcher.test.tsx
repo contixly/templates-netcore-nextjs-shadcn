@@ -22,6 +22,8 @@ describe("ThemeSwitcher", () => {
     const markup = renderToStaticMarkup(withMessages(<ThemeSwitcher />));
 
     expect(markup).toContain("disabled");
+    expect(markup).toContain('data-interaction-ready="false"');
+    expect(markup).toContain('data-slot="button"');
     expect(markup).toContain("Toggle theme");
   });
 
@@ -32,6 +34,8 @@ describe("ThemeSwitcher", () => {
       name: "Switch to dark theme",
     });
     expect(button).toBeEnabled();
+    expect(button).toHaveAttribute("data-interaction-ready", "true");
+    expect(button).toHaveAttribute("data-slot", "button");
 
     fireEvent.click(button);
 
