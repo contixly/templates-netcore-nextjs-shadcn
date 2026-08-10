@@ -3226,7 +3226,7 @@ commit is evidence, not a claim that implementation review occurred.
 | `npm run content:check`                                                                                                                                       | PASS; generated documentation content current                                                                                                                                                                             |
 | `npm run boundaries:check`                                                                                                                                    | PASS; 13/13 boundary tests and clean source scan                                                                                                                                                                          |
 | task-scoped ESLint with `--max-warnings=0`                                                                                                                    | PASS; 0 warnings/errors in the Task 9 catalog/spec/config, profile test and profile implementation                                                                                                                        |
-| `npm run lint -- --max-warnings=0`                                                                                                                            | Expected repository-known strict failure: 0 errors and exactly 17 `@typescript-eslint/no-unused-vars` warnings, all compile-time type probes in `test/contracts/generated-sdk.test.ts`                                    |
+| pre-Task 10 `npm run lint -- --max-warnings=0`                                                                                                                | Historical strict failure before hygiene cleanup: 0 errors and exactly 17 `@typescript-eslint/no-unused-vars` warnings, all compile-time type probes in `test/contracts/generated-sdk.test.ts`                            |
 | `npm run typecheck`                                                                                                                                           | PASS; Next route generation and `tsc --noEmit`                                                                                                                                                                            |
 | `npm test -- --runInBand`                                                                                                                                     | PASS; 114/114 suites, 875/875 tests, 0 snapshots                                                                                                                                                                          |
 | `npm run build`                                                                                                                                               | PASS; Next.js 16.2.11 production build, 144/144 static pages                                                                                                                                                              |
@@ -3253,6 +3253,26 @@ commit is evidence, not a claim that implementation review occurred.
 | PNG/name audit | PASS; 152 PNGs, zero `darwin`/`linux`/`win32` suffixes |
 | contact-sheet + representative original inspection | PASS; four 11-state scroll sheets plus changed shell/API-key originals inspected; stable volatile values hidden after leaf hydration and DOM quiet |
 | `git diff --check` / `git diff -- template/` | PASS / empty |
+
+#### Task 10 publication preflight status — 2026-08-10
+
+At exact source head `252121d76b04c6478f6d21bc44c5732266ed6949`,
+Task 10 replaced the 17 lint warnings above with a documented ESLint scope for
+the intentionally unused compile-time SDK assertions. Repository-wide
+`npm run lint -- --max-warnings=0` then passed with **0 warnings and 0 errors**.
+The same exact head also passed `npm run api:check`, `npm run content:check`,
+`npm run boundaries:check` (13/13), `npm run typecheck`, full Jest (115/115
+suites, 883/883 tests) and the Next.js production build (144/144 static pages).
+This documentation-only follow-up does not change the verified web tree.
+
+Publication remains externally blocked. During the final rerun, macOS stopped
+resolving local uid 501 and Docker/Testcontainers became unavailable. The
+ordinary exact .NET build therefore failed in app-host generation and full E2E
+could not start its PostgreSQL host; earlier green visual/.NET evidence is not
+misrepresented as a fresh post-fault exact-head run. GitHub CLI authentication
+was invalid, while the encrypted SSH key had neither a working agent nor
+Keychain access. No branch was pushed, no PR was created, and no status-check or
+automated-review loop occurred.
 
 #### Intentional content/data differences and remaining diagnostics
 
@@ -3396,7 +3416,7 @@ acceptance, and nothing ran in immutable `template/`.
 | `npm run api:check` | PASS; four generated files in `168ms`, deterministic/current; `0.864s` total |
 | `npm run boundaries:check` | PASS; 8/8 boundary tests plus clean source scan; Node duration `10.881s`, shell `11.528s` total |
 | `npm run format:check` | PASS; all matched web files formatted; `3.700s` total |
-| `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes; `6.984s` total |
+| historical pre-Task 10 `npm run lint` | PASS; 0 errors, 17 warning-only generated-SDK type probes at that head; `6.984s` total |
 | `npm run typecheck` | PASS; Next route type generation and `tsc --noEmit`; `2.336s` total |
 | `npm run audit:prod` | PASS; 0 production vulnerabilities; `1.240s` total |
 | `npm test -- --runInBand` | PASS; 102/102 suites, 841/841 tests, 0 snapshots; Jest `28.606s`, shell `29.162s` total |
@@ -3419,8 +3439,10 @@ for funding; and one high-severity vulnerability in the complete development
 tree. Its install-script warning named `@parcel/watcher@2.6.0`,
 `fsevents@2.3.3`, `@swc/core@1.15.46`, `fsevents@2.3.2`, and
 `unrs-resolver@1.12.2`. The required production audit separately reported zero
-vulnerabilities. ESLint's 17 warnings are the existing unused compile-time type
-probes in `test/contracts/generated-sdk.test.ts`; there were zero errors.
+vulnerabilities. At that historical pre-Task 10 head, ESLint's 17 warnings were
+the unused compile-time type probes in `test/contracts/generated-sdk.test.ts`;
+there were zero errors. Task 10 subsequently scoped those intentional type-only
+assertions and verified strict repository lint with zero warnings/errors.
 Playwright repeatedly reported that `NO_COLOR` was ignored because `FORCE_COLOR`
 was set and emitted Next development cache-bypass diagnostics. No assertion was
 weakened and no new skip was added; the five skips are exactly the opt-in Google,
