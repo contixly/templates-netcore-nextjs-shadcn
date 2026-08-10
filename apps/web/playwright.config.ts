@@ -56,6 +56,8 @@ function externalAuthenticationEnvironment(): Record<string, string> {
 
 export default defineConfig({
   testDir: "./e2e",
+  snapshotPathTemplate:
+    "{snapshotDir}/{testFileDir}/{testFileName}-snapshots/{arg}{-projectName}{ext}",
   ...(liveProviderSmokeEnabled
     ? { testMatch: "external-provider-smoke.spec.ts" }
     : {}),
@@ -64,41 +66,49 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
-  projects: [
-    {
-      name: "desktop-light",
-      metadata: { russianBaseURL: russianWebOrigin },
-      use: { ...devices["Desktop Chrome"], colorScheme: "light" },
-    },
-    {
-      name: "desktop-dark",
-      metadata: { russianBaseURL: russianWebOrigin },
-      testMatch: "ui-reference-parity.spec.ts",
-      use: { ...devices["Desktop Chrome"], colorScheme: "dark" },
-    },
-    {
-      name: "mobile-light",
-      metadata: { russianBaseURL: mobileRussianWebOrigin },
-      testMatch: "ui-reference-parity.spec.ts",
-      use: {
-        ...devices["iPhone 13"],
-        baseURL: mobileWebOrigin,
-        colorScheme: "light",
-        ignoreHTTPSErrors: true,
-      },
-    },
-    {
-      name: "mobile-dark",
-      metadata: { russianBaseURL: mobileRussianWebOrigin },
-      testMatch: "ui-reference-parity.spec.ts",
-      use: {
-        ...devices["iPhone 13"],
-        baseURL: mobileWebOrigin,
-        colorScheme: "dark",
-        ignoreHTTPSErrors: true,
-      },
-    },
-  ],
+  projects: liveProviderSmokeEnabled
+    ? [
+        {
+          name: "desktop-light",
+          metadata: { russianBaseURL: russianWebOrigin },
+          use: { ...devices["Desktop Chrome"], colorScheme: "light" },
+        },
+      ]
+    : [
+        {
+          name: "desktop-light",
+          metadata: { russianBaseURL: russianWebOrigin },
+          use: { ...devices["Desktop Chrome"], colorScheme: "light" },
+        },
+        {
+          name: "desktop-dark",
+          metadata: { russianBaseURL: russianWebOrigin },
+          testMatch: "ui-reference-parity.spec.ts",
+          use: { ...devices["Desktop Chrome"], colorScheme: "dark" },
+        },
+        {
+          name: "mobile-light",
+          metadata: { russianBaseURL: mobileRussianWebOrigin },
+          testMatch: "ui-reference-parity.spec.ts",
+          use: {
+            ...devices["iPhone 13"],
+            baseURL: mobileWebOrigin,
+            colorScheme: "light",
+            ignoreHTTPSErrors: true,
+          },
+        },
+        {
+          name: "mobile-dark",
+          metadata: { russianBaseURL: mobileRussianWebOrigin },
+          testMatch: "ui-reference-parity.spec.ts",
+          use: {
+            ...devices["iPhone 13"],
+            baseURL: mobileWebOrigin,
+            colorScheme: "dark",
+            ignoreHTTPSErrors: true,
+          },
+        },
+      ],
   use: {
     ...devices["Desktop Chrome"],
     baseURL: webOrigin,

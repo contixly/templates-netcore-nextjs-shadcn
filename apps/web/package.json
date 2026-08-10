@@ -22,7 +22,7 @@
     "boundaries:test": "node --test ./scripts/check-boundaries.node-test.mjs",
     "boundaries:check": "npm run boundaries:test && node ./scripts/check-boundaries.mjs",
     "e2e": "playwright test",
-    "e2e:install": "playwright install chromium",
+    "e2e:install": "playwright install chromium webkit",
     "content:test": "node --test ./scripts/documents-content.node-test.mjs",
     "content:generate": "node ./scripts/generate-documents-content.mjs",
     "content:check": "node ./scripts/check-documents-content.mjs"

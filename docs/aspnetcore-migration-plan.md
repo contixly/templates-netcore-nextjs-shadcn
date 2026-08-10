@@ -3081,7 +3081,7 @@ Current-head reviewer result не запрашивался и здесь не з
 | --------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | public home/auth      | `/`, `/auth/login`, `/auth/error?code=external_auth_failed`                                                   | anonymous EN in all 4 projects                                                                      |
 | documents             | `/docs`, `/docs/api/api-v1`                                                                                   | EN in all 4 projects; `/docs` also RU overflow                                                      |
-| onboarding/workspaces | `/welcome`, `/workspaces`                                                                                     | authenticated API-created user; organization created only after the zero-organization welcome state |
+| onboarding/workspaces | `/welcome`, `/workspaces`                                                                                     | owner's organization follows welcome; a separate inviter-owned seed organization exists first for the pending invitation |
 | dashboard             | `/dashboard`, `/w/{organizationKey}/dashboard`                                                                | canonical redirect plus direct organization dashboard, using the generated organization key         |
 | account               | `/user/profile`, `/user/connections`, `/user/security`, `/user/danger`, `/user/api-keys`, `/user/invitations` | EN in all 4 projects; profile also RU overflow                                                      |
 | workspace settings    | `/w/{organizationKey}/settings/workspace`, `/users`, `/roles`, `/teams`, `/invitations`, `/api-keys`          | EN in all 4 projects; workspace, invitations and API-key pages also RU overflow                     |
@@ -3107,6 +3107,11 @@ keys and invitation IDs come only from the E2E-created API projections.
 Volatile generated UUID/date cells are hidden before the screenshot, and the
 Next development portal is removed so compiler/error badges cannot be accepted
 as product UI.
+
+The fixture creates the separate inviter-owned seed organization before the
+welcome capture solely to issue the owner's pending incoming invitation. The
+signed-in owner still has zero accessible organizations at welcome; the owner's
+organization, team and outgoing invitation are created only afterward.
 
 #### Personal reference inspection and the discovered defect
 

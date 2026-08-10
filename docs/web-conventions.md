@@ -290,8 +290,10 @@ npm run e2e
 test -f .next/standalone/server.js
 ```
 
-E2E starts ASP.NET Core on `127.0.0.1:5297` and Next.js on
-`127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.
+`npm run e2e:install` installs both Chromium and WebKit. The desktop projects
+use Chromium; the mobile visual projects use the iPhone 13 WebKit descriptor.
+E2E starts ASP.NET Core on `127.0.0.1:5297` and the primary Next.js deployment
+on `127.0.0.1:3127`. The API readiness probe is `/api/health/ready`.
 
 ## Organization-aware UI (iteration 5)
 
