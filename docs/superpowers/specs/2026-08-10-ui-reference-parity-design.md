@@ -1,6 +1,7 @@
 # UI reference-parity remediation design
 
-**Date:** 2026-08-10  
+**Date:** 2026-08-10
+
 **Scope:** Reopened migration iteration 9 — UI-only visual-parity remediation for every already migrated route in `apps/web`.
 
 ## Goal
