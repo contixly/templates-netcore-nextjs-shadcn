@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 import shutil
@@ -130,13 +129,18 @@ with tempfile.TemporaryDirectory(prefix="run-local-https-test.") as directory:
 
     settings = temp / "appsettings.Local.json"
     settings.write_text(
-        json.dumps(
-            {
-                "ExternalAuthentication": {
-                    "PublicOrigin": "http://localhost:3000"
-                },
-            }
-        ),
+        '''{
+  // appsettings JSON permits comments and trailing commas.
+  "ExternalAuthentication": {
+    "PublicOrigin": "http://localhost:3000",
+    "ScannerProbe": "https://example.test/a//b/*not-comment*/\\\"quoted\\\"",
+  },
+  "ConnectionStrings": {
+    "Postgres": "Host=local-test",
+  },
+  /* Keep this block optional when the environment supplies PostgreSQL. */
+}
+''',
         encoding="utf-8",
     )
     settings.chmod(0o600)
@@ -267,6 +271,50 @@ exit 0
         }
     )
 
+    invalid_settings = temp / "appsettings.Invalid.json"
+    invalid_settings.write_text(
+        '{"Broken": tru/* comments are whitespace */e}\n', encoding="utf-8"
+    )
+    invalid_settings.chmod(0o600)
+    invalid_environment = environment.copy()
+    invalid_environment["LOCAL_HTTPS_SETTINGS_FILE"] = str(invalid_settings)
+    invalid_log_path = temp / "invalid-settings-launcher.log"
+    with invalid_log_path.open("w", encoding="utf-8") as log_file:
+        invalid_process = subprocess.Popen(
+            [str(launcher)],
+            cwd=outside_directory,
+            env=invalid_environment,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+        try:
+            try:
+                invalid_return_code = invalid_process.wait(timeout=10)
+            except subprocess.TimeoutExpired as error:
+                raise AssertionError(
+                    "comments must not join invalid appsettings JSON tokens\n"
+                    + invalid_log_path.read_text(encoding="utf-8")
+                ) from error
+            if invalid_return_code == 0:
+                raise AssertionError("invalid appsettings JSON must fail the launcher")
+            if "cannot read appsettings.Local.json" not in invalid_log_path.read_text(
+                encoding="utf-8"
+            ):
+                raise AssertionError(
+                    "invalid appsettings JSON must report a configuration error"
+                )
+        finally:
+            if invalid_process.poll() is None:
+                os.kill(invalid_process.pid, signal.SIGINT)
+                invalid_process.wait(timeout=5)
+            for child_pid_file in pid_directory.glob("*-child.pid"):
+                child_pid = int(child_pid_file.read_text(encoding="utf-8").strip())
+                if process_is_alive(child_pid):
+                    os.kill(child_pid, signal.SIGKILL)
+                child_pid_file.unlink()
+
     with log_path.open("w", encoding="utf-8") as log_file:
         process = subprocess.Popen(
             [str(launcher)],
@@ -366,6 +414,7 @@ exit 0
             "LOCAL_HTTPS_TEST_SLOW_CURL": "1",
         }
     )
+    deadline_environment.pop("ConnectionStrings__Postgres", None)
     with deadline_log_path.open("w", encoding="utf-8") as log_file:
         deadline_process = subprocess.Popen(
             [str(launcher)],
@@ -411,6 +460,16 @@ exit 0
             if not wait_until_stopped(deadline_child_pid):
                 raise AssertionError(
                     "readiness timeout left the API descendant process running"
+                )
+            deadline_command_lines = command_log.read_text(
+                encoding="utf-8"
+            ).splitlines()
+            if (
+                "api-environment\ttrue\thttps://localhost:3000\tHost=local-test"
+                not in deadline_command_lines
+            ):
+                raise AssertionError(
+                    "launcher must pass the appsettings PostgreSQL fallback to the API"
                 )
         finally:
             if deadline_process.poll() is None:

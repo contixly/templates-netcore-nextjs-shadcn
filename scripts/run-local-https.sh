@@ -90,6 +90,104 @@ import os
 import stat
 import sys
 
+
+def remove_json_comments(source):
+    output = []
+    index = 0
+    in_string = False
+    escaped = False
+
+    while index < len(source):
+        character = source[index]
+        if in_string:
+            output.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if character == '"':
+            in_string = True
+            output.append(character)
+            index += 1
+            continue
+
+        following = source[index + 1] if index + 1 < len(source) else ""
+        if character == "/" and following == "/":
+            comment_start = index
+            index += 2
+            while index < len(source) and source[index] not in "\r\n":
+                index += 1
+            output.extend(" " for _ in source[comment_start:index])
+            continue
+
+        if character == "/" and following == "*":
+            comment_end = source.find("*/", index + 2)
+            if comment_end == -1:
+                raise ValueError("unterminated block comment")
+            output.extend(
+                character if character in "\r\n" else " "
+                for character in source[index : comment_end + 2]
+            )
+            index = comment_end + 2
+            continue
+
+        output.append(character)
+        index += 1
+
+    return "".join(output)
+
+
+def remove_trailing_json_commas(source):
+    output = []
+    index = 0
+    in_string = False
+    escaped = False
+
+    while index < len(source):
+        character = source[index]
+        if in_string:
+            output.append(character)
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+            index += 1
+            continue
+
+        if character == '"':
+            in_string = True
+            output.append(character)
+            index += 1
+            continue
+
+        if character == ",":
+            following_index = index + 1
+            while (
+                following_index < len(source)
+                and source[following_index].isspace()
+            ):
+                following_index += 1
+            if (
+                following_index < len(source)
+                and source[following_index] in "}]"
+            ):
+                output.append(" ")
+                index += 1
+                continue
+
+        output.append(character)
+        index += 1
+
+    return "".join(output)
+
+
 path = sys.argv[1]
 require_connection_string = sys.argv[2] == "true"
 
@@ -114,8 +212,9 @@ if file_mode & 0o077:
 
 try:
     with open(path, encoding="utf-8") as settings_file:
-        settings = json.load(settings_file)
-except (OSError, json.JSONDecodeError) as error:
+        source = remove_json_comments(settings_file.read())
+    settings = json.loads(remove_trailing_json_commas(source))
+except (OSError, ValueError) as error:
     print(f"error: cannot read appsettings.Local.json: {error}", file=sys.stderr)
     raise SystemExit(1)
 
