@@ -4,6 +4,7 @@ set -Eeuo pipefail
 
 readonly api_origin="https://localhost:7297"
 readonly web_origin="https://localhost:3000"
+readonly ready_timeout_seconds="${LOCAL_HTTPS_READY_TIMEOUT_SECONDS:-60}"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 api_project="$repo_root/apps/api/src/Template.Api/Template.Api.csproj"
@@ -150,24 +151,32 @@ wait_for_url() {
   local name="$1"
   local url="$2"
   local pid="$3"
-  local attempt=1
+  local deadline=$((SECONDS + ready_timeout_seconds))
+  local request_timeout
 
-  while ((attempt <= 60)); do
+  while ((SECONDS < deadline)); do
     if ! kill -0 "$pid" 2>/dev/null; then
       fail "$name stopped before becoming ready"
     fi
 
-    if curl --http1.1 --silent --show-error --fail --max-time 2 \
+    request_timeout=$((deadline - SECONDS))
+    if ((request_timeout > 2)); then
+      request_timeout=2
+    fi
+
+    if curl --http1.1 --silent --show-error --fail \
+      --max-time "$request_timeout" \
       --output /dev/null "$url"; then
       printf '%s is ready: %s\n' "$name" "$url"
       return 0
     fi
 
-    sleep 1
-    attempt=$((attempt + 1))
+    if ((SECONDS < deadline)); then
+      sleep 1
+    fi
   done
 
-  fail "$name did not become ready within 60 seconds"
+  fail "$name did not become ready within $ready_timeout_seconds seconds"
 }
 
 exec_in_new_session() {
@@ -236,6 +245,9 @@ fi
   usage >&2
   exit 2
 }
+
+[[ "$ready_timeout_seconds" =~ ^[1-9][0-9]*$ ]] ||
+  fail "LOCAL_HTTPS_READY_TIMEOUT_SECONDS must be a positive integer"
 
 trap cleanup EXIT
 trap 'exit 130' INT

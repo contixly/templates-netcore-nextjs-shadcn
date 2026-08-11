@@ -25,7 +25,38 @@ def process_is_alive(pid: int) -> bool:
         os.kill(pid, 0)
     except ProcessLookupError:
         return False
-    return True
+    state = process_state(pid)
+    return bool(state) and not state.startswith("Z")
+
+
+def process_state(pid: int) -> str:
+    result = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def assert_zombies_are_not_alive() -> None:
+    zombie_pid = os.fork()
+    if zombie_pid == 0:
+        os._exit(0)
+
+    try:
+        deadline = time.monotonic() + 3
+        while time.monotonic() < deadline:
+            if process_state(zombie_pid).startswith("Z"):
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("test child did not enter the zombie state")
+
+        if process_is_alive(zombie_pid):
+            raise AssertionError("zombie descendants must count as stopped")
+    finally:
+        os.waitpid(zombie_pid, 0)
 
 
 def wait_for_files(
@@ -51,6 +82,9 @@ def wait_until_stopped(pid: int) -> bool:
             return True
         time.sleep(0.05)
     return False
+
+
+assert_zombies_are_not_alive()
 
 
 with tempfile.TemporaryDirectory(prefix="run-local-https-test.") as directory:
@@ -107,7 +141,19 @@ with tempfile.TemporaryDirectory(prefix="run-local-https-test.") as directory:
     )
     settings.chmod(0o600)
 
-    write_executable(fake_bin / "curl", "#!/usr/bin/env bash\nexit 0\n")
+    write_executable(
+        fake_bin / "curl",
+        r'''#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${LOCAL_HTTPS_TEST_SLOW_CURL:-}" == "1" ]]; then
+  sleep 2
+  exit 22
+fi
+
+exit 0
+''',
+    )
     (python_customization / "sitecustomize.py").write_text(
         r'''import errno
 import os
@@ -308,5 +354,69 @@ exit 0
             "launcher leaked the PostgreSQL credential to unrelated commands: "
             + ", ".join(unexpected_database_scope)
         )
+
+    for child_pid_file in child_pid_files:
+        child_pid_file.unlink(missing_ok=True)
+
+    deadline_log_path = temp / "deadline-launcher.log"
+    deadline_environment = environment.copy()
+    deadline_environment.update(
+        {
+            "LOCAL_HTTPS_READY_TIMEOUT_SECONDS": "2",
+            "LOCAL_HTTPS_TEST_SLOW_CURL": "1",
+        }
+    )
+    with deadline_log_path.open("w", encoding="utf-8") as log_file:
+        deadline_process = subprocess.Popen(
+            [str(launcher)],
+            cwd=outside_directory,
+            env=deadline_environment,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+
+        deadline_child_pid_file = pid_directory / "api-child.pid"
+        deadline_child_pid: int | None = None
+        try:
+            wait_for_files(
+                [deadline_child_pid_file], deadline_process, deadline_log_path
+            )
+            deadline_child_pid = int(
+                deadline_child_pid_file.read_text(encoding="utf-8").strip()
+            )
+            deadline_started_at = time.monotonic()
+            try:
+                deadline_return_code = deadline_process.wait(timeout=5)
+            except subprocess.TimeoutExpired as error:
+                raise AssertionError(
+                    "readiness timeout must be a wall-clock deadline"
+                ) from error
+
+            deadline_elapsed = time.monotonic() - deadline_started_at
+            if deadline_return_code == 0:
+                raise AssertionError("unready API must make the launcher fail")
+            if deadline_elapsed > 4:
+                raise AssertionError(
+                    "two-second readiness timeout took "
+                    f"{deadline_elapsed:.2f} seconds"
+                )
+
+            deadline_log = deadline_log_path.read_text(encoding="utf-8")
+            if "API did not become ready within 2 seconds" not in deadline_log:
+                raise AssertionError(
+                    "launcher must report the configured wall-clock readiness timeout"
+                )
+            if not wait_until_stopped(deadline_child_pid):
+                raise AssertionError(
+                    "readiness timeout left the API descendant process running"
+                )
+        finally:
+            if deadline_process.poll() is None:
+                os.kill(deadline_process.pid, signal.SIGINT)
+                deadline_process.wait(timeout=5)
+            if deadline_child_pid is not None and process_is_alive(deadline_child_pid):
+                os.kill(deadline_child_pid, signal.SIGKILL)
 
 print("run-local-https Ctrl+C cleanup: PASS")
