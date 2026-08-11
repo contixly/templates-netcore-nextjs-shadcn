@@ -32,4 +32,6 @@ grep -Fq -- "SSL_CERT_FILE" "$launcher" ||
 grep -Fq -- "trap cleanup" "$launcher" ||
   fail "launcher must clean up child processes and temporary certificate files"
 
+python3 "$repo_root/scripts/tests/run-local-https-cleanup.test.py"
+
 printf 'run-local-https contract: PASS\n'

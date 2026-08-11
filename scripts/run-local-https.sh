@@ -9,7 +9,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 api_project="$repo_root/apps/api/src/Template.Api/Template.Api.csproj"
 infrastructure_project="$repo_root/apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj"
 web_directory="$repo_root/apps/web"
-local_settings="$repo_root/apps/api/src/Template.Api/appsettings.Local.json"
+local_settings="${LOCAL_HTTPS_SETTINGS_FILE:-$repo_root/apps/api/src/Template.Api/appsettings.Local.json}"
 
 api_pid=""
 web_pid=""
@@ -140,16 +140,41 @@ wait_for_url() {
   fail "$name did not become ready within 60 seconds"
 }
 
+exec_in_new_session() {
+  exec python3 -c '
+import os
+import sys
+
+os.setsid()
+os.execvpe(sys.argv[1], sys.argv[1:], os.environ)
+' "$@"
+}
+
+stop_process_group() {
+  local leader_pid="$1"
+  local attempt=1
+
+  [[ -n "$leader_pid" ]] || return 0
+  kill -0 -- "-$leader_pid" 2>/dev/null || return 0
+
+  kill -TERM -- "-$leader_pid" 2>/dev/null || true
+  while ((attempt <= 50)); do
+    if ! kill -0 -- "-$leader_pid" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.1
+    attempt=$((attempt + 1))
+  done
+
+  kill -KILL -- "-$leader_pid" 2>/dev/null || true
+}
+
 cleanup() {
   local exit_code=$?
   trap - EXIT INT TERM
 
-  if [[ -n "$web_pid" ]] && kill -0 "$web_pid" 2>/dev/null; then
-    kill "$web_pid" 2>/dev/null || true
-  fi
-  if [[ -n "$api_pid" ]] && kill -0 "$api_pid" 2>/dev/null; then
-    kill "$api_pid" 2>/dev/null || true
-  fi
+  stop_process_group "$web_pid"
+  stop_process_group "$api_pid"
 
   [[ -z "$web_pid" ]] || wait "$web_pid" 2>/dev/null || true
   [[ -z "$api_pid" ]] || wait "$api_pid" 2>/dev/null || true
@@ -227,12 +252,13 @@ chmod 600 "$certificate_file" "$certificate_key_file"
 printf 'Starting ASP.NET Core API...\n'
 (
   cd "$repo_root"
-  ASPNETCORE_ENVIRONMENT=Development \
-    ASPNETCORE_URLS=https://localhost:7297 \
+  export ASPNETCORE_ENVIRONMENT=Development
+  export ASPNETCORE_URLS=https://localhost:7297
+  exec_in_new_session \
     dotnet run \
-      --project "$api_project" \
-      --no-launch-profile \
-      --no-build
+    --project "$api_project" \
+    --no-launch-profile \
+    --no-build
 ) &
 api_pid=$!
 
@@ -247,15 +273,16 @@ esac
 printf 'Starting Next.js UI...\n'
 (
   cd "$web_directory"
-  APP_PUBLIC_ORIGIN="$web_origin" \
-    API_INTERNAL_BASE_URL="$api_origin" \
-    API_PROXY_TARGET="$api_origin" \
-    SSL_CERT_FILE="$certificate_file" \
-    NODE_OPTIONS="$node_options" \
+  export APP_PUBLIC_ORIGIN="$web_origin"
+  export API_INTERNAL_BASE_URL="$api_origin"
+  export API_PROXY_TARGET="$api_origin"
+  export SSL_CERT_FILE="$certificate_file"
+  export NODE_OPTIONS="$node_options"
+  exec_in_new_session \
     npm run dev -- \
-      --experimental-https \
-      --experimental-https-key "$certificate_key_file" \
-      --experimental-https-cert "$certificate_file"
+    --experimental-https \
+    --experimental-https-key "$certificate_key_file" \
+    --experimental-https-cert "$certificate_file"
 ) &
 web_pid=$!
 
