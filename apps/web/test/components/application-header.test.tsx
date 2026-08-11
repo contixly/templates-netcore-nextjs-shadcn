@@ -93,3 +93,18 @@ it("uses the localized invitation page title for invitation breadcrumbs", () => 
   );
   expect(screen.queryByText("Settings")).not.toBeInTheDocument();
 });
+
+it("centers the vertical separator in the header controls row", () => {
+  render(
+    <SidebarProvider defaultOpen={false}>
+      <ApplicationHeader />
+    </SidebarProvider>,
+  );
+
+  const separator = document.querySelector(
+    '[data-slot="application-header"] [data-slot="separator"]',
+  );
+
+  expect(separator).toHaveClass("data-vertical:self-center");
+  expect(separator).not.toHaveClass("data-vertical:self-stretch");
+});
