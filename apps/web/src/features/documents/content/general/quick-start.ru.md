@@ -10,8 +10,8 @@ toc: true
 purpose: "Учебная инструкция по запуску шаблона"
 status: "published"
 author: "Команда шаблона"
-version: "1.2.0"
-editedAt: "2026-07-06"
+version: "1.3.0"
+editedAt: "2026-08-11"
 ---
 
 # Быстрый старт
@@ -24,6 +24,7 @@ HTTP API host, а `apps/web` — отдельный UI Next.js, который �
 
 - .NET 10 SDK, выбранный в `global.json`;
 - Node.js 22.18 или новее и версия npm из `apps/web/package.json`;
+- Python 3.10 или новее, доступный как `python3`, для рекомендуемого HTTPS launcher;
 - чистая база PostgreSQL;
 - Docker для integration tests на Testcontainers или E2E Playwright.
 
@@ -53,6 +54,11 @@ Next.js использует зафиксированный сгенериров
 export ConnectionStrings__Postgres='Host=localhost;Port=5432;Database=template;Username=postgres;Password=postgres'
 ```
 
+HTTPS launcher в первую очередь использует это значение environment. Вместо него можно добавить
+`ConnectionStrings:Postgres` в игнорируемый
+`apps/api/src/Template.Api/appsettings.Local.json` с mode `0600`; не добавляйте реальное значение в
+отслеживаемый appsettings file.
+
 Для необязательного OAuth скопируйте форму из
 `apps/api/src/Template.Api/appsettings.Local.example.json` в игнорируемый
 `appsettings.Local.json`, замените только нужных providers и задайте реальному файлу mode `0600`.
@@ -67,7 +73,30 @@ dotnet ef database update \
   --context TemplateDbContext
 ```
 
-## Настройте web-UI
+## Запустите локально по HTTPS
+
+Рекомендуемая одно-командная development topology использует единый HTTPS origin для браузера и
+всех callbacks `/api/**`:
+
+```bash
+./scripts/run-local-https.sh
+```
+
+Launcher доверяет и экспортирует development certificate .NET, проверяет или восстанавливает
+Next.js installation по `package-lock.json`, применяет EF Core migrations, включает доступную
+только в Development границу local-automation sign-in и запускает оба приложения. Он принудительно
+задает public origin внешней аутентификации как `https://localhost:3000`, поэтому HTTP-значение из
+общего local example остается совместимым с ручным launch profile ниже. Зарегистрируйте HTTPS
+callback URLs провайдеров из operations guide по аутентификации. `Ctrl+C` останавливает обе process
+groups и удаляет временно экспортированный certificate.
+
+Откройте `https://localhost:3000` или используйте `https://localhost:3000/auth/login` для создания
+локальной сессии. API слушает `https://localhost:7297`, а браузерные вызовы по-прежнему проходят
+через same-origin proxy Next.js.
+
+Следующие разделы описывают альтернативный ручной HTTP workflow в двух терминалах.
+
+## Настройте web-UI для ручного HTTP-запуска
 
 Создайте игнорируемый локальный environment file:
 
@@ -80,7 +109,7 @@ cp apps/web/.env.example apps/web/.env.local
 адрес API или browser token: браузерные вызовы остаются same-origin и используют защищенные HttpOnly
 cookies.
 
-## Запустите оба приложения
+## Запустите оба приложения вручную
 
 В первом терминале оставьте заданным `ConnectionStrings__Postgres` и запустите API:
 

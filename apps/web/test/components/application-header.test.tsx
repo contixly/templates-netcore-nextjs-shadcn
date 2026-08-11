@@ -56,6 +56,20 @@ it("renders accessible shell controls and route breadcrumbs", () => {
   expect(screen.getByText("Dashboard")).toBeInTheDocument();
 });
 
+it("centers the bounded separator within the header row", () => {
+  const { container } = render(
+    <SidebarProvider defaultOpen={false}>
+      <ApplicationHeader />
+    </SidebarProvider>,
+  );
+
+  const separator = container.querySelector(
+    "[data-slot='application-header'] [data-slot='separator']",
+  );
+  expect(separator).toHaveClass("data-vertical:self-center");
+  expect(separator).not.toHaveClass("data-vertical:self-stretch");
+});
+
 it("labels the trigger from the desktop sidebar state", () => {
   render(
     <SidebarProvider defaultOpen={false}>

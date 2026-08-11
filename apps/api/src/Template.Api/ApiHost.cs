@@ -46,6 +46,11 @@ public static class ApiHost
                 "appsettings.Local.json",
                 optional: true,
                 reloadOnChange: true);
+            builder.Configuration.AddEnvironmentVariables();
+            if (args.Length > 0)
+            {
+                builder.Configuration.AddCommandLine(args);
+            }
         }
 
         builder.Services.AddValidation();
