@@ -554,6 +554,7 @@ spawn_pid_assignment_in_progress=true
     --experimental-https \
     --experimental-https-key "$certificate_key_file" \
     --experimental-https-cert "$certificate_file" \
+    --experimental-https-ca "$certificate_file" \
     --hostname 127.0.0.1 \
     --port 3000
 ) &

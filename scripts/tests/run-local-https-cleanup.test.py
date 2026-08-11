@@ -522,6 +522,14 @@ fi
         raise AssertionError("Next.js must bind the local HTTPS UI to loopback")
     if not any(
         line.startswith(f"npm\t{web_directory}\trun dev -- ")
+        and f" --experimental-https-ca {exported_certificate} " in line
+        for line in command_lines
+    ):
+        raise AssertionError(
+            "Next.js must pass the exported certificate as its development CA"
+        )
+    if not any(
+        line.startswith(f"npm\t{web_directory}\trun dev -- ")
         and line.endswith(" --hostname 127.0.0.1 --port 3000")
         for line in command_lines
     ):
