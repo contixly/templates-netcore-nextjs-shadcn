@@ -16,6 +16,8 @@ local_settings="${LOCAL_HTTPS_SETTINGS_FILE:-$repo_root/apps/api/src/Template.Ap
 
 api_pid=""
 web_pid=""
+pending_exit_code=""
+spawn_pid_assignment_in_progress=false
 certificate_directory=""
 certificate_file=""
 certificate_key_file=""
@@ -408,6 +410,30 @@ cleanup() {
   exit "$exit_code"
 }
 
+handle_signal() {
+  local exit_code="$1"
+
+  if [[ "$spawn_pid_assignment_in_progress" == true ]]; then
+    if [[ -z "$pending_exit_code" ]]; then
+      pending_exit_code="$exit_code"
+    fi
+    return 0
+  fi
+
+  exit "$exit_code"
+}
+
+complete_spawn_pid_assignment() {
+  local exit_code
+
+  spawn_pid_assignment_in_progress=false
+  if [[ -n "$pending_exit_code" ]]; then
+    exit_code="$pending_exit_code"
+    pending_exit_code=""
+    exit "$exit_code"
+  fi
+}
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   usage
   exit 0
@@ -422,8 +448,8 @@ fi
   fail "LOCAL_HTTPS_READY_TIMEOUT_SECONDS must be a positive integer"
 
 trap cleanup EXIT
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
 
 require_command curl
 require_command dotnet
@@ -493,6 +519,7 @@ dotnet dev-certs https \
 chmod 600 "$certificate_file" "$certificate_key_file"
 
 printf 'Starting ASP.NET Core API...\n'
+spawn_pid_assignment_in_progress=true
 (
   cd "$repo_root"
   export DOTNET_ENVIRONMENT=Development
@@ -508,11 +535,13 @@ printf 'Starting ASP.NET Core API...\n'
     --no-build
 ) &
 api_pid=$!
+complete_spawn_pid_assignment
 unset postgres_connection_string
 
 wait_for_url "API" "$api_origin/api/health/ready" "$api_pid"
 
 printf 'Starting Next.js UI...\n'
+spawn_pid_assignment_in_progress=true
 (
   cd "$web_directory"
   export APP_PUBLIC_ORIGIN="$web_origin"
@@ -529,6 +558,7 @@ printf 'Starting Next.js UI...\n'
     --port 3000
 ) &
 web_pid=$!
+complete_spawn_pid_assignment
 
 wait_for_url "UI" "$web_origin" "$web_pid"
 

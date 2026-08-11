@@ -281,6 +281,26 @@ exit 0
 ''',
     )
 
+    bash_environment = temp / "bash-environment.sh"
+    bash_environment.write_text(
+        r'''if [[ -n "${LOCAL_HTTPS_TEST_DELAY_PID_ASSIGNMENT:-}" ]]; then
+  delay_pid_assignment() {
+    expected_assignment="${LOCAL_HTTPS_TEST_DELAY_PID_ASSIGNMENT}=\$!"
+    if [[ "${BASH_COMMAND:-}" == "$expected_assignment" ]]; then
+      trap - DEBUG
+      printf '%s\n' "$!" \
+        >"$LOCAL_HTTPS_TEST_PID_DIRECTORY/unrecorded-${LOCAL_HTTPS_TEST_DELAY_PID_ASSIGNMENT}-leader.pid"
+      while [[ -z "${pending_exit_code:-}" ]]; do
+        :
+      done
+    fi
+  }
+  trap delay_pid_assignment DEBUG
+fi
+''',
+        encoding="utf-8",
+    )
+
     log_path = temp / "launcher.log"
     environment = os.environ.copy()
     environment.update(
@@ -568,6 +588,85 @@ exit 0
             if pre_session_pid is not None and process_is_alive(pre_session_pid):
                 os.kill(pre_session_pid, signal.SIGKILL)
             pre_session_pid_file.unlink(missing_ok=True)
+
+    def assert_pid_assignment_signal_safe(pid_variable: str) -> None:
+        pid_assignment_log_path = temp / f"{pid_variable}-assignment-launcher.log"
+        pid_assignment_environment = environment.copy()
+        pid_assignment_environment.update(
+            {
+                "BASH_ENV": str(bash_environment),
+                "LOCAL_HTTPS_TEST_DELAY_PID_ASSIGNMENT": pid_variable,
+            }
+        )
+        with pid_assignment_log_path.open("w", encoding="utf-8") as log_file:
+            pid_assignment_process = subprocess.Popen(
+                [str(launcher)],
+                cwd=outside_directory,
+                env=pid_assignment_environment,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True,
+            )
+
+            unrecorded_pid_file = (
+                pid_directory / f"unrecorded-{pid_variable}-leader.pid"
+            )
+            unrecorded_pid: int | None = None
+            child_pids: list[int] = []
+            try:
+                wait_for_files(
+                    [unrecorded_pid_file],
+                    pid_assignment_process,
+                    pid_assignment_log_path,
+                )
+                unrecorded_pid = int(
+                    unrecorded_pid_file.read_text(encoding="utf-8").strip()
+                )
+                os.kill(pid_assignment_process.pid, signal.SIGTERM)
+                pid_assignment_return_code = pid_assignment_process.wait(timeout=5)
+                if pid_assignment_return_code != 143:
+                    raise AssertionError(
+                        f"{pid_variable} assignment SIGTERM returned "
+                        f"{pid_assignment_return_code}, expected 143"
+                    )
+                child_pids = [
+                    int(path.read_text(encoding="utf-8").strip())
+                    for path in pid_directory.glob("*-child.pid")
+                ]
+                survivors = [
+                    pid
+                    for pid in [unrecorded_pid, *child_pids]
+                    if not wait_until_stopped(pid)
+                ]
+                if survivors:
+                    raise AssertionError(
+                        f"SIGTERM before {pid_variable} assignment left survivors: "
+                        + ", ".join(str(pid) for pid in survivors)
+                    )
+            finally:
+                if pid_assignment_process.poll() is None:
+                    pid_assignment_process.kill()
+                    pid_assignment_process.wait(timeout=5)
+                if unrecorded_pid is not None and process_is_alive(unrecorded_pid):
+                    try:
+                        if os.getpgid(unrecorded_pid) == unrecorded_pid:
+                            os.killpg(unrecorded_pid, signal.SIGKILL)
+                        else:
+                            os.kill(unrecorded_pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+                for child_pid_file in pid_directory.glob("*-child.pid"):
+                    child_pid = int(
+                        child_pid_file.read_text(encoding="utf-8").strip()
+                    )
+                    if process_is_alive(child_pid):
+                        os.kill(child_pid, signal.SIGKILL)
+                    child_pid_file.unlink()
+                unrecorded_pid_file.unlink(missing_ok=True)
+
+    assert_pid_assignment_signal_safe("api_pid")
+    assert_pid_assignment_signal_safe("web_pid")
 
     deadline_log_path = temp / "deadline-launcher.log"
     deadline_environment = environment.copy()
