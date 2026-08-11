@@ -150,6 +150,8 @@ with tempfile.TemporaryDirectory(prefix="run-local-https-test.") as directory:
         r'''#!/usr/bin/env bash
 set -euo pipefail
 
+printf 'curl\t%s\n' "$*" >>"$LOCAL_HTTPS_TEST_COMMAND_LOG"
+
 if [[ "${LOCAL_HTTPS_TEST_SLOW_CURL:-}" == "1" ]]; then
   sleep 2
   exit 22
@@ -215,6 +217,8 @@ if [[ "${1:-}" == "dev-certs" && " $* " == *" --export-path "* ]]; then
       certificate_file="$2"
       : >"$certificate_file"
       : >"${certificate_file%.pem}.key"
+      printf '%s\n' "$certificate_file" \
+        >"$LOCAL_HTTPS_TEST_PID_DIRECTORY/certificate-file.path"
       exit 0
     fi
     shift
@@ -389,6 +393,25 @@ exit 0
         raise AssertionError("launcher must pass the selected PostgreSQL setting to the API")
     if f"npm\t{web_directory}\tci" not in command_lines:
         raise AssertionError("launcher must repair an unvalidated node_modules tree")
+    readiness_probes = [
+        line for line in command_lines if line.startswith("curl\t")
+    ]
+    exported_certificate = (pid_directory / "certificate-file.path").read_text(
+        encoding="utf-8"
+    ).strip()
+    if not readiness_probes or any(
+        f" --cacert {exported_certificate} " not in probe
+        for probe in readiness_probes
+    ):
+        raise AssertionError(
+            "every HTTPS readiness probe must trust the exported certificate"
+        )
+    if not any(
+        line.startswith(f"npm\t{web_directory}\trun dev -- ")
+        and " --hostname 127.0.0.1" in line
+        for line in command_lines
+    ):
+        raise AssertionError("Next.js must bind the local HTTPS UI to loopback")
     unexpected_database_scope = [
         line
         for line in command_lines

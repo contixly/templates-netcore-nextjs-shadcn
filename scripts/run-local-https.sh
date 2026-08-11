@@ -265,6 +265,7 @@ wait_for_url() {
 
     if curl --http1.1 --silent --show-error --fail \
       --max-time "$request_timeout" \
+      --cacert "$certificate_file" \
       --output /dev/null "$url"; then
       printf '%s is ready: %s\n' "$name" "$url"
       return 0
@@ -456,7 +457,8 @@ printf 'Starting Next.js UI...\n'
     npm run dev -- \
     --experimental-https \
     --experimental-https-key "$certificate_key_file" \
-    --experimental-https-cert "$certificate_file"
+    --experimental-https-cert "$certificate_file" \
+    --hostname 127.0.0.1
 ) &
 web_pid=$!
 
