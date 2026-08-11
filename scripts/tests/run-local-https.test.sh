@@ -27,8 +27,8 @@ grep -Fq -- "ASPNETCORE_URLS=https://localhost:7297" "$launcher" ||
   fail "launcher must bind ASP.NET Core to the HTTPS API origin"
 grep -Fq -- "--experimental-https" "$launcher" ||
   fail "launcher must start Next.js with HTTPS"
-grep -Fq -- "SSL_CERT_FILE" "$launcher" ||
-  fail "launcher must configure Node to trust the exported development certificate"
+grep -Fq -- "NODE_EXTRA_CA_CERTS" "$launcher" ||
+  fail "launcher must extend Node trust with the exported development certificate"
 grep -Fq -- "trap cleanup" "$launcher" ||
   fail "launcher must clean up child processes and temporary certificate files"
 

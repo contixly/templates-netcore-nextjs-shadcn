@@ -141,7 +141,7 @@ with tempfile.TemporaryDirectory(prefix="run-local-https-test.") as directory:
   /* Keep this block optional when the environment supplies PostgreSQL. */
 }
 ''',
-        encoding="utf-8",
+        encoding="utf-8-sig",
     )
     settings.chmod(0o600)
 
@@ -249,6 +249,9 @@ printf 'npm\t%s\t%s\n' "$PWD" "$*" >>"$LOCAL_HTTPS_TEST_COMMAND_LOG"
 printf 'database-scope\tnpm\t%s\t%s\n' \
   "$*" "${ConnectionStrings__Postgres:+set}" \
   >>"$LOCAL_HTTPS_TEST_COMMAND_LOG"
+printf 'node-ca\t%s\t%s\t%s\n' \
+  "${NODE_OPTIONS:-}" "${NODE_EXTRA_CA_CERTS:-}" "${SSL_CERT_FILE:-}" \
+  >>"$LOCAL_HTTPS_TEST_COMMAND_LOG"
 
 if [[ "${1:-}" == "run" && "${2:-}" == "dev" ]]; then
   sleep 300 &
@@ -270,6 +273,8 @@ exit 0
             "LOCAL_HTTPS_TEST_FAKE_PORTS": "1",
             "LOCAL_HTTPS_TEST_PID_DIRECTORY": str(pid_directory),
             "ConnectionStrings__Postgres": "Host=environment-test",
+            "NODE_OPTIONS": "--use-bundled-ca",
+            "SSL_CERT_FILE": "/ambient/ca.pem",
             "PATH": f"{fake_bin}:{environment['PATH']}",
             "PYTHONPATH": str(python_customization),
         }
@@ -405,6 +410,20 @@ exit 0
     ):
         raise AssertionError(
             "every HTTPS readiness probe must trust the exported certificate"
+        )
+    if any(
+        " --noproxy * " not in probe
+        for probe in readiness_probes
+    ):
+        raise AssertionError(
+            "every loopback readiness probe must bypass ambient proxies"
+        )
+    if (
+        f"node-ca\t--use-bundled-ca\t{exported_certificate}\t"
+        not in command_lines
+    ):
+        raise AssertionError(
+            "launcher must preserve inherited Node CA flags and extend trust via PEM"
         )
     if not any(
         line.startswith(f"npm\t{web_directory}\trun dev -- ")

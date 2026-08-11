@@ -211,7 +211,7 @@ if file_mode & 0o077:
     raise SystemExit(1)
 
 try:
-    with open(path, encoding="utf-8") as settings_file:
+    with open(path, encoding="utf-8-sig") as settings_file:
         source = remove_json_comments(settings_file.read())
     settings = json.loads(remove_trailing_json_commas(source))
 except (OSError, ValueError) as error:
@@ -266,6 +266,7 @@ wait_for_url() {
     if curl --http1.1 --silent --show-error --fail \
       --max-time "$request_timeout" \
       --cacert "$certificate_file" \
+      --noproxy '*' \
       --output /dev/null "$url"; then
       printf '%s is ready: %s\n' "$name" "$url"
       return 0
@@ -439,20 +440,14 @@ unset postgres_connection_string
 
 wait_for_url "API" "$api_origin/api/health/ready" "$api_pid"
 
-node_options="${NODE_OPTIONS:-}"
-case " $node_options " in
-  *" --use-openssl-ca "*) ;;
-  *) node_options="${node_options:+$node_options }--use-openssl-ca" ;;
-esac
-
 printf 'Starting Next.js UI...\n'
 (
   cd "$web_directory"
   export APP_PUBLIC_ORIGIN="$web_origin"
   export API_INTERNAL_BASE_URL="$api_origin"
   export API_PROXY_TARGET="$api_origin"
-  export SSL_CERT_FILE="$certificate_file"
-  export NODE_OPTIONS="$node_options"
+  export NODE_EXTRA_CA_CERTS="$certificate_file"
+  unset SSL_CERT_FILE
   exec_in_new_session \
     npm run dev -- \
     --experimental-https \
