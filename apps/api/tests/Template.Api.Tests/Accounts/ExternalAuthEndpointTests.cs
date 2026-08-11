@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -198,6 +199,111 @@ public sealed class ExternalAuthEndpointTests(
         Assert.Equal("oauth.yandex.ru", authorizationUrl.Host);
         Assert.Equal("/authorize", authorizationUrl.AbsolutePath);
         Assert.Single(QueryHelpers.ParseQuery(authorizationUrl.Query)["state"]);
+    }
+
+    [Fact]
+    public async Task TrustedLoopbackProxyPreservesPublicCallbackOrigin()
+    {
+        await using var proxied = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+                services.AddSingleton<
+                    IStartupFilter,
+                    LoopbackRemoteIpStartupFilter>()));
+        using var client = proxied.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://api.internal.test"),
+                HandleCookies = true
+            });
+        client.DefaultRequestHeaders.Add(
+            "X-Forwarded-For",
+            "198.51.100.10");
+        client.DefaultRequestHeaders.Add(
+            "X-Forwarded-Host",
+            "accounts.example.test");
+        client.DefaultRequestHeaders.Add(
+            "X-Testing-Remote-IP",
+            IPAddress.Loopback.ToString());
+        var callback = await CompleteAuthorizationAsync(
+            client,
+            "yandex",
+            "proxied-callback");
+
+        using var response = await client.GetAsync(
+            callback,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/dashboard", response.Headers.Location!.OriginalString);
+    }
+
+    [Fact]
+    public async Task UntrustedPeerCannotOverridePublicCallbackOrigin()
+    {
+        await using var proxied = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+                services.AddSingleton<
+                    IStartupFilter,
+                    LoopbackRemoteIpStartupFilter>()));
+        using var client = proxied.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://accounts.example.test"),
+                HandleCookies = true
+            });
+        client.DefaultRequestHeaders.Add(
+            "X-Testing-Remote-IP",
+            "203.0.113.50");
+        var callback = await CompleteAuthorizationAsync(
+            client,
+            "yandex",
+            "untrusted-proxy");
+        client.DefaultRequestHeaders.Add(
+            "X-Forwarded-Host",
+            "attacker.example.test");
+
+        using var response = await client.GetAsync(
+            callback,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/dashboard", response.Headers.Location!.OriginalString);
+    }
+
+    [Fact]
+    public async Task TrustedLoopbackProxyCannotOverrideConfiguredPublicHost()
+    {
+        await using var proxied = _factory.WithWebHostBuilder(builder =>
+            builder.ConfigureTestServices(services =>
+                services.AddSingleton<
+                    IStartupFilter,
+                    LoopbackRemoteIpStartupFilter>()));
+        using var client = proxied.CreateClient(
+            new WebApplicationFactoryClientOptions
+            {
+                AllowAutoRedirect = false,
+                BaseAddress = new Uri("https://accounts.example.test"),
+                HandleCookies = true
+            });
+        client.DefaultRequestHeaders.Add(
+            "X-Testing-Remote-IP",
+            IPAddress.Loopback.ToString());
+        var callback = await CompleteAuthorizationAsync(
+            client,
+            "yandex",
+            "trusted-host-spoof");
+        client.DefaultRequestHeaders.Add(
+            "X-Forwarded-Host",
+            "attacker.example.test");
+
+        using var response = await client.GetAsync(
+            callback,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/dashboard", response.Headers.Location!.OriginalString);
     }
 
     [Fact]
@@ -891,6 +997,27 @@ public sealed class ExternalAuthEndpointTests(
         SessionMetadata? Session);
 
     private sealed record SessionMetadata(Guid Id);
+
+    private sealed class LoopbackRemoteIpStartupFilter : IStartupFilter
+    {
+        public Action<IApplicationBuilder> Configure(
+            Action<IApplicationBuilder> next) =>
+            application =>
+            {
+                application.Use(async (context, nextMiddleware) =>
+                {
+                    if (IPAddress.TryParse(
+                            context.Request.Headers["X-Testing-Remote-IP"],
+                            out var remoteIp))
+                    {
+                        context.Connection.RemoteIpAddress = remoteIp;
+                    }
+
+                    await nextMiddleware();
+                });
+                next(application);
+            };
+    }
 
     private sealed class ExternalOAuthWebApplicationFactory(
         PostgreSqlContainerFixture postgres,

@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Template.Api.Errors;
 using Template.Api.Features.Collaboration;
 using Template.Application.Authentication.Ports;
+using Template.Infrastructure.Authentication;
 
 namespace Template.Api.Authentication;
 
@@ -40,10 +41,21 @@ internal static class AuthSecurityServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var configuredPublicOrigin = configuration[
+            $"{ExternalAuthenticationOptions.SectionName}:" +
+            nameof(ExternalAuthenticationOptions.PublicOrigin)];
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor;
             options.ForwardLimit = 1;
+            if (Uri.TryCreate(
+                    configuredPublicOrigin,
+                    UriKind.Absolute,
+                    out var publicOrigin))
+            {
+                options.ForwardedHeaders |= ForwardedHeaders.XForwardedHost;
+                options.AllowedHosts.Add(publicOrigin.Host);
+            }
         });
         services
             .AddOptions<LocalAutomationAuthOptions>()

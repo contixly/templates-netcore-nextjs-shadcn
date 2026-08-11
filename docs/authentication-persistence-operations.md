@@ -88,10 +88,16 @@ invalid, non-RSA, or private-key-less material. Development and Test share the
 database key ring without enforcing the production certificate.
 
 The development Next.js rewrite is a one-hop loopback proxy. ASP.NET Core
-processes one `X-Forwarded-For` value from that trusted loopback boundary before
-auth rate limiting, so different originating clients receive independent
-partitions. Forwarded client addresses from non-loopback peers are ignored; do
-not clear the framework trusted-proxy lists to broaden this boundary.
+processes one `X-Forwarded-For` value and one `X-Forwarded-Host` value from that
+trusted loopback boundary. The forwarded client address gives different
+originating clients independent auth rate-limit partitions. The forwarded host
+reconstructs the public same-origin callback URL for OpenIddict validation while
+Next.js connects to the API's internal origin. Forwarded hosts are additionally
+restricted to the hostname from the validated
+`ExternalAuthentication:PublicOrigin`; different hostnames are ignored even
+when they arrive through the loopback proxy. Both headers are ignored from
+non-loopback peers. Do not clear the framework trusted-proxy lists or broaden
+the forwarded-host allowlist.
 
 ## Apply and inspect migrations
 

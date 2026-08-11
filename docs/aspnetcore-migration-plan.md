@@ -175,7 +175,7 @@ flowchart LR
 **Выход:** в opted-in Development/Test одна кнопка создаёт local credential user и persistent browser session; credentials позволяют automation-вход во вторую независимую сессию; logout/cleanup/current-session работают только через REST; Production password auth недоступен.
 **Отложено:** внешний OAuth и account/session management — итерация 4; API keys/`x-api-key` — итерация 7; реальный Bearer требует отдельного issuer/consumer contract.
 
-### Итерация 4 — Accounts и внешний OAuth **(функциональный scope завершён; live authorization-screen smoke частичный; live callbacks не выполнялись)**
+### Итерация 4 — Accounts и внешний OAuth **(функциональный scope завершён; live Google callback принят 2026-08-12)**
 
 **Цель:** восстановить пользовательский lifecycle из `template/src/features/accounts`.
 
@@ -686,6 +686,35 @@ hosts Google, GitHub и GitLab, не открыл его для Yandex в огр
 а VK был пропущен из-за incomplete local credential pair. Credentials не
 отправлялись, callback не выполнялся, и live callback/login success не
 заявляется.
+
+### Local HTTPS OAuth callback follow-up 2026-08-12
+
+Историческое утверждение выше остаётся точным для первоначальной acceptance
+2026-07-29. Последующая локальная проверка обнаружила общий operational gap:
+Next.js сохранял публичный `https://localhost:3000` в `X-Forwarded-Host`, но API
+обрабатывал только `X-Forwarded-For`. OpenIddict поэтому сравнивал callback state
+с внутренним `https://localhost:7297` и отклонял все provider callbacks до token
+exchange. HTTP contract, provider paths, auth cookie, schema, transactions,
+OpenAPI и UI не изменились.
+
+API теперь принимает ровно один `X-Forwarded-Host` только от framework-trusted
+loopback proxy вместе с прежним `X-Forwarded-For` и ограничивает forwarded host
+hostname значением из validated `ExternalAuthentication:PublicOrigin`.
+Integration regressions доказывают успешный callback через trusted internal API
+origin, игнорирование host spoofing от non-loopback peer и запрет другого host
+даже через loopback proxy. После перезапуска local HTTPS stack реальный Google
+callback выполнил token exchange/user-info, создал secure HttpOnly session и
+перенаправил authenticated browser на `/welcome`. Другие live providers не
+запускались; их общий proxy boundary и provider-specific callback logic покрыты
+deterministic integration suite.
+
+Acceptance evidence: focused proxy/origin regressions **3/3 PASS**;
+`dotnet restore Template.sln` и `dotnet build Template.sln --no-restore` **PASS**
+с 0 warnings/errors; `dotnet test Template.sln --no-restore` **1124/1124 PASS**
+(Application 343, API 781); generated REST client deterministic/current; local
+launcher и real Google authorization/callback **PASS** с authenticated
+`/welcome`. Secrets, authorization code, state и token values в evidence не
+записывались.
 
 ### Реализованный contract и architecture
 
