@@ -168,6 +168,9 @@ def remove_trailing_json_commas(source):
             continue
 
         if character == ",":
+            preceding_index = index - 1
+            while preceding_index >= 0 and source[preceding_index].isspace():
+                preceding_index -= 1
             following_index = index + 1
             while (
                 following_index < len(source)
@@ -177,6 +180,8 @@ def remove_trailing_json_commas(source):
             if (
                 following_index < len(source)
                 and source[following_index] in "}]"
+                and preceding_index >= 0
+                and source[preceding_index] not in '{[,:'
             ):
                 output.append(" ")
                 index += 1
@@ -186,6 +191,49 @@ def remove_trailing_json_commas(source):
         index += 1
 
     return "".join(output)
+
+
+class JsonObject(list):
+    pass
+
+
+def reject_json_constant(value):
+    raise ValueError(f"invalid JSON constant: {value}")
+
+
+def flatten_configuration(root):
+    if not isinstance(root, JsonObject):
+        raise ValueError("top-level appsettings JSON element must be an object")
+
+    flattened = {}
+
+    def add_value(path, value):
+        normalized_path = path.casefold()
+        if normalized_path in flattened:
+            raise ValueError(f"duplicate configuration key: {path}")
+        flattened[normalized_path] = value
+
+    def visit(value, prefix):
+        if isinstance(value, JsonObject):
+            if not value and prefix:
+                add_value(prefix, None)
+                return
+            entries = value
+        elif isinstance(value, list):
+            if not value and prefix:
+                add_value(prefix, "")
+                return
+            entries = enumerate(value)
+        else:
+            add_value(prefix, value)
+            return
+
+        for segment, child in entries:
+            path = f"{prefix}:{segment}" if prefix else str(segment)
+            visit(child, path)
+
+    visit(root, "")
+    return flattened
 
 
 path = sys.argv[1]
@@ -213,12 +261,17 @@ if file_mode & 0o077:
 try:
     with open(path, encoding="utf-8-sig") as settings_file:
         source = remove_json_comments(settings_file.read())
-    settings = json.loads(remove_trailing_json_commas(source))
+    settings = json.loads(
+        remove_trailing_json_commas(source),
+        object_pairs_hook=JsonObject,
+        parse_constant=reject_json_constant,
+    )
+    configuration = flatten_configuration(settings)
 except (OSError, ValueError) as error:
     print(f"error: cannot read appsettings.Local.json: {error}", file=sys.stderr)
     raise SystemExit(1)
 
-connection_string = settings.get("ConnectionStrings", {}).get("Postgres")
+connection_string = configuration.get("connectionstrings:postgres")
 if not isinstance(connection_string, str) or not connection_string.strip():
     if not require_connection_string:
         raise SystemExit(0)

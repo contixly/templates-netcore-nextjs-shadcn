@@ -144,6 +144,12 @@ with tempfile.TemporaryDirectory(prefix="run-local-https-test.") as directory:
         encoding="utf-8-sig",
     )
     settings.chmod(0o600)
+    flat_settings = temp / "appsettings.Flat.json"
+    flat_settings.write_text(
+        '{"cOnNeCtIoNsTrInGs:pOsTgReS": "Host=flat-test"}\n',
+        encoding="utf-8",
+    )
+    flat_settings.chmod(0o600)
 
     write_executable(
         fake_bin / "curl",
@@ -294,49 +300,94 @@ exit 0
         }
     )
 
+    def assert_settings_rejected(rejected_settings: Path, label: str) -> None:
+        rejected_environment = environment.copy()
+        rejected_environment["LOCAL_HTTPS_SETTINGS_FILE"] = str(rejected_settings)
+        rejected_log_path = temp / f"{label}-settings-launcher.log"
+        with rejected_log_path.open("w", encoding="utf-8") as log_file:
+            rejected_process = subprocess.Popen(
+                [str(launcher)],
+                cwd=outside_directory,
+                env=rejected_environment,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+                start_new_session=True,
+            )
+            try:
+                try:
+                    rejected_return_code = rejected_process.wait(timeout=10)
+                except subprocess.TimeoutExpired as error:
+                    raise AssertionError(
+                        f"{label} appsettings JSON must fail before startup\n"
+                        + rejected_log_path.read_text(encoding="utf-8")
+                    ) from error
+                if rejected_return_code == 0:
+                    raise AssertionError(
+                        f"{label} appsettings JSON must fail the launcher"
+                    )
+                if "cannot read appsettings.Local.json" not in (
+                    rejected_log_path.read_text(encoding="utf-8")
+                ):
+                    raise AssertionError(
+                        f"{label} appsettings JSON must report a configuration error"
+                    )
+            finally:
+                if rejected_process.poll() is None:
+                    os.kill(rejected_process.pid, signal.SIGINT)
+                    rejected_process.wait(timeout=5)
+                for child_pid_file in pid_directory.glob("*-child.pid"):
+                    child_pid = int(
+                        child_pid_file.read_text(encoding="utf-8").strip()
+                    )
+                    if process_is_alive(child_pid):
+                        os.kill(child_pid, signal.SIGKILL)
+                    child_pid_file.unlink()
+
     invalid_settings = temp / "appsettings.Invalid.json"
     invalid_settings.write_text(
         '{"Broken": tru/* comments are whitespace */e}\n', encoding="utf-8"
     )
     invalid_settings.chmod(0o600)
-    invalid_environment = environment.copy()
-    invalid_environment["LOCAL_HTTPS_SETTINGS_FILE"] = str(invalid_settings)
-    invalid_log_path = temp / "invalid-settings-launcher.log"
-    with invalid_log_path.open("w", encoding="utf-8") as log_file:
-        invalid_process = subprocess.Popen(
-            [str(launcher)],
-            cwd=outside_directory,
-            env=invalid_environment,
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            text=True,
-            start_new_session=True,
-        )
-        try:
-            try:
-                invalid_return_code = invalid_process.wait(timeout=10)
-            except subprocess.TimeoutExpired as error:
-                raise AssertionError(
-                    "comments must not join invalid appsettings JSON tokens\n"
-                    + invalid_log_path.read_text(encoding="utf-8")
-                ) from error
-            if invalid_return_code == 0:
-                raise AssertionError("invalid appsettings JSON must fail the launcher")
-            if "cannot read appsettings.Local.json" not in invalid_log_path.read_text(
-                encoding="utf-8"
-            ):
-                raise AssertionError(
-                    "invalid appsettings JSON must report a configuration error"
-                )
-        finally:
-            if invalid_process.poll() is None:
-                os.kill(invalid_process.pid, signal.SIGINT)
-                invalid_process.wait(timeout=5)
-            for child_pid_file in pid_directory.glob("*-child.pid"):
-                child_pid = int(child_pid_file.read_text(encoding="utf-8").strip())
-                if process_is_alive(child_pid):
-                    os.kill(child_pid, signal.SIGKILL)
-                child_pid_file.unlink()
+    assert_settings_rejected(invalid_settings, "token-splitting comment")
+
+    duplicate_settings = temp / "appsettings.Duplicate.json"
+    duplicate_settings.write_text(
+        '''{
+  "ConnectionStrings": { "Postgres": "Host=nested-test" },
+  "connectionstrings:postgres": "Host=flat-test"
+}
+''',
+        encoding="utf-8",
+    )
+    duplicate_settings.chmod(0o600)
+    assert_settings_rejected(duplicate_settings, "duplicate configuration key")
+
+    nonstandard_number_settings = temp / "appsettings.NonstandardNumber.json"
+    nonstandard_number_settings.write_text(
+        '''{
+  "ConnectionStrings": { "Postgres": "Host=local-test" },
+  "Broken": NaN
+}
+''',
+        encoding="utf-8",
+    )
+    nonstandard_number_settings.chmod(0o600)
+    assert_settings_rejected(
+        nonstandard_number_settings, "nonstandard numeric constant"
+    )
+
+    leading_comma_settings = temp / "appsettings.LeadingComma.json"
+    leading_comma_settings.write_text(
+        '''{
+  "ConnectionStrings": { "Postgres": "Host=local-test" },
+  "Broken": [,]
+}
+''',
+        encoding="utf-8",
+    )
+    leading_comma_settings.chmod(0o600)
+    assert_settings_rejected(leading_comma_settings, "leading array comma")
 
     with log_path.open("w", encoding="utf-8") as log_file:
         process = subprocess.Popen(
@@ -475,6 +526,7 @@ exit 0
     pre_session_log_path = temp / "pre-session-launcher.log"
     pre_session_environment = environment.copy()
     pre_session_environment["LOCAL_HTTPS_TEST_DELAY_SESSION"] = "1"
+    pre_session_environment.pop("ConnectionStrings__Postgres", None)
     with pre_session_log_path.open("w", encoding="utf-8") as log_file:
         pre_session_process = subprocess.Popen(
             [str(launcher)],
@@ -521,6 +573,7 @@ exit 0
     deadline_environment = environment.copy()
     deadline_environment.update(
         {
+            "LOCAL_HTTPS_SETTINGS_FILE": str(flat_settings),
             "LOCAL_HTTPS_READY_TIMEOUT_SECONDS": "2",
             "LOCAL_HTTPS_TEST_SLOW_CURL": "1",
         }
@@ -576,7 +629,7 @@ exit 0
                 encoding="utf-8"
             ).splitlines()
             if (
-                "api-environment\ttrue\thttps://localhost:3000\tHost=local-test"
+                "api-environment\ttrue\thttps://localhost:3000\tHost=flat-test"
                 not in deadline_command_lines
             ):
                 raise AssertionError(
