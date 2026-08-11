@@ -180,16 +180,25 @@ os.execvpe(sys.argv[1], sys.argv[1:], os.environ)
 ' "$@"
 }
 
+process_group_has_live_members() {
+  local process_group_id="$1"
+
+  ps -eo pgid=,stat= | awk -v process_group_id="$process_group_id" '
+    $1 == process_group_id && $2 !~ /^Z/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  '
+}
+
 stop_process_group() {
   local leader_pid="$1"
   local attempt=1
 
   [[ -n "$leader_pid" ]] || return 0
-  kill -0 -- "-$leader_pid" 2>/dev/null || return 0
+  process_group_has_live_members "$leader_pid" || return 0
 
   kill -TERM -- "-$leader_pid" 2>/dev/null || true
   while ((attempt <= 50)); do
-    if ! kill -0 -- "-$leader_pid" 2>/dev/null; then
+    if ! process_group_has_live_members "$leader_pid"; then
       return 0
     fi
     sleep 0.1
@@ -236,6 +245,8 @@ require_command curl
 require_command dotnet
 require_command npm
 require_command python3
+require_command ps
+require_command awk
 
 [[ -f "$api_project" ]] || fail "run this script from its repository checkout"
 [[ -f "$infrastructure_project" ]] || fail "infrastructure project not found"
