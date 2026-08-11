@@ -9,6 +9,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 api_project="$repo_root/apps/api/src/Template.Api/Template.Api.csproj"
 infrastructure_project="$repo_root/apps/api/src/Template.Infrastructure/Template.Infrastructure.csproj"
 web_directory="$repo_root/apps/web"
+web_lockfile="$web_directory/package-lock.json"
+web_install_stamp="$web_directory/node_modules/.template-package-lock.sha256"
 local_settings="${LOCAL_HTTPS_SETTINGS_FILE:-$repo_root/apps/api/src/Template.Api/appsettings.Local.json}"
 
 api_pid=""
@@ -25,12 +27,15 @@ Prepare and run the complete local application over HTTPS:
   UI:  $web_origin
   API: $api_origin
 
-The script reads PostgreSQL and OAuth settings from the ignored file:
+The script reads PostgreSQL from ConnectionStrings__Postgres when set, or
+falls back to ConnectionStrings:Postgres in the ignored file:
   apps/api/src/Template.Api/appsettings.Local.json
 
-It validates local configuration, trusts and exports the .NET development
-certificate, restores tools/dependencies when needed, applies EF Core
-migrations, starts ASP.NET Core and Next.js, and stops both on Ctrl+C.
+Optional OAuth settings also come from that file. HTTPS mode forces the
+external-authentication public origin to $web_origin, trusts and exports the
+.NET development certificate, restores tools/dependencies when needed,
+applies EF Core migrations, starts ASP.NET Core and Next.js, and stops both
+on Ctrl+C.
 EOF
 }
 
@@ -47,37 +52,54 @@ ensure_port_available() {
   local port="$1"
 
   python3 - "$port" <<'PY' ||
+import errno
 import socket
 import sys
 
 port = int(sys.argv[1])
+unsupported_ipv6_errors = {
+    errno.EAFNOSUPPORT,
+    errno.EPROTONOSUPPORT,
+    getattr(errno, "EPFNOSUPPORT", -1),
+}
 for address in (("127.0.0.1", port), ("::1", port)):
     family = socket.AF_INET6 if ":" in address[0] else socket.AF_INET
-    sock = socket.socket(family, socket.SOCK_STREAM)
-    sock.settimeout(0.2)
     try:
-        if sock.connect_ex(address) == 0:
-            raise SystemExit(1)
-    finally:
-        sock.close()
+        sock = socket.socket(family, socket.SOCK_STREAM)
+        sock.settimeout(0.2)
+        try:
+            if sock.connect_ex(address) == 0:
+                raise SystemExit(1)
+        finally:
+            sock.close()
+    except OSError as error:
+        if family == socket.AF_INET6 and error.errno in unsupported_ipv6_errors:
+            continue
+        raise
 PY
     fail "port $port is already in use"
 }
 
 read_postgres_connection_string() {
-  python3 - "$local_settings" "$web_origin" <<'PY'
+  local require_connection_string="$1"
+
+  python3 - "$local_settings" "$require_connection_string" <<'PY'
 import json
 import os
 import stat
 import sys
 
-path, expected_origin = sys.argv[1:]
+path = sys.argv[1]
+require_connection_string = sys.argv[2] == "true"
 
 try:
     file_mode = stat.S_IMODE(os.stat(path).st_mode)
 except FileNotFoundError:
+    if not require_connection_string:
+        raise SystemExit(0)
     print(
-        "error: appsettings.Local.json is missing; copy the local example first",
+        "error: ConnectionStrings__Postgres is not set and "
+        "appsettings.Local.json is missing",
         file=sys.stderr,
     )
     raise SystemExit(1)
@@ -98,21 +120,29 @@ except (OSError, json.JSONDecodeError) as error:
 
 connection_string = settings.get("ConnectionStrings", {}).get("Postgres")
 if not isinstance(connection_string, str) or not connection_string.strip():
+    if not require_connection_string:
+        raise SystemExit(0)
     print(
-        "error: ConnectionStrings:Postgres is required in appsettings.Local.json",
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-
-public_origin = settings.get("ExternalAuthentication", {}).get("PublicOrigin")
-if public_origin != expected_origin:
-    print(
-        f"error: ExternalAuthentication:PublicOrigin must be {expected_origin}",
+        "error: set ConnectionStrings__Postgres or add "
+        "ConnectionStrings:Postgres to appsettings.Local.json",
         file=sys.stderr,
     )
     raise SystemExit(1)
 
 print(connection_string)
+PY
+}
+
+file_sha256() {
+  python3 - "$1" <<'PY'
+import hashlib
+import sys
+
+digest = hashlib.sha256()
+with open(sys.argv[1], "rb") as source:
+    for chunk in iter(lambda: source.read(1024 * 1024), b""):
+        digest.update(chunk)
+print(digest.hexdigest())
 PY
 }
 
@@ -210,26 +240,45 @@ require_command python3
 [[ -f "$api_project" ]] || fail "run this script from its repository checkout"
 [[ -f "$infrastructure_project" ]] || fail "infrastructure project not found"
 [[ -f "$web_directory/package.json" ]] || fail "web package not found"
+[[ -f "$web_lockfile" ]] || fail "web package lock not found"
+
+cd "$repo_root"
 
 ensure_port_available 7297
 ensure_port_available 3000
 
-postgres_connection_string="$(read_postgres_connection_string)" ||
-  fail "local configuration validation failed"
+if [[ -n "${ConnectionStrings__Postgres:-}" ]]; then
+  postgres_connection_string="$ConnectionStrings__Postgres"
+  unset ConnectionStrings__Postgres
+  read_postgres_connection_string false >/dev/null ||
+    fail "local configuration validation failed"
+else
+  postgres_connection_string="$(read_postgres_connection_string true)" ||
+    fail "local configuration validation failed"
+fi
 
 printf 'Trusting the ASP.NET Core development certificate...\n'
-dotnet dev-certs https --check --trust
+dotnet dev-certs https --trust
 
 printf 'Restoring local .NET tools...\n'
 dotnet tool restore
 
-if [[ ! -d "$web_directory/node_modules" ]]; then
+package_lock_hash="$(file_sha256 "$web_lockfile")"
+installed_package_lock_hash=""
+if [[ -f "$web_install_stamp" ]]; then
+  IFS= read -r installed_package_lock_hash <"$web_install_stamp" || true
+fi
+
+if [[ "$installed_package_lock_hash" != "$package_lock_hash" ]] ||
+  ! (cd "$web_directory" && npm ls --depth=0 --silent >/dev/null 2>&1); then
   printf 'Installing Next.js dependencies...\n'
   (
     cd "$web_directory"
     npm ci
   )
+  printf '%s\n' "$package_lock_hash" >"$web_install_stamp"
 fi
+unset installed_package_lock_hash package_lock_hash
 
 printf 'Applying EF Core migrations...\n'
 ConnectionStrings__Postgres="$postgres_connection_string" \
@@ -237,7 +286,6 @@ ConnectionStrings__Postgres="$postgres_connection_string" \
     --project "$infrastructure_project" \
     --startup-project "$api_project" \
     --context TemplateDbContext
-unset postgres_connection_string
 
 certificate_directory="$(mktemp -d "${TMPDIR:-/tmp}/template-local-https.XXXXXX")"
 certificate_file="$certificate_directory/localhost.pem"
@@ -254,6 +302,9 @@ printf 'Starting ASP.NET Core API...\n'
   cd "$repo_root"
   export ASPNETCORE_ENVIRONMENT=Development
   export ASPNETCORE_URLS=https://localhost:7297
+  export ConnectionStrings__Postgres="$postgres_connection_string"
+  export ExternalAuthentication__PublicOrigin="$web_origin"
+  export LocalAutomationAuth__Enabled=true
   exec_in_new_session \
     dotnet run \
     --project "$api_project" \
@@ -261,6 +312,7 @@ printf 'Starting ASP.NET Core API...\n'
     --no-build
 ) &
 api_pid=$!
+unset postgres_connection_string
 
 wait_for_url "API" "$api_origin/api/health/ready" "$api_pid"
 

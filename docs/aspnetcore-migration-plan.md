@@ -789,7 +789,9 @@ Data Protection key ring persist-ится в `auth.data_protection_keys` со st
 application discriminator `Template`. Production требует mounted RSA PFX path
 и password, encrypts key XML at rest и fail-closed при invalid configuration.
 Development может использовать shared database key ring без certificate.
-Ignored `appsettings.Local.json` загружается последним только в Development,
+Ignored `appsettings.Local.json` загружается только в Development после
+tracked JSON, а environment/command-line providers повторно применяются после
+него и сохраняют стандартный приоритет явной локальной конфигурации,
 имеет mode `0600`, не попадает в build/publish и вручную заполняется без runtime
 чтения `template/.env`.
 

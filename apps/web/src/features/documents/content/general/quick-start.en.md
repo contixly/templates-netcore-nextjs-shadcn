@@ -10,8 +10,8 @@ toc: true
 purpose: "Template setup tutorial"
 status: "published"
 author: "Template Maintainers"
-version: "1.2.0"
-editedAt: "2026-07-06"
+version: "1.3.0"
+editedAt: "2026-08-11"
 ---
 
 # Quick start
@@ -53,6 +53,10 @@ Set the PostgreSQL connection string outside tracked files:
 export ConnectionStrings__Postgres='Host=localhost;Port=5432;Database=template;Username=postgres;Password=postgres'
 ```
 
+The HTTPS launcher prefers this environment value. Alternatively, add
+`ConnectionStrings:Postgres` to the ignored `apps/api/src/Template.Api/appsettings.Local.json` with
+file mode `0600`; never add the real value to a tracked appsettings file.
+
 For optional OAuth configuration, copy the shape from
 `apps/api/src/Template.Api/appsettings.Local.example.json` into the ignored
 `appsettings.Local.json`, replace only the providers you need, and keep the real file mode `0600`.
@@ -67,7 +71,30 @@ dotnet ef database update \
   --context TemplateDbContext
 ```
 
-## Configure the web UI
+## Start with local HTTPS
+
+The recommended one-command development topology uses the same HTTPS origin for the browser and
+all `/api/**` callbacks:
+
+```bash
+./scripts/run-local-https.sh
+```
+
+The launcher trusts and exports the .NET development certificate, validates or restores the
+Next.js installation against `package-lock.json`, applies EF Core migrations, enables the
+Development-only local-automation sign-in boundary, and starts both applications. It forces the
+external-authentication public origin to `https://localhost:3000`, so the HTTP value in the shared
+local example remains compatible with the manual launch profile below. Register the HTTPS provider
+callback URLs documented in the authentication operations guide. Press `Ctrl+C` to stop both
+process groups and remove the temporary exported certificate.
+
+Open `https://localhost:3000`, or use `https://localhost:3000/auth/login` to create a local session.
+The API listens at `https://localhost:7297` and remains behind the same-origin Next.js proxy for
+browser calls.
+
+The remaining sections describe the alternative two-terminal HTTP workflow.
+
+## Configure the web UI for manual HTTP launch
 
 Create the ignored local environment file:
 
@@ -79,7 +106,7 @@ The example points `API_INTERNAL_BASE_URL` and the development-only `API_PROXY_T
 `http://127.0.0.1:5297`. `PUBLIC_DEFAULT_LOCALE` accepts `en` or `ru`. Do not add a public API origin
 or a browser token: browser calls stay same-origin and use secure HttpOnly cookies.
 
-## Start both applications
+## Start both applications manually
 
 In the first terminal, keep `ConnectionStrings__Postgres` set and start the API:
 

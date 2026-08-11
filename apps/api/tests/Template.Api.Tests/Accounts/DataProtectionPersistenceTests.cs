@@ -377,45 +377,69 @@ public sealed class DataProtectionPersistenceTests(
     }
 
     [Fact]
-    public async Task LocalJsonOverlayLoadsOnlyInDevelopment()
+    public async Task LocalJsonOverlayLoadsOnlyInDevelopmentAndEnvironmentWins()
     {
+        const string environmentVariable = "Testing__LocalOverlayMarker";
         var contentRoot = Directory.CreateTempSubdirectory(
             "template-local-overlay-");
+        var previousEnvironmentValue = Environment.GetEnvironmentVariable(
+            environmentVariable);
         try
         {
+            Environment.SetEnvironmentVariable(
+                environmentVariable,
+                "environment");
             await File.WriteAllTextAsync(
                 Path.Combine(contentRoot.FullName, "appsettings.json"),
                 JsonSerializer.Serialize(new
                 {
-                    Testing = new { LocalOverlayMarker = "tracked" }
+                    Testing = new
+                    {
+                        LocalOverlayMarker = "tracked",
+                        LocalOnlyMarker = "tracked"
+                    }
                 }),
                 TestContext.Current.CancellationToken);
             await File.WriteAllTextAsync(
                 Path.Combine(contentRoot.FullName, "appsettings.Local.json"),
                 JsonSerializer.Serialize(new
                 {
-                    Testing = new { LocalOverlayMarker = "local" }
+                    Testing = new
+                    {
+                        LocalOverlayMarker = "local",
+                        LocalOnlyMarker = "local"
+                    }
                 }),
                 TestContext.Current.CancellationToken);
 
             await using var development = BuildHost(
                 Environments.Development,
                 UnusedConnectionString,
-                contentRoot.FullName);
+                contentRoot.FullName,
+                localOverlayCommandLineMarker: "command-line");
             await using var test = BuildHost(
                 "Test",
                 UnusedConnectionString,
                 contentRoot.FullName);
 
             Assert.Equal(
-                "local",
+                "command-line",
                 development.Configuration["Testing:LocalOverlayMarker"]);
             Assert.Equal(
-                "tracked",
+                "environment",
                 test.Configuration["Testing:LocalOverlayMarker"]);
+            Assert.Equal(
+                "local",
+                development.Configuration["Testing:LocalOnlyMarker"]);
+            Assert.Equal(
+                "tracked",
+                test.Configuration["Testing:LocalOnlyMarker"]);
         }
         finally
         {
+            Environment.SetEnvironmentVariable(
+                environmentVariable,
+                previousEnvironmentValue);
             contentRoot.Delete(recursive: true);
         }
     }
@@ -487,7 +511,8 @@ public sealed class DataProtectionPersistenceTests(
         string? contentRoot = null,
         string? certificatePath = null,
         string? certificatePassword = null,
-        string? applicationName = null)
+        string? applicationName = null,
+        string? localOverlayCommandLineMarker = null)
     {
         var arguments = new List<string>
         {
@@ -514,6 +539,12 @@ public sealed class DataProtectionPersistenceTests(
         if (applicationName is not null)
         {
             arguments.Add($"--DataProtection:ApplicationName={applicationName}");
+        }
+
+        if (localOverlayCommandLineMarker is not null)
+        {
+            arguments.Add(
+                $"--Testing:LocalOverlayMarker={localOverlayCommandLineMarker}");
         }
 
         return global::Template.Api.ApiHost.Build([.. arguments]);

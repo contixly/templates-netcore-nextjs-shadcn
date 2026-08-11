@@ -70,13 +70,18 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Configure the web UI",
-        "id": "configure-the-web-ui"
+        "title": "Start with local HTTPS",
+        "id": "start-with-local-https"
       },
       {
         "level": 2,
-        "title": "Start both applications",
-        "id": "start-both-applications"
+        "title": "Configure the web UI for manual HTTP launch",
+        "id": "configure-the-web-ui-for-manual-http-launch"
+      },
+      {
+        "level": 2,
+        "title": "Start both applications manually",
+        "id": "start-both-applications-manually"
       },
       {
         "level": 2,
@@ -101,8 +106,8 @@ export const documents = [
       "purpose": "Template setup tutorial",
       "status": "published",
       "author": "Template Maintainers",
-      "version": "1.2.0",
-      "editedAt": "2026-07-06"
+      "version": "1.3.0",
+      "editedAt": "2026-08-11"
     },
     "availableLocales": [
       "en",
@@ -240,13 +245,18 @@ export const documents = [
       },
       {
         "level": 2,
-        "title": "Настройте web-UI",
-        "id": "настройте-web-ui"
+        "title": "Запустите локально по HTTPS",
+        "id": "запустите-локально-по-https"
       },
       {
         "level": 2,
-        "title": "Запустите оба приложения",
-        "id": "запустите-оба-приложения"
+        "title": "Настройте web-UI для ручного HTTP-запуска",
+        "id": "настройте-web-ui-для-ручного-http-запуска"
+      },
+      {
+        "level": 2,
+        "title": "Запустите оба приложения вручную",
+        "id": "запустите-оба-приложения-вручную"
       },
       {
         "level": 2,
@@ -271,8 +281,8 @@ export const documents = [
       "purpose": "Учебная инструкция по запуску шаблона",
       "status": "published",
       "author": "Команда шаблона",
-      "version": "1.2.0",
-      "editedAt": "2026-07-06"
+      "version": "1.3.0",
+      "editedAt": "2026-08-11"
     },
     "availableLocales": [
       "en",

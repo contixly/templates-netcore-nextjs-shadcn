@@ -15,7 +15,9 @@ existing Development/Test local-automation mechanism.
 
 Runtime database configuration uses `ConnectionStrings:Postgres`; the
 environment form is `ConnectionStrings__Postgres`. Keep passwords in
-environment variables or .NET user-secrets, never committed appsettings.
+environment variables or .NET user-secrets, never committed appsettings. The
+local HTTPS launcher also accepts it from the ignored mode-`0600`
+`appsettings.Local.json` when the environment value is absent.
 
 Local automation requires both `Development`/`Test` and
 `LocalAutomationAuth__Enabled=true`. Production returns
@@ -45,11 +47,36 @@ provider blocks fail validation without logging values; an absent block is
 simply not advertised.
 
 For local development only, ignored
-`apps/api/src/Template.Api/appsettings.Local.json` is loaded as the final
-optional configuration overlay. It is never loaded in Test or Production and
-is excluded from build/publish output. Copy values manually into the shape in
+`apps/api/src/Template.Api/appsettings.Local.json` is loaded as an additional
+optional configuration overlay before the final environment-variable and
+command-line providers. It is never loaded in Test or Production and is
+excluded from build/publish output. Copy values manually into the shape in
 `appsettings.Local.example.json`; runtime and scripts must not read
-`template/.env`. Keep the real file mode `0600` and never commit it.
+`template/.env`. Keep the real file mode `0600` and never commit it. Explicit
+environment or command-line values therefore override the ignored file.
+
+### One-command local HTTPS topology
+
+From the repository root, run `./scripts/run-local-https.sh`. The launcher also
+works from any other working directory when invoked by its absolute path. It:
+
+- prefers `ConnectionStrings__Postgres`, falling back to
+  `ConnectionStrings:Postgres` in the ignored local overlay;
+- trusts and exports the .NET development certificate;
+- restores the repository-local .NET tool manifest and validates the Next.js
+  installation against `package-lock.json` before repairing it with `npm ci`;
+- applies EF Core migrations, enables Development-only local automation, and
+  starts the API at `https://localhost:7297` plus the UI at
+  `https://localhost:3000`;
+- overrides `ExternalAuthentication:PublicOrigin` to the HTTPS UI origin for
+  this topology, regardless of the HTTP value used by the manual launch
+  profile; and
+- owns both process groups so `Ctrl+C` stops their descendants and removes the
+  temporary exported certificate.
+
+Provider-console callback registrations for this mode use
+`https://localhost:3000` plus the stable callback paths below. Browser calls
+remain same-origin and Next.js proxies `/api/**` to ASP.NET Core.
 
 Data Protection always uses application discriminator `Template` and persists
 keys in PostgreSQL. Production additionally requires
