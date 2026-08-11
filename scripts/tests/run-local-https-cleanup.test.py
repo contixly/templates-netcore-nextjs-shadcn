@@ -226,6 +226,9 @@ if [[ "${1:-}" == "dev-certs" && " $* " == *" --export-path "* ]]; then
 fi
 
 if [[ "${1:-}" == "run" ]]; then
+  printf 'host-environment\t%s\t%s\n' \
+    "${DOTNET_ENVIRONMENT:-}" "${ASPNETCORE_ENVIRONMENT:-}" \
+    >>"$LOCAL_HTTPS_TEST_COMMAND_LOG"
   printf 'api-environment\t%s\t%s\t%s\n' \
     "${LocalAutomationAuth__Enabled:-}" \
     "${ExternalAuthentication__PublicOrigin:-}" \
@@ -273,7 +276,10 @@ exit 0
             "LOCAL_HTTPS_TEST_FAKE_PORTS": "1",
             "LOCAL_HTTPS_TEST_PID_DIRECTORY": str(pid_directory),
             "ConnectionStrings__Postgres": "Host=environment-test",
+            "DOTNET_ENVIRONMENT": "Production",
+            "ASPNETCORE_ENVIRONMENT": "Production",
             "NODE_OPTIONS": "--use-bundled-ca",
+            "PORT": "4000",
             "SSL_CERT_FILE": "/ambient/ca.pem",
             "PATH": f"{fake_bin}:{environment['PATH']}",
             "PYTHONPATH": str(python_customization),
@@ -396,6 +402,10 @@ exit 0
         not in command_lines
     ):
         raise AssertionError("launcher must pass the selected PostgreSQL setting to the API")
+    if "host-environment\tDevelopment\tDevelopment" not in command_lines:
+        raise AssertionError(
+            "launcher must override inherited .NET host environments for the local API"
+        )
     if f"npm\t{web_directory}\tci" not in command_lines:
         raise AssertionError("launcher must repair an unvalidated node_modules tree")
     readiness_probes = [
@@ -431,6 +441,12 @@ exit 0
         for line in command_lines
     ):
         raise AssertionError("Next.js must bind the local HTTPS UI to loopback")
+    if not any(
+        line.startswith(f"npm\t{web_directory}\trun dev -- ")
+        and line.endswith(" --hostname 127.0.0.1 --port 3000")
+        for line in command_lines
+    ):
+        raise AssertionError("Next.js must ignore an inherited PORT value")
     unexpected_database_scope = [
         line
         for line in command_lines

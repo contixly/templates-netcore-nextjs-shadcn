@@ -424,6 +424,7 @@ chmod 600 "$certificate_file" "$certificate_key_file"
 printf 'Starting ASP.NET Core API...\n'
 (
   cd "$repo_root"
+  export DOTNET_ENVIRONMENT=Development
   export ASPNETCORE_ENVIRONMENT=Development
   export ASPNETCORE_URLS=https://localhost:7297
   export ConnectionStrings__Postgres="$postgres_connection_string"
@@ -453,7 +454,8 @@ printf 'Starting Next.js UI...\n'
     --experimental-https \
     --experimental-https-key "$certificate_key_file" \
     --experimental-https-cert "$certificate_file" \
-    --hostname 127.0.0.1
+    --hostname 127.0.0.1 \
+    --port 3000
 ) &
 web_pid=$!
 
