@@ -24,6 +24,7 @@ HTTP API host, а `apps/web` — отдельный UI Next.js, который �
 
 - .NET 10 SDK, выбранный в `global.json`;
 - Node.js 22.18 или новее и версия npm из `apps/web/package.json`;
+- Python 3.10 или новее, доступный как `python3`, для рекомендуемого HTTPS launcher;
 - чистая база PostgreSQL;
 - Docker для integration tests на Testcontainers или E2E Playwright.
 

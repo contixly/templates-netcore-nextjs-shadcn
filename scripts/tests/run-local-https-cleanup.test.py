@@ -198,6 +198,14 @@ socket.socket = _socket_with_ipv6_unavailable
         f'''#!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "${{LOCAL_HTTPS_TEST_DELAY_SESSION:-}}" == "1" && "${{1:-}}" == "-c" ]]; then
+  printf '%s\n' "$$" >"$LOCAL_HTTPS_TEST_PID_DIRECTORY/pre-session-child.pid"
+  delay_deadline=$((SECONDS + 300))
+  while ((SECONDS < delay_deadline)); do
+    :
+  done
+fi
+
 exec "{real_python}" "$@"
 ''',
     )
@@ -463,6 +471,51 @@ exit 0
 
     for child_pid_file in child_pid_files:
         child_pid_file.unlink(missing_ok=True)
+
+    pre_session_log_path = temp / "pre-session-launcher.log"
+    pre_session_environment = environment.copy()
+    pre_session_environment["LOCAL_HTTPS_TEST_DELAY_SESSION"] = "1"
+    with pre_session_log_path.open("w", encoding="utf-8") as log_file:
+        pre_session_process = subprocess.Popen(
+            [str(launcher)],
+            cwd=outside_directory,
+            env=pre_session_environment,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            text=True,
+            start_new_session=True,
+        )
+
+        pre_session_pid_file = pid_directory / "pre-session-child.pid"
+        pre_session_pid: int | None = None
+        try:
+            wait_for_files(
+                [pre_session_pid_file], pre_session_process, pre_session_log_path
+            )
+            pre_session_pid = int(
+                pre_session_pid_file.read_text(encoding="utf-8").strip()
+            )
+            os.kill(pre_session_process.pid, signal.SIGINT)
+            try:
+                pre_session_return_code = pre_session_process.wait(timeout=5)
+            except subprocess.TimeoutExpired as error:
+                raise AssertionError(
+                    "Ctrl+C must stop a child before it enters its new session"
+                ) from error
+            if pre_session_return_code != 130:
+                raise AssertionError(
+                    "pre-session Ctrl+C returned "
+                    f"{pre_session_return_code}, expected 130"
+                )
+            if not wait_until_stopped(pre_session_pid):
+                raise AssertionError("pre-session launcher child survived Ctrl+C")
+        finally:
+            if pre_session_process.poll() is None:
+                pre_session_process.kill()
+                pre_session_process.wait(timeout=5)
+            if pre_session_pid is not None and process_is_alive(pre_session_pid):
+                os.kill(pre_session_pid, signal.SIGKILL)
+            pre_session_pid_file.unlink(missing_ok=True)
 
     deadline_log_path = temp / "deadline-launcher.log"
     deadline_environment = environment.copy()

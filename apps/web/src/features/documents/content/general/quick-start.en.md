@@ -24,6 +24,7 @@ clean PostgreSQL database and identity store; it does not migrate data from the 
 
 - the .NET 10 SDK selected by `global.json`;
 - Node.js 22.18 or newer and the npm version recorded by `apps/web/package.json`;
+- Python 3.10 or newer, available as `python3`, for the recommended HTTPS launcher;
 - a clean PostgreSQL database;
 - Docker when running Testcontainers-based integration tests or Playwright E2E.
 

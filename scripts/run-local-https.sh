@@ -299,23 +299,41 @@ process_group_has_live_members() {
   '
 }
 
+process_has_live_leader() {
+  local process_id="$1"
+
+  ps -o stat= -p "$process_id" 2>/dev/null | awk '
+    $1 !~ /^Z/ { found = 1 }
+    END { exit found ? 0 : 1 }
+  '
+}
+
 stop_process_group() {
   local leader_pid="$1"
   local attempt=1
 
   [[ -n "$leader_pid" ]] || return 0
-  process_group_has_live_members "$leader_pid" || return 0
 
-  kill -TERM -- "-$leader_pid" 2>/dev/null || true
   while ((attempt <= 50)); do
-    if ! process_group_has_live_members "$leader_pid"; then
+    if process_group_has_live_members "$leader_pid"; then
+      kill -TERM -- "-$leader_pid" 2>/dev/null || true
+    elif process_has_live_leader "$leader_pid"; then
+      kill -TERM -- "$leader_pid" 2>/dev/null || true
+    elif process_group_has_live_members "$leader_pid"; then
+      kill -TERM -- "-$leader_pid" 2>/dev/null || true
+    else
       return 0
     fi
     sleep 0.1
     attempt=$((attempt + 1))
   done
 
-  kill -KILL -- "-$leader_pid" 2>/dev/null || true
+  if process_group_has_live_members "$leader_pid"; then
+    kill -KILL -- "-$leader_pid" 2>/dev/null || true
+  fi
+  if process_has_live_leader "$leader_pid"; then
+    kill -KILL -- "$leader_pid" 2>/dev/null || true
+  fi
 }
 
 cleanup() {
