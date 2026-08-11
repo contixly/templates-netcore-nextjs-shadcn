@@ -30,7 +30,10 @@ export function ApplicationHeader() {
           title={sidebarAction}
           variant="outline"
         />
-        <Separator className="mx-1 h-4" orientation="vertical" />
+        <Separator
+          className="mx-1 h-4 data-vertical:self-center"
+          orientation="vertical"
+        />
         <div className="min-w-0 flex-1">
           <ApplicationBreadcrumbs />
         </div>
